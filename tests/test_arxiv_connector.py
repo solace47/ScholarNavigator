@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+from urllib.error import URLError
+
+from scholar_agent.connectors.arxiv import search_arxiv
+
+
+class MockResponse:
+    def __init__(self, payload: str, status: int = 200):
+        self.payload = payload
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self) -> bytes:
+        return self.payload.encode("utf-8")
+
+
+ARXIV_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <entry>
+    <id>http://arxiv.org/abs/2407.18940v2</id>
+    <updated>2024-07-30T00:00:00Z</updated>
+    <published>2024-07-28T00:00:00Z</published>
+    <title> LitSearch: A Retrieval Benchmark </title>
+    <summary>
+      A benchmark for scientific literature search.
+    </summary>
+    <author><name>Alice Chen</name></author>
+    <author><name>Bob Smith</name></author>
+    <arxiv:doi>10.48550/arXiv.2407.18940</arxiv:doi>
+    <arxiv:journal_ref>EMNLP 2024</arxiv:journal_ref>
+    <link href="http://arxiv.org/abs/2407.18940v2" rel="alternate" type="text/html"/>
+    <link title="pdf" href="http://arxiv.org/pdf/2407.18940v2" rel="related" type="application/pdf"/>
+  </entry>
+</feed>
+"""
+
+
+def test_search_arxiv_parses_normal_response(monkeypatch) -> None:
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return MockResponse(ARXIV_FEED)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    papers = search_arxiv("scientific literature search", limit=3)
+
+    assert len(papers) == 1
+    paper = papers[0]
+    assert paper.title == "LitSearch: A Retrieval Benchmark"
+    assert paper.authors == ["Alice Chen", "Bob Smith"]
+    assert paper.year == 2024
+    assert paper.venue == "EMNLP 2024"
+    assert paper.abstract == "A benchmark for scientific literature search."
+    assert paper.identifiers.doi == "10.48550/arXiv.2407.18940"
+    assert paper.identifiers.arxiv_id == "2407.18940"
+    assert paper.urls.landing_page == "http://arxiv.org/abs/2407.18940v2"
+    assert paper.urls.pdf == "http://arxiv.org/pdf/2407.18940v2"
+    assert paper.sources == ["arxiv"]
+    assert paper.citation_count == 0
+    assert "max_results=3" in captured["url"]
+    assert captured["timeout"] == 10.0
+
+
+def test_search_arxiv_exception_returns_empty(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise URLError("timeout")
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    assert search_arxiv("llm reranking") == []
+
+
+def test_search_arxiv_missing_fields_returns_available_result(monkeypatch) -> None:
+    feed = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2501.00001</id>
+  </entry>
+</feed>
+"""
+
+    def fake_urlopen(request, timeout):
+        return MockResponse(feed)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    papers = search_arxiv("minimal")
+
+    assert len(papers) == 1
+    assert papers[0].title == "Untitled arXiv Paper"
+    assert papers[0].authors == []
+    assert papers[0].abstract == ""
+    assert papers[0].venue == "arXiv"
+    assert papers[0].identifiers.arxiv_id == "2501.00001"
+    assert papers[0].sources == ["arxiv"]
+
+
+def test_search_arxiv_xml_parse_error_returns_empty(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse("<feed><broken></feed>")
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    assert search_arxiv("bad xml") == []
+
