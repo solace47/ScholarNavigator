@@ -1,0 +1,957 @@
+"use client";
+
+import {
+  Activity,
+  AlertTriangle,
+  BookOpenCheck,
+  Brain,
+  CheckCircle2,
+  Clock3,
+  Database,
+  ExternalLink,
+  FileText,
+  GitBranch,
+  Moon,
+  Network,
+  RefreshCw,
+  Search,
+  Server,
+  Sparkles,
+  Sun,
+  Timer,
+  Zap,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import {
+  createSearchRun,
+  getHealth,
+  getRuntimeConfig,
+  getSearchRun,
+  getSearchRunResult,
+  streamSearchRunEvents,
+} from "@/lib/api";
+import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
+import type {
+  CostReport,
+  RankedPaper,
+  RunProfile,
+  RuntimeConfigResponse,
+  SearchRunResultResponse,
+  SearchRunStatusResponse,
+  StreamEvent,
+} from "@/types/api";
+import { Badge, Button, FieldLabel, SectionPanel, SkeletonLine, TextInput } from "./ui";
+
+const EXAMPLES = [
+  "请帮我搜索 2020 年以来关于 LLM reranking 在学术论文检索中的代表性论文，重点关注 ACL、EMNLP、SIGIR。",
+  "Find benchmark papers for scientific literature search agents that evaluate recall, precision, F1, and end-to-end latency.",
+  "搜索使用 citation graph 或 reference chain 扩展来提升论文推荐召回率的研究，并说明代表性方法路线。",
+];
+
+const STAGES = [
+  {
+    key: "query_understanding",
+    title: "Query Understanding",
+    icon: Brain,
+  },
+  {
+    key: "retrieval",
+    title: "Retrieval",
+    icon: Database,
+  },
+  {
+    key: "judgement",
+    title: "Judgement",
+    icon: BookOpenCheck,
+  },
+  {
+    key: "reranking",
+    title: "Reranking",
+    icon: GitBranch,
+  },
+  {
+    key: "synthesis",
+    title: "Synthesis",
+    icon: Sparkles,
+  },
+];
+
+const PROFILE_LABELS: Record<RunProfile, string> = {
+  fast: "fast",
+  balanced: "balanced",
+  high_recall: "high_recall",
+  evaluation: "evaluation",
+};
+
+type ThemeMode = "dark" | "light";
+
+export function ScholarNavigatorApp() {
+  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [query, setQuery] = useState(EXAMPLES[0]);
+  const [topK, setTopK] = useState(20);
+  const [runProfile, setRunProfile] = useState<RunProfile>("balanced");
+  const [enableRefchain, setEnableRefchain] = useState(true);
+  const [enableQueryEvolution, setEnableQueryEvolution] = useState(true);
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigResponse | null>(null);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [status, setStatus] = useState<SearchRunStatusResponse | null>(null);
+  const [events, setEvents] = useState<StreamEvent[]>([]);
+  const [result, setResult] = useState<SearchRunResultResponse | null>(null);
+  const eventSourceCleanup = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRuntime() {
+      try {
+        await getHealth();
+        const config = await getRuntimeConfig();
+        if (!cancelled) {
+          setRuntimeConfig(config);
+          setBackendError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBackendError("后端服务不可用，请先启动 FastAPI Mock API");
+        }
+      }
+    }
+
+    loadRuntime();
+    return () => {
+      cancelled = true;
+      eventSourceCleanup.current?.();
+    };
+  }, []);
+
+  async function handleSearch() {
+    if (!query.trim()) {
+      setFormError("请输入学术查询。");
+      return;
+    }
+
+    eventSourceCleanup.current?.();
+    setFormError(null);
+    setBackendError(null);
+    setIsSubmitting(true);
+    setRunId(null);
+    setStatus(null);
+    setEvents([]);
+    setResult(null);
+
+    try {
+      const created = await createSearchRun({
+        query,
+        locale: "zh-CN",
+        constraints: {
+          time_range: {
+            start_year: 2020,
+            end_year: 2026,
+          },
+          venues: ["ACL", "EMNLP", "SIGIR"],
+          must_have_terms: query
+            .split(/\s+/)
+            .map((term) => term.trim())
+            .filter(Boolean)
+            .slice(0, 5),
+          excluded_terms: [],
+          datasets: [],
+          paper_types: ["method", "benchmark"],
+        },
+        source_preferences: ["openalex", "arxiv", "semantic_scholar"],
+        run_profile: runProfile,
+        top_k: topK,
+        budgets: {
+          max_search_rounds: runProfile === "fast" ? 1 : 2,
+          max_candidate_papers: runProfile === "high_recall" ? 300 : 200,
+          max_llm_calls: 0,
+          max_total_tokens: 0,
+          max_latency_seconds: runProfile === "fast" ? 45 : 90,
+        },
+        options: {
+          enable_query_evolution: enableQueryEvolution,
+          enable_refchain: enableRefchain,
+          refchain_depth: enableRefchain ? 1 : 0,
+          return_markdown: true,
+          return_json: true,
+          stream_events: true,
+        },
+      });
+
+      setRunId(created.run_id);
+      eventSourceCleanup.current = streamSearchRunEvents(
+        created.run_id,
+        (event) => {
+          setEvents((current) => [...current, event]);
+          if (event.event === "run_completed") {
+            setIsSubmitting(false);
+          }
+        },
+        (message) => {
+          setBackendError(message);
+          setIsSubmitting(false);
+        },
+      );
+
+      const [runStatus, runResult] = await Promise.all([
+        getSearchRun(created.run_id),
+        getSearchRunResult(created.run_id),
+      ]);
+      setStatus(runStatus);
+      setResult(runResult);
+    } catch (error) {
+      setBackendError(
+        error instanceof Error
+          ? error.message
+          : "后端服务不可用，请先启动 FastAPI Mock API",
+      );
+      setIsSubmitting(false);
+    }
+  }
+
+  const costReport = status?.cost_report ?? result?.cost_report ?? null;
+
+  return (
+    <main className="app-shell">
+      <div className="workspace space-y-6">
+        <Header
+          theme={theme}
+          onThemeChange={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          runtimeConfig={runtimeConfig}
+          backendError={backendError}
+        />
+
+        {backendError ? <BackendWarning message={backendError} /> : null}
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.4fr)]">
+          <SearchWorkbench
+            query={query}
+            topK={topK}
+            runProfile={runProfile}
+            enableRefchain={enableRefchain}
+            enableQueryEvolution={enableQueryEvolution}
+            isSubmitting={isSubmitting}
+            formError={formError}
+            onQueryChange={setQuery}
+            onTopKChange={setTopK}
+            onRunProfileChange={setRunProfile}
+            onRefchainChange={setEnableRefchain}
+            onQueryEvolutionChange={setEnableQueryEvolution}
+            onSearch={handleSearch}
+          />
+
+          <RunProgress
+            runId={runId}
+            status={status}
+            events={events}
+            costReport={costReport}
+            isSubmitting={isSubmitting}
+          />
+        </div>
+
+        <ResultsPanel result={result} isLoading={isSubmitting && !result} />
+      </div>
+    </main>
+  );
+}
+
+function Header({
+  theme,
+  onThemeChange,
+  runtimeConfig,
+  backendError,
+}: {
+  theme: ThemeMode;
+  onThemeChange: () => void;
+  runtimeConfig: RuntimeConfigResponse | null;
+  backendError: string | null;
+}) {
+  return (
+    <header className="panel flex flex-col gap-4 rounded-lg px-5 py-5 md:px-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0">
+        <div className="mb-2 flex flex-wrap items-center gap-3">
+          <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 text-sm font-semibold text-[var(--muted-strong)]">
+            <Network className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
+            Agent Workbench
+          </span>
+          <Badge>{runtimeConfig?.mode ?? "mock"}</Badge>
+          <Badge className={backendError ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
+            {backendError ? "backend offline" : "backend ready"}
+          </Badge>
+        </div>
+        <h1 className="text-3xl font-bold leading-tight md:text-5xl">ScholarNavigator</h1>
+        <p className="mt-2 max-w-3xl text-base text-[var(--muted)] md:text-lg">
+          复杂学术查询的智能论文搜索与推荐系统
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={onThemeChange}
+        aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+      >
+        {theme === "dark" ? (
+          <Sun className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Moon className="h-4 w-4" aria-hidden="true" />
+        )}
+        {theme === "dark" ? "Light" : "Dark"}
+      </Button>
+    </header>
+  );
+}
+
+function BackendWarning({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-[color-mix(in_srgb,var(--danger)_55%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface))] p-4 text-sm text-[var(--foreground)]"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--danger)]" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">{message}</p>
+          <p className="mt-1 text-[var(--muted)]">
+            默认地址为 http://localhost:8000，可通过 NEXT_PUBLIC_API_BASE_URL 调整。
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SearchWorkbench({
+  query,
+  topK,
+  runProfile,
+  enableRefchain,
+  enableQueryEvolution,
+  isSubmitting,
+  formError,
+  onQueryChange,
+  onTopKChange,
+  onRunProfileChange,
+  onRefchainChange,
+  onQueryEvolutionChange,
+  onSearch,
+}: {
+  query: string;
+  topK: number;
+  runProfile: RunProfile;
+  enableRefchain: boolean;
+  enableQueryEvolution: boolean;
+  isSubmitting: boolean;
+  formError: string | null;
+  onQueryChange: (value: string) => void;
+  onTopKChange: (value: number) => void;
+  onRunProfileChange: (value: RunProfile) => void;
+  onRefchainChange: (value: boolean) => void;
+  onQueryEvolutionChange: (value: boolean) => void;
+  onSearch: () => void;
+}) {
+  return (
+    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div>
+          <h2 id="search-workbench-title" className="text-xl font-bold">
+            Search Workbench
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">复杂查询、预算与 Agent 策略配置</p>
+        </div>
+        <Search className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+      </div>
+
+      <div className="space-y-5">
+        <div>
+          <FieldLabel htmlFor="query">学术查询</FieldLabel>
+          <textarea
+            id="query"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            className="control min-h-44 w-full resize-y rounded-md px-4 py-3 text-base"
+            placeholder="输入中文或英文复杂学术查询"
+          />
+          {formError ? <p className="mt-2 text-sm text-[var(--danger)]">{formError}</p> : null}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <FieldLabel htmlFor="top-k">top_k</FieldLabel>
+            <TextInput
+              id="top-k"
+              type="number"
+              min={1}
+              max={100}
+              value={topK}
+              onChange={(event) => onTopKChange(Number(event.target.value))}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="run-profile">run_profile</FieldLabel>
+            <select
+              id="run-profile"
+              value={runProfile}
+              onChange={(event) => onRunProfileChange(event.target.value as RunProfile)}
+              className="control w-full rounded-md px-3 py-2 text-sm"
+            >
+              {(Object.keys(PROFILE_LABELS) as RunProfile[]).map((profile) => (
+                <option key={profile} value={profile}>
+                  {PROFILE_LABELS[profile]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ToggleControl
+            label="enable_refchain"
+            description="单层引用扩展"
+            checked={enableRefchain}
+            onChange={onRefchainChange}
+          />
+          <ToggleControl
+            label="enable_query_evolution"
+            description="查询演化"
+            checked={enableQueryEvolution}
+            onChange={onQueryEvolutionChange}
+          />
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-semibold text-[var(--muted-strong)]">示例查询</p>
+          <div className="grid gap-2">
+            {EXAMPLES.map((example, index) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => onQueryChange(example)}
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm text-[var(--muted-strong)] transition duration-200 hover:border-[var(--primary)] hover:text-[var(--foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+              >
+                <span className="mr-2 font-semibold text-[var(--primary)]">0{index + 1}</span>
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Button type="button" variant="primary" className="w-full" onClick={onSearch} disabled={isSubmitting}>
+          {isSubmitting ? (
+            <RefreshCw className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
+          ) : (
+            <Search className="h-4 w-4" aria-hidden="true" />
+          )}
+          {isSubmitting ? "Searching" : "启动搜索"}
+        </Button>
+      </div>
+    </SectionPanel>
+  );
+}
+
+function ToggleControl({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={checked}
+      onClick={() => onChange(!checked)}
+      className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-left transition duration-200 hover:border-[var(--primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+    >
+      <span>
+        <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
+        <span className="mt-1 block text-xs text-[var(--muted)]">{description}</span>
+      </span>
+      <span
+        className={`relative h-6 w-11 shrink-0 rounded-full border transition duration-200 ${
+          checked
+            ? "border-[var(--accent)] bg-[var(--accent)]"
+            : "border-[var(--border-strong)] bg-[var(--surface-soft)]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition duration-200 ${
+            checked ? "left-5" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+function RunProgress({
+  runId,
+  status,
+  events,
+  costReport,
+  isSubmitting,
+}: {
+  runId: string | null;
+  status: SearchRunStatusResponse | null;
+  events: StreamEvent[];
+  costReport: CostReport | null;
+  isSubmitting: boolean;
+}) {
+  const completedStages = new Set(status?.progress.completed_stages ?? []);
+  events.forEach((event) => {
+    if (event.event === "stage_completed" && typeof event.payload.stage === "string") {
+      completedStages.add(event.payload.stage);
+    }
+  });
+  if (status?.status === "succeeded") {
+    completedStages.add("synthesis");
+  }
+
+  return (
+    <SectionPanel aria-labelledby="run-progress-title">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 id="run-progress-title" className="text-xl font-bold">
+            Run Progress
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {runId ? `run_id: ${runId}` : "等待创建检索任务"}
+          </p>
+        </div>
+        <Badge className={isSubmitting ? "text-[var(--warning)]" : "text-[var(--accent)]"}>
+          {isSubmitting ? "running" : status?.status ?? "idle"}
+        </Badge>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-5">
+        {STAGES.map((stage) => {
+          const Icon = stage.icon;
+          const done = completedStages.has(stage.key);
+          const active = events.some(
+            (event) => event.event === "stage_started" && event.payload.stage === stage.key,
+          );
+          return (
+            <div
+              key={stage.key}
+              className={`rounded-md border p-3 transition duration-200 ${
+                done
+                  ? "border-[color-mix(in_srgb,var(--accent)_58%,var(--border))] bg-[var(--accent-soft)]"
+                  : active
+                    ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))]"
+                    : "border-[var(--border)] bg-[var(--surface-raised)]"
+              }`}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                {done ? (
+                  <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
+                ) : null}
+              </div>
+              <p className="text-sm font-semibold">{stage.title}</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">{stage.key}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <CostMetrics costReport={costReport} />
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+        <div className="panel-soft rounded-lg p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <h3 className="font-semibold">状态摘要</h3>
+          </div>
+          {status ? (
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <MetricRow label="current_stage" value={status.current_stage} />
+              <MetricRow label="candidate_paper_count" value={status.progress.candidate_paper_count} />
+              <MetricRow label="judged_paper_count" value={status.progress.judged_paper_count} />
+              <MetricRow label="completed_stages" value={status.progress.completed_stages.length} />
+            </dl>
+          ) : (
+            <EmptyBlock lines={3} />
+          )}
+        </div>
+
+        <div className="panel-soft rounded-lg p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <h3 className="font-semibold">SSE Events</h3>
+          </div>
+          {events.length ? (
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {events.map((event, index) => (
+                <div
+                  key={`${event.event}-${index}`}
+                  className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{event.event}</Badge>
+                    {typeof event.payload.stage === "string" ? <Badge>{event.payload.stage}</Badge> : null}
+                    {typeof event.payload.connector === "string" ? (
+                      <Badge>{event.payload.connector}</Badge>
+                    ) : null}
+                  </div>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-[var(--muted)]">
+                    {JSON.stringify(event.payload, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyBlock lines={4} />
+          )}
+        </div>
+      </div>
+    </SectionPanel>
+  );
+}
+
+function CostMetrics({ costReport }: { costReport: CostReport | null }) {
+  const metrics = [
+    {
+      label: "API calls",
+      value: costReport ? formatNumber(costReport.api_call_count) : "--",
+      icon: Server,
+    },
+    {
+      label: "Tokens",
+      value: costReport ? formatNumber(costReport.estimated_total_tokens) : "--",
+      icon: Zap,
+    },
+    {
+      label: "Latency",
+      value: costReport ? formatSeconds(costReport.latency_seconds) : "--",
+      icon: Timer,
+    },
+    {
+      label: "Cache hits",
+      value: costReport ? formatNumber(costReport.cache_hit_count) : "--",
+      icon: Database,
+    },
+  ];
+
+  return (
+    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((metric) => {
+        const Icon = metric.icon;
+        return (
+          <div key={metric.label} className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase text-[var(--muted)]">{metric.label}</span>
+              <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            </div>
+            <p className="metric-value text-2xl font-bold">{metric.value}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ResultsPanel({
+  result,
+  isLoading,
+}: {
+  result: SearchRunResultResponse | null;
+  isLoading: boolean;
+}) {
+  return (
+    <SectionPanel aria-labelledby="results-title">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 id="results-title" className="text-xl font-bold">
+            Results
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">结构化论文列表、方法聚类、时间线与证据缺口</p>
+        </div>
+        {result ? (
+          <div className="flex flex-wrap gap-2">
+            <Badge>{result.highly_relevant_papers.length} highly relevant</Badge>
+            <Badge>{result.partially_relevant_papers.length} partially relevant</Badge>
+            <Badge>{result.search_plan.source_preferences.join(" / ")}</Badge>
+          </div>
+        ) : null}
+      </div>
+
+      {isLoading ? <LoadingResults /> : null}
+      {!isLoading && !result ? <EmptyResults /> : null}
+      {result ? (
+        <div className="space-y-6">
+          <QuerySummary result={result} />
+
+          <PaperSection
+            title="高度相关论文"
+            description="直接匹配查询意图和关键约束的候选论文"
+            papers={result.highly_relevant_papers}
+          />
+
+          <PaperSection
+            title="部分相关论文"
+            description="对方法、评测或证据组织有参考价值的论文"
+            papers={result.partially_relevant_papers}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <MethodClusters result={result} />
+            <Timeline result={result} />
+            <MissingEvidence result={result} />
+          </div>
+        </div>
+      ) : null}
+    </SectionPanel>
+  );
+}
+
+function QuerySummary({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="panel-soft rounded-lg p-4">
+        <h3 className="mb-3 font-semibold">Query Analysis</h3>
+        <div className="flex flex-wrap gap-2">
+          <Badge>{result.query_analysis.intent_type}</Badge>
+          <Badge>{result.query_analysis.domain}</Badge>
+          {result.query_analysis.research_topics.map((topic) => (
+            <Badge key={topic}>{topic}</Badge>
+          ))}
+        </div>
+      </div>
+      <div className="panel-soft rounded-lg p-4">
+        <h3 className="mb-3 font-semibold">Search Plan</h3>
+        <div className="space-y-2">
+          {result.search_plan.expanded_queries.map((expandedQuery, index) => (
+            <div key={`${expandedQuery}-${index}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+              <span className="mr-2 font-semibold text-[var(--primary)]">{index + 1}</span>
+              {expandedQuery}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaperSection({
+  title,
+  description,
+  papers,
+}: {
+  title: string;
+  description: string;
+  papers: RankedPaper[];
+}) {
+  return (
+    <section aria-label={title}>
+      <div className="mb-3">
+        <h3 className="text-lg font-bold">{title}</h3>
+        <p className="text-sm text-[var(--muted)]">{description}</p>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {papers.map((paper) => (
+          <PaperCard key={`${paper.rank}-${paper.paper.title}`} paper={paper} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PaperCard({ paper }: { paper: RankedPaper }) {
+  const identifiers = identifierEntries(paper.paper.identifiers);
+
+  return (
+    <article className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm transition duration-200 hover:border-[var(--primary)]">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge>rank {paper.rank}</Badge>
+            <Badge>{paper.paper.year}</Badge>
+            {paper.paper.venue ? <Badge>{paper.paper.venue}</Badge> : null}
+            <Badge>{formatScore(paper.relevance_score)}</Badge>
+            <Badge>{paper.category}</Badge>
+          </div>
+          <h4 className="text-lg font-bold leading-snug">{paper.paper.title}</h4>
+          <p className="mt-2 text-sm text-[var(--muted)]">{paper.paper.authors.join(", ")}</p>
+        </div>
+      </div>
+
+      <p className="text-sm leading-6 text-[var(--muted-strong)]">{paper.paper.abstract}</p>
+
+      <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
+        <p className="text-sm font-semibold">Ranking reason</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">{paper.ranking_reason}</p>
+      </div>
+
+      {paper.evidence.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-semibold">Evidence</p>
+          {paper.evidence.map((item) => (
+            <div key={`${item.source}-${item.text}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <Badge>{item.source}</Badge>
+                <Badge>{formatScore(item.confidence)}</Badge>
+              </div>
+              <p className="text-[var(--muted)]">{item.text}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {paper.paper.sources.map((source) => (
+          <Badge key={source}>{source}</Badge>
+        ))}
+      </div>
+
+      {identifiers.length ? (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {identifiers.map(([label, value]) => (
+            <div key={`${label}-${value}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
+              <span className="block font-semibold text-[var(--muted)]">{label}</span>
+              <span className="mt-1 block break-words text-[var(--foreground)]">{value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {paper.paper.urls.landing_page ? (
+          <a
+            href={paper.paper.urls.landing_page}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            Landing page
+          </a>
+        ) : null}
+        {paper.paper.urls.pdf ? (
+          <a
+            href={paper.paper.urls.pdf}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
+          >
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            PDF
+          </a>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function MethodClusters({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div className="panel-soft rounded-lg p-4">
+      <h3 className="mb-3 font-semibold">Method Clusters</h3>
+      <div className="space-y-3">
+        {result.method_clusters.map((cluster) => (
+          <div key={cluster.name} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
+            <p className="font-semibold">{cluster.name}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">{cluster.summary}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {cluster.paper_ranks.map((rank) => (
+                <Badge key={rank}>rank {rank}</Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Timeline({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div className="panel-soft rounded-lg p-4">
+      <h3 className="mb-3 font-semibold">Timeline</h3>
+      <div className="space-y-3">
+        {result.timeline.map((item) => (
+          <div key={item.year} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
+            <p className="metric-value text-lg font-bold text-[var(--primary)]">{item.year}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">{item.summary}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {item.paper_ranks.map((rank) => (
+                <Badge key={rank}>rank {rank}</Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MissingEvidence({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div className="panel-soft rounded-lg p-4">
+      <h3 className="mb-3 font-semibold">Missing Evidence</h3>
+      <div className="space-y-2">
+        {result.missing_evidence.map((item) => (
+          <div key={item} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</dt>
+      <dd className="metric-value mt-1 text-base font-bold text-[var(--foreground)]">{value}</dd>
+    </div>
+  );
+}
+
+function EmptyBlock({ lines }: { lines: number }) {
+  return (
+    <div className="space-y-3" aria-hidden="true">
+      {Array.from({ length: lines }).map((_, index) => (
+        <SkeletonLine key={index} className={index === lines - 1 ? "w-2/3" : "w-full"} />
+      ))}
+    </div>
+  );
+}
+
+function EmptyResults() {
+  return (
+    <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-raised)] p-8 text-center">
+      <FileText className="mx-auto mb-3 h-8 w-8 text-[var(--primary)]" aria-hidden="true" />
+      <h3 className="text-lg font-bold">暂无检索结果</h3>
+      <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--muted)]">
+        创建 search run 后，这里会展示高度相关论文、部分相关论文、方法聚类、时间线和证据缺口。
+      </p>
+    </div>
+  );
+}
+
+function LoadingResults() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2" aria-label="结果加载中">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5">
+          <SkeletonLine className="mb-4 w-1/3" />
+          <SkeletonLine className="mb-3 w-full" />
+          <SkeletonLine className="mb-3 w-5/6" />
+          <SkeletonLine className="w-2/3" />
+        </div>
+      ))}
+    </div>
+  );
+}

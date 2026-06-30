@@ -53,6 +53,14 @@ build/
 # === mypy 类型检查缓存 ===
 .mypy_cache/
 
+# === Node / Next.js 前端输出 ===
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/.turbo/
+frontend/coverage/
+
 # === coverage 覆盖率文件 ===
 .coverage
 htmlcov/
