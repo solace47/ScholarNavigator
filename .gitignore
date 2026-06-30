@@ -53,6 +53,9 @@ build/
 # === mypy 类型检查缓存 ===
 .mypy_cache/
 
+# === Ruff 缓存 ===
+.ruff_cache/
+
 # === Node / Next.js 前端输出 ===
 frontend/node_modules/
 frontend/.next/
@@ -60,6 +63,16 @@ frontend/out/
 frontend/dist/
 frontend/.turbo/
 frontend/coverage/
+
+# === 数据缓存与中间产物 ===
+data/cache/
+data/raw/
+data/processed/
+
+# === 实验运行输出 ===
+experiments/runs/
+experiments/logs/
+experiments/outputs/
 
 # === coverage 覆盖率文件 ===
 .coverage
