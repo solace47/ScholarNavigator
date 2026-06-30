@@ -4,4 +4,8 @@ cachetools
 openai
 biopython
 graphviz
-sqlite3
+fastapi
+uvicorn
+pydantic
+pytest
+httpx
