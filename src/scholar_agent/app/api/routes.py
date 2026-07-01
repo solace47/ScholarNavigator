@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from threading import RLock
 from typing import Any
 from uuid import uuid4
 
@@ -50,6 +52,8 @@ DEFAULT_REAL_PREVIEW_MAX_WORKERS = 2
 REAL_PREVIEW_MAX_WORKERS_ENV = "REAL_PREVIEW_MAX_WORKERS"
 DEFAULT_REAL_SEARCH_MAX_WORKERS = 2
 REAL_SEARCH_MAX_WORKERS_ENV = "REAL_SEARCH_MAX_WORKERS"
+DEFAULT_REAL_SEARCH_BACKGROUND_WORKERS = 2
+REAL_SEARCH_BACKGROUND_WORKERS_ENV = "REAL_SEARCH_BACKGROUND_WORKERS"
 
 router = APIRouter(prefix="/api/v1", tags=["mock-api"])
 
@@ -66,8 +70,13 @@ class MockRun:
 class RealRun:
     run_id: str
     request: SearchRunCreateRequest
-    result: SearchRunResultResponse
+    status: str
+    current_stage: str
+    progress: RunProgress
+    cost_report: CostReport
+    result: SearchRunResultResponse | None
     events: list[tuple[str, dict[str, Any]]]
+    error_message: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -97,6 +106,9 @@ class InternalSearchPreviewResponse(BaseModel):
 
 _RUNS: dict[str, MockRun] = {}
 _REAL_RUNS: dict[str, RealRun] = {}
+_REAL_RUNS_LOCK = RLock()
+_REAL_SEARCH_EXECUTOR: ThreadPoolExecutor | None = None
+_REAL_SEARCH_EXECUTOR_LOCK = RLock()
 
 
 def _now() -> datetime:
@@ -127,10 +139,14 @@ def _get_run(run_id: str) -> MockRun:
 
 
 def _get_real_run(run_id: str) -> RealRun:
-    try:
-        return _REAL_RUNS[run_id]
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=f"Unknown real run_id: {run_id}") from exc
+    with _REAL_RUNS_LOCK:
+        try:
+            return _REAL_RUNS[run_id]
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown real run_id: {run_id}",
+            ) from exc
 
 
 def _model_dump(model: BaseModel) -> dict[str, Any]:
@@ -161,12 +177,30 @@ def _real_search_max_workers() -> int:
     )
 
 
+def _real_search_background_workers() -> int:
+    return _max_workers_from_env(
+        REAL_SEARCH_BACKGROUND_WORKERS_ENV,
+        DEFAULT_REAL_SEARCH_BACKGROUND_WORKERS,
+    )
+
+
 def _preview_search_service() -> SearchService:
     return SearchService(max_workers=_real_preview_max_workers())
 
 
 def _real_search_service() -> SearchService:
     return SearchService(max_workers=_real_search_max_workers())
+
+
+def _real_search_executor() -> ThreadPoolExecutor:
+    global _REAL_SEARCH_EXECUTOR
+    with _REAL_SEARCH_EXECUTOR_LOCK:
+        if _REAL_SEARCH_EXECUTOR is None:
+            _REAL_SEARCH_EXECUTOR = ThreadPoolExecutor(
+                max_workers=_real_search_background_workers(),
+                thread_name_prefix="real-search",
+            )
+        return _REAL_SEARCH_EXECUTOR
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -305,45 +339,38 @@ def stream_search_events(run_id: str) -> StreamingResponse:
     tags=["real-search"],
 )
 def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateResponse:
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="query must not be empty")
+
     run_id = f"run_real_{uuid4().hex[:12]}"
     timestamp = _now()
-    current_year = (
-        request.constraints.time_range.end_year
-        if request.constraints.time_range is not None
-        else None
-    )
-    try:
-        output = _real_search_service().run_search(
-            request.query,
-            top_k=request.top_k,
-            run_profile=request.run_profile,
-            enable_refchain=request.options.enable_refchain,
-            enable_query_evolution=request.options.enable_query_evolution,
-            enable_synthesis=True,
-            current_year=current_year,
+    with _REAL_RUNS_LOCK:
+        _REAL_RUNS[run_id] = RealRun(
+            run_id=run_id,
+            request=request,
+            status="queued",
+            current_stage="queued",
+            progress=RunProgress(),
+            cost_report=CostReport(),
+            result=None,
+            events=[],
+            error_message=None,
+            created_at=timestamp,
+            updated_at=timestamp,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 - expose controlled API failure
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    result = map_search_service_output_to_api_result(
-        run_id=run_id,
-        output=output,
-        status="succeeded",
-        partial=False,
+    _append_real_event(
+        run_id,
+        "run_started",
+        {
+            "query": request.query,
+            "mode": "real_search",
+            "status": "queued",
+        },
     )
-    _REAL_RUNS[run_id] = RealRun(
-        run_id=run_id,
-        request=request,
-        result=result,
-        events=_real_sse_events(request, result, timestamp),
-        created_at=timestamp,
-        updated_at=_now(),
-    )
+    _real_search_executor().submit(_execute_real_search_run, run_id)
     return SearchRunCreateResponse(
         run_id=run_id,
-        status="succeeded",
+        status="queued",
         created_at=timestamp,
         links=_real_links(run_id),
     )
@@ -355,30 +382,17 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
     tags=["real-search"],
 )
 def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
-    run = _get_real_run(run_id)
-    result = run.result
-    return SearchRunStatusResponse(
-        run_id=run.run_id,
-        status="succeeded",
-        current_stage="synthesis",
-        progress=RunProgress(
-            completed_stages=[
-                "query_understanding",
-                "retrieval",
-                "judgement",
-                "reranking",
-                "synthesis",
-            ],
-            candidate_paper_count=(
-                len(result.highly_relevant_papers)
-                + len(result.partially_relevant_papers)
-            ),
-            judged_paper_count=result.cost_report.judged_paper_count,
-        ),
-        cost_report=result.cost_report,
-        created_at=run.created_at,
-        updated_at=run.updated_at,
-    )
+    with _REAL_RUNS_LOCK:
+        run = _get_real_run(run_id)
+        return SearchRunStatusResponse(
+            run_id=run.run_id,
+            status=run.status,  # type: ignore[arg-type]
+            current_stage=run.current_stage,
+            progress=run.progress,
+            cost_report=run.cost_report,
+            created_at=run.created_at,
+            updated_at=run.updated_at,
+        )
 
 
 @router.get(
@@ -387,18 +401,44 @@ def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
     tags=["real-search"],
 )
 def get_real_search_result(run_id: str) -> SearchRunResultResponse:
-    return _get_real_run(run_id).result
+    with _REAL_RUNS_LOCK:
+        run = _get_real_run(run_id)
+        if run.status in {"queued", "running"}:
+            raise HTTPException(status_code=409, detail="result not ready")
+        if run.status == "failed":
+            raise HTTPException(
+                status_code=500,
+                detail=run.error_message or "real search failed",
+            )
+        if run.result is None:
+            raise HTTPException(status_code=409, detail="result not ready")
+        return run.result
 
 
 @router.get("/real/search/runs/{run_id}/events", tags=["real-search"])
 def stream_real_search_events(run_id: str) -> StreamingResponse:
-    run = _get_real_run(run_id)
+    _get_real_run(run_id)
 
     async def event_generator():
-        for event_name, payload in run.events:
-            yield f"event: {event_name}\n"
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.01)
+        event_index = 0
+        while True:
+            with _REAL_RUNS_LOCK:
+                run = _REAL_RUNS.get(run_id)
+                if run is None:
+                    break
+                pending_events = run.events[event_index:]
+                event_count = len(run.events)
+                terminal = run.status in {"succeeded", "failed", "cancelled"}
+
+            for event_name, payload in pending_events:
+                yield f"event: {event_name}\n"
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                await asyncio.sleep(0.01)
+
+            event_index += len(pending_events)
+            if terminal and event_index >= event_count:
+                break
+            await asyncio.sleep(0.05)
 
     return StreamingResponse(
         event_generator(),
@@ -903,121 +943,174 @@ def _mock_sse_events(run: MockRun) -> list[tuple[str, dict[str, Any]]]:
     ]
 
 
-def _real_sse_events(
-    request: SearchRunCreateRequest,
-    result: SearchRunResultResponse,
-    timestamp: datetime,
-) -> list[tuple[str, dict[str, Any]]]:
-    timestamp_text = timestamp.isoformat()
-    run_id = result.run_id
-    candidate_count = len(result.highly_relevant_papers) + len(
-        result.partially_relevant_papers
+def _execute_real_search_run(run_id: str) -> None:
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return
+        request = run.request
+
+    current_year = (
+        request.constraints.time_range.end_year
+        if request.constraints.time_range is not None
+        else None
     )
-    return [
-        (
-            "run_started",
-            {
-                "run_id": run_id,
-                "timestamp": timestamp_text,
-                "query": request.query,
-                "mode": "real_search",
-            },
-        ),
-        (
-            "stage_started",
-            {
-                "run_id": run_id,
-                "stage": "query_understanding",
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_completed",
-            {
-                "run_id": run_id,
-                "stage": "query_understanding",
-                "expanded_query_count": len(result.search_plan.expanded_queries),
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_started",
-            {
-                "run_id": run_id,
-                "stage": "retrieval",
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_completed",
-            {
-                "run_id": run_id,
-                "stage": "retrieval",
-                "candidate_paper_count": candidate_count,
+
+    try:
+        _start_real_stage(run_id, "query_understanding")
+        _complete_real_stage(run_id, "query_understanding")
+        _start_real_stage(run_id, "retrieval")
+        output = _real_search_service().run_search(
+            request.query,
+            top_k=request.top_k,
+            run_profile=request.run_profile,
+            enable_refchain=request.options.enable_refchain,
+            enable_query_evolution=request.options.enable_query_evolution,
+            enable_synthesis=True,
+            current_year=current_year,
+        )
+        result = map_search_service_output_to_api_result(
+            run_id=run_id,
+            output=output,
+            status="succeeded",
+            partial=False,
+        )
+        candidate_count = len(result.highly_relevant_papers) + len(
+            result.partially_relevant_papers
+        )
+        _complete_real_stage(
+            run_id,
+            "retrieval",
+            candidate_paper_count=candidate_count,
+            extra_payload={
                 "search_api_call_count": result.cost_report.search_api_call_count,
-                "timestamp": timestamp_text,
             },
-        ),
-        (
-            "stage_started",
-            {
-                "run_id": run_id,
-                "stage": "judgement",
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_completed",
-            {
-                "run_id": run_id,
-                "stage": "judgement",
-                "judged_paper_count": result.cost_report.judged_paper_count,
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_started",
-            {
-                "run_id": run_id,
-                "stage": "reranking",
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_completed",
-            {
-                "run_id": run_id,
-                "stage": "reranking",
-                "top_k": request.top_k,
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_started",
-            {
-                "run_id": run_id,
-                "stage": "synthesis",
-                "timestamp": timestamp_text,
-            },
-        ),
-        (
-            "stage_completed",
-            {
-                "run_id": run_id,
-                "stage": "synthesis",
+        )
+        _start_real_stage(run_id, "judgement")
+        _complete_real_stage(
+            run_id,
+            "judgement",
+            judged_paper_count=result.cost_report.judged_paper_count,
+        )
+        _start_real_stage(run_id, "reranking")
+        _complete_real_stage(
+            run_id,
+            "reranking",
+            extra_payload={"top_k": request.top_k},
+        )
+        _start_real_stage(run_id, "synthesis")
+        _complete_real_stage(
+            run_id,
+            "synthesis",
+            extra_payload={
                 "synthesis_status": result.synthesis.status
                 if result.synthesis is not None
                 else None,
-                "timestamp": timestamp_text,
             },
-        ),
-        (
+        )
+        with _REAL_RUNS_LOCK:
+            run = _REAL_RUNS.get(run_id)
+            if run is None:
+                return
+            run.status = "succeeded"
+            run.current_stage = "synthesis"
+            run.progress = RunProgress(
+                completed_stages=[
+                    "query_understanding",
+                    "retrieval",
+                    "judgement",
+                    "reranking",
+                    "synthesis",
+                ],
+                candidate_paper_count=candidate_count,
+                judged_paper_count=result.cost_report.judged_paper_count,
+            )
+            run.cost_report = result.cost_report
+            run.result = result
+            run.error_message = None
+            run.updated_at = _now()
+        _append_real_event(
+            run_id,
             "run_completed",
             {
-                "run_id": run_id,
                 "status": "succeeded",
-                "timestamp": timestamp_text,
                 "cost_report": _model_dump(result.cost_report),
             },
-        ),
-    ]
+        )
+    except ValueError as exc:
+        _fail_real_run(run_id, str(exc))
+    except Exception as exc:  # noqa: BLE001 - isolate background failure
+        _fail_real_run(run_id, str(exc))
+
+
+def _append_real_event(
+    run_id: str,
+    event_name: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    event_payload = dict(payload or {})
+    event_payload.setdefault("run_id", run_id)
+    event_payload.setdefault("timestamp", _now().isoformat())
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return
+        run.events.append((event_name, event_payload))
+        run.updated_at = _now()
+
+
+def _start_real_stage(run_id: str, stage: str) -> None:
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return
+        run.status = "running"
+        run.current_stage = stage
+        run.updated_at = _now()
+    _append_real_event(run_id, "stage_started", {"stage": stage})
+
+
+def _complete_real_stage(
+    run_id: str,
+    stage: str,
+    *,
+    candidate_paper_count: int | None = None,
+    judged_paper_count: int | None = None,
+    extra_payload: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage}
+    if candidate_paper_count is not None:
+        payload["candidate_paper_count"] = candidate_paper_count
+    if judged_paper_count is not None:
+        payload["judged_paper_count"] = judged_paper_count
+    if extra_payload:
+        payload.update(extra_payload)
+
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return
+        run.status = "running"
+        run.current_stage = stage
+        if stage not in run.progress.completed_stages:
+            run.progress.completed_stages.append(stage)
+        if candidate_paper_count is not None:
+            run.progress.candidate_paper_count = candidate_paper_count
+        if judged_paper_count is not None:
+            run.progress.judged_paper_count = judged_paper_count
+        run.updated_at = _now()
+    _append_real_event(run_id, "stage_completed", payload)
+
+
+def _fail_real_run(run_id: str, message: str) -> None:
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return
+        run.status = "failed"
+        run.current_stage = "failed"
+        run.error_message = message
+        run.cost_report = CostReport()
+        run.updated_at = _now()
+    _append_real_event(run_id, "error", {"message": message})
+    _append_real_event(run_id, "run_completed", {"status": "failed", "error": message})

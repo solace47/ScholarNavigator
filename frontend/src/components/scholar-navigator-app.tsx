@@ -24,6 +24,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import {
+  ApiError,
   createRealSearchRun,
   createSearchRun,
   getHealth,
@@ -111,6 +112,7 @@ export function ScholarNavigatorApp() {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [result, setResult] = useState<SearchRunResultResponse | null>(null);
   const eventSourceCleanup = useRef<(() => void) | null>(null);
+  const searchSequence = useRef(0);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -137,6 +139,7 @@ export function ScholarNavigatorApp() {
     loadRuntime();
     return () => {
       cancelled = true;
+      searchSequence.current += 1;
       eventSourceCleanup.current?.();
     };
   }, []);
@@ -148,6 +151,8 @@ export function ScholarNavigatorApp() {
     }
 
     eventSourceCleanup.current?.();
+    const sequence = searchSequence.current + 1;
+    searchSequence.current = sequence;
     setFormError(null);
     setBackendError(null);
     setIsSubmitting(true);
@@ -189,12 +194,15 @@ export function ScholarNavigatorApp() {
         eventSourceCleanup.current = streamRealSearchRunEvents(
           created.run_id,
           (event) => {
-            setEvents((current) => [...current, event]);
-            if (event.event === "run_completed") {
-              setIsSubmitting(false);
+            if (searchSequence.current !== sequence) {
+              return;
             }
+            setEvents((current) => [...current, event]);
           },
           (message) => {
+            if (searchSequence.current !== sequence) {
+              return;
+            }
             setEvents((current) => [
               ...current,
               {
@@ -203,27 +211,19 @@ export function ScholarNavigatorApp() {
                 receivedAt: new Date().toISOString(),
               },
             ]);
-            setIsSubmitting(false);
           },
         );
 
-        const [runStatus, runResult] = await Promise.all([
-          getRealSearchRun(created.run_id),
-          getRealSearchRunResult(created.run_id),
-        ]);
-        setStatus(runStatus);
-        setResult(runResult);
-        if (runStatus.status === "succeeded") {
+        await pollRealSearchRun(created.run_id, sequence);
+      } catch (error) {
+        if (searchSequence.current === sequence) {
+          setBackendError(
+            error instanceof Error
+              ? error.message
+              : "后端服务不可用，请先启动 FastAPI Mock API",
+          );
           setIsSubmitting(false);
         }
-      } catch (error) {
-        setBackendError(
-          error instanceof Error
-            ? error.message
-            : "后端服务不可用，请先启动 FastAPI Mock API",
-        );
-      } finally {
-        setIsSubmitting(false);
       }
       return;
     }
@@ -288,6 +288,7 @@ export function ScholarNavigatorApp() {
       ]);
       setStatus(runStatus);
       setResult(runResult);
+      setIsSubmitting(false);
     } catch (error) {
       setBackendError(
         error instanceof Error
@@ -295,6 +296,57 @@ export function ScholarNavigatorApp() {
           : "后端服务不可用，请先启动 FastAPI Mock API",
       );
       setIsSubmitting(false);
+    }
+  }
+
+  async function pollRealSearchRun(runId: string, sequence: number) {
+    const pollIntervalMs = 800;
+    try {
+      while (searchSequence.current === sequence) {
+        const runStatus = await getRealSearchRun(runId);
+        if (searchSequence.current !== sequence) {
+          return;
+        }
+        setStatus(runStatus);
+
+        if (runStatus.status === "failed") {
+          let message = "Real Search failed";
+          try {
+            await getRealSearchRunResult(runId);
+          } catch (error) {
+            message = error instanceof Error ? error.message : message;
+          }
+          if (searchSequence.current === sequence) {
+            setBackendError(message);
+          }
+          return;
+        }
+
+        if (runStatus.status === "succeeded") {
+          while (searchSequence.current === sequence) {
+            try {
+              const runResult = await getRealSearchRunResult(runId);
+              if (searchSequence.current === sequence) {
+                setResult(runResult);
+              }
+              return;
+            } catch (error) {
+              if (error instanceof ApiError && error.status === 409) {
+                await sleep(pollIntervalMs);
+                continue;
+              }
+              throw error;
+            }
+          }
+          return;
+        }
+
+        await sleep(pollIntervalMs);
+      }
+    } finally {
+      if (searchSequence.current === sequence) {
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -357,6 +409,10 @@ function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"]
     max_total_tokens: 0,
     max_latency_seconds: runProfile === "fast" ? 45 : 90,
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function Header({

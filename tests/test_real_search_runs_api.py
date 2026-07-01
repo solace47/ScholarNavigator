@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+import threading
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -31,11 +33,14 @@ from scholar_agent.services.search_service import SearchServiceOutput  # noqa: E
 client = TestClient(app)
 
 
-def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) -> None:
+def test_real_search_run_is_created_before_background_result_is_ready(
+    monkeypatch,
+) -> None:
+    release = threading.Event()
     captured: dict[str, object] = {}
     monkeypatch.delenv("REAL_SEARCH_MAX_WORKERS", raising=False)
 
-    class FakeSearchService:
+    class BlockingSearchService:
         def __init__(self, *args, **kwargs) -> None:
             captured["max_workers"] = kwargs.get("max_workers")
 
@@ -60,9 +65,10 @@ def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) 
                     "current_year": current_year,
                 }
             )
+            assert release.wait(timeout=2)
             return _fake_output(query, top_k=top_k)
 
-    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", BlockingSearchService)
 
     create_response = client.post(
         "/api/v1/real/search/runs",
@@ -84,8 +90,23 @@ def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) 
     create_body = create_response.json()
     run_id = create_body["run_id"]
     assert run_id.startswith("run_real_")
-    assert create_body["status"] == "succeeded"
+    assert create_body["status"] in {"queued", "running"}
     assert create_body["links"]["self"] == f"/api/v1/real/search/runs/{run_id}"
+
+    early_status = client.get(f"/api/v1/real/search/runs/{run_id}")
+    assert early_status.status_code == 200
+    assert early_status.json()["status"] in {"queued", "running"}
+
+    not_ready = client.get(f"/api/v1/real/search/runs/{run_id}/result")
+    assert not_ready.status_code == 409
+    assert not_ready.json()["detail"] == "result not ready"
+
+    release.set()
+    status_body = _wait_for_status(run_id, "succeeded")
+    assert status_body["current_stage"] == "synthesis"
+    assert status_body["progress"]["candidate_paper_count"] == 2
+    assert status_body["progress"]["judged_paper_count"] == 2
+    assert status_body["cost_report"]["judged_paper_count"] == 2
     assert captured == {
         "max_workers": 2,
         "query": "latest LLM reranking retrieval papers",
@@ -97,16 +118,6 @@ def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) 
         "current_year": 2026,
     }
 
-    status_response = client.get(f"/api/v1/real/search/runs/{run_id}")
-    assert status_response.status_code == 200
-    status_body = status_response.json()
-    assert status_body["run_id"] == run_id
-    assert status_body["status"] == "succeeded"
-    assert status_body["current_stage"] == "synthesis"
-    assert status_body["progress"]["candidate_paper_count"] == 2
-    assert status_body["progress"]["judged_paper_count"] == 2
-    assert status_body["cost_report"]["judged_paper_count"] == 2
-
     result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")
     assert result_response.status_code == 200
     result_body = result_response.json()
@@ -117,6 +128,25 @@ def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) 
     assert result_body["highly_relevant_papers"][0]["paper"]["title"] == "Real High"
     assert result_body["partially_relevant_papers"][0]["paper"]["title"] == "Real Partial"
 
+
+def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
+    class FastSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
+            return _fake_output(query)
+
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FastSearchService)
+
+    create_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "LLM reranking retrieval papers", "top_k": 5},
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["run_id"]
+    _wait_for_status(run_id, "succeeded")
+
     with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
@@ -124,8 +154,43 @@ def test_real_search_run_lifecycle_returns_saved_result_and_events(monkeypatch) 
 
     assert "event: run_started" in text
     assert "event: stage_started" in text
+    assert "event: stage_completed" in text
     assert '"stage": "synthesis"' in text
     assert "event: run_completed" in text
+    assert '"status": "succeeded"' in text
+
+
+def test_real_search_failed_run_records_error_and_failed_status(monkeypatch) -> None:
+    class FailingSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, *args, **kwargs) -> SearchServiceOutput:
+            raise RuntimeError("service exploded")
+
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FailingSearchService)
+
+    create_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "LLM reranking retrieval papers", "top_k": 5},
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["run_id"]
+
+    status_body = _wait_for_status(run_id, "failed")
+    assert status_body["current_stage"] == "failed"
+
+    result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")
+    assert result_response.status_code == 500
+    assert result_response.json()["detail"] == "service exploded"
+
+    with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
+        text = "".join(response.iter_text())
+
+    assert "event: error" in text
+    assert "service exploded" in text
+    assert "event: run_completed" in text
+    assert '"status": "failed"' in text
 
 
 def test_real_search_unknown_run_id_returns_404() -> None:
@@ -138,15 +203,12 @@ def test_real_search_unknown_run_id_returns_404() -> None:
     assert events_response.status_code == 404
 
 
-def test_real_search_returns_400_for_service_value_error(monkeypatch) -> None:
-    class FakeSearchService:
+def test_real_search_empty_query_returns_400_without_creating_run(monkeypatch) -> None:
+    class FailingSearchService:
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            raise AssertionError("empty query should not instantiate SearchService")
 
-        def run_search(self, *args, **kwargs) -> SearchServiceOutput:
-            raise ValueError("query must not be empty")
-
-    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FailingSearchService)
 
     response = client.post(
         "/api/v1/real/search/runs",
@@ -157,23 +219,29 @@ def test_real_search_returns_400_for_service_value_error(monkeypatch) -> None:
     assert response.json()["detail"] == "query must not be empty"
 
 
-def test_real_search_returns_500_for_unexpected_service_error(monkeypatch) -> None:
-    class FakeSearchService:
+def test_background_value_error_marks_run_failed(monkeypatch) -> None:
+    class ValueErrorSearchService:
         def __init__(self, *args, **kwargs) -> None:
             pass
 
         def run_search(self, *args, **kwargs) -> SearchServiceOutput:
-            raise RuntimeError("service exploded")
+            raise ValueError("query understanding failed")
 
-    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", ValueErrorSearchService)
 
-    response = client.post(
+    create_response = client.post(
         "/api/v1/real/search/runs",
         json={"query": "LLM reranking retrieval papers", "top_k": 5},
     )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["run_id"]
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "service exploded"
+    status_body = _wait_for_status(run_id, "failed")
+    assert status_body["current_stage"] == "failed"
+
+    result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")
+    assert result_response.status_code == 500
+    assert result_response.json()["detail"] == "query understanding failed"
 
 
 def test_real_search_uses_real_search_max_workers_env(monkeypatch) -> None:
@@ -195,6 +263,7 @@ def test_real_search_uses_real_search_max_workers_env(monkeypatch) -> None:
     )
 
     assert response.status_code == 201
+    _wait_for_status(response.json()["run_id"], "succeeded")
     assert captured["max_workers"] == 7
 
 
@@ -216,6 +285,7 @@ def test_real_search_normalizes_invalid_or_small_max_workers_env(monkeypatch) ->
         json={"query": "LLM reranking retrieval papers"},
     )
     assert invalid_response.status_code == 201
+    _wait_for_status(invalid_response.json()["run_id"], "succeeded")
 
     monkeypatch.setenv("REAL_SEARCH_MAX_WORKERS", "0")
     small_response = client.post(
@@ -223,6 +293,7 @@ def test_real_search_normalizes_invalid_or_small_max_workers_env(monkeypatch) ->
         json={"query": "LLM reranking retrieval papers"},
     )
     assert small_response.status_code == 201
+    _wait_for_status(small_response.json()["run_id"], "succeeded")
 
     assert captured[-2:] == [2, 1]
 
@@ -250,6 +321,19 @@ def test_existing_mock_api_does_not_call_search_service(monkeypatch) -> None:
     assert result_response.json()["highly_relevant_papers"][0]["paper"][
         "title"
     ].startswith("SPAR:")
+
+
+def _wait_for_status(run_id: str, expected_status: str) -> dict[str, object]:
+    deadline = time.monotonic() + 3
+    latest: dict[str, object] | None = None
+    while time.monotonic() < deadline:
+        response = client.get(f"/api/v1/real/search/runs/{run_id}")
+        assert response.status_code == 200
+        latest = response.json()
+        if latest["status"] == expected_status:
+            return latest
+        time.sleep(0.03)
+    raise AssertionError(f"timed out waiting for {expected_status}; latest={latest}")
 
 
 def _fake_output(query: str, top_k: int = 5) -> SearchServiceOutput:

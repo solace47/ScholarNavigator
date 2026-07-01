@@ -66,7 +66,7 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --reload --host 127.0.0.1 --po
 The workbench has two modes:
 
 - `Mock Demo`: keeps the original mock run lifecycle under `/api/v1/search/runs`, including mock run creation, run status, result fetch, and mock SSE events.
-- `Real Preview`: uses the real run lifecycle under `/api/v1/real/search/runs`, including real run creation, run status, result fetch, and replayed real search SSE events.
+- `Real Preview`: uses the asynchronous real run lifecycle under `/api/v1/real/search/runs`, including real run creation, queued/running/succeeded/failed status polling, result fetch after completion, and real search SSE events.
 
 `Real Preview` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
 
@@ -75,6 +75,10 @@ debugging the mapper path, but it is no longer the frontend's primary Real
 Preview path.
 
 If real retrieval returns no visible papers, check the `missing_evidence` diagnostics in the Results panel. Network failures such as OpenAlex 503 or arXiv timeout are surfaced there when the backend reports them.
+
+If the SSE connection fails while status polling continues, the UI keeps the
+current run status/result and records an `sse_error` event instead of clearing
+the results.
 
 ## Synthesis Panel
 
