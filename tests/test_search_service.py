@@ -7,6 +7,8 @@ import pytest
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
+from scholar_agent.core.search_schemas import EvolvedSubquery, QueryEvolutionRecord
+from scholar_agent.services import search_service
 from scholar_agent.services.search_service import SearchService
 
 
@@ -83,6 +85,7 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert output.search_plan.subqueries
     assert len(calls) == len(output.search_plan.subqueries)
     assert len(output.retrieval_outputs) == len(output.search_plan.subqueries)
+    assert output.query_evolution_records == []
     assert output.raw_count == len(output.search_plan.subqueries)
     assert output.deduplicated_count == len(output.judgements)
     assert output.ranked_papers
@@ -178,6 +181,169 @@ def test_run_search_top_k_is_applied() -> None:
 
     assert len(output.ranked_papers) == 2
     assert [paper.rank for paper in output.ranked_papers] == [1, 2]
+
+
+def test_run_search_with_query_evolution_retrieves_evolved_queries() -> None:
+    query = "latest LLM reranking retrieval papers"
+    expected_plan = analyze_query(query, current_year=2026)
+    initial_queries = {subquery.query for subquery in expected_plan.subqueries}
+    calls: list[str] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append(query)
+        if query in initial_queries:
+            return make_output(
+                query,
+                [
+                    make_paper(
+                        "LLM Reranking for Scientific Literature Retrieval",
+                        doi=f"10.123/initial-{len(calls)}",
+                        citation_count=1,
+                    )
+                ],
+            )
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Advanced LLM Reranking for Scientific Literature Retrieval",
+                    doi=f"10.123/evolved-{len(calls)}",
+                    citation_count=500,
+                    sources=["openalex", "arxiv"],
+                )
+            ],
+            warnings=["evolved_retriever_warning"],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        query,
+        top_k=5,
+        enable_query_evolution=True,
+        current_year=2026,
+    )
+
+    assert output.query_evolution_records
+    assert output.query_evolution_records[0].generated_queries
+    assert len(calls) > len(initial_queries)
+    assert any(call not in initial_queries for call in calls)
+    assert output.raw_count == len(output.retrieval_outputs)
+    assert "evolved_retriever_warning" in output.warnings
+
+
+def test_query_evolution_results_participate_in_final_ranking() -> None:
+    query = "latest LLM reranking retrieval papers"
+    expected_plan = analyze_query(query, current_year=2026)
+    initial_queries = {subquery.query for subquery in expected_plan.subqueries}
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        if query in initial_queries:
+            return make_output(
+                query,
+                [
+                    make_paper(
+                        "LLM Reranking for Scientific Literature Retrieval",
+                        doi=f"10.123/initial-{sum(ord(char) for char in query)}",
+                        citation_count=0,
+                    )
+                ],
+            )
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "High Authority LLM Reranking Retrieval Paper",
+                    doi=f"10.123/evolved-{sum(ord(char) for char in query)}",
+                    citation_count=1000,
+                    sources=["openalex", "arxiv"],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        query,
+        top_k=3,
+        enable_query_evolution=True,
+        current_year=2026,
+    )
+
+    assert output.query_evolution_records[0].generated_queries
+    assert any(
+        ranked.paper.title == "High Authority LLM Reranking Retrieval Paper"
+        for ranked in output.ranked_papers
+    )
+    assert output.ranked_papers[0].paper.title == "High Authority LLM Reranking Retrieval Paper"
+
+
+def test_query_evolution_used_queries_skip_duplicate_retrieval(monkeypatch) -> None:
+    query = "LLM reranking retrieval papers"
+    calls: list[str] = []
+    captured_used_queries: set[str] = set()
+
+    def fake_evolve_queries(
+        query_analysis,
+        search_plan,
+        judgements,
+        ranked_papers,
+        used_queries,
+    ) -> QueryEvolutionRecord:
+        captured_used_queries.update(used_queries)
+        duplicate_query = search_plan.subqueries[0].query
+        return QueryEvolutionRecord(
+            seed_count=1,
+            generated_queries=[
+                EvolvedSubquery(
+                    query=duplicate_query,
+                    source_hints=["openalex", "arxiv"],
+                    priority=1,
+                    purpose="duplicate_for_test",
+                ),
+                EvolvedSubquery(
+                    query="unique evolved LLM reranking retrieval query",
+                    source_hints=["openalex", "arxiv"],
+                    priority=2,
+                    purpose="unique_for_test",
+                ),
+            ],
+        )
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append(query)
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Paper for {query[:24]}",
+                    doi=f"10.123/{sum(ord(char) for char in query)}",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(search_service, "evolve_queries", fake_evolve_queries)
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        query,
+        enable_query_evolution=True,
+        current_year=2026,
+    )
+
+    initial_queries = {subquery.query for subquery in output.search_plan.subqueries}
+    duplicate_query = output.search_plan.subqueries[0].query
+    assert captured_used_queries == initial_queries
+    assert calls.count(duplicate_query) == 1
+    assert "unique evolved LLM reranking retrieval query" in calls
+    assert "duplicate_evolved_query_skipped" in output.warnings
 
 
 def test_run_search_empty_query_raises_value_error() -> None:

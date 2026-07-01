@@ -13,6 +13,7 @@ from typing import Protocol
 from pydantic import BaseModel, Field
 
 from scholar_agent.agents.judgement import judge_papers
+from scholar_agent.agents.query_evolution import evolve_queries
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.reranker import rerank_papers
 from scholar_agent.agents.retriever import (
@@ -23,10 +24,13 @@ from scholar_agent.agents.retriever import (
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
+    EvolvedSubquery,
     JudgementResult,
+    QueryEvolutionRecord,
     RankedPaper,
     RunProfile,
     SearchPlan,
+    SearchSubquery,
 )
 
 
@@ -48,6 +52,7 @@ class _RetrievalTaskResult(BaseModel):
 class SearchServiceOutput(BaseModel):
     search_plan: SearchPlan
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
+    query_evolution_records: list[QueryEvolutionRecord] = Field(default_factory=list)
     raw_count: int = 0
     deduplicated_count: int = 0
     judgements: list[JudgementResult] = Field(default_factory=list)
@@ -88,15 +93,13 @@ class SearchService:
         )
 
         retrieval_outputs = self._retrieve_subqueries(search_plan)
-        raw_papers: list[Paper] = []
-        source_stats: list[SourceStats] = []
         warnings: list[str] = list(search_plan.warnings)
+        query_evolution_records: list[QueryEvolutionRecord] = []
 
-        for output in retrieval_outputs:
-            raw_papers.extend(output.papers)
-            source_stats.extend(output.source_stats)
-            warnings.extend(output.warnings)
-
+        raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
+            retrieval_outputs
+        )
+        warnings.extend(retrieval_warnings)
         deduplicated = deduplicate_papers(raw_papers)
         judgements = judge_papers(search_plan.query_analysis, deduplicated)
         ranked_papers = rerank_papers(
@@ -104,11 +107,55 @@ class SearchService:
             judgements,
             top_k=top_k,
         )
+
+        if enable_query_evolution:
+            used_queries = {subquery.query for subquery in search_plan.subqueries}
+            evolution_record = evolve_queries(
+                search_plan.query_analysis,
+                search_plan,
+                judgements,
+                ranked_papers,
+                used_queries,
+            )
+            query_evolution_records.append(evolution_record)
+            warnings.extend(evolution_record.warnings)
+
+            evolved_queries = _filter_new_evolved_queries(
+                evolution_record.generated_queries,
+                used_queries,
+            )
+            if len(evolved_queries) < len(evolution_record.generated_queries):
+                warnings.append("duplicate_evolved_query_skipped")
+
+            if evolved_queries:
+                evolved_outputs = self._retrieve_evolved_queries(
+                    search_plan,
+                    evolved_queries,
+                )
+                retrieval_outputs.extend(evolved_outputs)
+                (
+                    evolved_papers,
+                    evolved_source_stats,
+                    evolved_warnings,
+                ) = _collect_retrieval_outputs(evolved_outputs)
+                raw_papers.extend(evolved_papers)
+                source_stats.extend(evolved_source_stats)
+                warnings.extend(evolved_warnings)
+
+                deduplicated = deduplicate_papers(raw_papers)
+                judgements = judge_papers(search_plan.query_analysis, deduplicated)
+                ranked_papers = rerank_papers(
+                    search_plan.query_analysis,
+                    judgements,
+                    top_k=top_k,
+                )
+
         warnings.extend(_judgement_warnings(judgements))
 
         return SearchServiceOutput(
             search_plan=search_plan,
             retrieval_outputs=retrieval_outputs,
+            query_evolution_records=query_evolution_records,
             raw_count=sum(output.raw_count for output in retrieval_outputs),
             deduplicated_count=len(deduplicated),
             judgements=judgements,
@@ -119,16 +166,63 @@ class SearchService:
         )
 
     def _retrieve_subqueries(self, search_plan: SearchPlan) -> list[RetrievalOutput]:
-        if not search_plan.subqueries:
+        return self._retrieve_query_batch(
+            search_plan.subqueries,
+            selected_sources=search_plan.selected_sources,
+            limit_per_source=search_plan.limit_per_source,
+            failure_prefix="subquery_failed",
+            failure_source="subquery",
+        )
+
+    def _retrieve_evolved_queries(
+        self,
+        search_plan: SearchPlan,
+        evolved_queries: list[EvolvedSubquery],
+    ) -> list[RetrievalOutput]:
+        subqueries = [
+            SearchSubquery(
+                query=query.query,
+                source_hints=query.source_hints,
+                priority=query.priority,
+                purpose=query.purpose,
+            )
+            for query in evolved_queries
+        ]
+        return self._retrieve_query_batch(
+            subqueries,
+            selected_sources=search_plan.selected_sources,
+            limit_per_source=search_plan.limit_per_source,
+            failure_prefix="evolved_query_failed",
+            failure_source="evolved_query",
+        )
+
+    def _retrieve_query_batch(
+        self,
+        subqueries: list[SearchSubquery],
+        *,
+        selected_sources: list[str],
+        limit_per_source: int,
+        failure_prefix: str,
+        failure_source: str,
+    ) -> list[RetrievalOutput]:
+        if not subqueries:
             return []
 
-        worker_count = min(self._max_workers, len(search_plan.subqueries))
-        results: list[RetrievalOutput | None] = [None] * len(search_plan.subqueries)
+        worker_count = min(self._max_workers, len(subqueries))
+        results: list[RetrievalOutput | None] = [None] * len(subqueries)
 
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
-                executor.submit(self._retrieve_one_subquery, index, search_plan)
-                for index in range(len(search_plan.subqueries))
+                executor.submit(
+                    self._retrieve_one_subquery,
+                    index,
+                    subqueries[index],
+                    selected_sources,
+                    limit_per_source,
+                    failure_prefix,
+                    failure_source,
+                )
+                for index in range(len(subqueries))
             ]
             for future in as_completed(futures):
                 result = future.result()
@@ -139,19 +233,22 @@ class SearchService:
     def _retrieve_one_subquery(
         self,
         index: int,
-        search_plan: SearchPlan,
+        subquery: SearchSubquery,
+        selected_sources: list[str],
+        limit_per_source: int,
+        failure_prefix: str,
+        failure_source: str,
     ) -> _RetrievalTaskResult:
-        subquery = search_plan.subqueries[index]
-        sources = subquery.source_hints or search_plan.selected_sources
+        sources = subquery.source_hints or selected_sources
         start = time.perf_counter()
         try:
             output = self._retriever(
                 subquery.query,
-                limit_per_source=search_plan.limit_per_source,
+                limit_per_source=limit_per_source,
                 sources=sources,
             )
         except Exception as exc:  # noqa: BLE001 - isolate one subquery failure
-            message = f"subquery_failed:{index}:{exc}"
+            message = f"{failure_prefix}:{index}:{exc}"
             latency_seconds = time.perf_counter() - start
             output = RetrievalOutput(
                 query=subquery.query,
@@ -161,7 +258,7 @@ class SearchService:
                 papers=[],
                 source_stats=[
                     SourceStats(
-                        source="subquery",
+                        source=failure_source,
                         returned_count=0,
                         latency_seconds=latency_seconds,
                         error_message=message,
@@ -198,6 +295,38 @@ def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:
     for judgement in judgements:
         warnings.extend(judgement.warnings)
     return warnings
+
+
+def _collect_retrieval_outputs(
+    outputs: list[RetrievalOutput],
+) -> tuple[list[Paper], list[SourceStats], list[str]]:
+    papers: list[Paper] = []
+    source_stats: list[SourceStats] = []
+    warnings: list[str] = []
+    for output in outputs:
+        papers.extend(output.papers)
+        source_stats.extend(output.source_stats)
+        warnings.extend(output.warnings)
+    return papers, source_stats, warnings
+
+
+def _filter_new_evolved_queries(
+    evolved_queries: list[EvolvedSubquery],
+    used_queries: set[str],
+) -> list[EvolvedSubquery]:
+    seen = {_query_key(query) for query in used_queries}
+    filtered: list[EvolvedSubquery] = []
+    for query in evolved_queries:
+        key = _query_key(query.query)
+        if not key or key in seen:
+            continue
+        filtered.append(query)
+        seen.add(key)
+    return filtered
+
+
+def _query_key(query: str) -> str:
+    return " ".join(query.casefold().split())
 
 
 def _dedupe_warnings(warnings: list[str]) -> list[str]:

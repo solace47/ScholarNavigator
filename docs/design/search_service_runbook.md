@@ -11,7 +11,8 @@ Current boundaries:
 - No frontend changes.
 - No `third_party` changes.
 - No RefChain execution.
-- No Query Evolution execution.
+- Query Evolution is available as an optional no-LLM stage when
+  `enable_query_evolution=True`.
 
 The default service can call real retrieval connectors through `retrieve_papers`.
 Unit tests inject a fake retriever and do not access the network.
@@ -59,11 +60,17 @@ Execution order:
 ```text
 query
   -> analyze_query
-  -> retrieve_papers for each SearchSubquery
-  -> aggregate papers
-  -> deduplicate_papers across subqueries
+  -> initial retrieve_papers for each SearchSubquery
+  -> aggregate initial papers
+  -> deduplicate_papers across initial subqueries
   -> judge_papers
   -> rerank_papers
+  -> optional evolve_queries
+  -> optional retrieve_papers for evolved queries
+  -> optional merge initial and evolved papers
+  -> optional deduplicate_papers across all papers
+  -> optional judge_papers
+  -> optional rerank_papers
   -> SearchServiceOutput
 ```
 
@@ -77,6 +84,16 @@ Details:
 - `judge_papers` evaluates deduplicated candidates against
   `SearchPlan.query_analysis`.
 - `rerank_papers` produces final ranked papers using `top_k`.
+- If `enable_query_evolution=True`, `evolve_queries` uses the initial
+  judgement and ranking results to produce short deterministic evolved queries.
+- Evolved queries reuse the same retrieval concurrency and failure isolation as
+  initial subqueries.
+- After evolved retrieval, `SearchService` merges all papers and reruns
+  deduplication, judgement, and reranking so evolved results can participate in
+  the final ranking.
+
+When `enable_query_evolution=False`, the service keeps the original one-pass
+behavior and `query_evolution_records` is empty.
 
 ## Subquery Concurrency
 
@@ -93,6 +110,8 @@ Ordering guarantees:
 
 - Subqueries may complete out of order.
 - `retrieval_outputs` are stored in original `SearchPlan.subqueries` order.
+- Evolved query outputs, when enabled, are appended after initial outputs in
+  evolved-query order.
 - `source_stats` and retrieval warnings are aggregated by that same stable order.
 - Downstream deduplication, judgement, and reranking receive papers in stable
   subquery order.
@@ -105,6 +124,43 @@ Failure handling:
   the error message.
 - A warning in the form `subquery_failed:{index}:{error}` is added.
 - Other subquery results continue through deduplication, judgement, and rerank.
+- A failed evolved query is represented the same way, with
+  `source="evolved_query"` and warning
+  `evolved_query_failed:{index}:{error}`.
+
+## Query Evolution
+
+The optional Query Evolution stage is no-LLM and metadata-only. It calls:
+
+```python
+from scholar_agent.agents.query_evolution import evolve_queries
+```
+
+Inputs:
+
+- `SearchPlan.query_analysis`
+- initial `SearchPlan`
+- initial `judgements`
+- initial `ranked_papers`
+- initial subqueries as `used_queries`
+
+Behavior:
+
+- Only runs when `enable_query_evolution=True`.
+- Generates at most the configured number of evolved queries.
+- Uses only supported source hints: `openalex`, `arxiv`.
+- Skips queries already present in initial `used_queries`.
+- Adds `duplicate_evolved_query_skipped` if a duplicate evolved query is filtered
+  at the service layer.
+- Does not call retrieval itself; SearchService owns retrieval and aggregation.
+
+Current Query Evolution boundaries:
+
+- No LLM calls.
+- No RefChain.
+- No external access beyond the normal retriever calls for accepted evolved
+  queries.
+- No API contract change for the existing Mock API.
 
 ## Output
 
@@ -112,6 +168,7 @@ Failure handling:
 
 - `search_plan`
 - `retrieval_outputs`
+- `query_evolution_records`
 - `raw_count`
 - `deduplicated_count`
 - `judgements`
@@ -124,6 +181,8 @@ Warnings are aggregated from:
 
 - `SearchPlan.warnings`
 - every `RetrievalOutput.warnings`
+- every `QueryEvolutionRecord.warnings`
+- SearchService duplicate-evolved-query filtering
 - every `JudgementResult.warnings`
 
 Warnings are deduplicated while preserving first-seen order.
@@ -173,7 +232,8 @@ Response fields:
 
 Important: this preview endpoint calls the default `SearchService`, which calls
 `retrieve_papers`. Unless tests monkeypatch the service, manual requests may
-access OpenAlex and arXiv over the network.
+access OpenAlex and arXiv over the network. If `enable_query_evolution=True`,
+accepted evolved queries may cause additional OpenAlex/arXiv retrieval calls.
 
 The existing Mock API remains unchanged:
 
@@ -200,6 +260,8 @@ Recommended next steps:
 - No LLM query understanding.
 - No LLM judgement.
 - No LLM reranking.
+- No LLM Query Evolution.
+- No RefChain execution.
 - No external search in tests.
 - No replacement of Mock API routes.
 - No frontend changes.
