@@ -76,7 +76,7 @@ npm run lint
 
 ## Backend
 
-Start the FastAPI hybrid backend from the repository root:
+Start the FastAPI Real Search backend from the repository root:
 
 ```bash
 PYTHONPATH=src uvicorn scholar_agent.app.main:app --reload --host 127.0.0.1 --port 8000
@@ -88,8 +88,8 @@ Runtime config:
 curl http://127.0.0.1:8000/api/v1/runtime/config
 ```
 
-The backend reports a hybrid runtime: `Mock Demo` remains available through the
-mock run lifecycle, while `Real Preview` uses the Real Search lifecycle with
+The backend reports a Real Search runtime. Product-facing example-search endpoints
+and example UI mode are removed; searches use the Real Search lifecycle with
 OpenAlex and arXiv connectors. The LLM runtime is intentionally unavailable
 (`mock-no-llm`), because the current MVP is no-LLM and rule-based.
 
@@ -98,18 +98,17 @@ affected by external service failures such as OpenAlex `503`, arXiv `429`, or
 timeouts. Those diagnostics are surfaced through Real Search events,
 `missing_evidence`, and cost/source statistics when reported by the backend.
 
-## Search Modes
+## Real Search Workflow
 
-The workbench has two modes:
+The workbench has one product search path:
 
-- `Mock Demo`: keeps the original mock run lifecycle under `/api/v1/search/runs`, including mock run creation, run status, result fetch, and mock SSE events.
-- `Real Preview`: uses the asynchronous real run lifecycle under `/api/v1/real/search/runs`, including real run creation, queued/running/succeeded/failed status polling, result fetch after completion, and real search SSE events.
+- `Real Search`: uses the asynchronous real run lifecycle under `/api/v1/real/search/runs`, including real run creation, queued/running/succeeded/failed status polling, result fetch after completion, and real search SSE events.
 
-`Real Preview` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
+`Real Search` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
 
 The backend still exposes `POST /api/v1/internal/search/preview/api-result` for
-debugging the mapper path, but it is no longer the frontend's primary Real
-Preview path.
+debugging the mapper path, but it is not the frontend's product search path and
+does not return mock data.
 
 If real retrieval returns no visible papers, check the `missing_evidence` diagnostics in the Results panel. Network failures such as OpenAlex 503 or arXiv timeout are surfaced there when the backend reports them.
 
@@ -117,7 +116,7 @@ If the SSE connection fails while status polling continues, the UI keeps the
 current run status/result and records an `sse_error` event instead of clearing
 the results.
 
-`Real Preview` events include the stage lifecycle events plus retrieval
+`Real Search` events include the stage lifecycle events plus retrieval
 observability events:
 
 - `connector_completed`: one event per connector/source with `returned_count`,
@@ -126,20 +125,20 @@ observability events:
   synthesis, or connector diagnostics
 - `cost_updated`: the final mapped cost report once the result is available
 
-`Real Preview` also supports cancelling a queued/running real search run. The UI
+`Real Search` also supports cancelling a queued/running real search run. The UI
 calls `POST /api/v1/real/search/runs/{run_id}/cancel`, stops polling, closes the
 SSE connection, and keeps already received events visible. The current backend
 cannot force-kill connector calls that are already executing; cancellation marks
 the run as `cancelled`, ignores any later background result, and stops the
 frontend from waiting for completion.
 
-When backend retrieval cache is enabled, repeated Real Preview runs in the same
+When backend retrieval cache is enabled, repeated Real Search runs in the same
 backend process may report `cache_hit_count` in the cost report and show cache
 hit diagnostics in `missing_evidence`.
 
 ## Synthesis Panel
 
-`Real Preview` may return an optional `synthesis` object in `SearchRunResultResponse`.
+`Real Search` may return an optional `synthesis` object in `SearchRunResultResponse`.
 When present, the Results area renders a citation-backed synthesis panel above the
 paper lists with:
 
@@ -149,9 +148,6 @@ paper lists with:
 - citation coverage counters
 - limitations and warnings
 - the first evidence-table rows
-
-`Mock Demo` defaults to `synthesis: null`, so the panel is hidden and the mock
-flow remains unchanged.
 
 The current synthesis MVP is rule-based and grounded in ranked-paper metadata
 and evidence rows. It is citation-backed, but it does not mean the system has

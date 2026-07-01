@@ -1,4 +1,4 @@
-"""FastAPI application entry point for the SPAR mock backend."""
+"""FastAPI application entry point for the ScholarNavigator backend."""
 
 from __future__ import annotations
 
@@ -46,11 +46,11 @@ def _append_origin(origins: list[str], seen: set[str], origin: str) -> None:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="SPAR Scholar Agent Mock API",
+        title="ScholarNavigator Real Search API",
         version="0.1.0",
         description=(
-            "Mock backend API for frontend integration. It does not call live "
-            "academic search APIs or LLM providers."
+            "Real Search backend API for ScholarNavigator. It calls configured "
+            "academic search connectors and currently does not call LLM providers."
         ),
     )
 

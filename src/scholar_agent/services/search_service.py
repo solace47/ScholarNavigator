@@ -1,7 +1,7 @@
 """Internal search pipeline service.
 
 This service wires the no-LLM backend modules into a real retrieval pipeline.
-It is intentionally not connected to the FastAPI mock API yet.
+It is used by the Real Search FastAPI lifecycle endpoints.
 """
 
 from __future__ import annotations

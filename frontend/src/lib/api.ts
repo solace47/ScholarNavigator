@@ -46,7 +46,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch (error) {
     throw new ApiError(
-      "后端服务不可用，请先启动 FastAPI Mock API",
+      "后端服务不可用，请先启动 FastAPI Real Search API",
       undefined,
     );
   }
@@ -71,23 +71,6 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getRuntimeConfig(): Promise<RuntimeConfigResponse> {
   return requestJson<RuntimeConfigResponse>("/api/v1/runtime/config");
-}
-
-export function createSearchRun(
-  payload: SearchRunCreateRequest,
-): Promise<SearchRunCreateResponse> {
-  return requestJson<SearchRunCreateResponse>("/api/v1/search/runs", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function getSearchRun(runId: string): Promise<SearchRunStatusResponse> {
-  return requestJson<SearchRunStatusResponse>(`/api/v1/search/runs/${runId}`);
-}
-
-export function getSearchRunResult(runId: string): Promise<SearchRunResultResponse> {
-  return requestJson<SearchRunResultResponse>(`/api/v1/search/runs/${runId}/result`);
 }
 
 export function createRealSearchRun(
@@ -162,23 +145,11 @@ function streamEvents(
     if (source.readyState === EventSource.CLOSED) {
       return;
     }
-    onTransportError("后端服务不可用，请先启动 FastAPI Mock API");
+    onTransportError("后端服务不可用，请先启动 FastAPI Real Search API");
     source.close();
   };
 
   return () => source.close();
-}
-
-export function streamSearchRunEvents(
-  runId: string,
-  onEvent: (event: StreamEvent) => void,
-  onTransportError: (message: string) => void,
-): () => void {
-  return streamEvents(
-    `/api/v1/search/runs/${runId}/events`,
-    onEvent,
-    onTransportError,
-  );
 }
 
 export function streamRealSearchRunEvents(

@@ -6,15 +6,15 @@
 
 - 项目名称：ScholarNavigator
 - 对应赛题：华为企业赛题三，科研场景下复杂学术查询的智能论文搜索与推荐
-- 当前形态：Mock Demo + Real Search hybrid runtime 的 no-LLM 规则版 MVP
-- 核心目标：提供可演示、可测试、可观测、可评测的学术论文搜索与推荐闭环
+- 当前形态：Real Search only runtime 的 no-LLM 规则版 MVP
+- 核心目标：提供可演示、可测试、可观测、可评测的真实学术论文搜索与推荐闭环
 
 ## 最终提交文件地图
 
 ### Backend 关键目录
 
 - `src/scholar_agent/app/`  
-  FastAPI 应用入口、CORS、Mock API、Real Search lifecycle、runtime config。
+  FastAPI 应用入口、CORS、Real Search lifecycle、runtime config。
 - `src/scholar_agent/core/`  
   Paper、Search、API、Synthesis、Evaluation 等 Pydantic schema，以及 dedup 逻辑。
 - `src/scholar_agent/connectors/`  
@@ -26,7 +26,7 @@
 - `src/scholar_agent/evaluation/`  
   metrics、offline evaluator、fixture loader。
 - `tests/`  
-  Mock API、Real Search API、connectors、retriever、SearchService、agents、mapper、evaluation 和 CLI 测试。
+  Real Search API、connectors、retriever、SearchService、agents、mapper、evaluation、CLI 和旧产品 path 删除测试。
 
 ### Frontend 关键目录
 
@@ -39,44 +39,49 @@
 - `frontend/src/types/`  
   与后端 API response 对齐的 TypeScript 类型。
 - `frontend/README.md`  
-  前端启动、Mock Demo / Real Preview、Synthesis、Citation Graph、导出和 CORS 说明。
+  前端启动、Real Search、Synthesis、Citation Graph、导出和 CORS 说明。
 
 ### Final 文档
 
-- `docs/final/project_delivery_summary.md`  
-  项目目标、架构、核心功能、参考系统关系、真实检索能力、测试结果和边界。
-- `docs/final/contest_technical_report_draft.md`  
-  参赛技术报告初稿。
-- `docs/final/demo_script.md`  
-  现场演示流程、讲解词、失败兜底和 CLI 备选展示。
-- `docs/final/reviewer_quickstart.md`  
-  评审快速启动和阅读指南。
-- `docs/final/submission_manifest.md`  
-  本提交清单。
+- `docs/final/project_delivery_summary.md`
+- `docs/final/contest_technical_report_draft.md`
+- `docs/final/demo_script.md`
+- `docs/final/reviewer_quickstart.md`
+- `docs/final/submission_manifest.md`
+- `docs/final/final_submission_readiness.md`
 
 ### 关键验证记录
 
 - `docs/design/final_engineering_acceptance.md`  
-  最终工程验收记录，覆盖测试、构建、runtime config、Mock Demo API、Real Search API、cancel、前端 smoke 和 Batch CLI。
+  hybrid runtime 阶段的历史验收记录。Real Search only 重构后不能作为当前最终验收结论。
 
 ### Batch / Evaluation CLI
 
-- `scripts/run_search_batch.py`  
-  从 JSONL query 文件批量运行 SearchService，输出 JSONL。
-- `scripts/summarize_search_batch.py`  
-  读取 batch result JSONL，生成 Markdown 汇总。
-- `scripts/evaluate_search_batch.py`  
-  读取 batch result JSONL 和 gold/qrels JSONL，计算 Recall@K、Precision@K、MRR、nDCG。
+- `scripts/run_search_batch.py`
+- `scripts/summarize_search_batch.py`
+- `scripts/evaluate_search_batch.py`
 
-## 最终验收结果
+## 当前验收状态
 
-最终工程验收记录中通过：
+Real Search only 重构后需要重新验收。提交前应运行：
 
-- `PYTHONPATH=src pytest -q`：`190 passed, 1 warning`
-- `cd frontend && npm run lint`：passed
-- `cd frontend && npm run build`：passed
+```bash
+PYTHONPATH=src pytest -q
+cd frontend && npm run lint
+cd frontend && npm run build
+git status --short
+```
 
-唯一 warning 是既有 Starlette / TestClient deprecation warning，不影响当前功能验证。
+验收重点：
+
+- runtime config 为 `real_search`。
+- connectors 中没有产品级示例 connector。
+- OpenAlex / arXiv `available=true`。
+- Semantic Scholar / PubMed 仍 `not_implemented`。
+- `llm.available=false`，本轮未接真实 LLM。
+- 旧 `/api/v1/search/runs` 产品 path 返回 404/405。
+- OpenAPI 不再包含旧 `/api/v1/search/runs` paths。
+- 前端只展示 Real Search 入口。
 
 ## 演示建议
 
@@ -86,38 +91,21 @@
    curl http://127.0.0.1:8000/api/v1/runtime/config
    ```
 
-   重点说明 `mode=hybrid`、`llm.available=false`、OpenAlex / arXiv 可用于 Real Search。
-
-2. 优先演示 Mock Demo：
-   - 稳定可控。
-   - 展示 run 创建、Mock SSE、论文卡片。
-   - 可作为网络失败时的兜底。
-
-3. 再演示 Real Preview：
+2. 演示 Real Search：
    - 走 `/api/v1/real/search/runs` lifecycle。
    - 展示 queued / running / succeeded / failed 状态。
    - 展示 Real Search Events，包括 `connector_completed`、`warning`、`cost_updated`。
    - 展示论文卡片、Synthesis Panel、Citation Graph Panel 和 Export JSON / Markdown。
 
-4. OpenAlex 503 或 arXiv 429 / timeout 时：
+3. OpenAlex 503 或 arXiv 429 / timeout 时：
    - 不解释为系统崩溃。
    - 展示 `missing_evidence`、source stats 和 events 诊断。
-   - 说明 arXiv 或其他可用 source 仍可返回候选。
-   - 必要时切回 Mock Demo，或展示 `docs/design/final_engineering_acceptance.md` 中的真实验收记录。
+   - 明确说明产品路径不会返回示例数据。
 
-5. 网络不稳定时可展示 Batch CLI / Evaluation CLI：
+4. 网络不稳定时可展示 Batch CLI / Evaluation CLI：
    - 批量搜索 JSONL。
    - Markdown 汇总。
    - gold/qrels 指标评测。
-
-## 提交前检查命令
-
-```bash
-PYTHONPATH=src pytest -q
-cd frontend && npm run lint
-cd frontend && npm run build
-git status --short
-```
 
 ## 不应提交的内容
 
@@ -142,7 +130,8 @@ git status --short
 - Retrieval cache 是轻量 in-memory cache，不是生产级分布式缓存。
 - Semantic Scholar 和 PubMed connector 尚未实现。
 - 当前没有用户鉴权、配额管理、生产部署脚本或长期日志系统。
+- 下一阶段会接入真实 LLM provider；provider 不可用时也应返回明确错误或诊断。
 
 ## 交付摘要
 
-本次最终提交材料强调 ScholarNavigator 的真实边界：系统不是纯 mock，也不是完整生产系统；它是一个 no-LLM、metadata/evidence-row、可解释、可观测、可评测的参赛 MVP。Mock Demo 提供稳定演示，Real Search 验证真实 OpenAlex / arXiv 检索链路，前端展示运行过程、结果、synthesis、citation graph 和本地导出，CLI 提供批量运行与评测基础设施。
+本次提交将 ScholarNavigator 从双路径演示形态切换为 Real Search only runtime。产品路径不再提供示例检索数据兜底，而是通过真实 OpenAlex / arXiv 检索链路、结构化 diagnostics、Real Search Events、Synthesis Panel、Citation Graph Panel 和导出功能支撑参赛演示与评审。

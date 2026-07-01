@@ -2,13 +2,12 @@
 
 ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的前后端分离系统。
 
-一句话说明：当前版本是 **Mock Demo + Real Search hybrid runtime 的 no-LLM 规则版 MVP**。系统已形成可演示、可测试、可观测的论文检索闭环，但不调用 LLM，不读取全文 PDF，也不声称已完成完整 LitSearch / AstaBench benchmark。
+一句话说明：当前版本是 **Real Search only runtime 的 no-LLM 规则版 MVP**。系统已形成可演示、可测试、可观测的真实论文检索闭环，但不调用 LLM，不读取全文 PDF，也不声称已完成完整 LitSearch / AstaBench benchmark。
 
-本仓库参考 SPAR、PaSa、PaperQA2、ai2-scholarqa-lib、LitSearch 和 AstaBench 的相关思想实现参赛 MVP。原 SPAR 论文入口：[SPAR: Scholar Paper Retrieval with LLM-based Agents for Enhanced Academic Search](https://arxiv.org/abs/2507.15245)。
+本仓库参考 SPAR、PaSa、PaperQA2、ai2-scholarqa-lib、LitSearch 和 AstaBench 的相关思想实现参赛 MVP。原 SPAR 论文入口：[SPAR paper](https://arxiv.org/abs/2507.15245)。
 
 ## 核心能力
 
-- Mock Demo：稳定 mock run lifecycle，用于现场演示兜底。
 - Real Search lifecycle：`create/status/result/events/cancel` 独立真实检索路径。
 - Real Search SSE：展示 `connector_completed`、`warning`、`cost_updated` 等事件。
 - OpenAlex / arXiv connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
@@ -53,7 +52,7 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 预期要点：
 
-- `mode=hybrid`
+- `mode=real_search`
 - `llm.available=false`
 - OpenAlex / arXiv connector 可用于 Real Search
 - `real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` feature 可见
@@ -95,7 +94,7 @@ cd frontend && npm run build
 
 最终工程验收记录中的结果：
 
-- `PYTHONPATH=src pytest -q`：`190 passed, 1 warning`
+- Real Search only 重构后，`PYTHONPATH=src pytest -q`：`189 passed, 1 warning`
 - `cd frontend && npm run lint`：通过
 - `cd frontend && npm run build`：通过
 
@@ -163,6 +162,7 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 ## 边界与非目标
 
+- 产品路径不再提供示例检索模式或静默 fallback；外部源失败时返回明确 diagnostics。
 - 当前是 no-LLM 规则版 MVP，没有调用 LLM。
 - 当前不读取全文 PDF，Synthesis 只基于 metadata 和 evidence rows。
 - 当前未接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 和 CLI 评测链路。

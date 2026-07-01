@@ -84,7 +84,7 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["run_id"].startswith("run_preview_")
+    assert body["run_id"].startswith("run_internal_")
     assert body["status"] == "succeeded"
     assert body["partial"] is False
     assert body["query_analysis"]["intent_type"] == "recent_progress"
@@ -153,10 +153,10 @@ def test_internal_search_preview_api_result_uses_real_preview_max_workers_env(
     assert captured["max_workers"] == 1
 
 
-def test_existing_mock_search_runs_api_behavior_is_unchanged(monkeypatch) -> None:
+def test_legacy_mock_search_runs_api_is_unavailable(monkeypatch) -> None:
     class FailingSearchService:
         def run_search(self, *args, **kwargs) -> SearchServiceOutput:
-            raise AssertionError("mock API must not call SearchService")
+            raise AssertionError("legacy mock API must not call SearchService")
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FailingSearchService)
 
@@ -164,21 +164,12 @@ def test_existing_mock_search_runs_api_behavior_is_unchanged(monkeypatch) -> Non
         "/api/v1/search/runs",
         json={"query": "请帮我搜索关于 LLM reranking 的代表性论文"},
     )
+    status_response = client.get("/api/v1/search/runs/run_missing")
+    result_response = client.get("/api/v1/search/runs/run_missing/result")
 
-    assert create_response.status_code == 201
-    run_id = create_response.json()["run_id"]
-    status_response = client.get(f"/api/v1/search/runs/{run_id}")
-    result_response = client.get(f"/api/v1/search/runs/{run_id}/result")
-
-    assert status_response.status_code == 200
-    assert status_response.json()["status"] == "succeeded"
-    assert result_response.status_code == 200
-    result_body = result_response.json()
-    assert result_body["run_id"] == run_id
-    assert result_body["highly_relevant_papers"][0]["paper"]["title"].startswith(
-        "SPAR:"
-    )
-    assert result_body["cost_report"]["api_call_count"] == 7
+    assert create_response.status_code in {404, 405}
+    assert status_response.status_code in {404, 405}
+    assert result_response.status_code in {404, 405}
 
 
 def _fake_output(query: str, *, include_refchain: bool = False) -> SearchServiceOutput:

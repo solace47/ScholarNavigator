@@ -245,10 +245,10 @@ def test_internal_search_preview_uses_real_preview_max_workers_env(
     assert captured["max_workers"] == 1
 
 
-def test_existing_mock_search_runs_endpoint_still_works(monkeypatch) -> None:
+def test_legacy_mock_search_runs_endpoint_is_removed(monkeypatch) -> None:
     class FailingSearchService:
         def run_search(self, *args, **kwargs) -> SearchServiceOutput:
-            raise AssertionError("mock run endpoint must not call SearchService")
+            raise AssertionError("legacy mock run endpoint must not call SearchService")
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FailingSearchService)
 
@@ -257,8 +257,7 @@ def test_existing_mock_search_runs_endpoint_still_works(monkeypatch) -> None:
         json={"query": "请帮我搜索关于 LLM reranking 的代表性论文"},
     )
 
-    assert response.status_code == 201
-    assert response.json()["run_id"].startswith("run_")
+    assert response.status_code in {404, 405}
 
 
 def _fake_output(

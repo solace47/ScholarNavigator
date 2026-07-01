@@ -259,23 +259,15 @@ def test_none_synthesis_output_is_valid_api_result() -> None:
     assert response.partially_relevant_papers == []
 
 
-def test_existing_mock_search_runs_api_behavior_is_unchanged() -> None:
+def test_legacy_mock_search_runs_api_is_unavailable() -> None:
     create_response = client.post(
         "/api/v1/search/runs",
         json={"query": "请帮我搜索关于 LLM reranking 的代表性论文"},
     )
+    result_response = client.get("/api/v1/search/runs/run_missing/result")
 
-    assert create_response.status_code == 201
-    run_id = create_response.json()["run_id"]
-    result_response = client.get(f"/api/v1/search/runs/{run_id}/result")
-
-    assert result_response.status_code == 200
-    body = result_response.json()
-    assert body["run_id"] == run_id
-    assert body["status"] == "succeeded"
-    assert body["synthesis"] is None
-    assert body["highly_relevant_papers"][0]["paper"]["title"].startswith("SPAR:")
-    assert body["cost_report"]["api_call_count"] == 7
+    assert create_response.status_code in {404, 405}
+    assert result_response.status_code in {404, 405}
 
 
 def _search_plan(query: str = "LLM reranking retrieval") -> SearchPlan:

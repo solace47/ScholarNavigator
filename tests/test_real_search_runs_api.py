@@ -443,10 +443,10 @@ def test_real_search_normalizes_invalid_or_small_max_workers_env(monkeypatch) ->
     assert captured[-2:] == [2, 1]
 
 
-def test_existing_mock_api_does_not_call_search_service(monkeypatch) -> None:
+def test_legacy_mock_api_is_removed_and_does_not_call_search_service(monkeypatch) -> None:
     class FailingSearchService:
         def __init__(self, *args, **kwargs) -> None:
-            raise AssertionError("mock API must not instantiate SearchService")
+            raise AssertionError("legacy mock API must not instantiate SearchService")
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FailingSearchService)
 
@@ -454,18 +454,14 @@ def test_existing_mock_api_does_not_call_search_service(monkeypatch) -> None:
         "/api/v1/search/runs",
         json={"query": "请帮我搜索关于 LLM reranking 的代表性论文"},
     )
+    status_response = client.get("/api/v1/search/runs/run_missing")
+    result_response = client.get("/api/v1/search/runs/run_missing/result")
+    events_response = client.get("/api/v1/search/runs/run_missing/events")
 
-    assert create_response.status_code == 201
-    run_id = create_response.json()["run_id"]
-    status_response = client.get(f"/api/v1/search/runs/{run_id}")
-    result_response = client.get(f"/api/v1/search/runs/{run_id}/result")
-
-    assert status_response.status_code == 200
-    assert status_response.json()["status"] == "succeeded"
-    assert result_response.status_code == 200
-    assert result_response.json()["highly_relevant_papers"][0]["paper"][
-        "title"
-    ].startswith("SPAR:")
+    assert create_response.status_code in {404, 405}
+    assert status_response.status_code in {404, 405}
+    assert result_response.status_code in {404, 405}
+    assert events_response.status_code in {404, 405}
 
 
 def test_real_run_cleanup_ttl_removes_old_succeeded_run(monkeypatch) -> None:

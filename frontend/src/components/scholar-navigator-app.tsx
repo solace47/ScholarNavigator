@@ -28,15 +28,11 @@ import {
   ApiError,
   cancelRealSearchRun,
   createRealSearchRun,
-  createSearchRun,
   getHealth,
   getRealSearchRun,
   getRealSearchRunResult,
   getRuntimeConfig,
-  getSearchRun,
-  getSearchRunResult,
   streamRealSearchRunEvents,
-  streamSearchRunEvents,
 } from "@/lib/api";
 import { exportSearchResultAsJson, exportSearchResultAsMarkdown } from "@/lib/export";
 import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
@@ -95,11 +91,9 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
 };
 
 type ThemeMode = "dark" | "light";
-type SearchMode = "mock" | "real_preview";
 
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
-  const [searchMode, setSearchMode] = useState<SearchMode>("mock");
   const [query, setQuery] = useState(EXAMPLES[0]);
   const [topK, setTopK] = useState(20);
   const [currentYear, setCurrentYear] = useState(2026);
@@ -135,7 +129,7 @@ export function ScholarNavigatorApp() {
         }
       } catch (error) {
         if (!cancelled) {
-          setBackendError("后端服务不可用，请先启动 FastAPI Mock API");
+          setBackendError("后端服务不可用，请先启动 FastAPI Real Search API");
         }
       }
     }
@@ -166,103 +160,24 @@ export function ScholarNavigatorApp() {
     setEvents([]);
     setResult(null);
 
-    if (searchMode === "real_preview") {
-      try {
-        const created = await createRealSearchRun({
-          query,
-          locale: "zh-CN",
-          constraints: {
-            time_range: {
-              end_year: currentYear,
-            },
-            venues: [],
-            must_have_terms: [],
-            excluded_terms: [],
-            datasets: [],
-            paper_types: [],
-          },
-          source_preferences: ["openalex", "arxiv"],
-          run_profile: runProfile,
-          top_k: topK,
-          budgets: buildBudgets(runProfile),
-          options: {
-            enable_query_evolution: enableQueryEvolution,
-            enable_refchain: enableRefchain,
-            refchain_depth: enableRefchain ? 1 : 0,
-            return_markdown: true,
-            return_json: true,
-            stream_events: true,
-          },
-        });
-
-        setRunId(created.run_id);
-        setStatus(buildInitialRealStatus(created.run_id, created.status));
-        eventSourceCleanup.current = streamRealSearchRunEvents(
-          created.run_id,
-          (event) => {
-            if (searchSequence.current !== sequence) {
-              return;
-            }
-            setEvents((current) => [...current, event]);
-          },
-          (message) => {
-            if (searchSequence.current !== sequence) {
-              return;
-            }
-            setEvents((current) => [
-              ...current,
-              {
-                event: "sse_error",
-                payload: { message },
-                receivedAt: new Date().toISOString(),
-              },
-            ]);
-          },
-        );
-
-        await pollRealSearchRun(created.run_id, sequence);
-      } catch (error) {
-        if (searchSequence.current === sequence) {
-          setBackendError(
-            error instanceof Error
-              ? error.message
-              : "后端服务不可用，请先启动 FastAPI Mock API",
-          );
-          setIsSubmitting(false);
-        }
-      }
-      return;
-    }
-
     try {
-      const created = await createSearchRun({
+      const created = await createRealSearchRun({
         query,
         locale: "zh-CN",
         constraints: {
           time_range: {
-            start_year: 2020,
             end_year: currentYear,
           },
-          venues: ["ACL", "EMNLP", "SIGIR"],
-          must_have_terms: query
-            .split(/\s+/)
-            .map((term) => term.trim())
-            .filter(Boolean)
-            .slice(0, 5),
+          venues: [],
+          must_have_terms: [],
           excluded_terms: [],
           datasets: [],
-          paper_types: ["method", "benchmark"],
+          paper_types: [],
         },
-        source_preferences: ["openalex", "arxiv", "semantic_scholar"],
+        source_preferences: ["openalex", "arxiv"],
         run_profile: runProfile,
         top_k: topK,
-        budgets: {
-          max_search_rounds: runProfile === "fast" ? 1 : 2,
-          max_candidate_papers: runProfile === "high_recall" ? 300 : 200,
-          max_llm_calls: 0,
-          max_total_tokens: 0,
-          max_latency_seconds: runProfile === "fast" ? 45 : 90,
-        },
+        budgets: buildBudgets(runProfile),
         options: {
           enable_query_evolution: enableQueryEvolution,
           enable_refchain: enableRefchain,
@@ -274,34 +189,40 @@ export function ScholarNavigatorApp() {
       });
 
       setRunId(created.run_id);
-      eventSourceCleanup.current = streamSearchRunEvents(
+      setStatus(buildInitialRealStatus(created.run_id, created.status));
+      eventSourceCleanup.current = streamRealSearchRunEvents(
         created.run_id,
         (event) => {
-          setEvents((current) => [...current, event]);
-          if (event.event === "run_completed") {
-            setIsSubmitting(false);
+          if (searchSequence.current !== sequence) {
+            return;
           }
+          setEvents((current) => [...current, event]);
         },
         (message) => {
-          setBackendError(message);
-          setIsSubmitting(false);
+          if (searchSequence.current !== sequence) {
+            return;
+          }
+          setEvents((current) => [
+            ...current,
+            {
+              event: "sse_error",
+              payload: { message },
+              receivedAt: new Date().toISOString(),
+            },
+          ]);
         },
       );
 
-      const [runStatus, runResult] = await Promise.all([
-        getSearchRun(created.run_id),
-        getSearchRunResult(created.run_id),
-      ]);
-      setStatus(runStatus);
-      setResult(runResult);
-      setIsSubmitting(false);
+      await pollRealSearchRun(created.run_id, sequence);
     } catch (error) {
-      setBackendError(
-        error instanceof Error
-          ? error.message
-          : "后端服务不可用，请先启动 FastAPI Mock API",
-      );
-      setIsSubmitting(false);
+      if (searchSequence.current === sequence) {
+        setBackendError(
+          error instanceof Error
+            ? error.message
+            : "后端服务不可用，请先启动 FastAPI Real Search API",
+        );
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -361,7 +282,7 @@ export function ScholarNavigatorApp() {
   }
 
   async function handleCancelRealSearch() {
-    if (!runId || searchMode !== "real_preview") {
+    if (!runId) {
       return;
     }
 
@@ -400,7 +321,6 @@ export function ScholarNavigatorApp() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.4fr)]">
           <SearchWorkbench
-            searchMode={searchMode}
             query={query}
             topK={topK}
             currentYear={currentYear}
@@ -409,7 +329,6 @@ export function ScholarNavigatorApp() {
             enableQueryEvolution={enableQueryEvolution}
             isSubmitting={isSubmitting}
             formError={formError}
-            onSearchModeChange={setSearchMode}
             onQueryChange={setQuery}
             onTopKChange={setTopK}
             onCurrentYearChange={setCurrentYear}
@@ -420,7 +339,6 @@ export function ScholarNavigatorApp() {
           />
 
           <RunProgress
-            searchMode={searchMode}
             runId={runId}
             status={status}
             events={events}
@@ -491,10 +409,7 @@ function runtimeModeLabel(runtimeConfig: RuntimeConfigResponse | null): string {
     return "runtime loading";
   }
   if (runtimeConfig.features.real_search) {
-    return "Mock + Real Search";
-  }
-  if (runtimeConfig.mode === "mock") {
-    return "Mock Demo";
+    return "Real Search Runtime";
   }
   return runtimeConfig.mode;
 }
@@ -519,7 +434,7 @@ function Header({
             Agent Workbench
           </span>
           <Badge>{runtimeModeLabel(runtimeConfig)}</Badge>
-          {runtimeConfig?.features.real_search ? <Badge>Hybrid Runtime</Badge> : null}
+          {runtimeConfig?.features.real_search ? <Badge>Real Search</Badge> : null}
           {runtimeConfig?.llm.available === false ? <Badge>no-LLM</Badge> : null}
           <Badge className={backendError ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
             {backendError ? "backend offline" : "backend ready"}
@@ -567,7 +482,6 @@ function BackendWarning({ message }: { message: string }) {
 }
 
 function SearchWorkbench({
-  searchMode,
   query,
   topK,
   currentYear,
@@ -576,7 +490,6 @@ function SearchWorkbench({
   enableQueryEvolution,
   isSubmitting,
   formError,
-  onSearchModeChange,
   onQueryChange,
   onTopKChange,
   onCurrentYearChange,
@@ -585,7 +498,6 @@ function SearchWorkbench({
   onQueryEvolutionChange,
   onSearch,
 }: {
-  searchMode: SearchMode;
   query: string;
   topK: number;
   currentYear: number;
@@ -594,7 +506,6 @@ function SearchWorkbench({
   enableQueryEvolution: boolean;
   isSubmitting: boolean;
   formError: string | null;
-  onSearchModeChange: (value: SearchMode) => void;
   onQueryChange: (value: string) => void;
   onTopKChange: (value: number) => void;
   onCurrentYearChange: (value: number) => void;
@@ -610,30 +521,12 @@ function SearchWorkbench({
           <h2 id="search-workbench-title" className="text-xl font-bold">
             Search Workbench
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">复杂查询、预算与 Agent 策略配置</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">真实检索、预算与 Agent 策略配置</p>
         </div>
         <Search className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
       </div>
 
       <div className="space-y-5">
-        <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--muted-strong)]">检索模式</p>
-          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="检索模式">
-            <ModeOption
-              label="Mock Demo"
-              description="Mock API + SSE"
-              selected={searchMode === "mock"}
-              onSelect={() => onSearchModeChange("mock")}
-            />
-            <ModeOption
-              label="Real Preview"
-              description="Real lifecycle + SSE"
-              selected={searchMode === "real_preview"}
-              onSelect={() => onSearchModeChange("real_preview")}
-            />
-          </div>
-        </div>
-
         <div>
           <FieldLabel htmlFor="query">学术查询</FieldLabel>
           <textarea
@@ -724,44 +617,10 @@ function SearchWorkbench({
           ) : (
             <Search className="h-4 w-4" aria-hidden="true" />
           )}
-          {isSubmitting
-            ? searchMode === "real_preview"
-              ? "Real Preview running"
-              : "Searching"
-            : searchMode === "real_preview"
-              ? "启动 Real Preview"
-              : "启动搜索"}
+          {isSubmitting ? "Real Search running" : "启动 Real Search"}
         </Button>
       </div>
     </SectionPanel>
-  );
-}
-
-function ModeOption({
-  label,
-  description,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  description: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={`min-h-16 rounded-md border p-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${
-        selected
-          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-          : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--primary)]"
-      }`}
-    >
-      <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
-      <span className="mt-1 block text-xs text-[var(--muted)]">{description}</span>
-    </button>
   );
 }
 
@@ -805,7 +664,6 @@ function ToggleControl({
 }
 
 function RunProgress({
-  searchMode,
   runId,
   status,
   events,
@@ -814,7 +672,6 @@ function RunProgress({
   isCancelling,
   onCancelRealSearch,
 }: {
-  searchMode: SearchMode;
   runId: string | null;
   status: SearchRunStatusResponse | null;
   events: StreamEvent[];
@@ -833,7 +690,6 @@ function RunProgress({
     completedStages.add("synthesis");
   }
   const canCancelRealSearch =
-    searchMode === "real_preview" &&
     Boolean(runId) &&
     Boolean(status && ["queued", "running"].includes(status.status));
 
@@ -924,9 +780,7 @@ function RunProgress({
         <div className="panel-soft rounded-lg p-4">
           <div className="mb-3 flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h3 className="font-semibold">
-              {searchMode === "real_preview" ? "Real Search Events" : "SSE Events"}
-            </h3>
+            <h3 className="font-semibold">Real Search Events</h3>
           </div>
           {events.length ? (
             <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -1366,7 +1220,7 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
                 当前无引用边/关系边
               </p>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                后端返回了 graph nodes，但未返回 citation_graph.edges。Real Preview 在未启用
+                后端返回了 graph nodes，但未返回 citation_graph.edges。Real Search 在未启用
                 RefChain 或没有可用引用元数据时可能出现这种状态。
               </p>
             </div>

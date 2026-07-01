@@ -2,113 +2,88 @@
 
 ## 摘要
 
-ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的前后端分离系统。系统目标是把研究者的自然语言复杂学术查询转化为可解释、可观测、可评测的论文检索 pipeline，并输出结构化论文结果、相关性理由、证据诊断和规则版 citation-backed synthesis。
+ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的前后端分离系统。当前版本已经从双路径演示形态切换为 **Real Search only runtime**：产品路径只保留真实检索生命周期接口，不再提供示例数据兜底或产品级模拟检索结果。
 
-当前版本是 no-LLM 规则版 MVP。系统已经实现 FastAPI 后端、Next.js 前端、OpenAlex / arXiv 真实检索 connector、多源聚合去重、Query Understanding、Judgement、Reranking、Query Evolution、RefChain、Synthesis、API mapper、Real Search lifecycle、SSE 可观测事件、retrieval cache、批量搜索 CLI 和离线评测基础设施。当前版本没有调用 LLM，没有读取全文 PDF，也没有接入完整 LitSearch / AstaBench benchmark。真实检索依赖 OpenAlex / arXiv，可能受到 OpenAlex 503、arXiv 429 或 timeout 等外部服务状态影响。
+当前版本仍是 no-LLM 规则版 MVP。系统已经实现 FastAPI 后端、Next.js 前端、OpenAlex / arXiv 真实检索 connector、多源聚合去重、Query Understanding、Judgement、Reranking、Query Evolution、RefChain、Synthesis、API mapper、Real Search lifecycle、SSE 可观测事件、retrieval cache、批量搜索 CLI 和离线评测基础设施。当前版本没有调用 LLM，没有读取全文 PDF，也没有接入完整 LitSearch / AstaBench benchmark。
 
-项目重点不是把所有高级能力一次性做成黑盒，而是先形成一个边界清晰、可测试、可解释、低 Token 成本的闭环系统：后端负责检索与判断，前端负责工作台、运行过程、结果卡片和 synthesis 展示；Mock Demo 保证稳定演示，Real Preview 验证真实检索路径。
+外部检索源失败时，系统会返回明确 diagnostics，例如 source stats、warnings、missing_evidence 和 SSE warning/error events，不会静默返回示例数据。
 
 ## 赛题理解
 
-赛题要求构建端到端学术论文智能搜索系统，针对自然语言描述的复杂学术查询，完成查询理解、多策略检索、论文排序和结构化归纳。根据评分规则，自动评分重点包括：
+赛题要求构建端到端学术论文智能搜索系统，针对自然语言描述的复杂学术查询，完成查询理解、多策略检索、论文排序和结构化归纳。系统设计重点包括：
 
-1. F1 Score，占自动评分 70%，要求同时关注 Precision 和 Recall。
-2. 运行效率，占自动评分 20%，重点是 API 调用次数、Token 消耗和端到端延迟。
-3. 结果结构化，占自动评分 10%，要求输出列表、关系图、证据和清晰的结构化结果。
+1. F1 Score：平衡 Precision 和 Recall。
+2. 运行效率：控制 API 调用次数、Token 消耗和端到端延迟。
+3. 结果结构化：输出列表、证据、关系图、诊断和可复现的结构化结果。
 
-因此系统设计需要避免两类极端：
-
-- 只做关键词检索，召回和语义约束不足。
-- 无限制调用外部 API 或 LLM，成本和延迟不可控。
-
-ScholarNavigator 当前采用规则版 staged pipeline，在不调用 LLM 的前提下先建立可复现的查询理解、检索、去重、判断、重排和诊断链路，为后续可选 LLM 增强保留接口。
+ScholarNavigator 当前采用规则版 staged pipeline，在不调用 LLM 的前提下先建立可复现的查询理解、检索、去重、判断、重排和诊断链路，为下一阶段真实 LLM provider 接入保留接口。
 
 ## 系统目标与创新点
 
-### 系统目标
-
-- 将复杂学术查询解析为结构化 `SearchPlan`。
-- 同时支持多源检索和跨来源去重。
-- 对候选论文给出可解释的相关性判断和重排序。
-- 对检索失败、证据不足、source error 给出结构化诊断。
-- 在前端展示可演示的搜索工作台、运行过程、结果卡片和 synthesis panel。
-- 建立离线评测基础，用于后续比较 baseline / query_evolution / refchain。
-
-### 当前阶段创新点
-
-1. 可解释的 no-LLM fallback pipeline  
-   当前 MVP 即使没有 LLM Key，也能完成查询解析、候选检索、判断、重排和 synthesis，避免系统完全依赖 LLM。
-
-2. 前后端分离的可信边界  
-   前端不读取、不保存、不展示 API Key。真实检索、未来 LLM 调用、成本统计和评测都保留在后端。
-
-3. 双模式演示机制  
-   Mock Demo 用稳定 mock 数据保证比赛现场演示；Real Preview 走独立 Real Search lifecycle，真实调用 OpenAlex / arXiv，支持 queued/running/succeeded/failed/cancelled 状态、SSE 事件、取消、缓存命中诊断和错误可观测性。
-
-4. 检索错误可观测  
-   OpenAlex 503、arXiv 429 / timeout 等失败会进入 `source_stats`、`warnings`、`missing_evidence` 和 synthesis limitations，前端不会白屏。
-
-5. Citation-backed synthesis 的保守实现  
-   规则版 synthesis 只基于 ranked papers 的 evidence rows 生成 summary 和 findings，每条 finding 绑定 citation key，并明确显示 metadata-only 和 full-text unavailable 限制。
-
-6. 离线评测与批量运行准备  
-   已实现 canonical paper matching、Recall@K、Precision@K、MRR、nDCG、candidate count 和 error rate 相关基础模块，支持 fake fixture 离线对比三组策略，并提供批量搜索、批量汇总和 gold/qrels 评测 CLI。
+- Real Search only：产品路径只走 `/api/v1/real/search/runs` 生命周期接口。
+- 无静默 fallback：OpenAlex / arXiv 或未来 LLM 不可用时，返回明确错误或诊断。
+- 前后端分离：前端不读取、不保存、不展示 API Key。
+- 可解释 pipeline：每个阶段输出结构化对象，便于测试、追踪和前端展示。
+- 低 token 成本：当前 no-LLM，`llm_call_count=0`。
+- 可观测真实检索：SSE 暴露 `connector_completed`、`warning`、`cost_updated`。
+- 保守 synthesis：规则版 citation-backed synthesis 只基于 metadata/evidence rows，不读取全文 PDF。
+- 可评测基础：提供离线 metrics、fake fixture evaluator、批量搜索和 gold/qrels 评测 CLI。
 
 ## 总体架构
 
-系统采用前后端分离架构。
+后端基于 FastAPI 和 `src/scholar_agent` 包实现：
 
-### 后端
-
-后端基于 FastAPI 和 `src/scholar_agent` 包实现，主要职责包括：
-
-- API 层：Mock API、Real Search lifecycle API、internal preview API、Mock SSE 与 Real Search SSE event replay。
+- API 层：health、runtime config、Real Search lifecycle、internal preview。
 - Service 层：SearchService、API mapper、离线评测服务。
 - Agent 层：QueryUnderstanding、Judgement、Reranker、QueryEvolution、RefChain、Synthesis。
 - Connector 层：OpenAlex、arXiv。
 - Core 层：Paper schema、Search schema、Synthesis schema、Evaluation schema、dedup。
-- Evaluation 层：metrics、offline evaluator、fixture loader、报告脚本。
+- Evaluation 层：metrics、offline evaluator、fixture loader、CLI 脚本。
 
-### 前端
+前端基于 Next.js + TypeScript + Tailwind CSS 实现：
 
-前端基于 Next.js + TypeScript + Tailwind CSS，主要职责包括：
-
-- ScholarNavigator 搜索工作台。
-- Mock Demo / Real Preview 模式切换。
+- ScholarNavigator Real Search 工作台。
 - 参数配置：`top_k`、`run_profile`、`enable_query_evolution`、`enable_refchain`、`current_year`。
-- Run Progress 展示。
-- 论文卡片、source badges、identifier、links、missing evidence 展示。
-- Citation-backed Synthesis Panel 展示。
+- Real Search Events 展示。
+- 论文卡片、source badges、identifier、links、missing evidence。
+- Citation-backed Synthesis Panel。
+- Citation Graph Panel。
+- Export JSON / Markdown。
 
-### API 边界与 Runtime
+## API 边界与 Runtime
 
-现有 Mock API 保持不变：
+保留的产品 API：
 
-- `POST /api/v1/search/runs`
-- `GET /api/v1/search/runs/{run_id}`
-- `GET /api/v1/search/runs/{run_id}/result`
-- `GET /api/v1/search/runs/{run_id}/events`
-
-真实检索当前通过独立 Real Search lifecycle 暴露：
-
+- `GET /api/v1/health`
+- `GET /api/v1/runtime/config`
 - `POST /api/v1/real/search/runs`
 - `GET /api/v1/real/search/runs/{run_id}`
 - `GET /api/v1/real/search/runs/{run_id}/result`
 - `GET /api/v1/real/search/runs/{run_id}/events`
 - `POST /api/v1/real/search/runs/{run_id}/cancel`
 
-Real Search POST 会立即返回 `run_real_*`，后台线程运行 SearchService，前端通过 status 轮询和 SSE 事件观察 queued / running / succeeded / failed / cancelled。SSE 会回放 `connector_completed`、`warning`、`cost_updated` 等事件，便于解释外部源状态、cache hit 和成本变化。
+删除的产品 API：
 
-internal preview endpoint 仍保留为后端调试入口，不作为前端主路径：
+- `POST /api/v1/search/runs`
+- `GET /api/v1/search/runs/{run_id}`
+- `GET /api/v1/search/runs/{run_id}/result`
+- `GET /api/v1/search/runs/{run_id}/events`
 
-- `POST /api/v1/internal/search/preview`
-- `POST /api/v1/internal/search/preview/api-result`
+`GET /api/v1/runtime/config` 当前应返回：
 
-`GET /api/v1/runtime/config` 会返回 `mode=hybrid`，明确当前是 Mock Demo + Real Search 双路径；`llm.available=false` 表示 no-LLM MVP；OpenAlex / arXiv connector 标记为可用于 Real Search；Semantic Scholar / PubMed 仍为未实现。
+- `mode=real_search`
+- `llm.available=false`
+- OpenAlex / arXiv connector `available=true`
+- Semantic Scholar / PubMed `not_implemented`
+- `features.real_search=true`
+- `features.real_search_cancel=true`
+- `features.real_search_sse=true`
+- `features.retrieval_cache=true`
+- `features.batch_cli=true`
 
-## 核心算法与 Pipeline
+internal preview endpoint 可保留为后端调试入口，但必须调用真实 SearchService，不返回示例数据。
 
-SearchService 当前 pipeline 为：
+## 核心 Pipeline
 
 ```text
 query
@@ -129,370 +104,100 @@ query
   -> SearchServiceOutput
 ```
 
-核心设计原则：
+## 关键模块
 
-- 每个阶段输出结构化对象，方便测试、追踪和前端展示。
-- 单个 source 或 subquery 失败不阻断整个 pipeline。
-- Query Evolution 和 RefChain 由开关控制，默认可单独验证。
-- Synthesis 在 final rerank 之后执行，避免基于未排序或未过滤候选生成结论。
-- 真实 API 调用集中在 connector 层和 SearchService，前端不直接访问外部学术 API。
+### Query Understanding
 
-## Query Understanding
+规则版 QueryUnderstandingAgent 输出 SearchPlan，支持 language、intent、domain、time range、venue、source selection 和 subquery 生成。当前只选择已实现的 `openalex` / `arxiv`，不会把未实现的 Semantic Scholar / PubMed 假装为可用源。
 
-QueryUnderstandingAgent 当前为规则版实现，输出内部 `SearchPlan`。核心能力包括：
+### 多源检索与去重
 
-- 基础校验：空 query 抛错。
-- language 检测：`zh`、`en`、`mixed`、`unknown`。
-- intent 识别：`survey`、`recent_progress`、`method_comparison`、`benchmark_or_dataset`、`application`、`paper_finding`、`general`。
-- domain 识别：`computer_science`、`machine_learning`、`biomedical`、`general_science`。
-- 时间约束解析：`since 2020`、`2021-2024`、`近三年`、`latest` 等。
-- venue 抽取：ACL、EMNLP、SIGIR、KDD、NeurIPS、ICLR、ICML、CVPR 等。
-- source selection：当前只返回已实现 connector `openalex` 和 `arxiv`。biomedical query 会提示 `pubmed_not_implemented`，但不会假装 PubMed 已接入。
-- subquery 生成：根据 run profile 生成 1 到 5 个稳定、去重的子查询。
+OpenAlex 和 arXiv connector 都有 timeout、轻量 retry/backoff、字段缺失容错和 detailed diagnostics。Retriever 汇总 source_stats、warnings、latency，并支持轻量 retrieval cache。Dedup 支持 DOI、arXiv ID 去版本号、OpenAlex ID、Semantic Scholar ID、PubMed ID 和 title+year fallback。
 
-当前限制：
+### Judgement 与 Reranking
 
-- 不做 LLM 语义改写。
-- 中文 query 的英文关键词版本较保守，不做复杂机器翻译式长句。
-- source selection 只覆盖 OpenAlex / arXiv。
+JudgementAgent 只基于 QueryAnalysis 和 Paper metadata，不访问外网、不读取 PDF、不调用 LLM。RerankerAgent 以 judgement score 为主，同时考虑 citation_count、sources 数量、identifier 完整度、venue、year、metadata 完整性和 intent 权重。
 
-## 多源检索与去重
+### Query Evolution 与 RefChain
 
-### OpenAlex Connector
+Query Evolution 只从高相关 seed 生成少量 evolved queries。RefChain 只做单层引用扩展，默认使用 OpenAlex references，不做递归多层引用扩展，也不训练 PaSa 风格 selector。
 
-OpenAlex connector 支持：
+### Citation-backed Synthesis
 
-- Works API 检索。
-- `OPENALEX_MAILTO` polite pool 配置。
-- OpenAlex references 获取，用于 RefChain。
-- timeout、轻量 retry/backoff。
-- 网络错误、非 2xx、字段缺失容错。
-- detailed connector 输出 `papers`、`error_message`、`warnings`。
-
-### arXiv Connector
-
-arXiv connector 支持：
-
-- arXiv 公共 API 检索。
-- XML 解析容错。
-- timeout、轻量 retry/backoff。
-- HTTPError、URLError、timeout 诊断。
-- detailed connector 输出 `papers`、`error_message`、`warnings`。
-
-### 聚合与去重
-
-Retriever 默认同时调用 OpenAlex 和 arXiv，并返回：
-
-- query
-- requested_sources
-- raw_count
-- deduplicated_count
-- papers
-- source_stats
-- warnings
-- latency_seconds
-
-去重规则优先级：
-
-1. DOI，大小写归一。
-2. arXiv ID，去掉版本号。
-3. OpenAlex ID。
-4. Semantic Scholar ID。
-5. PubMed ID。
-6. 标题归一化后高度相似，并且年份相同或相差不超过 1 年。
-
-合并时保留更完整的 identifiers、urls、sources、abstract、authors、venue、title，并取最大 citation_count。
-
-## Judgement 与 Reranking
-
-### JudgementAgent
-
-JudgementAgent 当前只基于 QueryAnalysis 和 Paper metadata，不访问外网、不读取 PDF、不调用 LLM。评分信号包括：
-
-- 原始 query 关键词命中。
-- must include terms、methods、datasets 命中。
-- title 命中权重高于 abstract。
-- venue constraint 命中加分。
-- time range 满足加分，不满足降分。
-- domain 相关词命中。
-- 缺失 title、abstract、year 时进入 warnings。
-
-分类规则：
-
-- `highly_relevant`
-- `partially_relevant`
-- `weakly_relevant`
-- `irrelevant`
-- `insufficient_evidence`
-
-Evidence 只允许来自：
-
-- title
-- abstract
-- venue
-- metadata
-
-### RerankerAgent
-
-RerankerAgent 以 judgement score 为主，同时考虑：
-
-- citation_count
-- sources 数量
-- identifier 完整度
-- venue
-- year
-- metadata 完整性
-- intent 对权重的影响
-
-例如：
-
-- `recent_progress` 查询提高 timeliness 权重。
-- `survey` 查询提高 authority 权重。
-- `irrelevant` 和 `insufficient_evidence` 排在后面。
-
-输出 `RankedPaper`，包含 rank、final_score、score_breakdown、ranking_reason、evidence 等字段。
-
-## Query Evolution 与 RefChain
-
-### Query Evolution
-
-QueryEvolutionAgent 当前为规则版可选阶段，仅在 `enable_query_evolution=True` 时执行。
-
-规则：
-
-- 只从 highly relevant 和高分 partially relevant 论文中选 seed。
-- irrelevant 和 insufficient_evidence 不作为 seed。
-- 默认最多生成 3 个 evolved queries。
-- evolved query 与 used queries 去重。
-- source_hints 只允许 `openalex` / `arxiv`。
-- 同样输入输出稳定。
-
-在人工验证中，Query Evolution 可生成额外 query，并在 `missing_evidence` 中记录 round、seed_count、generated_count。
-
-### RefChain
-
-RefChainAgent 当前为规则版单层引用扩展，仅在 `enable_refchain=True` 时执行。
-
-规则：
-
-- 只选择 highly relevant / partially relevant 作为 seed。
-- 默认最多 3 个 seed。
-- 每个 seed 最多 15 篇 references。
-- 总 references 默认最多 50。
-- 缺少 OpenAlex ID 或 DOI 的 seed 会跳过并进入 warnings。
-- fetcher 由外部注入，测试中使用 fake fetcher。
-
-当前不做递归多层引用扩展，不做引用图全量遍历，也不训练 PaSa 风格 selector。
-
-## Citation-backed Synthesis
-
-SynthesisAgent 当前为规则版 citation-backed synthesis，默认在 SearchService final rerank 后执行。
-
-输入：
-
-- final ranked papers。
-- ranked_papers 中的 evidence。
-- SearchService warnings。
-- source_stats。
-- refchain_output。
-
-输出：
-
-- answer_summary
-- key_findings
-- evidence_table
-- citation_coverage
-- limitations
-- warnings
-- status
-
-约束：
-
-- 只允许 evidence source 为 `title`、`abstract`、`venue`、`metadata`。
-- citation_key 按 rank 生成，例如 `R1`、`R2`。
-- 每个 finding 必须至少包含一个 citation_key。
-- 没有 evidence rows 时返回 insufficient evidence，不编造结论。
-- limitations 会包含 source errors、warnings、无全文证据、metadata-only 等限制。
-- 不调用 LLM，不读取全文 PDF，不引入外部事实。
-
-前端已支持展示 Synthesis Panel。人工验证中，Real Preview 返回论文时，panel 展示了 status、answer_summary、5 条 key findings、22 条 evidence table、coverage counters 和 OpenAlex 503 相关 limitations。
+SynthesisAgent 只使用 final ranked papers、evidence rows、warnings、source_stats 和 refchain_output。每个 finding 必须绑定 citation key。没有 evidence rows 时返回 insufficient evidence，不编造结论。当前不读取全文 PDF，不调用 LLM，不引入外部事实。
 
 ## 前端交互设计
 
-ScholarNavigator 前端工作台包含三个核心区域：
+当前前端只有 Real Search 产品路径：
 
-1. Search Workbench  
-   提供品牌区、复杂查询输入、示例 query、`top_k`、`run_profile`、Query Evolution、RefChain、模式切换和启动按钮。
+1. Search Workbench：输入查询、设置 `top_k`、`run_profile`、Query Evolution、RefChain、current year。
+2. Run Progress：展示 Real Search Events、状态、阶段、cost report、cache hits、取消按钮。
+3. Results：展示论文卡片、diagnostics、Synthesis Panel、Citation Graph Panel、Export JSON / Markdown。
 
-2. Run Progress  
-   Mock Demo 下展示 mock run 状态和 SSE 事件；Real Preview 下展示 Real Search Events、queued/running/succeeded/failed/cancelled 状态、connector_completed、warning 和 cost_updated。
+如果外部检索源失败，页面展示“检索源失败/无候选”和 missing_evidence，而不是显示示例数据。
 
-3. Results  
-   展示高度相关论文、部分相关论文、method_clusters、timeline、missing_evidence、可选 Synthesis Panel、Citation Graph Panel 和本地 Export JSON / Markdown。
+## Evaluation 设计
 
-双模式设计：
+当前已实现：
 
-- Mock Demo：走稳定 mock run API，适合无网络或比赛现场兜底。
-- Real Preview：调用 `/api/v1/real/search/runs` lifecycle，真实访问 OpenAlex / arXiv，用于展示真实检索、SSE 可观测性、取消、cache hit、成本统计和错误诊断。
-
-前端对 backend unavailable、loading、error、empty candidate、cancelled run 都有友好提示。当前 UI 明确说明 Synthesis 是规则版 metadata/evidence-row synthesis，不代表读取全文 PDF。Citation Graph Panel 只展示后端返回的结构化 nodes / edges，不推断未返回的引用关系。导出功能完全在浏览器本地完成，不上传后端，也不触发重新检索。
-
-## Evaluation 设计与当前实验结果
-
-### 指标设计
-
-当前已实现的离线评测指标包括：
-
+- `canonical_paper_id`
 - Recall@K
 - Precision@K
 - MRR
 - nDCG@K
 - candidate_count_metrics
 - error_rate_metrics
+- offline evaluator
+- fixture loader
+- `scripts/run_search_batch.py`
+- `scripts/summarize_search_batch.py`
+- `scripts/evaluate_search_batch.py`
 
-canonical paper matching 支持：
+当前 sample fixture 是小型手写 fake 数据，只用于 smoke test 和报告样例，不代表完整 LitSearch / AstaBench benchmark。
 
-- DOI
-- arXiv ID
-- OpenAlex ID
-- Semantic Scholar ID
-- PubMed ID
-- title + year fallback
+## 成本、延迟与鲁棒性
 
-### 离线评测方式
+- 当前 no-LLM，因此 `llm_call_count=0`，token 估计为 0。
+- Search API 调用数、search rounds、latency、judged_paper_count 和 `cache_hit_count` 进入 cost_report。
+- `REAL_SEARCH_MAX_WORKERS` 控制 SearchService 并发。
+- `REAL_SEARCH_BACKGROUND_WORKERS` 控制后台 executor。
+- `REAL_SEARCH_RUN_TTL_SECONDS` 和 `REAL_SEARCH_MAX_STORED_RUNS` 控制 in-memory run store 清理。
+- `SCHOLAR_AGENT_CORS_ORIGINS` 可扩展本地开发 CORS allowlist。
 
-Evaluator 支持注入 fake retriever 和 fake reference_fetcher，分别运行：
+## 当前测试与验证状态
 
-- baseline
-- query_evolution
-- refchain
+Real-only 重构后需要重新执行最终验收。旧 `docs/design/final_engineering_acceptance.md` 属于 hybrid runtime 历史记录，不能代表当前最终状态。
 
-这样可以在不访问真实外网、不依赖实时 OpenAlex / arXiv 状态的前提下比较不同 feature flag 的效果。
+本轮应验证：
 
-### 当前实验边界
-
-当前 sample fixture 是小型手写 fake 数据，只用于 smoke test 和报告样例，不代表完整 LitSearch / AstaBench benchmark。完整公开数据集适配、隐藏集策略和大规模统计实验尚未完成。
-
-### 当前验证结果
-
-最终工程验收记录 `docs/design/final_engineering_acceptance.md` 显示：
-
-- 后端测试：`PYTHONPATH=src pytest -q`，`190 passed, 1 warning`。
-- 前端 lint：通过。
-- 前端 build：通过。
-- Runtime config：`mode=hybrid`，OpenAlex / arXiv 可用于 Real Search，LLM 为不可用的 `mock-no-llm`。
-- Mock Demo：run、Mock SSE、论文卡片展示成功，`synthesis=null` 按预期隐藏。
-- Real Search API：
-  - create/status/result/events/cancel lifecycle 通过。
-  - Real Search Events 包含 `connector_completed`、`warning`、`cost_updated`。
-  - OpenAlex 503 进入 missing_evidence / source stats / SSE events，arXiv 仍可返回候选。
-  - cancel 后 status 为 `cancelled`，result 返回 `409 run cancelled`。
-- 前端 smoke：
-  - Header 展示 Mock + Real Search、Hybrid Runtime、no-LLM、backend ready。
-  - Real Preview 可展示 run progress、events、论文结果或诊断、Synthesis Panel、Citation Graph Panel、Export JSON / Markdown。
-- Synthesis Panel：
-  - Real Preview 返回论文时，panel 成功展示 summary、findings、coverage、limitations 和 evidence rows。
-- Batch CLI：
-  - 批量搜索、Markdown 汇总、gold/qrels 评测 CLI 均通过小型 smoke 验证。
-  - 该结果只证明链路可用，不代表正式 benchmark。
-
-## 成本、延迟与鲁棒性设计
-
-### 成本设计
-
-当前 MVP 不调用 LLM，因此：
-
-- `llm_call_count=0`
-- `estimated_input_tokens=0`
-- `estimated_output_tokens=0`
-- `estimated_total_tokens=0`
-
-Search API 调用数、search rounds、latency、judged_paper_count 和 `cache_hit_count` 会进入 cost_report。后续接入 LLM 时，系统可以沿用同一成本统计结构。
-
-### 延迟设计
-
-SearchService 支持 subquery 并发，默认 `max_workers=4`。Real Search endpoint 通过 `REAL_SEARCH_MAX_WORKERS` 控制 SearchService 并发，演示建议设置为 `1`；后台 executor 可通过 `REAL_SEARCH_BACKGROUND_WORKERS` 控制。
-
-最终验收中，在 `REAL_SEARCH_MAX_WORKERS=1` 且 retrieval cache 启用时，Real Search lifecycle 可成功完成；前端 smoke 中第二次相似查询出现 `cache_hit_count=6`，说明 cache hit 能降低重复 connector 调用压力。
-
-### 鲁棒性设计
-
-- Connector 层设置 timeout。
-- OpenAlex / arXiv 对 429、5xx、timeout、URLError 做轻量 retry/backoff。
-- 单个 source 失败不会导致整个 retrieve_papers 失败。
-- 单个 subquery 检索失败不会中断 SearchService。
-- Query Evolution 无 seed 时返回 warning。
-- RefChain 单个 seed 失败不会中断整体。
-- 前端展示 missing_evidence，避免空白失败。
-- Real Search run store 只清理 terminal runs，支持 `REAL_SEARCH_RUN_TTL_SECONDS` 和 `REAL_SEARCH_MAX_STORED_RUNS`，避免长期运行时无限增长。
-- CORS allowlist 可通过 `SCHOLAR_AGENT_CORS_ORIGINS` 扩展，默认支持 `localhost/127.0.0.1` 的 `3000`、`3001`、`5173`，覆盖常见前端开发端口。
-
-## 与参考系统和数据集的关系
-
-### SPAR
-
-项目借鉴 SPAR 的 agent pipeline 思路，包括 Query Understanding、Retrieval、Judgement、Query Evolution、Reranker 和 RefChain。当前实现不是直接复刻 SPAR，而是将其核心模块转化为本项目可测试、可替换的后端服务与 schema。
-
-### PaSa
-
-项目借鉴 PaSa 的 Crawler / Selector、paper queue、Search / Expand / Stop 思想，用于指导 Query Evolution 和 RefChain 的设计。当前 MVP 不实现 SFT、PPO、RL 训练，也不做递归多层引用扩展。
-
-### PaperQA2
-
-项目借鉴 PaperQA2 的 evidence gathering、citation traversal、citation-backed answer 和 insufficient evidence 处理思想。当前 synthesis 只使用 metadata/evidence rows，不读取全文 PDF。
-
-### ai2-scholarqa-lib
-
-项目借鉴 scholar QA 的证据组织、引用约束、answer structure 和 limitations 展示思路。当前落地为 evidence_table、citation_keys、coverage 和 limitations。
-
-### LitSearch
-
-项目借鉴 LitSearch 的学术检索评测方向，使用 Recall@K、Precision@K、MRR、nDCG 等指标。当前尚未接入完整 LitSearch benchmark。
-
-### AstaBench
-
-项目借鉴 AstaBench 对科研 Agent 的评测关注点，例如任务级指标、候选规模、错误率、延迟和可复现评测。当前尚未接入完整 AstaBench benchmark。
-
-## 当前测试与验证结果
-
-截至本报告初稿更新时，最终工程验收记录包括：
-
-- 单元和集成测试：`190 passed, 1 warning`。
-- 前端 lint：通过。
-- 前端 build：通过。
-- 仓库状态审计：已清理 `third_party/paper-qa` 中 `.DS_Store` 删除状态，root tracked 工作区干净。
-- Mock Demo 人工验证：通过。
-- Real Search lifecycle 人工验证：create/status/result/events/cancel 通过，OpenAlex 503 被记录为外部源诊断，arXiv 返回候选。
-- Real Preview 前端验证：成功展示真实检索失败诊断、真实论文结果、Synthesis Panel、Citation Graph Panel 和本地导出按钮。
-- Synthesis Panel 人工验证：通过。
-- Batch CLI smoke：批量搜索、汇总和评测通过。
-
-唯一测试 warning 是既有 FastAPI/TestClient Starlette deprecation warning。
+- `PYTHONPATH=src pytest -q`
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+- runtime config 为 real_search。
+- 旧 `/api/v1/search/runs` 产品路径不可用，且不出现在 OpenAPI paths 中。
+- 前端不再展示模式切换或任何产品级示例检索入口。
 
 ## 已知问题与边界
 
 1. 当前是 no-LLM 规则版 MVP，不具备 LLM 级复杂语义理解和自然语言归纳能力。
 2. 当前没有读取全文 PDF，所有证据来自 title、abstract、venue、metadata。
 3. 当前没有接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 评测链路。
-4. Real Preview 依赖 OpenAlex / arXiv，可能受到 503、429、timeout 等外部服务影响。
+4. Real Search 依赖 OpenAlex / arXiv，可能受到 503、429、timeout 等外部服务影响。
 5. Semantic Scholar 和 PubMed connector 尚未实现，biomedical 查询会提示 PubMed 未实现。
-6. 公共 `/api/v1/search/runs` 仍是 Mock API；真实搜索通过独立 `/api/v1/real/search/runs` 暴露，目前使用 in-memory run store，不是生产级持久化队列。
-7. 当前 method_clusters 和 timeline 是确定性简化结构，不是深层语义聚类。
-8. 当前已有轻量 in-memory retrieval cache 和 run store cleanup，但仍缺少生产级持久化缓存、任务队列、用户日志、鉴权和部署脚本。
+6. Real Search 使用 in-memory run store，不是生产级持久化任务队列。
+7. 当前缺少真实 LLM provider；下一阶段将接入 LLM provider，但不允许失败时返回示例数据。
 
 ## 后续工作
 
-1. 将 Real Search lifecycle 从 in-memory store 升级为持久化任务队列。
-2. 增加 Semantic Scholar、PubMed 等检索源。
-3. 接入可选 LLM 增强 Query Understanding、Judgement、Reranking 和 Synthesis，同时保留 no-Key fallback。
+1. 接入真实 LLM provider，并实现 provider-unavailable diagnostics。
+2. 将 Real Search lifecycle 升级为持久化任务队列。
+3. 增加 Semantic Scholar、PubMed 等检索源。
 4. 增加全文或分段证据检索能力，并严格绑定证据来源。
 5. 接入完整 LitSearch / AstaBench 或 SPARBench 数据，形成正式实验表格。
 6. 完善缓存、日志、限流、失败重试和成本 dashboard。
-7. 优化前端 citation graph、method clusters、timeline、导出内容和批量报告可视化。
-8. 将本报告扩展为正式参赛报告和答辩 PPT。
 
 ## 总结
 
-ScholarNavigator 当前已经形成一个完整但边界清晰的参赛系统雏形。它通过前后端分离、可解释规则 pipeline、真实 OpenAlex / arXiv 检索、错误可观测、结构化 API mapper、Synthesis Panel 和离线评测基础，覆盖了赛题中查询理解、多源检索、相关性判断、结果结构化和效率控制的核心方向。
+ScholarNavigator 当前已经形成 Real Search only 的参赛系统雏形。它通过前后端分离、可解释规则 pipeline、真实 OpenAlex / arXiv 检索、错误可观测、结构化 API mapper、Synthesis Panel、Citation Graph Panel 和离线评测基础，覆盖了赛题中查询理解、多源检索、相关性判断、结果结构化和效率控制的核心方向。
 
-当前版本不夸大能力：它不调用 LLM，不读取全文 PDF，不声称完成完整 benchmark。它的价值在于先搭建稳定、可测试、可演示、可扩展的工程闭环，为后续 LLM 增强、更多检索源和正式评测接入提供可靠基础。
+当前版本不夸大能力：它不调用 LLM，不读取全文 PDF，不声称完成完整 benchmark，也不再用产品级示例数据兜底。它的价值在于先搭建稳定、可测试、可演示、可扩展的真实检索工程闭环，为后续 LLM provider、更多检索源和正式评测接入提供可靠基础。

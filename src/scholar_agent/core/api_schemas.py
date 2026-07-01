@@ -1,8 +1,4 @@
-"""Pydantic schemas for the FastAPI mock API.
-
-The mock API mirrors the planned contract closely enough for frontend
-integration while intentionally avoiding real search connectors and LLM calls.
-"""
+"""Pydantic schemas for the ScholarNavigator FastAPI API."""
 
 from __future__ import annotations
 
@@ -66,7 +62,7 @@ class RuntimeFeatures(BaseModel):
 
 
 class RuntimeConfigResponse(BaseModel):
-    mode: str = "mock"
+    mode: str = "real_search"
     llm: LLMRuntimeConfig
     connectors: list[ConnectorRuntimeConfig]
     limits: RuntimeLimits
