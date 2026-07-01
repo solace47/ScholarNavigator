@@ -7,6 +7,9 @@ This runbook covers the offline evaluation primitives:
 - `src/scholar_agent/core/evaluation_schemas.py`
 - `src/scholar_agent/evaluation/metrics.py`
 - `src/scholar_agent/evaluation/offline_evaluator.py`
+- `src/scholar_agent/evaluation/fixture_loader.py`
+- `scripts/eval_search_service.py`
+- `scripts/summarize_eval_results.py`
 
 Current boundaries:
 
@@ -163,15 +166,95 @@ The evaluator does not depend on LitSearch or AstaBench real data. Those
 datasets remain design references only until a local fixture snapshot is
 explicitly prepared.
 
+## Fixture Loader
+
+The conventional local fixture directory contains:
+
+```text
+datasets/eval_fixtures/<name>/
+  search_cases.jsonl
+  retrieval_outputs.json
+  reference_outputs.json
+```
+
+`search_cases.jsonl` stores one `EvalQuery` per line.
+
+`retrieval_outputs.json` can store either:
+
+- `{ "outputs": [RetrievalOutput, ...] }`
+- a mapping of query string to `RetrievalOutput` payload
+
+The loader normalizes query keys by lowercasing and collapsing whitespace. If a
+query is missing, the generated fake retriever returns an empty
+`RetrievalOutput` with a `fixture_missing_retrieval:<query>` warning and source
+error message. This keeps offline evaluation observable and prevents accidental
+fallback to real connectors.
+
+`reference_outputs.json` can store either:
+
+- `{ "references": [{ "seed_id": "doi:...", "papers": [Paper, ...] }] }`
+- a mapping of canonical seed ID to paper list
+
+Reference seed IDs should use the same canonical format as
+`canonical_paper_id`, for example `doi:10.123/example`.
+
+The committed sample fixture is intentionally tiny and handwritten:
+
+```text
+datasets/eval_fixtures/sample/
+```
+
+It is only for smoke testing the evaluator and scripts. It is not LitSearch or
+AstaBench data.
+
+## Scripts
+
+Run the sample offline evaluation:
+
+```bash
+PYTHONPATH=src python scripts/eval_search_service.py \
+  --fixtures-dir datasets/eval_fixtures/sample \
+  --output-root outputs/eval_runs \
+  --run-id sample
+```
+
+This writes:
+
+```text
+outputs/eval_runs/sample/result.json
+```
+
+Generate a Markdown summary:
+
+```bash
+PYTHONPATH=src python scripts/summarize_eval_results.py \
+  outputs/eval_runs/sample/result.json
+```
+
+This writes:
+
+```text
+outputs/eval_runs/sample/summary.md
+```
+
+The summary compares `baseline`, `query_evolution`, and `refchain` on:
+
+- Recall@5/10/20
+- Precision@5/10/20
+- MRR
+- nDCG@5/10/20
+- raw and deduplicated candidate counts
+- warning count
+- source error rate
+
 ## Next Integration Step
 
 The next evaluation implementation should add artifact persistence and reporting:
 
-1. Load fixture queries and gold papers from JSONL.
-2. Load retrieval/reference fixture maps from disk.
-3. Persist raw `SearchServiceOutput` artifacts.
-4. Score saved artifacts using the pure metrics in this module.
-5. Generate Markdown/CSV comparison tables.
+1. Add richer offline fixtures covering multiple query types.
+2. Persist raw `SearchServiceOutput` artifacts in addition to scored summaries.
+3. Add CSV output for spreadsheet comparison.
+4. Add a regression threshold file for CI.
 
 Tests for that layer must continue to block network access and must not call
 real connectors.
