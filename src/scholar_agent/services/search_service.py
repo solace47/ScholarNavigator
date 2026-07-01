@@ -138,13 +138,20 @@ class SearchService:
         )
 
         stage_start = time.perf_counter()
-        retrieval_outputs = self._retrieve_subqueries(search_plan)
+        initial_subqueries, fast_arxiv_warnings = (
+            _limit_fast_arxiv_initial_subqueries(search_plan)
+        )
+        retrieval_outputs = self._retrieve_subqueries(
+            search_plan,
+            subqueries=initial_subqueries,
+        )
         _add_stage_latency(
             stage_latencies,
             "retrieval",
             time.perf_counter() - stage_start,
         )
         warnings: list[str] = list(search_plan.warnings)
+        warnings.extend(fast_arxiv_warnings)
         query_evolution_records: list[QueryEvolutionRecord] = []
         refchain_output: RefChainOutput | None = None
 
@@ -338,9 +345,14 @@ class SearchService:
         output.latency_seconds = time.perf_counter() - start
         return output
 
-    def _retrieve_subqueries(self, search_plan: SearchPlan) -> list[RetrievalOutput]:
+    def _retrieve_subqueries(
+        self,
+        search_plan: SearchPlan,
+        *,
+        subqueries: list[SearchSubquery] | None = None,
+    ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
-            search_plan.subqueries,
+            search_plan.subqueries if subqueries is None else subqueries,
             selected_sources=search_plan.selected_sources,
             limit_per_source=search_plan.limit_per_source,
             failure_prefix="subquery_failed",
@@ -573,6 +585,27 @@ def _query_understanding_llm_call_count(
     ):
         return 1
     return 0
+
+
+def _limit_fast_arxiv_initial_subqueries(
+    search_plan: SearchPlan,
+) -> tuple[list[SearchSubquery], list[str]]:
+    if not (
+        search_plan.run_profile == "fast"
+        and search_plan.selected_sources == ["arxiv"]
+        and not search_plan.enable_query_evolution
+        and not search_plan.enable_refchain
+    ):
+        return search_plan.subqueries, []
+
+    if len(search_plan.subqueries) <= 1:
+        return search_plan.subqueries, []
+
+    warnings = [
+        f"fast_arxiv_subquery_skipped_by_limit:{index}"
+        for index in range(1, len(search_plan.subqueries))
+    ]
+    return search_plan.subqueries[:1], warnings
 
 
 def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:

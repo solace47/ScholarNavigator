@@ -143,12 +143,12 @@ const STAGE_LATENCY_ORDER = [
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [query, setQuery] = useState(EXAMPLES[0]);
-  const [topK, setTopK] = useState(20);
+  const [topK, setTopK] = useState(5);
   const [currentYear, setCurrentYear] = useState(2026);
-  const [runProfile, setRunProfile] = useState<RunProfile>("balanced");
+  const [runProfile, setRunProfile] = useState<RunProfile>("fast");
   const [sourceMode, setSourceMode] = useState<SourceMode>("arxiv");
-  const [enableRefchain, setEnableRefchain] = useState(true);
-  const [enableQueryEvolution, setEnableQueryEvolution] = useState(true);
+  const [enableRefchain, setEnableRefchain] = useState(false);
+  const [enableQueryEvolution, setEnableQueryEvolution] = useState(false);
   const [enableLlmJudgement, setEnableLlmJudgement] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigResponse | null>(null);
   const [backendError, setBackendError] = useState<string | null>(null);
@@ -704,6 +704,11 @@ function SearchWorkbench({
               );
             })}
           </div>
+        </div>
+
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
+          默认配置优先稳定和低延迟：arXiv、fast、top_k=5、关闭 Query Evolution / RefChain、
+          关闭 LLM Judgement。需要高召回时，可手动开启 Query Evolution、RefChain 或 Both sources。
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">

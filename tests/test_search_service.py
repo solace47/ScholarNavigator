@@ -151,6 +151,118 @@ def test_run_search_respects_sources_override_and_filters_unimplemented_sources(
     assert "source_preference_not_implemented:pubmed" in output.warnings
 
 
+def test_arxiv_only_fast_limits_initial_retrieval_to_first_subquery() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Fast arXiv LLM Reranking Paper",
+                    doi="10.123/fast-arxiv",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "latest LLM reranking methods for scientific literature retrieval",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    assert len(calls) == 1
+    assert calls[0] == (output.search_plan.subqueries[0].query, ["arxiv"])
+    assert len(output.retrieval_outputs) == 1
+    assert "fast_arxiv_subquery_skipped_by_limit:1" in output.warnings
+
+
+def test_arxiv_only_balanced_does_not_limit_initial_retrieval() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Balanced arXiv Paper {len(calls)}",
+                    doi=f"10.123/balanced-arxiv-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "latest LLM reranking methods for scientific literature retrieval",
+        run_profile="balanced",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    assert len(calls) == len(output.search_plan.subqueries)
+    assert all(call[1] == ["arxiv"] for call in calls)
+    assert not any(
+        warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
+        for warning in output.warnings
+    )
+
+
+def test_fast_both_sources_does_not_limit_initial_retrieval() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Fast Both Sources Paper {len(calls)}",
+                    doi=f"10.123/fast-both-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "latest LLM reranking methods for scientific literature retrieval",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["openalex", "arxiv"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    assert len(calls) == len(output.search_plan.subqueries)
+    assert all(call[1] == ["openalex", "arxiv"] for call in calls)
+    assert not any(
+        warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
+        for warning in output.warnings
+    )
+
+
 def test_run_search_deduplicates_across_subqueries() -> None:
     def fake_retriever(
         query: str,
