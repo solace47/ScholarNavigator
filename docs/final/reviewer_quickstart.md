@@ -203,6 +203,41 @@ PYTHONPATH=src python scripts/summarize_eval_results.py \
 
 说明：该 sample 是小型手写 fake fixture，只用于验证评测链路，不是完整 LitSearch / AstaBench benchmark。
 
+## 批量运行 SearchService
+
+如果需要从本地 JSONL query 文件批量运行真实 SearchService，可使用：
+
+```bash
+PYTHONPATH=src python scripts/run_search_batch.py \
+  --input path/to/queries.jsonl \
+  --output outputs/batch_runs/result.jsonl \
+  --top-k 10 \
+  --run-profile balanced \
+  --current-year 2026 \
+  --enable-query-evolution \
+  --max-workers 2
+```
+
+输入 JSONL 每行至少包含 `query`：
+
+```json
+{"case_id":"case_001","query":"latest LLM reranking methods for scientific literature retrieval","top_k":10,"run_profile":"balanced","current_year":2026,"enable_query_evolution":true,"enable_refchain":false}
+{"query":"survey of agentic scientific paper search"}
+```
+
+输出 JSONL 每行包含：
+
+- `case_id`
+- `query`
+- `status`
+- `result`：成功时为 `SearchRunResultResponse` JSON，失败时为 `null`
+- `error`
+- `latency_seconds`
+
+默认会继续处理单条失败并写出 failed 行；使用 `--fail-fast` 可在第一条失败后返回非零。缺失或空白 `case_id` 会自动生成 `row_1`、`row_2`。空 query 作为单条 failed 输出；非法 JSONL 或缺失输入文件会直接返回非零。
+
+注意：该脚本调用默认 `SearchService` 时可能真实访问 OpenAlex / arXiv；启用 RefChain 时还可能访问 OpenAlex references。测试中通过 monkeypatch 替换 `SearchService`，不访问外网。
+
 ## 关键边界提醒
 
 - 当前系统是 no-LLM 规则版 MVP。

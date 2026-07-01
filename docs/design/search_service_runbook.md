@@ -345,6 +345,73 @@ def reference_fetcher(paper: Paper, limit: int = 20) -> list[Paper]:
 The default is `fetch_openalex_references`. Tests should inject a fake
 reference fetcher whenever `enable_refchain=True`.
 
+## Batch Search CLI
+
+`scripts/run_search_batch.py` runs the same internal `SearchService` pipeline
+over a local JSONL query file and writes one JSON object per input case. It does
+not change the Mock API, Real Search API, or frontend behavior.
+
+Example input:
+
+```json
+{"case_id":"case_001","query":"latest LLM reranking methods for scientific literature retrieval","top_k":10,"run_profile":"balanced","current_year":2026,"enable_query_evolution":true,"enable_refchain":false}
+{"query":"survey of agentic scientific paper search","top_k":5}
+```
+
+Required field:
+
+- `query`
+
+Optional per-row fields:
+
+- `case_id`; missing or blank values become `row_1`, `row_2`, and so on.
+- `top_k`
+- `run_profile`
+- `current_year`
+- `enable_query_evolution`
+- `enable_refchain`
+
+Run:
+
+```bash
+PYTHONPATH=src python scripts/run_search_batch.py \
+  --input datasets/my_queries.jsonl \
+  --output outputs/batch_runs/result.jsonl \
+  --top-k 10 \
+  --run-profile balanced \
+  --current-year 2026 \
+  --enable-query-evolution \
+  --max-workers 2
+```
+
+CLI defaults are used when a row omits the corresponding field. Per-row fields
+override CLI defaults. `--max-workers` is passed to
+`SearchService(max_workers=...)`.
+
+Each output line has the shape:
+
+```json
+{"case_id":"case_001","query":"...","status":"succeeded","result":{ "...": "SearchRunResultResponse JSON" },"error":null,"latency_seconds":1.23}
+```
+
+Succeeded rows run `SearchService.run_search(..., enable_synthesis=True)` and
+map the internal output through `map_search_service_output_to_api_result` with a
+debug run id in the form `batch_{case_id}`.
+
+Error behavior:
+
+- The default behavior is continue-on-error. A failed row writes
+  `status="failed"`, `result=null`, and the error message, then the batch keeps
+  processing later rows.
+- Use `--fail-fast` to stop after the first per-row failure and return non-zero.
+- Empty or missing `query` is treated as a per-row failure.
+- Missing input files, non-file input paths, malformed JSONL, or non-object
+  JSONL rows return non-zero before any SearchService calls.
+
+Manual runs may access OpenAlex/arXiv through the default retriever and OpenAlex
+reference metadata when `enable_refchain=True`. Tests monkeypatch
+`SearchService` and do not access the network.
+
 ## FastAPI Integration Plan
 
 The service has a standalone preview endpoint for manual backend validation:
