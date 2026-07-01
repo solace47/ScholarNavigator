@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Search,
   Server,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Timer,
@@ -97,6 +98,15 @@ type StageLatencyItem = {
   label: string;
   seconds: number;
 };
+type RunConfigSnapshot = {
+  sourcePreferences: string[];
+  runProfile: RunProfile;
+  topK: number;
+  enableQueryEvolution: boolean;
+  enableRefchain: boolean;
+  enableLlmQueryUnderstanding: boolean;
+  enableLlmJudgement: boolean;
+};
 
 const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
   arxiv: "arXiv",
@@ -149,6 +159,7 @@ export function ScholarNavigatorApp() {
   const [status, setStatus] = useState<SearchRunStatusResponse | null>(null);
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [result, setResult] = useState<SearchRunResultResponse | null>(null);
+  const [activeRunConfig, setActiveRunConfig] = useState<RunConfigSnapshot | null>(null);
   const eventSourceCleanup = useRef<(() => void) | null>(null);
   const searchSequence = useRef(0);
 
@@ -199,6 +210,16 @@ export function ScholarNavigatorApp() {
     setStatus(null);
     setEvents([]);
     setResult(null);
+    const runConfigSnapshot: RunConfigSnapshot = {
+      sourcePreferences: sourcePreferencesForMode(sourceMode),
+      runProfile,
+      topK,
+      enableQueryEvolution,
+      enableRefchain,
+      enableLlmQueryUnderstanding: true,
+      enableLlmJudgement,
+    };
+    setActiveRunConfig(runConfigSnapshot);
 
     try {
       const created = await createRealSearchRun({
@@ -214,16 +235,16 @@ export function ScholarNavigatorApp() {
           datasets: [],
           paper_types: [],
         },
-        source_preferences: sourcePreferencesForMode(sourceMode),
-        run_profile: runProfile,
-        top_k: topK,
-        budgets: buildBudgets(runProfile),
+        source_preferences: runConfigSnapshot.sourcePreferences,
+        run_profile: runConfigSnapshot.runProfile,
+        top_k: runConfigSnapshot.topK,
+        budgets: buildBudgets(runConfigSnapshot.runProfile),
         options: {
-          enable_query_evolution: enableQueryEvolution,
-          enable_refchain: enableRefchain,
-          enable_llm_query_understanding: true,
-          enable_llm_judgement: enableLlmJudgement,
-          refchain_depth: enableRefchain ? 1 : 0,
+          enable_query_evolution: runConfigSnapshot.enableQueryEvolution,
+          enable_refchain: runConfigSnapshot.enableRefchain,
+          enable_llm_query_understanding: runConfigSnapshot.enableLlmQueryUnderstanding,
+          enable_llm_judgement: runConfigSnapshot.enableLlmJudgement,
+          refchain_depth: runConfigSnapshot.enableRefchain ? 1 : 0,
           return_markdown: true,
           return_json: true,
           stream_events: true,
@@ -389,6 +410,7 @@ export function ScholarNavigatorApp() {
             status={status}
             events={events}
             costReport={costReport}
+            runConfig={activeRunConfig}
             isSubmitting={isSubmitting}
             isCancelling={isCancelling}
             onCancelRealSearch={handleCancelRealSearch}
@@ -779,6 +801,7 @@ function RunProgress({
   status,
   events,
   costReport,
+  runConfig,
   isSubmitting,
   isCancelling,
   onCancelRealSearch,
@@ -787,6 +810,7 @@ function RunProgress({
   status: SearchRunStatusResponse | null;
   events: StreamEvent[];
   costReport: CostReport | null;
+  runConfig: RunConfigSnapshot | null;
   isSubmitting: boolean;
   isCancelling: boolean;
   onCancelRealSearch: () => void;
@@ -870,6 +894,8 @@ function RunProgress({
 
       <CostMetrics costReport={costReport} />
 
+      <RunConfigSummary runConfig={runConfig} />
+
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
         <div className="panel-soft rounded-lg p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -919,6 +945,81 @@ function RunProgress({
         </div>
       </div>
     </SectionPanel>
+  );
+}
+
+function RunConfigSummary({ runConfig }: { runConfig: RunConfigSnapshot | null }) {
+  if (!runConfig) {
+    return null;
+  }
+
+  const items = [
+    {
+      label: "source_preferences",
+      value: runConfig.sourcePreferences.join(" / "),
+    },
+    {
+      label: "run_profile",
+      value: runConfig.runProfile,
+    },
+    {
+      label: "top_k",
+      value: formatNumber(runConfig.topK),
+    },
+    {
+      label: "enable_query_evolution",
+      value: formatBoolean(runConfig.enableQueryEvolution),
+    },
+    {
+      label: "enable_refchain",
+      value: formatBoolean(runConfig.enableRefchain),
+    },
+    {
+      label: "enable_llm_query_understanding",
+      value: formatBoolean(runConfig.enableLlmQueryUnderstanding),
+    },
+    {
+      label: "enable_llm_judgement",
+      value: formatBoolean(runConfig.enableLlmJudgement),
+    },
+  ];
+
+  return (
+    <section
+      aria-labelledby="run-config-summary-title"
+      className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
+    >
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <h3 id="run-config-summary-title" className="font-semibold">
+              Run Configuration
+            </h3>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            本区域固定展示当前 run 创建时的配置；后续修改左侧表单不会改变该摘要。
+          </p>
+        </div>
+        <Badge>snapshot</Badge>
+      </div>
+
+      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+          >
+            <dt className="break-words text-xs font-semibold uppercase text-[var(--muted)]">
+              {item.label}
+            </dt>
+            <dd className="mt-1 break-words text-sm font-semibold text-[var(--foreground)]">
+              {item.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -1670,6 +1771,10 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
       <dd className="metric-value mt-1 text-base font-bold text-[var(--foreground)]">{value}</dd>
     </div>
   );
+}
+
+function formatBoolean(value: boolean): string {
+  return value ? "enabled" : "disabled";
 }
 
 function EmptyBlock({ lines }: { lines: number }) {
