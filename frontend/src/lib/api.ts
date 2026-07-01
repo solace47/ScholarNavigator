@@ -90,6 +90,27 @@ export function getSearchRunResult(runId: string): Promise<SearchRunResultRespon
   return requestJson<SearchRunResultResponse>(`/api/v1/search/runs/${runId}/result`);
 }
 
+export function createRealSearchRun(
+  payload: SearchRunCreateRequest,
+): Promise<SearchRunCreateResponse> {
+  return requestJson<SearchRunCreateResponse>("/api/v1/real/search/runs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getRealSearchRun(runId: string): Promise<SearchRunStatusResponse> {
+  return requestJson<SearchRunStatusResponse>(`/api/v1/real/search/runs/${runId}`);
+}
+
+export function getRealSearchRunResult(
+  runId: string,
+): Promise<SearchRunResultResponse> {
+  return requestJson<SearchRunResultResponse>(
+    `/api/v1/real/search/runs/${runId}/result`,
+  );
+}
+
 export function previewRealSearchApiResult(
   payload: InternalSearchPreviewRequest,
 ): Promise<SearchRunResultResponse> {
@@ -99,12 +120,12 @@ export function previewRealSearchApiResult(
   });
 }
 
-export function streamSearchRunEvents(
-  runId: string,
+function streamEvents(
+  path: string,
   onEvent: (event: StreamEvent) => void,
   onTransportError: (message: string) => void,
 ): () => void {
-  const source = new EventSource(`${API_BASE_URL}/api/v1/search/runs/${runId}/events`);
+  const source = new EventSource(`${API_BASE_URL}${path}`);
 
   STREAM_EVENTS.forEach((eventName) => {
     source.addEventListener(eventName, (message) => {
@@ -137,4 +158,28 @@ export function streamSearchRunEvents(
   };
 
   return () => source.close();
+}
+
+export function streamSearchRunEvents(
+  runId: string,
+  onEvent: (event: StreamEvent) => void,
+  onTransportError: (message: string) => void,
+): () => void {
+  return streamEvents(
+    `/api/v1/search/runs/${runId}/events`,
+    onEvent,
+    onTransportError,
+  );
+}
+
+export function streamRealSearchRunEvents(
+  runId: string,
+  onEvent: (event: StreamEvent) => void,
+  onTransportError: (message: string) => void,
+): () => void {
+  return streamEvents(
+    `/api/v1/real/search/runs/${runId}/events`,
+    onEvent,
+    onTransportError,
+  );
 }

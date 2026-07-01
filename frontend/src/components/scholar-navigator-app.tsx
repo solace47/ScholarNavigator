@@ -24,12 +24,15 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import {
+  createRealSearchRun,
   createSearchRun,
   getHealth,
+  getRealSearchRun,
+  getRealSearchRunResult,
   getRuntimeConfig,
   getSearchRun,
   getSearchRunResult,
-  previewRealSearchApiResult,
+  streamRealSearchRunEvents,
   streamSearchRunEvents,
 } from "@/lib/api";
 import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
@@ -38,6 +41,7 @@ import type {
   RankedPaper,
   RunProfile,
   RuntimeConfigResponse,
+  SearchRunCreateRequest,
   SearchRunResultResponse,
   SearchRunStatusResponse,
   StreamEvent,
@@ -154,18 +158,64 @@ export function ScholarNavigatorApp() {
 
     if (searchMode === "real_preview") {
       try {
-        const previewResult = await previewRealSearchApiResult({
+        const created = await createRealSearchRun({
           query,
-          top_k: topK,
+          locale: "zh-CN",
+          constraints: {
+            time_range: {
+              end_year: currentYear,
+            },
+            venues: [],
+            must_have_terms: [],
+            excluded_terms: [],
+            datasets: [],
+            paper_types: [],
+          },
+          source_preferences: ["openalex", "arxiv"],
           run_profile: runProfile,
-          enable_query_evolution: enableQueryEvolution,
-          enable_refchain: enableRefchain,
-          current_year: currentYear,
+          top_k: topK,
+          budgets: buildBudgets(runProfile),
+          options: {
+            enable_query_evolution: enableQueryEvolution,
+            enable_refchain: enableRefchain,
+            refchain_depth: enableRefchain ? 1 : 0,
+            return_markdown: true,
+            return_json: true,
+            stream_events: true,
+          },
         });
 
-        setRunId(previewResult.run_id);
-        setStatus(buildPreviewStatus(previewResult));
-        setResult(previewResult);
+        setRunId(created.run_id);
+        eventSourceCleanup.current = streamRealSearchRunEvents(
+          created.run_id,
+          (event) => {
+            setEvents((current) => [...current, event]);
+            if (event.event === "run_completed") {
+              setIsSubmitting(false);
+            }
+          },
+          (message) => {
+            setEvents((current) => [
+              ...current,
+              {
+                event: "sse_error",
+                payload: { message },
+                receivedAt: new Date().toISOString(),
+              },
+            ]);
+            setIsSubmitting(false);
+          },
+        );
+
+        const [runStatus, runResult] = await Promise.all([
+          getRealSearchRun(created.run_id),
+          getRealSearchRunResult(created.run_id),
+        ]);
+        setStatus(runStatus);
+        setResult(runResult);
+        if (runStatus.status === "succeeded") {
+          setIsSubmitting(false);
+        }
       } catch (error) {
         setBackendError(
           error instanceof Error
@@ -299,24 +349,13 @@ export function ScholarNavigatorApp() {
   );
 }
 
-function buildPreviewStatus(result: SearchRunResultResponse): SearchRunStatusResponse {
-  const now = new Date().toISOString();
-  const visiblePaperCount =
-    result.highly_relevant_papers.length + result.partially_relevant_papers.length;
-
+function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"] {
   return {
-    run_id: result.run_id,
-    status: result.status,
-    current_stage: result.status === "succeeded" ? "synthesis" : "preview",
-    progress: {
-      completed_stages:
-        result.status === "succeeded" ? STAGES.map((stage) => stage.key) : [],
-      candidate_paper_count: visiblePaperCount,
-      judged_paper_count: result.cost_report.judged_paper_count,
-    },
-    cost_report: result.cost_report,
-    created_at: now,
-    updated_at: now,
+    max_search_rounds: runProfile === "fast" ? 1 : 2,
+    max_candidate_papers: runProfile === "high_recall" ? 300 : 200,
+    max_llm_calls: 0,
+    max_total_tokens: 0,
+    max_latency_seconds: runProfile === "fast" ? 45 : 90,
   };
 }
 
@@ -446,7 +485,7 @@ function SearchWorkbench({
             />
             <ModeOption
               label="Real Preview"
-              description="OpenAlex / arXiv"
+              description="Real lifecycle + SSE"
               selected={searchMode === "real_preview"}
               onSelect={() => onSearchModeChange("real_preview")}
             />
@@ -719,14 +758,10 @@ function RunProgress({
           <div className="mb-3 flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
             <h3 className="font-semibold">
-              {searchMode === "real_preview" ? "Preview Transport" : "SSE Events"}
+              {searchMode === "real_preview" ? "Real Search Events" : "SSE Events"}
             </h3>
           </div>
-          {searchMode === "real_preview" ? (
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
-              Real Preview 使用一次性 REST 响应，不开启 SSE 事件流。
-            </div>
-          ) : events.length ? (
+          {events.length ? (
             <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
               {events.map((event, index) => (
                 <div
