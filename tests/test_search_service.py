@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
+from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.services.search_service import SearchService
@@ -213,4 +216,88 @@ def test_run_search_uses_injected_retriever_without_network(monkeypatch) -> None
     )
 
     assert called["value"] is True
+    assert output.ranked_papers
+
+
+def test_run_search_concurrent_mode_preserves_retrieval_output_order() -> None:
+    query = "latest LLM reranking retrieval benchmark papers"
+    expected_plan = analyze_query(
+        query,
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    expected_queries = [subquery.query for subquery in expected_plan.subqueries]
+    delay_by_query = {
+        subquery: (len(expected_queries) - index) * 0.01
+        for index, subquery in enumerate(expected_queries)
+    }
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        time.sleep(delay_by_query[query])
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Paper for {query[:24]}",
+                    doi=f"10.123/{sum(ord(char) for char in query)}",
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever, max_workers=4).run_search(
+        query,
+        run_profile="high_recall",
+        current_year=2026,
+    )
+
+    assert [item.query for item in output.retrieval_outputs] == expected_queries
+    assert len(output.ranked_papers) > 0
+
+
+def test_run_search_subquery_failure_keeps_other_results_and_warnings() -> None:
+    query = "latest LLM reranking retrieval benchmark papers"
+    expected_plan = analyze_query(
+        query,
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    failing_query = expected_plan.subqueries[1].query
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        if query == failing_query:
+            raise RuntimeError("mock subquery outage")
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Recovered Paper {query[:16]}",
+                    doi=f"10.123/{sum(ord(char) for char in query)}",
+                )
+            ],
+            warnings=["retriever_warning"],
+        )
+
+    output = SearchService(retriever=fake_retriever, max_workers=4).run_search(
+        query,
+        run_profile="high_recall",
+        current_year=2026,
+    )
+
+    assert [item.query for item in output.retrieval_outputs] == [
+        subquery.query for subquery in expected_plan.subqueries
+    ]
+    assert output.retrieval_outputs[1].raw_count == 0
+    assert output.retrieval_outputs[1].source_stats[0].source == "subquery"
+    assert output.retrieval_outputs[1].source_stats[0].error_message is not None
+    assert "subquery_failed:1:mock subquery outage" in output.warnings
+    assert output.warnings.count("retriever_warning") == 1
+    assert output.raw_count == len(expected_plan.subqueries) - 1
     assert output.ranked_papers

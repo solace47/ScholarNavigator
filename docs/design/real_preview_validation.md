@@ -123,3 +123,30 @@ limit_per_source:
 - No LLM was called by this endpoint.
 - The existing Mock API endpoints were not modified or replaced.
 
+## Post-Concurrency Retest
+
+After adding concurrent subquery retrieval in `SearchService`, the same preview
+request was run again.
+
+Result summary:
+
+- Success: yes
+- HTTP status: 200
+- Real external access attempted: yes, OpenAlex and arXiv
+- Client elapsed seconds: 1.5838
+- Backend reported latency_seconds: 1.5452
+- raw_count: 10
+- deduplicated_count: 10
+- warnings: []
+
+Source stats:
+
+| Source | returned_count | latency_seconds | error_message |
+| --- | ---: | ---: | --- |
+| openalex | 0 | 0.8142 | null |
+| arxiv | 0 | 0.7167 | null |
+| openalex | 0 | 0.8136 | null |
+| arxiv | 10 | 0.6487 | null |
+| openalex | 0 | 0.8139 | null |
+| arxiv | 0 | 0.7172 | null |
+

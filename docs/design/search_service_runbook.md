@@ -46,6 +46,12 @@ service = SearchService(retriever=fake_retriever)
 output = service.run_search("LLM reranking")
 ```
 
+Concurrency can be configured at construction time:
+
+```python
+service = SearchService(retriever=fake_retriever, max_workers=4)
+```
+
 ## Pipeline
 
 Execution order:
@@ -71,6 +77,34 @@ Details:
 - `judge_papers` evaluates deduplicated candidates against
   `SearchPlan.query_analysis`.
 - `rerank_papers` produces final ranked papers using `top_k`.
+
+## Subquery Concurrency
+
+`SearchService` runs subquery retrieval with a standard-library
+`ThreadPoolExecutor`.
+
+Defaults:
+
+- `max_workers=4`
+- worker count is capped by the number of generated subqueries
+- `max_workers <= 0` is normalized to `1`
+
+Ordering guarantees:
+
+- Subqueries may complete out of order.
+- `retrieval_outputs` are stored in original `SearchPlan.subqueries` order.
+- `source_stats` and retrieval warnings are aggregated by that same stable order.
+- Downstream deduplication, judgement, and reranking receive papers in stable
+  subquery order.
+
+Failure handling:
+
+- A single subquery retrieval exception does not fail the whole search.
+- The failed subquery is represented as an empty `RetrievalOutput`.
+- The empty output includes one `SourceStats` item with `source="subquery"` and
+  the error message.
+- A warning in the form `subquery_failed:{index}:{error}` is added.
+- Other subquery results continue through deduplication, judgement, and rerank.
 
 ## Output
 

@@ -7,6 +7,7 @@ It is intentionally not connected to the FastAPI mock API yet.
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Protocol
 
 from pydantic import BaseModel, Field
@@ -39,6 +40,11 @@ class RetrieverFn(Protocol):
         ...
 
 
+class _RetrievalTaskResult(BaseModel):
+    index: int
+    output: RetrievalOutput
+
+
 class SearchServiceOutput(BaseModel):
     search_plan: SearchPlan
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
@@ -54,8 +60,13 @@ class SearchServiceOutput(BaseModel):
 class SearchService:
     """Run the internal no-LLM search pipeline."""
 
-    def __init__(self, retriever: RetrieverFn = retrieve_papers) -> None:
+    def __init__(
+        self,
+        retriever: RetrieverFn = retrieve_papers,
+        max_workers: int = 4,
+    ) -> None:
         self._retriever = retriever
+        self._max_workers = max(1, max_workers)
 
     def run_search(
         self,
@@ -76,18 +87,12 @@ class SearchService:
             current_year=current_year,
         )
 
-        retrieval_outputs: list[RetrievalOutput] = []
+        retrieval_outputs = self._retrieve_subqueries(search_plan)
         raw_papers: list[Paper] = []
         source_stats: list[SourceStats] = []
         warnings: list[str] = list(search_plan.warnings)
 
-        for subquery in search_plan.subqueries:
-            output = self._retriever(
-                subquery.query,
-                limit_per_source=search_plan.limit_per_source,
-                sources=subquery.source_hints or search_plan.selected_sources,
-            )
-            retrieval_outputs.append(output)
+        for output in retrieval_outputs:
             raw_papers.extend(output.papers)
             source_stats.extend(output.source_stats)
             warnings.extend(output.warnings)
@@ -112,6 +117,60 @@ class SearchService:
             source_stats=source_stats,
             latency_seconds=time.perf_counter() - start,
         )
+
+    def _retrieve_subqueries(self, search_plan: SearchPlan) -> list[RetrievalOutput]:
+        if not search_plan.subqueries:
+            return []
+
+        worker_count = min(self._max_workers, len(search_plan.subqueries))
+        results: list[RetrievalOutput | None] = [None] * len(search_plan.subqueries)
+
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(self._retrieve_one_subquery, index, search_plan)
+                for index in range(len(search_plan.subqueries))
+            ]
+            for future in as_completed(futures):
+                result = future.result()
+                results[result.index] = result.output
+
+        return [output for output in results if output is not None]
+
+    def _retrieve_one_subquery(
+        self,
+        index: int,
+        search_plan: SearchPlan,
+    ) -> _RetrievalTaskResult:
+        subquery = search_plan.subqueries[index]
+        sources = subquery.source_hints or search_plan.selected_sources
+        start = time.perf_counter()
+        try:
+            output = self._retriever(
+                subquery.query,
+                limit_per_source=search_plan.limit_per_source,
+                sources=sources,
+            )
+        except Exception as exc:  # noqa: BLE001 - isolate one subquery failure
+            message = f"subquery_failed:{index}:{exc}"
+            latency_seconds = time.perf_counter() - start
+            output = RetrievalOutput(
+                query=subquery.query,
+                requested_sources=list(sources),
+                raw_count=0,
+                deduplicated_count=0,
+                papers=[],
+                source_stats=[
+                    SourceStats(
+                        source="subquery",
+                        returned_count=0,
+                        latency_seconds=latency_seconds,
+                        error_message=message,
+                    )
+                ],
+                warnings=[message],
+                latency_seconds=latency_seconds,
+            )
+        return _RetrievalTaskResult(index=index, output=output)
 
 
 def run_search(
@@ -151,4 +210,3 @@ def _dedupe_warnings(warnings: list[str]) -> list[str]:
         deduped.append(item)
         seen.add(item)
     return deduped
-
