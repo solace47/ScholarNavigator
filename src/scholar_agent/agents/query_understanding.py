@@ -967,11 +967,17 @@ def _coerce_literal(
     warnings: list[str],
 ) -> str:
     normalized = str(value).strip().lower() if value is not None else ""
-    normalized = normalized.replace("-", "_").replace(" ", "_")
+    normalized = re.sub(r"[\s\-/]+", "_", normalized).strip("_")
     aliases = {
         "method_compare": "method_comparison",
         "benchmark": "benchmark_or_dataset",
         "dataset": "benchmark_or_dataset",
+        "recent_methods": "recent_progress",
+        "find_recent_methods": "recent_progress",
+        "find_papers": "paper_finding",
+        "paper_search": "paper_finding",
+        "information_retrieval": "computer_science",
+        "computer_science_information_retrieval": "computer_science",
         "cs": "computer_science",
         "ml": "machine_learning",
     }

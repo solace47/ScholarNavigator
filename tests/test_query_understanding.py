@@ -157,6 +157,75 @@ def test_llm_json_can_generate_search_plan() -> None:
     assert "llm_note" in plan.warnings
 
 
+@pytest.mark.parametrize(
+    ("raw_intent", "expected_intent"),
+    [
+        ("recent methods", "recent_progress"),
+        ("find recent methods", "recent_progress"),
+        ("find papers", "paper_finding"),
+    ],
+)
+def test_llm_intent_aliases_are_normalized(
+    raw_intent: str,
+    expected_intent: str,
+) -> None:
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": raw_intent,
+            "domain": "machine learning",
+            "selected_sources": ["openalex", "arxiv"],
+            "subqueries": ["LLM reranking retrieval"],
+        }
+    )
+
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert plan.query_analysis.intent == expected_intent
+    assert not any(warning.startswith("llm_invalid_intent") for warning in plan.warnings)
+
+
+@pytest.mark.parametrize(
+    ("raw_domain", "expected_domain"),
+    [
+        ("computer science / information retrieval", "computer_science"),
+        ("information retrieval", "computer_science"),
+        ("cs", "computer_science"),
+        ("computer science", "computer_science"),
+        ("ml", "machine_learning"),
+        ("machine learning", "machine_learning"),
+    ],
+)
+def test_llm_domain_aliases_are_normalized(
+    raw_domain: str,
+    expected_domain: str,
+) -> None:
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "recent methods",
+            "domain": raw_domain,
+            "selected_sources": ["openalex", "arxiv"],
+            "subqueries": ["LLM reranking retrieval"],
+        }
+    )
+
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert plan.query_analysis.domain == expected_domain
+    assert not any(warning.startswith("llm_invalid_domain") for warning in plan.warnings)
+
+
 def test_llm_disabled_falls_back_to_rules_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

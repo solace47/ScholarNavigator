@@ -704,6 +704,41 @@ def test_run_search_can_use_llm_query_understanding_with_injected_client() -> No
     assert output.ranked_papers
 
 
+def test_run_search_can_use_llm_judgement_with_injected_client() -> None:
+    llm_client = FakeJudgementLLMClient()
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Judged Reranking Retrieval Paper",
+                    doi="10.123/llm-judgement",
+                )
+            ],
+        )
+
+    output = SearchService(
+        retriever=fake_retriever,
+        llm_client=llm_client,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        current_year=2026,
+        enable_llm_judgement=True,
+    )
+
+    assert llm_client.calls == 1
+    assert output.llm_call_count == 1
+    assert output.judgements[0].score == 0.94
+    assert output.judgements[0].category == "highly_relevant"
+    assert "llm_judgement_used" in output.warnings
+    assert output.ranked_papers
+
+
 def test_run_search_empty_query_raises_value_error() -> None:
     def fake_retriever(
         query: str,
@@ -843,6 +878,34 @@ class FakeLLMClient:
                     "query": "LLM reranking scientific retrieval",
                     "source_hints": ["openalex", "arxiv"],
                     "purpose": "llm_test_plan",
+                }
+            ],
+            "warnings": [],
+        }
+
+
+class FakeJudgementLLMClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        self.calls += 1
+        return {
+            "judgements": [
+                {
+                    "paper_index": 0,
+                    "score": 0.94,
+                    "category": "highly_relevant",
+                    "reasoning": "Strong metadata match for the requested topic.",
+                    "evidence": [
+                        {
+                            "source": "title",
+                            "text": "LLM Judged Reranking Retrieval Paper",
+                            "confidence": 0.92,
+                        }
+                    ],
+                    "matched_terms": ["LLM", "reranking", "retrieval"],
+                    "warnings": [],
                 }
             ],
             "warnings": [],

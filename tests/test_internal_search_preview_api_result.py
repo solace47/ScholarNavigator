@@ -52,6 +52,7 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
             enable_llm_query_understanding: bool | None = None,
+            enable_llm_judgement: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             captured.update(
@@ -62,6 +63,7 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
                     "enable_refchain": enable_refchain,
                     "enable_query_evolution": enable_query_evolution,
                     "enable_llm_query_understanding": enable_llm_query_understanding,
+                    "enable_llm_judgement": enable_llm_judgement,
                     "current_year": current_year,
                 }
             )
@@ -115,6 +117,7 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
             "enable_refchain": True,
             "enable_query_evolution": True,
             "enable_llm_query_understanding": None,
+            "enable_llm_judgement": None,
             "current_year": 2026,
             "max_workers": 2,
         }
@@ -137,6 +140,7 @@ def test_internal_search_preview_api_result_uses_real_preview_max_workers_env(
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
             enable_llm_query_understanding: bool | None = None,
+            enable_llm_judgement: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             return _fake_output(query)

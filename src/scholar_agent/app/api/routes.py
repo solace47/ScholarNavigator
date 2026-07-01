@@ -35,6 +35,7 @@ from ...core.search_schemas import RunProfile
 from ...llm.provider import get_llm_runtime_config
 from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import (
+    ENABLE_LLM_JUDGEMENT_ENV,
     ENABLE_LLM_QUERY_UNDERSTANDING_ENV,
     SearchService,
     _env_flag,
@@ -80,6 +81,7 @@ class InternalSearchPreviewRequest(BaseModel):
     enable_refchain: bool = False
     enable_query_evolution: bool = False
     enable_llm_query_understanding: bool | None = None
+    enable_llm_judgement: bool | None = None
     current_year: int | None = Field(default=None, ge=1900, le=2200)
 
 
@@ -260,6 +262,10 @@ def runtime_config() -> RuntimeConfigResponse:
         llm_runtime.available
         and _env_flag(ENABLE_LLM_QUERY_UNDERSTANDING_ENV, default=False)
     )
+    llm_judgement_enabled = (
+        llm_runtime.available
+        and _env_flag(ENABLE_LLM_JUDGEMENT_ENV, default=False)
+    )
     return RuntimeConfigResponse(
         mode="real_search",
         llm=LLMRuntimeConfig(
@@ -316,6 +322,7 @@ def runtime_config() -> RuntimeConfigResponse:
             retrieval_cache=True,
             batch_cli=True,
             llm_query_understanding=llm_feature_enabled,
+            llm_judgement=llm_judgement_enabled,
         ),
     )
 
@@ -483,6 +490,7 @@ def internal_search_preview(
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
             enable_llm_query_understanding=request.enable_llm_query_understanding,
+            enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
         )
     except ValueError as exc:
@@ -529,6 +537,7 @@ def internal_search_preview_api_result(
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
             enable_llm_query_understanding=request.enable_llm_query_understanding,
+            enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
         )
     except ValueError as exc:
@@ -571,6 +580,7 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_llm_query_understanding=(
                 request.options.enable_llm_query_understanding
             ),
+            enable_llm_judgement=request.options.enable_llm_judgement,
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,

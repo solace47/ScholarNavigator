@@ -73,6 +73,7 @@ def test_chat_json_parses_openai_compatible_json(
         captured["url"] = request.full_url
         captured["timeout"] = timeout
         captured["authorization"] = request.headers["Authorization"]
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
         return FakeResponse(
             {
                 "choices": [
@@ -102,6 +103,65 @@ def test_chat_json_parses_openai_compatible_json(
     assert captured["url"] == "https://api.example.test/v1/chat/completions"
     assert captured["timeout"] == 3
     assert captured["authorization"] == "Bearer sk-test-secret"
+    assert captured["payload"]["max_tokens"] == provider.DEFAULT_MAX_TOKENS
+    assert captured["payload"]["response_format"] == {"type": "json_object"}
+    assert captured["payload"]["extra_body"] == {
+        "chat_template_kwargs": {"thinking": False}
+    }
+
+
+def test_chat_json_uses_configured_max_tokens_and_thinking_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    monkeypatch.setenv(provider.MAX_TOKENS_ENV, "256")
+    monkeypatch.setenv(provider.NVIDIA_THINKING_ENV, "false")
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(
+            {
+                "choices": [
+                    {"message": {"content": json.dumps({"ok": True})}},
+                ]
+            }
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    result = provider.chat_json([{"role": "user", "content": "query"}])
+
+    assert result == {"ok": True}
+    assert captured["payload"]["max_tokens"] == 256
+    assert captured["payload"]["extra_body"] == {
+        "chat_template_kwargs": {"thinking": False}
+    }
+
+
+@pytest.mark.parametrize("raw_value", ["0", "-1", "not-an-int"])
+def test_chat_json_invalid_max_tokens_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_value: str,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    monkeypatch.setenv(provider.MAX_TOKENS_ENV, raw_value)
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(
+            {
+                "choices": [
+                    {"message": {"content": json.dumps({"ok": True})}},
+                ]
+            }
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    assert provider.chat_json([{"role": "user", "content": "query"}]) == {"ok": True}
+    assert captured["payload"]["max_tokens"] == provider.DEFAULT_MAX_TOKENS
 
 
 def test_chat_json_timeout_raises_sanitized_error(
@@ -190,6 +250,8 @@ def _clear_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
         provider.API_KEY_ENV,
         provider.MODEL_ENV,
         provider.TIMEOUT_ENV,
+        provider.MAX_TOKENS_ENV,
+        provider.NVIDIA_THINKING_ENV,
     ):
         monkeypatch.delenv(env_name, raising=False)
 

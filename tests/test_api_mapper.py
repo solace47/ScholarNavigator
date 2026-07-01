@@ -166,6 +166,17 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
     assert response.cost_report.llm_call_count == 0
 
 
+def test_llm_call_count_maps_to_cost_report() -> None:
+    output = _output_with_ranked(
+        [_ranked(_paper("Highly", doi="10.123/high"), rank=1)],
+        llm_call_count=3,
+    )
+
+    response = map_search_service_output_to_api_result("run_real_llm_cost", output)
+
+    assert response.cost_report.llm_call_count == 3
+
+
 def test_query_evolution_and_refchain_debug_info_do_not_crash_mapper() -> None:
     seed = _ranked(_paper("Seed", doi="10.123/seed", openalex_id="WSEED"), rank=1)
     reference = _paper("Reference", doi="10.123/ref", openalex_id="WREF")
@@ -373,6 +384,7 @@ def _output_with_ranked(
     retrieval_output_count: int = 1,
     query_evolution_records: list[QueryEvolutionRecord] | None = None,
     refchain_output: RefChainOutput | None = None,
+    llm_call_count: int = 0,
 ) -> SearchServiceOutput:
     retrieval_outputs = [
         RetrievalOutput(
@@ -416,4 +428,5 @@ def _output_with_ranked(
             )
         ],
         latency_seconds=0.25,
+        llm_call_count=llm_call_count,
     )

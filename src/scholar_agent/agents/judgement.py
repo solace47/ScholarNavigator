@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any, Protocol
 
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
+    JudgementCategory,
     JudgementResult,
     QueryAnalysis,
     QueryConstraint,
     ResearchDomain,
 )
+from scholar_agent.llm.provider import chat_json as provider_chat_json
+from scholar_agent.llm.provider import is_llm_enabled
 
 
 STOPWORDS = {
@@ -89,6 +93,19 @@ DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+LLM_JUDGEMENT_BATCH_SIZE_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE"
+DEFAULT_LLM_JUDGEMENT_BATCH_SIZE = 8
+MIN_LLM_JUDGEMENT_BATCH_SIZE = 1
+MAX_LLM_JUDGEMENT_BATCH_SIZE = 20
+JUDGEMENT_CATEGORIES: set[str] = {
+    "highly_relevant",
+    "partially_relevant",
+    "weakly_relevant",
+    "irrelevant",
+    "insufficient_evidence",
+}
+EVIDENCE_SOURCES: set[str] = {"title", "abstract", "venue", "metadata"}
+
 
 @dataclass(frozen=True)
 class _Signal:
@@ -99,8 +116,23 @@ class _Signal:
     penalty: float = 0.0
 
 
+class LLMJsonClient(Protocol):
+    def chat_json(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        ...
+
+
 class JudgementAgent:
-    """Deterministic metadata-only relevance judgement."""
+    """Metadata-only relevance judgement with optional LLM JSON enhancement."""
+
+    def __init__(self, llm_client: LLMJsonClient | None = None) -> None:
+        self._llm_client = llm_client
+        self.llm_call_count = 0
 
     def judge(
         self,
@@ -110,18 +142,76 @@ class JudgementAgent:
         threshold_high: float = 0.72,
         threshold_partial: float = 0.45,
         threshold_weak: float = 0.25,
+        use_llm: bool | None = None,
     ) -> list[JudgementResult]:
         _validate_thresholds(threshold_high, threshold_partial, threshold_weak)
-        return [
-            _judge_one_paper(
+        if use_llm:
+            return self._judge_with_optional_llm(
                 query_analysis,
-                paper,
+                papers,
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
             )
-            for paper in papers
-        ]
+        return _judge_papers_rules(
+            query_analysis,
+            papers,
+            threshold_high=threshold_high,
+            threshold_partial=threshold_partial,
+            threshold_weak=threshold_weak,
+        )
+
+    def _judge_with_optional_llm(
+        self,
+        query_analysis: QueryAnalysis,
+        papers: list[Paper],
+        *,
+        threshold_high: float,
+        threshold_partial: float,
+        threshold_weak: float,
+    ) -> list[JudgementResult]:
+        rule_results = _judge_papers_rules(
+            query_analysis,
+            papers,
+            threshold_high=threshold_high,
+            threshold_partial=threshold_partial,
+            threshold_weak=threshold_weak,
+        )
+        if not papers:
+            return []
+        if self._llm_client is None and not is_llm_enabled():
+            return _with_warning(rule_results, "llm_judgement_disabled")
+
+        batch_size = llm_judgement_batch_size_from_env()
+        results: list[JudgementResult] = list(rule_results)
+        for start in range(0, len(papers), batch_size):
+            end = min(start + batch_size, len(papers))
+            batch_papers = papers[start:end]
+            batch_rule_results = rule_results[start:end]
+            try:
+                self.llm_call_count += 1
+                raw_response = _chat_json(
+                    self._llm_client,
+                    _build_llm_judgement_messages(
+                        query_analysis,
+                        batch_papers,
+                        start_index=start,
+                    ),
+                )
+                batch_results = _judgement_results_from_llm_json(
+                    raw_response,
+                    query_analysis=query_analysis,
+                    papers=batch_papers,
+                    rule_results=batch_rule_results,
+                    start_index=start,
+                )
+            except Exception as exc:  # noqa: BLE001 - isolate one failed LLM batch
+                batch_results = _with_warning(
+                    batch_rule_results,
+                    f"llm_judgement_failed:{_diagnostic_message(exc)}",
+                )
+            results[start:end] = batch_results
+        return results
 
 
 def judge_papers(
@@ -131,16 +221,52 @@ def judge_papers(
     threshold_high: float = 0.72,
     threshold_partial: float = 0.45,
     threshold_weak: float = 0.25,
+    use_llm: bool | None = None,
+    llm_client: LLMJsonClient | None = None,
 ) -> list[JudgementResult]:
-    """Judge paper relevance using deterministic metadata rules."""
+    """Judge paper relevance using metadata rules or optional LLM JSON."""
 
-    return JudgementAgent().judge(
+    return JudgementAgent(llm_client=llm_client).judge(
         query_analysis,
         papers,
         threshold_high=threshold_high,
         threshold_partial=threshold_partial,
         threshold_weak=threshold_weak,
+        use_llm=use_llm,
     )
+
+
+def llm_judgement_batch_size_from_env() -> int:
+    import os
+
+    raw_value = os.getenv(LLM_JUDGEMENT_BATCH_SIZE_ENV)
+    if raw_value is None:
+        return DEFAULT_LLM_JUDGEMENT_BATCH_SIZE
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return DEFAULT_LLM_JUDGEMENT_BATCH_SIZE
+    return max(MIN_LLM_JUDGEMENT_BATCH_SIZE, min(MAX_LLM_JUDGEMENT_BATCH_SIZE, value))
+
+
+def _judge_papers_rules(
+    query_analysis: QueryAnalysis,
+    papers: list[Paper],
+    *,
+    threshold_high: float,
+    threshold_partial: float,
+    threshold_weak: float,
+) -> list[JudgementResult]:
+    return [
+        _judge_one_paper(
+            query_analysis,
+            paper,
+            threshold_high=threshold_high,
+            threshold_partial=threshold_partial,
+            threshold_weak=threshold_weak,
+        )
+        for paper in papers
+    ]
 
 
 def _judge_one_paper(
@@ -535,3 +661,393 @@ def _dedupe_evidence(items: list[EvidenceItem]) -> list[EvidenceItem]:
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _chat_json(
+    llm_client: LLMJsonClient | None,
+    messages: list[dict[str, str]],
+) -> dict[str, Any]:
+    if llm_client is not None:
+        return llm_client.chat_json(messages, temperature=0)
+    return provider_chat_json(messages, temperature=0)
+
+
+def _build_llm_judgement_messages(
+    query_analysis: QueryAnalysis,
+    papers: list[Paper],
+    *,
+    start_index: int,
+) -> list[dict[str, str]]:
+    payload = {
+        "query_analysis": {
+            "original_query": query_analysis.original_query,
+            "language": query_analysis.language,
+            "intent": query_analysis.intent,
+            "domain": query_analysis.domain,
+            "constraints": query_analysis.constraints.model_dump(mode="json"),
+        },
+        "papers": [
+            {
+                "paper_index": start_index + index,
+                "title": paper.title,
+                "authors": paper.authors,
+                "year": paper.year,
+                "venue": paper.venue,
+                "abstract": _short_text(paper.abstract, limit=1200),
+                "identifiers": paper.identifiers.model_dump(mode="json"),
+                "sources": paper.sources,
+                "citation_count": paper.citation_count,
+            }
+            for index, paper in enumerate(papers)
+        ],
+    }
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are ScholarNavigator's relevance judgement agent. Return only "
+                "one JSON object. Judge only the provided candidate papers. Do not "
+                "invent papers, citations, full-text evidence, API keys, or external "
+                "facts. Evidence must come from title, abstract, venue, or metadata."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "For each paper, return JSON with key 'judgements'. Each judgement "
+                "must include paper_index, score from 0 to 1, category "
+                "(highly_relevant, partially_relevant, weakly_relevant, irrelevant, "
+                "insufficient_evidence), reasoning, evidence, matched_terms, and "
+                f"warnings. Input:\n{payload}"
+            ),
+        },
+    ]
+
+
+def _judgement_results_from_llm_json(
+    raw_response: dict[str, Any],
+    *,
+    query_analysis: QueryAnalysis,
+    papers: list[Paper],
+    rule_results: list[JudgementResult],
+    start_index: int,
+) -> list[JudgementResult]:
+    raw_judgements = raw_response.get("judgements")
+    if not isinstance(raw_judgements, list):
+        raise ValueError("llm_judgement_missing_judgements")
+
+    global_warnings = _coerce_string_list(raw_response.get("warnings"))
+    by_global_index: dict[int, dict[str, Any]] = {}
+    invalid_warnings_by_index: dict[int, list[str]] = {}
+    for raw_item in raw_judgements:
+        if not isinstance(raw_item, dict):
+            _append_invalid_warning(
+                invalid_warnings_by_index,
+                start_index,
+                "llm_judgement_invalid_item",
+            )
+            continue
+        parsed_index = _parse_llm_paper_index(
+            raw_item.get("paper_index"),
+            start_index=start_index,
+            batch_size=len(papers),
+        )
+        if parsed_index is None:
+            _append_invalid_warning(
+                invalid_warnings_by_index,
+                start_index,
+                "llm_judgement_missing_paper_index",
+            )
+            continue
+        if parsed_index in by_global_index:
+            _append_invalid_warning(
+                invalid_warnings_by_index,
+                parsed_index,
+                f"llm_judgement_duplicate_paper_index:{parsed_index}",
+            )
+            continue
+        by_global_index[parsed_index] = raw_item
+
+    results: list[JudgementResult] = []
+    for local_index, (paper, rule_result) in enumerate(zip(papers, rule_results)):
+        global_index = start_index + local_index
+        item_warnings = [
+            "llm_judgement_used",
+            *global_warnings,
+            *invalid_warnings_by_index.get(global_index, []),
+        ]
+        raw_item = by_global_index.get(global_index)
+        if raw_item is None:
+            results.append(
+                _with_warning(
+                    [rule_result],
+                    f"llm_judgement_missing_paper_index:{global_index}",
+                    extra_warnings=item_warnings,
+                )[0]
+            )
+            continue
+
+        parsed = _parse_one_llm_judgement(
+            raw_item,
+            paper=paper,
+            rule_result=rule_result,
+            global_index=global_index,
+            base_warnings=item_warnings,
+        )
+        results.append(parsed)
+    return results
+
+
+def _parse_one_llm_judgement(
+    raw_item: dict[str, Any],
+    *,
+    paper: Paper,
+    rule_result: JudgementResult,
+    global_index: int,
+    base_warnings: list[str],
+) -> JudgementResult:
+    warnings = list(base_warnings)
+    category = str(raw_item.get("category", "")).strip()
+    if category not in JUDGEMENT_CATEGORIES:
+        return _with_warning(
+            [rule_result],
+            f"llm_judgement_invalid_category:{global_index}",
+            extra_warnings=warnings,
+        )[0]
+
+    score = _parse_score(raw_item.get("score"), warnings, global_index)
+    if score is None:
+        return _with_warning(
+            [rule_result],
+            f"llm_judgement_invalid_score:{global_index}",
+            extra_warnings=warnings,
+        )[0]
+
+    evidence = _normalize_llm_evidence(
+        raw_item.get("evidence"),
+        paper=paper,
+        global_index=global_index,
+        warnings=warnings,
+    )
+    reasoning = _short_text(str(raw_item.get("reasoning") or "").strip(), limit=320)
+    if not reasoning:
+        reasoning = "LLM judged relevance using candidate metadata only."
+    matched_terms = _dedupe_terms(_coerce_string_list(raw_item.get("matched_terms")))
+    warnings.extend(_coerce_string_list(raw_item.get("warnings")))
+    warnings.extend(rule_result.warnings)
+
+    return JudgementResult(
+        paper=paper,
+        score=round(score, 4),
+        category=category,  # type: ignore[arg-type]
+        reasoning=reasoning,
+        evidence=_dedupe_evidence(evidence),
+        matched_terms=matched_terms,
+        warnings=_dedupe_terms(warnings),
+    )
+
+
+def _parse_score(
+    raw_score: Any,
+    warnings: list[str],
+    global_index: int,
+) -> float | None:
+    try:
+        score = float(raw_score)
+    except (TypeError, ValueError):
+        return None
+    clamped = _clamp(score)
+    if clamped != score:
+        warnings.append(f"llm_judgement_score_clamped:{global_index}")
+    return clamped
+
+
+def _normalize_llm_evidence(
+    raw_evidence: Any,
+    *,
+    paper: Paper,
+    global_index: int,
+    warnings: list[str],
+) -> list[EvidenceItem]:
+    if raw_evidence is None:
+        warnings.append(f"llm_judgement_missing_evidence:{global_index}")
+        return []
+    if isinstance(raw_evidence, dict):
+        raw_evidence = [raw_evidence]
+    if not isinstance(raw_evidence, list):
+        warnings.append(f"llm_judgement_invalid_evidence:{global_index}")
+        return []
+
+    evidence: list[EvidenceItem] = []
+    for item in raw_evidence:
+        if not isinstance(item, dict):
+            warnings.append(f"llm_judgement_invalid_evidence_item:{global_index}")
+            continue
+        source = str(item.get("source") or "").strip().lower()
+        if source not in EVIDENCE_SOURCES:
+            warnings.append(
+                f"llm_judgement_bad_evidence_source:{global_index}:{source or 'unknown'}"
+            )
+            continue
+        text = _short_text(str(item.get("text") or ""), limit=200)
+        grounded_text = _ground_evidence_text(
+            source,
+            text,
+            paper,
+            global_index=global_index,
+            warnings=warnings,
+        )
+        if not grounded_text:
+            continue
+        try:
+            confidence = float(item.get("confidence", 0.7))
+        except (TypeError, ValueError):
+            confidence = 0.7
+            warnings.append(f"llm_judgement_invalid_evidence_confidence:{global_index}")
+        evidence.append(
+            EvidenceItem(
+                source=source,  # type: ignore[arg-type]
+                text=grounded_text,
+                confidence=_clamp(confidence),
+            )
+        )
+    return evidence
+
+
+def _ground_evidence_text(
+    source: str,
+    text: str,
+    paper: Paper,
+    *,
+    global_index: int,
+    warnings: list[str],
+) -> str:
+    if source == "title":
+        return _ground_against_field(
+            source,
+            text,
+            paper.title,
+            global_index=global_index,
+            warnings=warnings,
+        )
+    if source == "abstract":
+        return _ground_against_field(
+            source,
+            text,
+            paper.abstract,
+            global_index=global_index,
+            warnings=warnings,
+        )
+    if source == "venue":
+        return _ground_against_field(
+            source,
+            text,
+            paper.venue or "",
+            global_index=global_index,
+            warnings=warnings,
+        )
+    metadata_text = _short_text(
+        "; ".join(
+            item
+            for item in (
+                f"year={paper.year}" if paper.year is not None else "",
+                f"sources={','.join(paper.sources)}" if paper.sources else "",
+                (
+                    f"citation_count={paper.citation_count}"
+                    if paper.citation_count is not None
+                    else ""
+                ),
+            )
+            if item
+        )
+        or text,
+        limit=160,
+    )
+    if text and text.casefold() not in metadata_text.casefold():
+        warnings.append(f"llm_judgement_evidence_regrounded:{global_index}:metadata")
+    return metadata_text
+
+
+def _ground_against_field(
+    source: str,
+    text: str,
+    field_value: str,
+    *,
+    global_index: int,
+    warnings: list[str],
+) -> str:
+    field_text = _short_text(field_value, limit=200)
+    if not field_text:
+        warnings.append(f"llm_judgement_evidence_missing_metadata:{global_index}:{source}")
+        return ""
+    if not text:
+        return field_text
+    if text.casefold() in field_text.casefold():
+        return text
+    warnings.append(f"llm_judgement_evidence_regrounded:{global_index}:{source}")
+    return field_text
+
+
+def _parse_llm_paper_index(
+    raw_index: Any,
+    *,
+    start_index: int,
+    batch_size: int,
+) -> int | None:
+    try:
+        index = int(raw_index)
+    except (TypeError, ValueError):
+        return None
+    if start_index <= index < start_index + batch_size:
+        return index
+    if 0 <= index < batch_size:
+        return start_index + index
+    return None
+
+
+def _with_warning(
+    results: list[JudgementResult],
+    warning: str,
+    *,
+    extra_warnings: list[str] | None = None,
+) -> list[JudgementResult]:
+    warnings_to_add = [*(extra_warnings or []), warning]
+    return [
+        result.model_copy(
+            update={
+                "warnings": _dedupe_terms([*result.warnings, *warnings_to_add]),
+                "reasoning": _append_warning_to_reasoning(result.reasoning, warning),
+            }
+        )
+        for result in results
+    ]
+
+
+def _append_warning_to_reasoning(reasoning: str, warning: str) -> str:
+    if warning in reasoning:
+        return reasoning
+    return f"{reasoning} Warning: {warning}."
+
+
+def _append_invalid_warning(
+    warnings_by_index: dict[int, list[str]],
+    global_index: int,
+    warning: str,
+) -> None:
+    warnings_by_index.setdefault(global_index, []).append(warning)
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    try:
+        return [str(item).strip() for item in value if str(item).strip()]
+    except TypeError:
+        return []
+
+
+def _diagnostic_message(value: Any) -> str:
+    message = str(value).replace("\n", " ").strip()
+    return message[:160] or "unknown"

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.routes import router
+from scholar_agent.core.env_loader import load_env_file
+
+
+if "pytest" not in sys.modules:
+    load_env_file()
+
+from .api.routes import router  # noqa: E402
 
 
 DEFAULT_CORS_ORIGINS = (
@@ -50,7 +57,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description=(
             "Real Search backend API for ScholarNavigator. It calls configured "
-            "academic search connectors and currently does not call LLM providers."
+            "academic search connectors and optional backend LLM providers."
         ),
     )
 

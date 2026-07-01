@@ -256,7 +256,7 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
     return api.CostReport(
         api_call_count=search_api_call_count,
         search_api_call_count=search_api_call_count,
-        llm_call_count=0,
+        llm_call_count=output.llm_call_count,
         estimated_input_tokens=0,
         estimated_output_tokens=0,
         estimated_total_tokens=0,

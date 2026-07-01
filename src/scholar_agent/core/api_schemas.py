@@ -62,6 +62,7 @@ class RuntimeFeatures(BaseModel):
     retrieval_cache: bool = False
     batch_cli: bool = False
     llm_query_understanding: bool = False
+    llm_judgement: bool = False
 
 
 class RuntimeConfigResponse(BaseModel):
@@ -98,6 +99,7 @@ class SearchOptions(BaseModel):
     enable_query_evolution: bool = True
     enable_refchain: bool = True
     enable_llm_query_understanding: bool | None = None
+    enable_llm_judgement: bool | None = None
     refchain_depth: int = 1
     return_markdown: bool = True
     return_json: bool = True

@@ -45,6 +45,7 @@ def test_runtime_config_is_real_search_only(monkeypatch) -> None:
     assert body["features"]["retrieval_cache"] is True
     assert body["features"]["batch_cli"] is True
     assert body["features"]["llm_query_understanding"] is False
+    assert body["features"]["llm_judgement"] is False
     assert body["limits"]["real_search_max_workers"] >= 1
     assert body["limits"]["real_search_background_workers"] >= 1
     assert "real_search_run_ttl_seconds" in body["limits"]
@@ -70,6 +71,7 @@ def test_runtime_config_shows_enabled_llm_without_api_key_leak(monkeypatch) -> N
     monkeypatch.setenv("SCHOLAR_AGENT_LLM_API_KEY", "sk-do-not-leak")
     monkeypatch.setenv("SCHOLAR_AGENT_LLM_MODEL", "gpt-test")
     monkeypatch.setenv("SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING", "1")
+    monkeypatch.setenv("SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT", "1")
 
     response = client.get("/api/v1/runtime/config")
 
@@ -83,6 +85,7 @@ def test_runtime_config_shows_enabled_llm_without_api_key_leak(monkeypatch) -> N
         "reason": None,
     }
     assert body["features"]["llm_query_understanding"] is True
+    assert body["features"]["llm_judgement"] is True
     assert "sk-do-not-leak" not in response.text
 
 
@@ -124,5 +127,6 @@ def _clear_llm_env(monkeypatch) -> None:
         "SCHOLAR_AGENT_LLM_API_KEY",
         "SCHOLAR_AGENT_LLM_MODEL",
         "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING",
+        "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT",
     ):
         monkeypatch.delenv(env_name, raising=False)

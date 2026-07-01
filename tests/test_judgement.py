@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from scholar_agent.agents.judgement import judge_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import QueryAnalysis, QueryConstraint, TimeRange
@@ -209,3 +211,334 @@ def test_threshold_parameters_affect_category() -> None:
 
     assert default_result.category != "highly_relevant"
     assert lower_high_threshold.category == "highly_relevant"
+
+
+def test_llm_disabled_falls_back_to_rules_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SCHOLAR_AGENT_LLM_PROVIDER", raising=False)
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Retrieval",
+        abstract="LLM reranking improves retrieval.",
+    )
+
+    result = judge_papers(query_analysis, [paper], use_llm=True)[0]
+
+    assert result.category in {"partially_relevant", "highly_relevant"}
+    assert "llm_judgement_disabled" in result.warnings
+
+
+def test_valid_llm_json_generates_judgement_result() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="This paper studies LLM reranking for retrieval.",
+        venue="ACL",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.93,
+                        "category": "highly_relevant",
+                        "reasoning": "Strong match based on title and abstract metadata.",
+                        "evidence": [
+                            {
+                                "source": "title",
+                                "text": "LLM Reranking for Scientific Literature Retrieval",
+                                "confidence": 0.95,
+                            }
+                        ],
+                        "matched_terms": ["LLM", "reranking", "retrieval"],
+                        "warnings": [],
+                    }
+                ],
+                "warnings": ["batch_note"],
+            }
+        ]
+    )
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert client.calls == 1
+    assert result.score == 0.93
+    assert result.category == "highly_relevant"
+    assert result.reasoning.startswith("Strong match")
+    assert result.evidence[0].source == "title"
+    assert "llm_judgement_used" in result.warnings
+    assert "batch_note" in result.warnings
+
+
+def test_llm_evidence_object_is_accepted_as_single_item() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="This paper studies LLM reranking for retrieval.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.91,
+                        "category": "highly_relevant",
+                        "reasoning": "Relevant based on title metadata.",
+                        "evidence": {
+                            "source": "title",
+                            "text": "LLM Reranking for Scientific Literature Retrieval",
+                            "confidence": 0.94,
+                        },
+                        "matched_terms": ["LLM", "reranking"],
+                    }
+                ]
+            }
+        ]
+    )
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert result.score == 0.91
+    assert result.category == "highly_relevant"
+    assert len(result.evidence) == 1
+    assert result.evidence[0].source == "title"
+    assert "llm_judgement_invalid_evidence:0" not in result.warnings
+    assert "llm_judgement_used" in result.warnings
+
+
+def test_llm_missing_evidence_keeps_valid_judgement_with_warning() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="This paper studies LLM reranking for retrieval.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.82,
+                        "category": "highly_relevant",
+                        "reasoning": "Relevant based on metadata in the candidate.",
+                        "matched_terms": ["LLM", "reranking"],
+                    }
+                ]
+            }
+        ]
+    )
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert result.score == 0.82
+    assert result.category == "highly_relevant"
+    assert result.reasoning.startswith("Relevant based on metadata")
+    assert result.evidence == []
+    assert "llm_judgement_missing_evidence:0" in result.warnings
+    assert "llm_judgement_failed" not in " ".join(result.warnings)
+
+
+def test_llm_exception_falls_back_to_rules_with_warning() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper("LLM Reranking", abstract="LLM retrieval reranking.")
+    client = FailingLLMClient(RuntimeError("provider unavailable"))
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert result.category in {"partially_relevant", "highly_relevant"}
+    assert any(
+        warning.startswith("llm_judgement_failed:provider unavailable")
+        for warning in result.warnings
+    )
+
+
+def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper("LLM Reranking", abstract="LLM retrieval reranking.")
+    client = FakeLLMClient([["not", "a", "json", "object"]])
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert any(
+        warning.startswith("llm_judgement_failed:")
+        for warning in result.warnings
+    )
+
+
+def test_invalid_llm_category_and_missing_index_use_rule_fallback() -> None:
+    query_analysis = make_query_analysis()
+    first = make_paper("LLM Reranking", abstract="LLM retrieval reranking.")
+    second = make_paper("Scientific Literature Retrieval", abstract="retrieval system")
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.99,
+                        "category": "not_a_category",
+                        "reasoning": "Invalid category should be rejected.",
+                        "evidence": [],
+                    }
+                ]
+            }
+        ]
+    )
+
+    first_result, second_result = judge_papers(
+        query_analysis,
+        [first, second],
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert "llm_judgement_invalid_category:0" in first_result.warnings
+    assert "llm_judgement_missing_paper_index:1" in second_result.warnings
+    assert first_result.category != "not_a_category"
+
+
+def test_llm_score_clamp_and_bad_evidence_source_are_warned() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Retrieval",
+        abstract="LLM reranking improves retrieval.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 1.4,
+                        "category": "highly_relevant",
+                        "reasoning": "Relevant based on metadata.",
+                        "evidence": [
+                            {
+                                "source": "full_text",
+                                "text": "unsupported full text evidence",
+                                "confidence": 0.9,
+                            },
+                            {
+                                "source": "title",
+                                "text": "ungrounded generated title",
+                                "confidence": 0.8,
+                            },
+                        ],
+                        "matched_terms": ["LLM"],
+                    }
+                ]
+            }
+        ]
+    )
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert result.score == 1.0
+    assert "llm_judgement_score_clamped:0" in result.warnings
+    assert "llm_judgement_bad_evidence_source:0:full_text" in result.warnings
+    assert "llm_judgement_evidence_regrounded:0:title" in result.warnings
+    assert result.evidence[0].source == "title"
+    assert result.evidence[0].text == paper.title
+
+
+def test_llm_judgement_batch_size_controls_call_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE", "1")
+    query_analysis = make_query_analysis()
+    papers = [
+        make_paper("LLM Reranking", abstract="LLM retrieval reranking."),
+        make_paper("Neural Retrieval", abstract="retrieval with neural models."),
+    ]
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.8,
+                        "category": "highly_relevant",
+                        "reasoning": "first batch",
+                        "evidence": [],
+                    }
+                ]
+            },
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.5,
+                        "category": "partially_relevant",
+                        "reasoning": "second batch uses local paper_index",
+                        "evidence": [],
+                    }
+                ]
+            },
+        ]
+    )
+
+    results = judge_papers(
+        query_analysis,
+        papers,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.calls == 2
+    assert [result.category for result in results] == [
+        "highly_relevant",
+        "partially_relevant",
+    ]
+
+
+class FakeLLMClient:
+    def __init__(self, responses: list[object]) -> None:
+        self.responses = responses
+        self.calls = 0
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        self.calls += 1
+        assert messages
+        assert temperature == 0
+        return self.responses[self.calls - 1]
+
+
+class FailingLLMClient:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        raise self.error

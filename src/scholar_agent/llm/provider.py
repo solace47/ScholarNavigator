@@ -17,10 +17,13 @@ BASE_URL_ENV = "SCHOLAR_AGENT_LLM_BASE_URL"
 API_KEY_ENV = "SCHOLAR_AGENT_LLM_API_KEY"
 MODEL_ENV = "SCHOLAR_AGENT_LLM_MODEL"
 TIMEOUT_ENV = "SCHOLAR_AGENT_LLM_TIMEOUT_SECONDS"
+MAX_TOKENS_ENV = "SCHOLAR_AGENT_LLM_MAX_TOKENS"
+NVIDIA_THINKING_ENV = "SCHOLAR_AGENT_LLM_NVIDIA_THINKING"
 
 SUPPORTED_PROVIDER = "openai_compatible"
 DISABLED_PROVIDER = "disabled"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_MAX_TOKENS = 1024
 
 
 class LLMProviderError(RuntimeError):
@@ -151,8 +154,15 @@ class OpenAICompatibleLLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
+            "max_tokens": _max_tokens_from_env(),
             "response_format": {"type": "json_object"},
         }
+        if not _nvidia_thinking_from_env():
+            payload["extra_body"] = {
+                "chat_template_kwargs": {
+                    "thinking": False,
+                }
+            }
         request = Request(
             _chat_completions_url(self.base_url),
             data=json.dumps(payload).encode("utf-8"),
@@ -217,6 +227,24 @@ def _timeout_from_env() -> float:
     except ValueError:
         return DEFAULT_TIMEOUT_SECONDS
     return timeout if timeout > 0 else DEFAULT_TIMEOUT_SECONDS
+
+
+def _max_tokens_from_env() -> int:
+    raw_value = os.getenv(MAX_TOKENS_ENV)
+    if raw_value is None:
+        return DEFAULT_MAX_TOKENS
+    try:
+        max_tokens = int(raw_value)
+    except ValueError:
+        return DEFAULT_MAX_TOKENS
+    return max_tokens if max_tokens >= 1 else DEFAULT_MAX_TOKENS
+
+
+def _nvidia_thinking_from_env() -> bool:
+    raw_value = os.getenv(NVIDIA_THINKING_ENV)
+    if raw_value is None:
+        return False
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _chat_completions_url(base_url: str) -> str:

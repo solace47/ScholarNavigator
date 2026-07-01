@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from scholar_agent.agents.judgement import judge_papers
+from scholar_agent.agents.judgement import JudgementAgent
 from scholar_agent.agents.query_evolution import evolve_queries
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
@@ -39,6 +39,7 @@ from scholar_agent.core.search_schemas import (
 from scholar_agent.core.synthesis_schemas import SynthesisOutput
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
+ENABLE_LLM_JUDGEMENT_ENV = "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT"
 
 
 class RetrieverFn(Protocol):
@@ -69,6 +70,7 @@ class SearchServiceOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     source_stats: list[SourceStats] = Field(default_factory=list)
     latency_seconds: float = 0.0
+    llm_call_count: int = 0
 
 
 class SearchService:
@@ -96,12 +98,18 @@ class SearchService:
         enable_synthesis: bool = True,
         current_year: int | None = None,
         enable_llm_query_understanding: bool | None = None,
+        enable_llm_judgement: bool | None = None,
     ) -> SearchServiceOutput:
         start = time.perf_counter()
         use_llm_query_understanding = (
             _env_flag(ENABLE_LLM_QUERY_UNDERSTANDING_ENV, default=False)
             if enable_llm_query_understanding is None
             else enable_llm_query_understanding
+        )
+        use_llm_judgement = (
+            _env_flag(ENABLE_LLM_JUDGEMENT_ENV, default=False)
+            if enable_llm_judgement is None
+            else enable_llm_judgement
         )
         search_plan = analyze_query(
             query,
@@ -112,6 +120,10 @@ class SearchService:
             current_year=current_year,
             use_llm=use_llm_query_understanding,
             llm_client=self._llm_client,
+        )
+        llm_call_count = _query_understanding_llm_call_count(
+            search_plan,
+            use_llm_query_understanding,
         )
 
         retrieval_outputs = self._retrieve_subqueries(search_plan)
@@ -124,7 +136,12 @@ class SearchService:
         )
         warnings.extend(retrieval_warnings)
         deduplicated = deduplicate_papers(raw_papers)
-        judgements = judge_papers(search_plan.query_analysis, deduplicated)
+        judgements, judgement_llm_calls = self._judge_papers(
+            search_plan,
+            deduplicated,
+            use_llm=use_llm_judgement,
+        )
+        llm_call_count += judgement_llm_calls
         ranked_papers = rerank_papers(
             search_plan.query_analysis,
             judgements,
@@ -166,7 +183,12 @@ class SearchService:
                 warnings.extend(evolved_warnings)
 
                 deduplicated = deduplicate_papers(raw_papers)
-                judgements = judge_papers(search_plan.query_analysis, deduplicated)
+                judgements, judgement_llm_calls = self._judge_papers(
+                    search_plan,
+                    deduplicated,
+                    use_llm=use_llm_judgement,
+                )
+                llm_call_count += judgement_llm_calls
                 ranked_papers = rerank_papers(
                     search_plan.query_analysis,
                     judgements,
@@ -191,7 +213,12 @@ class SearchService:
             )
             if refchain_output.references:
                 deduplicated = deduplicate_papers(raw_papers)
-                judgements = judge_papers(search_plan.query_analysis, deduplicated)
+                judgements, judgement_llm_calls = self._judge_papers(
+                    search_plan,
+                    deduplicated,
+                    use_llm=use_llm_judgement,
+                )
+                llm_call_count += judgement_llm_calls
                 ranked_papers = rerank_papers(
                     search_plan.query_analysis,
                     judgements,
@@ -218,6 +245,7 @@ class SearchService:
             warnings=_dedupe_warnings(warnings),
             source_stats=source_stats,
             latency_seconds=time.perf_counter() - start,
+            llm_call_count=llm_call_count,
         )
         if enable_synthesis:
             from scholar_agent.agents.synthesis import synthesize_answer
@@ -233,6 +261,21 @@ class SearchService:
             failure_prefix="subquery_failed",
             failure_source="subquery",
         )
+
+    def _judge_papers(
+        self,
+        search_plan: SearchPlan,
+        papers: list[Paper],
+        *,
+        use_llm: bool,
+    ) -> tuple[list[JudgementResult], int]:
+        agent = JudgementAgent(llm_client=self._llm_client)
+        judgements = agent.judge(
+            search_plan.query_analysis,
+            papers,
+            use_llm=use_llm,
+        )
+        return judgements, agent.llm_call_count
 
     def _retrieve_evolved_queries(
         self,
@@ -339,6 +382,7 @@ def run_search(
     enable_synthesis: bool = True,
     current_year: int | None = None,
     enable_llm_query_understanding: bool | None = None,
+    enable_llm_judgement: bool | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -351,6 +395,7 @@ def run_search(
         enable_synthesis=enable_synthesis,
         current_year=current_year,
         enable_llm_query_understanding=enable_llm_query_understanding,
+        enable_llm_judgement=enable_llm_judgement,
     )
 
 
@@ -359,6 +404,24 @@ def _env_flag(env_name: str, *, default: bool) -> bool:
     if raw_value is None:
         return default
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _query_understanding_llm_call_count(
+    search_plan: SearchPlan,
+    enabled: bool,
+) -> int:
+    if not enabled:
+        return 0
+    warnings = search_plan.warnings
+    if "llm_query_understanding_disabled" in warnings:
+        return 0
+    if any(
+        warning == "llm_query_understanding_used"
+        or warning.startswith("llm_query_understanding_failed:")
+        for warning in warnings
+    ):
+        return 1
+    return 0
 
 
 def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:
