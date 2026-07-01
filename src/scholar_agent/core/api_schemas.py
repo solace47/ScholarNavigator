@@ -47,6 +47,10 @@ class RuntimeLimits(BaseModel):
     max_search_rounds: int
     max_candidate_papers: int
     max_latency_seconds: int
+    real_search_max_workers: int = 2
+    real_search_background_workers: int = 2
+    real_search_run_ttl_seconds: int = 3600
+    real_search_max_stored_runs: int = 200
 
 
 class RuntimeFeatures(BaseModel):
@@ -54,6 +58,11 @@ class RuntimeFeatures(BaseModel):
     refchain: bool
     evaluation: bool
     sse: bool
+    real_search: bool = False
+    real_search_cancel: bool = False
+    real_search_sse: bool = False
+    retrieval_cache: bool = False
+    batch_cli: bool = False
 
 
 class RuntimeConfigResponse(BaseModel):

@@ -76,11 +76,27 @@ npm run lint
 
 ## Backend
 
-Start the mock backend from the repository root:
+Start the FastAPI hybrid backend from the repository root:
 
 ```bash
 PYTHONPATH=src uvicorn scholar_agent.app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+Runtime config:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/runtime/config
+```
+
+The backend reports a hybrid runtime: `Mock Demo` remains available through the
+mock run lifecycle, while `Real Preview` uses the Real Search lifecycle with
+OpenAlex and arXiv connectors. The LLM runtime is intentionally unavailable
+(`mock-no-llm`), because the current MVP is no-LLM and rule-based.
+
+OpenAlex and arXiv are implemented for Real Search, but live calls can still be
+affected by external service failures such as OpenAlex `503`, arXiv `429`, or
+timeouts. Those diagnostics are surfaced through Real Search events,
+`missing_evidence`, and cost/source statistics when reported by the backend.
 
 ## Search Modes
 

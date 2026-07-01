@@ -285,6 +285,7 @@ def health() -> HealthResponse:
 @router.get("/runtime/config", response_model=RuntimeConfigResponse)
 def runtime_config() -> RuntimeConfigResponse:
     return RuntimeConfigResponse(
+        mode="hybrid",
         llm=LLMRuntimeConfig(
             provider="mock",
             model="mock-no-llm",
@@ -295,30 +296,31 @@ def runtime_config() -> RuntimeConfigResponse:
                 name="mock",
                 available=True,
                 requires_key=False,
+                reason="mock_demo_path",
             ),
             ConnectorRuntimeConfig(
                 name="openalex",
-                available=False,
+                available=True,
                 requires_key=False,
-                reason="mock_api_only",
+                reason="implemented_for_real_search",
             ),
             ConnectorRuntimeConfig(
                 name="arxiv",
-                available=False,
+                available=True,
                 requires_key=False,
-                reason="mock_api_only",
+                reason="implemented_for_real_search",
             ),
             ConnectorRuntimeConfig(
                 name="semantic_scholar",
                 available=False,
                 requires_key=True,
-                reason="mock_api_only",
+                reason="not_implemented",
             ),
             ConnectorRuntimeConfig(
                 name="pubmed",
                 available=False,
                 requires_key=False,
-                reason="mock_api_only",
+                reason="not_implemented",
             ),
         ],
         limits=RuntimeLimits(
@@ -326,12 +328,21 @@ def runtime_config() -> RuntimeConfigResponse:
             max_search_rounds=3,
             max_candidate_papers=300,
             max_latency_seconds=120,
+            real_search_max_workers=_real_search_max_workers(),
+            real_search_background_workers=_real_search_background_workers(),
+            real_search_run_ttl_seconds=_real_search_run_ttl_seconds(),
+            real_search_max_stored_runs=_real_search_max_stored_runs(),
         ),
         features=RuntimeFeatures(
             query_evolution=True,
             refchain=True,
             evaluation=False,
             sse=True,
+            real_search=True,
+            real_search_cancel=True,
+            real_search_sse=True,
+            retrieval_cache=True,
+            batch_cli=True,
         ),
     )
 

@@ -33,12 +33,21 @@ export interface RuntimeConfigResponse {
     max_search_rounds: number;
     max_candidate_papers: number;
     max_latency_seconds: number;
+    real_search_max_workers?: number;
+    real_search_background_workers?: number;
+    real_search_run_ttl_seconds?: number;
+    real_search_max_stored_runs?: number;
   };
   features: {
     query_evolution: boolean;
     refchain: boolean;
     evaluation: boolean;
     sse: boolean;
+    real_search?: boolean;
+    real_search_cancel?: boolean;
+    real_search_sse?: boolean;
+    retrieval_cache?: boolean;
+    batch_cli?: boolean;
   };
 }
 

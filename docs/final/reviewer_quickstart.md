@@ -47,6 +47,24 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 http://127.0.0.1:8000/docs
 ```
 
+可检查 runtime config：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/runtime/config
+```
+
+预期看到：
+
+- `mode` 为 `hybrid`。
+- `llm.available=false`，`model=mock-no-llm`，表示当前 MVP 不调用 LLM。
+- `mock` connector 可用于 Mock Demo。
+- `openalex` / `arxiv` connector 可用于 Real Search。
+- `semantic_scholar` / `pubmed` 仍为未实现或不可用。
+
+OpenAlex / arXiv 可用于 Real Search 是预期；它们仍可能受外部服务
+`503`、`429` 或 timeout 影响，相关诊断会进入 Real Search events、
+`missing_evidence` 和 source stats。
+
 Real Search 的 in-memory run store 会自动清理 terminal runs，避免长时间
 运行时无限增长。可选环境变量：
 

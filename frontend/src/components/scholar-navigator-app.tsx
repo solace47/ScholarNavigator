@@ -486,6 +486,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function runtimeModeLabel(runtimeConfig: RuntimeConfigResponse | null): string {
+  if (!runtimeConfig) {
+    return "runtime loading";
+  }
+  if (runtimeConfig.features.real_search) {
+    return "Mock + Real Search";
+  }
+  if (runtimeConfig.mode === "mock") {
+    return "Mock Demo";
+  }
+  return runtimeConfig.mode;
+}
+
 function Header({
   theme,
   onThemeChange,
@@ -505,7 +518,9 @@ function Header({
             <Network className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
             Agent Workbench
           </span>
-          <Badge>{runtimeConfig?.mode ?? "mock"}</Badge>
+          <Badge>{runtimeModeLabel(runtimeConfig)}</Badge>
+          {runtimeConfig?.features.real_search ? <Badge>Hybrid Runtime</Badge> : null}
+          {runtimeConfig?.llm.available === false ? <Badge>no-LLM</Badge> : null}
           <Badge className={backendError ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
             {backendError ? "backend offline" : "backend ready"}
           </Badge>

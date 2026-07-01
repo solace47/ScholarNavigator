@@ -51,8 +51,22 @@ def test_runtime_config() -> None:
     response = client.get("/api/v1/runtime/config")
     assert response.status_code == 200
     body = response.json()
-    assert body["mode"] == "mock"
+    assert body["mode"] == "hybrid"
+    assert body["llm"] == {
+        "provider": "mock",
+        "model": "mock-no-llm",
+        "available": False,
+    }
     assert body["features"]["sse"] is True
+    assert body["features"]["real_search"] is True
+    assert body["features"]["real_search_cancel"] is True
+    assert body["features"]["real_search_sse"] is True
+    assert body["features"]["retrieval_cache"] is True
+    assert body["features"]["batch_cli"] is True
+    assert body["limits"]["real_search_max_workers"] >= 1
+    assert body["limits"]["real_search_background_workers"] >= 1
+    assert "real_search_run_ttl_seconds" in body["limits"]
+    assert "real_search_max_stored_runs" in body["limits"]
     assert {connector["name"] for connector in body["connectors"]} >= {
         "mock",
         "openalex",
@@ -60,6 +74,17 @@ def test_runtime_config() -> None:
         "semantic_scholar",
         "pubmed",
     }
+    connectors = {connector["name"]: connector for connector in body["connectors"]}
+    assert connectors["mock"]["available"] is True
+    assert connectors["openalex"]["available"] is True
+    assert connectors["openalex"]["reason"] != "mock_api_only"
+    assert connectors["arxiv"]["available"] is True
+    assert connectors["arxiv"]["reason"] != "mock_api_only"
+    assert connectors["semantic_scholar"]["available"] is False
+    assert connectors["semantic_scholar"]["requires_key"] is True
+    assert connectors["semantic_scholar"]["reason"] == "not_implemented"
+    assert connectors["pubmed"]["available"] is False
+    assert connectors["pubmed"]["reason"] == "not_implemented"
 
 
 def test_create_and_get_run() -> None:
@@ -117,4 +142,3 @@ def test_sse_events_are_accessible() -> None:
     assert "event: stage_started" in text
     assert "event: connector_completed" in text
     assert "event: run_completed" in text
-
