@@ -1,5 +1,6 @@
 import type {
   HealthResponse,
+  InternalSearchPreviewRequest,
   RuntimeConfigResponse,
   SearchRunCreateRequest,
   SearchRunCreateResponse,
@@ -87,6 +88,15 @@ export function getSearchRun(runId: string): Promise<SearchRunStatusResponse> {
 
 export function getSearchRunResult(runId: string): Promise<SearchRunResultResponse> {
   return requestJson<SearchRunResultResponse>(`/api/v1/search/runs/${runId}/result`);
+}
+
+export function previewRealSearchApiResult(
+  payload: InternalSearchPreviewRequest,
+): Promise<SearchRunResultResponse> {
+  return requestJson<SearchRunResultResponse>("/api/v1/internal/search/preview/api-result", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function streamSearchRunEvents(

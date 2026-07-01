@@ -76,6 +76,15 @@ export interface SearchRunCreateRequest {
   };
 }
 
+export interface InternalSearchPreviewRequest {
+  query: string;
+  top_k?: number;
+  run_profile?: RunProfile;
+  enable_refchain?: boolean;
+  enable_query_evolution?: boolean;
+  current_year?: number | null;
+}
+
 export interface SearchRunCreateResponse {
   run_id: string;
   status: RunStatus;

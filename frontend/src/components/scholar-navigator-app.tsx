@@ -29,6 +29,7 @@ import {
   getRuntimeConfig,
   getSearchRun,
   getSearchRunResult,
+  previewRealSearchApiResult,
   streamSearchRunEvents,
 } from "@/lib/api";
 import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
@@ -85,11 +86,14 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
 };
 
 type ThemeMode = "dark" | "light";
+type SearchMode = "mock" | "real_preview";
 
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [searchMode, setSearchMode] = useState<SearchMode>("mock");
   const [query, setQuery] = useState(EXAMPLES[0]);
   const [topK, setTopK] = useState(20);
+  const [currentYear, setCurrentYear] = useState(2026);
   const [runProfile, setRunProfile] = useState<RunProfile>("balanced");
   const [enableRefchain, setEnableRefchain] = useState(true);
   const [enableQueryEvolution, setEnableQueryEvolution] = useState(true);
@@ -147,6 +151,32 @@ export function ScholarNavigatorApp() {
     setEvents([]);
     setResult(null);
 
+    if (searchMode === "real_preview") {
+      try {
+        const previewResult = await previewRealSearchApiResult({
+          query,
+          top_k: topK,
+          run_profile: runProfile,
+          enable_query_evolution: enableQueryEvolution,
+          enable_refchain: enableRefchain,
+          current_year: currentYear,
+        });
+
+        setRunId(previewResult.run_id);
+        setStatus(buildPreviewStatus(previewResult));
+        setResult(previewResult);
+      } catch (error) {
+        setBackendError(
+          error instanceof Error
+            ? error.message
+            : "后端服务不可用，请先启动 FastAPI Mock API",
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     try {
       const created = await createSearchRun({
         query,
@@ -154,7 +184,7 @@ export function ScholarNavigatorApp() {
         constraints: {
           time_range: {
             start_year: 2020,
-            end_year: 2026,
+            end_year: currentYear,
           },
           venues: ["ACL", "EMNLP", "SIGIR"],
           must_have_terms: query
@@ -233,15 +263,19 @@ export function ScholarNavigatorApp() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.4fr)]">
           <SearchWorkbench
+            searchMode={searchMode}
             query={query}
             topK={topK}
+            currentYear={currentYear}
             runProfile={runProfile}
             enableRefchain={enableRefchain}
             enableQueryEvolution={enableQueryEvolution}
             isSubmitting={isSubmitting}
             formError={formError}
+            onSearchModeChange={setSearchMode}
             onQueryChange={setQuery}
             onTopKChange={setTopK}
+            onCurrentYearChange={setCurrentYear}
             onRunProfileChange={setRunProfile}
             onRefchainChange={setEnableRefchain}
             onQueryEvolutionChange={setEnableQueryEvolution}
@@ -249,6 +283,7 @@ export function ScholarNavigatorApp() {
           />
 
           <RunProgress
+            searchMode={searchMode}
             runId={runId}
             status={status}
             events={events}
@@ -261,6 +296,27 @@ export function ScholarNavigatorApp() {
       </div>
     </main>
   );
+}
+
+function buildPreviewStatus(result: SearchRunResultResponse): SearchRunStatusResponse {
+  const now = new Date().toISOString();
+  const visiblePaperCount =
+    result.highly_relevant_papers.length + result.partially_relevant_papers.length;
+
+  return {
+    run_id: result.run_id,
+    status: result.status,
+    current_stage: result.status === "succeeded" ? "synthesis" : "preview",
+    progress: {
+      completed_stages:
+        result.status === "succeeded" ? STAGES.map((stage) => stage.key) : [],
+      candidate_paper_count: visiblePaperCount,
+      judged_paper_count: result.cost_report.judged_paper_count,
+    },
+    cost_report: result.cost_report,
+    created_at: now,
+    updated_at: now,
+  };
 }
 
 function Header({
@@ -329,29 +385,37 @@ function BackendWarning({ message }: { message: string }) {
 }
 
 function SearchWorkbench({
+  searchMode,
   query,
   topK,
+  currentYear,
   runProfile,
   enableRefchain,
   enableQueryEvolution,
   isSubmitting,
   formError,
+  onSearchModeChange,
   onQueryChange,
   onTopKChange,
+  onCurrentYearChange,
   onRunProfileChange,
   onRefchainChange,
   onQueryEvolutionChange,
   onSearch,
 }: {
+  searchMode: SearchMode;
   query: string;
   topK: number;
+  currentYear: number;
   runProfile: RunProfile;
   enableRefchain: boolean;
   enableQueryEvolution: boolean;
   isSubmitting: boolean;
   formError: string | null;
+  onSearchModeChange: (value: SearchMode) => void;
   onQueryChange: (value: string) => void;
   onTopKChange: (value: number) => void;
+  onCurrentYearChange: (value: number) => void;
   onRunProfileChange: (value: RunProfile) => void;
   onRefchainChange: (value: boolean) => void;
   onQueryEvolutionChange: (value: boolean) => void;
@@ -371,6 +435,24 @@ function SearchWorkbench({
 
       <div className="space-y-5">
         <div>
+          <p className="mb-2 text-sm font-semibold text-[var(--muted-strong)]">检索模式</p>
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="检索模式">
+            <ModeOption
+              label="Mock Demo"
+              description="Mock API + SSE"
+              selected={searchMode === "mock"}
+              onSelect={() => onSearchModeChange("mock")}
+            />
+            <ModeOption
+              label="Real Preview"
+              description="OpenAlex / arXiv"
+              selected={searchMode === "real_preview"}
+              onSelect={() => onSearchModeChange("real_preview")}
+            />
+          </div>
+        </div>
+
+        <div>
           <FieldLabel htmlFor="query">学术查询</FieldLabel>
           <textarea
             id="query"
@@ -382,7 +464,7 @@ function SearchWorkbench({
           {formError ? <p className="mt-2 text-sm text-[var(--danger)]">{formError}</p> : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <FieldLabel htmlFor="top-k">top_k</FieldLabel>
             <TextInput
@@ -392,6 +474,17 @@ function SearchWorkbench({
               max={100}
               value={topK}
               onChange={(event) => onTopKChange(Number(event.target.value))}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="current-year">current_year</FieldLabel>
+            <TextInput
+              id="current-year"
+              type="number"
+              min={1900}
+              max={2100}
+              value={currentYear}
+              onChange={(event) => onCurrentYearChange(Number(event.target.value))}
             />
           </div>
           <div>
@@ -449,10 +542,44 @@ function SearchWorkbench({
           ) : (
             <Search className="h-4 w-4" aria-hidden="true" />
           )}
-          {isSubmitting ? "Searching" : "启动搜索"}
+          {isSubmitting
+            ? searchMode === "real_preview"
+              ? "Real Preview running"
+              : "Searching"
+            : searchMode === "real_preview"
+              ? "启动 Real Preview"
+              : "启动搜索"}
         </Button>
       </div>
     </SectionPanel>
+  );
+}
+
+function ModeOption({
+  label,
+  description,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  description: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={`min-h-16 rounded-md border p-3 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${
+        selected
+          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+          : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--primary)]"
+      }`}
+    >
+      <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
+      <span className="mt-1 block text-xs text-[var(--muted)]">{description}</span>
+    </button>
   );
 }
 
@@ -496,12 +623,14 @@ function ToggleControl({
 }
 
 function RunProgress({
+  searchMode,
   runId,
   status,
   events,
   costReport,
   isSubmitting,
 }: {
+  searchMode: SearchMode;
   runId: string | null;
   status: SearchRunStatusResponse | null;
   events: StreamEvent[];
@@ -588,9 +717,15 @@ function RunProgress({
         <div className="panel-soft rounded-lg p-4">
           <div className="mb-3 flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h3 className="font-semibold">SSE Events</h3>
+            <h3 className="font-semibold">
+              {searchMode === "real_preview" ? "Preview Transport" : "SSE Events"}
+            </h3>
           </div>
-          {events.length ? (
+          {searchMode === "real_preview" ? (
+            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
+              Real Preview 使用一次性 REST 响应，不开启 SSE 事件流。
+            </div>
+          ) : events.length ? (
             <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
               {events.map((event, index) => (
                 <div
@@ -668,6 +803,12 @@ function ResultsPanel({
   result: SearchRunResultResponse | null;
   isLoading: boolean;
 }) {
+  const visiblePaperCount = result
+    ? result.highly_relevant_papers.length + result.partially_relevant_papers.length
+    : 0;
+  const hasDiagnosticsWithoutCandidates =
+    Boolean(result) && visiblePaperCount === 0 && Boolean(result?.missing_evidence.length);
+
   return (
     <SectionPanel aria-labelledby="results-title">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -690,6 +831,8 @@ function ResultsPanel({
       {!isLoading && !result ? <EmptyResults /> : null}
       {result ? (
         <div className="space-y-6">
+          {hasDiagnosticsWithoutCandidates ? <SourceDiagnosticNotice result={result} /> : null}
+
           <QuerySummary result={result} />
 
           <PaperSection
@@ -712,6 +855,35 @@ function ResultsPanel({
         </div>
       ) : null}
     </SectionPanel>
+  );
+}
+
+function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div
+      role="status"
+      className="rounded-lg border border-[color-mix(in_srgb,var(--warning)_60%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_12%,var(--surface))] p-4"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--warning)]" aria-hidden="true" />
+        <div className="min-w-0">
+          <h3 className="font-semibold text-[var(--foreground)]">检索源失败/无候选</h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            返回结构有效，但当前没有可展示论文。以下诊断来自 missing_evidence。
+          </p>
+          <div className="mt-3 grid gap-2">
+            {result.missing_evidence.slice(0, 6).map((item) => (
+              <div
+                key={item}
+                className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted-strong)]"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
