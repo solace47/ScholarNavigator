@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from scholar_agent.core.paper_schemas import Paper
+
 
 SourceName = Literal["openalex", "arxiv"]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
@@ -24,6 +26,14 @@ ResearchDomain = Literal[
     "machine_learning",
     "biomedical",
     "general_science",
+]
+EvidenceSource = Literal["title", "abstract", "venue", "metadata"]
+JudgementCategory = Literal[
+    "highly_relevant",
+    "partially_relevant",
+    "weakly_relevant",
+    "irrelevant",
+    "insufficient_evidence",
 ]
 
 SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = ("openalex", "arxiv")
@@ -106,6 +116,22 @@ class QueryUnderstandingOptions(BaseModel):
     current_year: int | None = Field(default=None, ge=1900, le=2200)
 
 
+class EvidenceItem(BaseModel):
+    source: EvidenceSource
+    text: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class JudgementResult(BaseModel):
+    paper: Paper
+    score: float = Field(ge=0.0, le=1.0)
+    category: JudgementCategory
+    reasoning: str
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 def _normalize_sources(value: object) -> list[str]:
     if value is None:
         return list(SUPPORTED_SEARCH_SOURCES)
@@ -125,4 +151,3 @@ def _normalize_sources(value: object) -> list[str]:
         normalized.append(key)
         seen.add(key)
     return normalized
-
