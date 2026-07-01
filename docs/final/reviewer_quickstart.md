@@ -32,10 +32,12 @@ npm install
 
 ## 启动后端
 
-推荐评审演示使用低并发 Real Preview：
+推荐评审演示使用低并发 Real Search，并启用 retrieval cache：
 
 ```bash
-REAL_PREVIEW_MAX_WORKERS=1 \
+SCHOLAR_AGENT_RETRIEVAL_CACHE=1 \
+REAL_SEARCH_MAX_WORKERS=1 \
+REAL_SEARCH_BACKGROUND_WORKERS=2 \
 PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -57,6 +59,32 @@ npm run dev
 ```text
 http://localhost:3000
 ```
+
+如果 `3000` 被占用，Next.js 可能自动切到 `3001`。也可以显式使用
+`5173`：
+
+```bash
+cd frontend
+PORT=5173 npm run dev
+```
+
+后端默认 CORS allowlist 已支持：
+
+- `http://localhost:3000`
+- `http://127.0.0.1:3000`
+- `http://localhost:3001`
+- `http://127.0.0.1:3001`
+- `http://localhost:5173`
+- `http://127.0.0.1:5173`
+
+如需增加自定义前端地址，可在启动后端时设置：
+
+```bash
+SCHOLAR_AGENT_CORS_ORIGINS=http://localhost:4321 \
+PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
+```
+
+`SCHOLAR_AGENT_CORS_ORIGINS` 使用逗号分隔，会与默认 allowlist 合并。
 
 如果后端地址不同：
 
@@ -86,7 +114,7 @@ cd frontend && npm run build
 
 当前记录中的预期结果：
 
-- `pytest`：`140 passed, 1 warning`
+- `pytest`：应全部通过，具体数量以当前测试集为准
 - `npm run lint`：通过
 - `npm run build`：通过
 
@@ -119,10 +147,19 @@ cd frontend && npm run build
    - `enable_refchain=false`
 4. 点击启动 Real Preview。
 5. 观察：
-   - run_id 以 `run_preview_` 开头。
-   - Preview Transport 显示不启用 SSE。
+   - run_id 以 `run_real_` 开头。
+   - Run Progress 展示 `Real Search Events`。
+   - queued/running/succeeded/failed 状态会通过轮询更新。
    - 如果 OpenAlex / arXiv 返回论文，Results 展示真实论文卡片。
    - 如果外部源失败，Results 展示“检索源失败/无候选”和 `missing_evidence` 诊断。
+   - 如果返回 `synthesis`，Results 上方展示 Citation-backed Synthesis Panel。
+
+Real Preview 支持：
+
+- asynchronous real run lifecycle：`/api/v1/real/search/runs`
+- SSE event replay：`/api/v1/real/search/runs/{run_id}/events`
+- cancelling queued/running runs：`POST /api/v1/real/search/runs/{run_id}/cancel`
+- retrieval cache diagnostics：`cost_report.cache_hit_count`
 
 注意：Real Preview 会通过后端真实访问 OpenAlex / arXiv，可能受到 OpenAlex 503、arXiv 429 或 timeout 影响。
 
@@ -172,5 +209,5 @@ PYTHONPATH=src python scripts/summarize_eval_results.py \
 - 当前没有读取全文 PDF。
 - 当前没有完整接入 LitSearch / AstaBench benchmark。
 - 前端不读取、不保存、不展示任何 API Key。
-- 真实检索暂走 internal preview endpoint，正式 Mock API 行为保持不变。
+- Mock Demo API 行为保持不变；Real Preview 走独立 Real Search lifecycle。
 - OpenAlex / arXiv 网络错误会被记录并展示，不代表系统逻辑崩溃。

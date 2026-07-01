@@ -41,6 +41,27 @@ Open:
 http://localhost:3000
 ```
 
+If port `3000` is already in use, Next.js may switch to another port such as
+`3001`. The backend CORS defaults allow common local frontend ports:
+
+- `http://localhost:3000`
+- `http://127.0.0.1:3000`
+- `http://localhost:3001`
+- `http://127.0.0.1:3001`
+- `http://localhost:5173`
+- `http://127.0.0.1:5173`
+
+To add a custom frontend origin, start the backend with:
+
+```bash
+SCHOLAR_AGENT_CORS_ORIGINS=http://localhost:4321 \
+PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
+```
+
+`SCHOLAR_AGENT_CORS_ORIGINS` is comma-separated. Values are trimmed, empty
+entries are ignored, and configured origins are merged with the default
+allowlist.
+
 ## Build
 
 ```bash
@@ -86,6 +107,10 @@ SSE connection, and keeps already received events visible. The current backend
 cannot force-kill connector calls that are already executing; cancellation marks
 the run as `cancelled`, ignores any later background result, and stops the
 frontend from waiting for completion.
+
+When backend retrieval cache is enabled, repeated Real Preview runs in the same
+backend process may report `cache_hit_count` in the cost report and show cache
+hit diagnostics in `missing_evidence`.
 
 ## Synthesis Panel
 

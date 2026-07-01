@@ -2,10 +2,46 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router
+
+
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+CORS_ORIGINS_ENV = "SCHOLAR_AGENT_CORS_ORIGINS"
+
+
+def get_cors_origins() -> list[str]:
+    """Return default dev origins plus optional env-configured origins."""
+
+    origins: list[str] = []
+    seen: set[str] = set()
+    for origin in DEFAULT_CORS_ORIGINS:
+        _append_origin(origins, seen, origin)
+
+    configured = os.getenv(CORS_ORIGINS_ENV, "")
+    for origin in configured.split(","):
+        _append_origin(origins, seen, origin)
+
+    return origins
+
+
+def _append_origin(origins: list[str], seen: set[str], origin: str) -> None:
+    normalized = origin.strip()
+    if not normalized or normalized in seen:
+        return
+    origins.append(normalized)
+    seen.add(normalized)
 
 
 def create_app() -> FastAPI:
@@ -20,10 +56,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://localhost:5173",
-        ],
+        allow_origins=get_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -34,4 +67,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
