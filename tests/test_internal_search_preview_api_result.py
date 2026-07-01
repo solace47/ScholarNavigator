@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats  # noqa: E402
+from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
 from scholar_agent.app.main import app  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
@@ -92,6 +93,9 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
     ]
     assert body["highly_relevant_papers"][0]["paper"]["title"] == "Highly Relevant"
     assert body["partially_relevant_papers"][0]["paper"]["title"] == "Partially Relevant"
+    assert body["synthesis"] is not None
+    assert body["synthesis"]["evidence_table"][0]["citation_key"] == "R1"
+    assert body["synthesis"]["citation_coverage"]["ranked_paper_count"] == 2
     assert body["method_clusters"]
     assert body["timeline"]
     assert body["citation_graph"]["edges"][0]["source"] == "openalex:whigh"
@@ -241,7 +245,7 @@ def _fake_output(query: str, *, include_refchain: bool = False) -> SearchService
             ),
         )
 
-    return SearchServiceOutput(
+    output = SearchServiceOutput(
         search_plan=search_plan,
         retrieval_outputs=[
             RetrievalOutput(
@@ -279,6 +283,8 @@ def _fake_output(query: str, *, include_refchain: bool = False) -> SearchService
         ],
         latency_seconds=0.25,
     )
+    output.synthesis_output = synthesize_answer(output)
+    return output
 
 
 def _paper(title: str, *, doi: str, openalex_id: str) -> Paper:

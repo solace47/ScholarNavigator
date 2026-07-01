@@ -12,6 +12,12 @@ from scholar_agent.core.search_schemas import (
     RankedPaper as InternalRankedPaper,
     SearchPlan as InternalSearchPlan,
 )
+from scholar_agent.core.synthesis_schemas import (
+    CitationCoverage as InternalCitationCoverage,
+    SynthesisEvidenceRow as InternalSynthesisEvidenceRow,
+    SynthesisFinding as InternalSynthesisFinding,
+    SynthesisOutput as InternalSynthesisOutput,
+)
 from scholar_agent.services.search_service import SearchServiceOutput
 
 
@@ -56,6 +62,7 @@ def map_search_service_output_to_api_result(
         timeline=_timeline(all_visible),
         citation_graph=_citation_graph(all_visible, output),
         missing_evidence=_dedupe(missing_evidence),
+        synthesis=map_synthesis_output(output.synthesis_output),
         cost_report=_cost_report(output),
     )
 
@@ -105,6 +112,86 @@ def map_evidence_item(item: InternalEvidenceItem) -> api.EvidenceItem:
         source=item.source,
         text=item.text,
         confidence=item.confidence,
+    )
+
+
+def map_synthesis_output(
+    synthesis: InternalSynthesisOutput | None,
+) -> api.SynthesisOutput | None:
+    """Map internal synthesis output into the optional API synthesis object."""
+
+    if synthesis is None:
+        return None
+    return api.SynthesisOutput(
+        answer_summary=synthesis.answer_summary,
+        status=synthesis.status,
+        key_findings=[
+            map_synthesis_finding(finding) for finding in synthesis.key_findings
+        ],
+        evidence_table=[
+            map_synthesis_evidence_row(row) for row in synthesis.evidence_table
+        ],
+        citation_coverage=map_citation_coverage(synthesis.citation_coverage),
+        limitations=list(synthesis.limitations),
+        warnings=list(synthesis.warnings),
+    )
+
+
+def map_synthesis_evidence_row(
+    row: InternalSynthesisEvidenceRow,
+) -> api.SynthesisEvidenceRow:
+    """Map an internal synthesis evidence row into the API schema."""
+
+    return api.SynthesisEvidenceRow(
+        row_id=row.row_id,
+        citation_key=row.citation_key,
+        rank=row.rank,
+        paper_title=row.paper_title,
+        year=row.year,
+        venue=row.venue,
+        sources=list(row.sources),
+        identifiers=api.PaperIdentifiers(
+            doi=row.identifiers.doi,
+            arxiv_id=row.identifiers.arxiv_id,
+            semantic_scholar_id=row.identifiers.semantic_scholar_id,
+            openalex_id=row.identifiers.openalex_id,
+            pubmed_id=row.identifiers.pubmed_id,
+        ),
+        category=row.category,
+        final_score=row.final_score,
+        evidence_source=row.evidence_source,
+        evidence_text=row.evidence_text,
+        supported_terms=list(row.supported_terms),
+        supported_claim=row.supported_claim,
+    )
+
+
+def map_synthesis_finding(
+    finding: InternalSynthesisFinding,
+) -> api.SynthesisFinding:
+    """Map an internal synthesis finding into the API schema."""
+
+    return api.SynthesisFinding(
+        text=finding.text,
+        citation_keys=list(finding.citation_keys),
+        confidence=finding.confidence,
+        evidence_row_ids=list(finding.evidence_row_ids),
+    )
+
+
+def map_citation_coverage(
+    coverage: InternalCitationCoverage,
+) -> api.CitationCoverage:
+    """Map internal citation coverage counters into the API schema."""
+
+    return api.CitationCoverage(
+        ranked_paper_count=coverage.ranked_paper_count,
+        cited_paper_count=coverage.cited_paper_count,
+        evidence_row_count=coverage.evidence_row_count,
+        cited_evidence_row_count=coverage.cited_evidence_row_count,
+        missing_evidence_count=coverage.missing_evidence_count,
+        source_error_count=coverage.source_error_count,
+        coverage_ratio=coverage.coverage_ratio,
     )
 
 

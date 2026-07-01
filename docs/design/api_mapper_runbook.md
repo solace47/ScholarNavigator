@@ -16,6 +16,8 @@ Current boundaries:
 
 - The mapper is connected only to an internal preview endpoint.
 - Existing `/api/v1/search/runs` Mock API behavior is unchanged.
+- `SearchRunResultResponse.synthesis` is optional; Mock API responses may leave
+  it as `null`.
 - No frontend changes.
 - No `third_party` changes.
 - No LLM calls.
@@ -131,6 +133,26 @@ Internal search plan maps to:
 - selected sources -> `source_preferences`
 - retrieval output count plus optional RefChain stage -> `max_rounds`
 
+### Synthesis
+
+Internal `core.synthesis_schemas.SynthesisOutput` maps to the optional
+`core.api_schemas.SynthesisOutput` field on `SearchRunResultResponse`.
+
+Mapped fields:
+
+- `answer_summary`
+- `status`
+- `key_findings`
+- `evidence_table`
+- `citation_coverage`
+- `limitations`
+- `warnings`
+
+If `SearchServiceOutput.synthesis_output` is `None`, the API response uses
+`synthesis=None`. Synthesis limitations are not duplicated into
+`missing_evidence`; that field remains focused on retrieval, source, Query
+Evolution, RefChain, and filtered-paper diagnostics.
+
 ## Paper Classification
 
 Mapped final lists follow the current frontend contract:
@@ -167,8 +189,8 @@ The mapper adds important diagnostic signals to `missing_evidence`:
 - RefChain seed/reference summary, warnings, and skipped reasons
 - filtered irrelevant or insufficient-evidence papers
 
-This keeps the public response useful for frontend debugging without expanding
-the API schema yet.
+This keeps the public response useful for frontend debugging while synthesis is
+available as a separate optional field.
 
 ## Derived Structures
 
@@ -184,7 +206,10 @@ available. It does not infer citation relationships from external knowledge.
 
 - Only the internal preview endpoint uses this mapper.
 - The public Mock API result endpoint still returns mock data.
+- The public Mock API result endpoint does not generate synthesis and returns
+  `synthesis=null`.
 - `citation_count` is not present in the API paper schema.
+- Frontend rendering for `synthesis` is not implemented yet.
 - Method clusters are simple deterministic groupings, not semantic topic
   clusters.
 - Citation graph only uses RefChain edge metadata already present in
@@ -200,4 +225,5 @@ Recommended next steps:
 3. Use this mapper in the public result endpoint only when real-search mode is
    enabled.
 4. Keep Mock API behavior available until frontend and demo flows are stable.
-5. Add SSE stage events around real pipeline execution before frontend rollout.
+5. Add frontend rendering for the optional `synthesis` object.
+6. Add SSE stage events around real pipeline execution before frontend rollout.

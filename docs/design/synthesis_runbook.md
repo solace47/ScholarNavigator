@@ -12,7 +12,7 @@ src/scholar_agent/agents/synthesis.py
 Current boundaries:
 
 - Integrated into `SearchService` as an optional final internal output.
-- No FastAPI/API schema changes.
+- Exposed through `SearchRunResultResponse.synthesis` as an optional field.
 - No frontend changes.
 - No `third_party` changes.
 - No LLM calls.
@@ -55,8 +55,14 @@ Models:
 - `CitationCoverage`
 - `SynthesisOutput`
 
-These schemas are internal only. They are not yet exposed through
-`SearchRunResultResponse`.
+The API layer defines separate optional response schemas in:
+
+```text
+src/scholar_agent/core/api_schemas.py
+```
+
+`SearchRunResultResponse.synthesis` is optional, so old mock responses and old
+frontend code can continue to work when the field is `null`.
 
 ## MVP Rule Logic
 
@@ -123,8 +129,9 @@ cycles between `search_service.py` and `agents/synthesis.py`.
 API boundaries:
 
 - The raw internal preview endpoint can expose `synthesis_output`.
-- The API-result preview endpoint still maps to the existing
-  `SearchRunResultResponse` schema and does not expose synthesis yet.
+- The API-result preview endpoint maps `synthesis_output` to
+  `SearchRunResultResponse.synthesis` when present.
+- Mock API result responses do not generate synthesis and return `null`.
 - Existing Mock API endpoints are unchanged.
 
 ## Insufficient Evidence Behavior
@@ -177,9 +184,8 @@ When no ranked papers exist, the ratio is `0.0`.
 
 Recommended next steps:
 
-1. Extend `api_mapper` to expose an optional synthesis field.
-2. Add a frontend synthesis panel above paper cards.
-3. Keep `missing_evidence` as the fallback diagnostic surface for clients that
+1. Add a frontend synthesis panel above paper cards.
+2. Keep `missing_evidence` as the fallback diagnostic surface for clients that
    do not render synthesis yet.
 
 ## Future LLM Enhancement

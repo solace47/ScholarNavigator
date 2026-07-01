@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats  # noqa: E402
+from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
 from scholar_agent.app.main import app  # noqa: E402
 from scholar_agent.core.paper_schemas import (  # noqa: E402
     Paper,
@@ -58,6 +59,7 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.search_plan.expanded_queries == ["LLM reranking papers"]
     assert response.highly_relevant_papers == []
     assert response.partially_relevant_papers == []
+    assert response.synthesis is None
     assert response.cost_report.llm_call_count == 0
     assert response.cost_report.cache_hit_count == 0
 
@@ -218,6 +220,43 @@ def test_query_evolution_and_refchain_debug_info_do_not_crash_mapper() -> None:
     assert response.citation_graph.edges[0].target == "openalex:wref"
 
 
+def test_synthesis_output_maps_to_api_result_synthesis() -> None:
+    ranked = [
+        _ranked(_paper("Highly", doi="10.123/high"), rank=1, category="highly_relevant"),
+        _ranked(
+            _paper("Partial", doi="10.123/partial"),
+            rank=2,
+            category="partially_relevant",
+        ),
+    ]
+    output = _output_with_ranked(ranked)
+    output.synthesis_output = synthesize_answer(output)
+
+    response = map_search_service_output_to_api_result("run_real_synthesis", output)
+
+    assert response.synthesis is not None
+    assert response.synthesis.status == "succeeded"
+    assert response.synthesis.evidence_table[0].citation_key == "R1"
+    assert response.synthesis.evidence_table[0].identifiers.doi == "10.123/high"
+    assert response.synthesis.key_findings[0].citation_keys == ["R1"]
+    assert response.synthesis.citation_coverage.ranked_paper_count == 2
+    assert response.highly_relevant_papers[0].paper.title == "Highly"
+    assert response.partially_relevant_papers[0].paper.title == "Partial"
+
+
+def test_none_synthesis_output_is_valid_api_result() -> None:
+    output = _output_with_ranked(
+        [_ranked(_paper("Highly", doi="10.123/high"), rank=1)]
+    )
+    output.synthesis_output = None
+
+    response = map_search_service_output_to_api_result("run_real_no_synthesis", output)
+
+    assert response.synthesis is None
+    assert response.highly_relevant_papers
+    assert response.partially_relevant_papers == []
+
+
 def test_existing_mock_search_runs_api_behavior_is_unchanged() -> None:
     create_response = client.post(
         "/api/v1/search/runs",
@@ -232,6 +271,7 @@ def test_existing_mock_search_runs_api_behavior_is_unchanged() -> None:
     body = result_response.json()
     assert body["run_id"] == run_id
     assert body["status"] == "succeeded"
+    assert body["synthesis"] is None
     assert body["highly_relevant_papers"][0]["paper"]["title"].startswith("SPAR:")
     assert body["cost_report"]["api_call_count"] == 7
 
