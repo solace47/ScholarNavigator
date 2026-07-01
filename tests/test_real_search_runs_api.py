@@ -193,6 +193,115 @@ def test_real_search_failed_run_records_error_and_failed_status(monkeypatch) -> 
     assert '"status": "failed"' in text
 
 
+def test_running_real_search_can_be_cancelled_and_ignores_late_result(
+    monkeypatch,
+) -> None:
+    release = threading.Event()
+    service_entered = threading.Event()
+
+    class BlockingSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
+            service_entered.set()
+            assert release.wait(timeout=2)
+            return _fake_output(query)
+
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", BlockingSearchService)
+
+    create_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "LLM reranking retrieval papers", "top_k": 5},
+    )
+    assert create_response.status_code == 201
+    run_id = create_response.json()["run_id"]
+    assert service_entered.wait(timeout=2)
+
+    cancel_response = client.post(f"/api/v1/real/search/runs/{run_id}/cancel")
+    assert cancel_response.status_code == 200
+    cancel_body = cancel_response.json()
+    assert cancel_body["status"] == "cancelled"
+    assert cancel_body["current_stage"] == "cancelled"
+
+    result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")
+    assert result_response.status_code == 409
+    assert result_response.json()["detail"] == "run cancelled"
+
+    repeat_cancel = client.post(f"/api/v1/real/search/runs/{run_id}/cancel")
+    assert repeat_cancel.status_code == 200
+    assert repeat_cancel.json()["status"] == "cancelled"
+
+    release.set()
+    time.sleep(0.1)
+    final_status = client.get(f"/api/v1/real/search/runs/{run_id}")
+    assert final_status.status_code == 200
+    assert final_status.json()["status"] == "cancelled"
+    assert final_status.json()["current_stage"] == "cancelled"
+
+    with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
+        text = "".join(response.iter_text())
+
+    assert "event: warning" in text
+    assert "run cancelled" in text
+    assert "event: run_completed" in text
+    assert '"status": "cancelled"' in text
+
+
+def test_queued_real_search_can_be_cancelled_before_worker_starts(monkeypatch) -> None:
+    release_first = threading.Event()
+    first_entered = threading.Event()
+
+    class BlockingSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
+            first_entered.set()
+            assert release_first.wait(timeout=2)
+            return _fake_output(query)
+
+    monkeypatch.setenv("REAL_SEARCH_BACKGROUND_WORKERS", "1")
+    monkeypatch.setattr("scholar_agent.app.api.routes._REAL_SEARCH_EXECUTOR", None)
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", BlockingSearchService)
+
+    first_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "first blocking run", "top_k": 5},
+    )
+    assert first_response.status_code == 201
+    assert first_entered.wait(timeout=2)
+
+    second_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "queued run to cancel", "top_k": 5},
+    )
+    assert second_response.status_code == 201
+    second_run_id = second_response.json()["run_id"]
+
+    cancel_response = client.post(f"/api/v1/real/search/runs/{second_run_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+
+    release_first.set()
+    _wait_for_status(first_response.json()["run_id"], "succeeded")
+    time.sleep(0.1)
+
+    status_response = client.get(f"/api/v1/real/search/runs/{second_run_id}")
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] == "cancelled"
+
+    result_response = client.get(f"/api/v1/real/search/runs/{second_run_id}/result")
+    assert result_response.status_code == 409
+    assert result_response.json()["detail"] == "run cancelled"
+
+
+def test_cancel_unknown_real_run_returns_404() -> None:
+    response = client.post("/api/v1/real/search/runs/run_real_missing/cancel")
+
+    assert response.status_code == 404
+
+
 def test_real_search_unknown_run_id_returns_404() -> None:
     status_response = client.get("/api/v1/real/search/runs/run_real_missing")
     result_response = client.get("/api/v1/real/search/runs/run_real_missing/result")

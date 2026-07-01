@@ -80,6 +80,13 @@ If the SSE connection fails while status polling continues, the UI keeps the
 current run status/result and records an `sse_error` event instead of clearing
 the results.
 
+`Real Preview` also supports cancelling a queued/running real search run. The UI
+calls `POST /api/v1/real/search/runs/{run_id}/cancel`, stops polling, closes the
+SSE connection, and keeps already received events visible. The current backend
+cannot force-kill connector calls that are already executing; cancellation marks
+the run as `cancelled`, ignores any later background result, and stops the
+frontend from waiting for completion.
+
 ## Synthesis Panel
 
 `Real Preview` may return an optional `synthesis` object in `SearchRunResultResponse`.

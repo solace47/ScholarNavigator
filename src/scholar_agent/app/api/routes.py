@@ -77,6 +77,7 @@ class RealRun:
     result: SearchRunResultResponse | None
     events: list[tuple[str, dict[str, Any]]]
     error_message: str | None
+    cancel_requested: bool
     created_at: datetime
     updated_at: datetime
 
@@ -355,6 +356,7 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
             result=None,
             events=[],
             error_message=None,
+            cancel_requested=False,
             created_at=timestamp,
             updated_at=timestamp,
         )
@@ -384,15 +386,7 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
 def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
     with _REAL_RUNS_LOCK:
         run = _get_real_run(run_id)
-        return SearchRunStatusResponse(
-            run_id=run.run_id,
-            status=run.status,  # type: ignore[arg-type]
-            current_stage=run.current_stage,
-            progress=run.progress,
-            cost_report=run.cost_report,
-            created_at=run.created_at,
-            updated_at=run.updated_at,
-        )
+        return _real_status_response(run)
 
 
 @router.get(
@@ -405,6 +399,8 @@ def get_real_search_result(run_id: str) -> SearchRunResultResponse:
         run = _get_real_run(run_id)
         if run.status in {"queued", "running"}:
             raise HTTPException(status_code=409, detail="result not ready")
+        if run.status == "cancelled":
+            raise HTTPException(status_code=409, detail="run cancelled")
         if run.status == "failed":
             raise HTTPException(
                 status_code=500,
@@ -413,6 +409,33 @@ def get_real_search_result(run_id: str) -> SearchRunResultResponse:
         if run.result is None:
             raise HTTPException(status_code=409, detail="result not ready")
         return run.result
+
+
+@router.post(
+    "/real/search/runs/{run_id}/cancel",
+    response_model=SearchRunStatusResponse,
+    tags=["real-search"],
+)
+def cancel_real_search_run(run_id: str) -> SearchRunStatusResponse:
+    with _REAL_RUNS_LOCK:
+        run = _get_real_run(run_id)
+        if run.status in {"queued", "running"}:
+            run.status = "cancelled"
+            run.current_stage = "cancelled"
+            run.cancel_requested = True
+            run.result = None
+            run.error_message = "run cancelled"
+            run.updated_at = _now()
+            should_emit_cancel_events = True
+        else:
+            should_emit_cancel_events = False
+
+    if should_emit_cancel_events:
+        _append_real_event(run_id, "warning", {"message": "run cancelled"})
+        _append_real_event(run_id, "run_completed", {"status": "cancelled"})
+
+    with _REAL_RUNS_LOCK:
+        return _real_status_response(_get_real_run(run_id))
 
 
 @router.get("/real/search/runs/{run_id}/events", tags=["real-search"])
@@ -948,6 +971,8 @@ def _execute_real_search_run(run_id: str) -> None:
         run = _REAL_RUNS.get(run_id)
         if run is None:
             return
+        if run.status == "cancelled" or run.cancel_requested:
+            return
         request = run.request
 
     current_year = (
@@ -975,6 +1000,13 @@ def _execute_real_search_run(run_id: str) -> None:
             status="succeeded",
             partial=False,
         )
+        with _REAL_RUNS_LOCK:
+            run = _REAL_RUNS.get(run_id)
+            if run is None:
+                return
+            if run.status == "cancelled" or run.cancel_requested:
+                return
+
         candidate_count = len(result.highly_relevant_papers) + len(
             result.partially_relevant_papers
         )
@@ -1011,6 +1043,8 @@ def _execute_real_search_run(run_id: str) -> None:
         with _REAL_RUNS_LOCK:
             run = _REAL_RUNS.get(run_id)
             if run is None:
+                return
+            if run.status == "cancelled" or run.cancel_requested:
                 return
             run.status = "succeeded"
             run.current_stage = "synthesis"
@@ -1059,10 +1093,24 @@ def _append_real_event(
         run.updated_at = _now()
 
 
+def _real_status_response(run: RealRun) -> SearchRunStatusResponse:
+    return SearchRunStatusResponse(
+        run_id=run.run_id,
+        status=run.status,  # type: ignore[arg-type]
+        current_stage=run.current_stage,
+        progress=run.progress,
+        cost_report=run.cost_report,
+        created_at=run.created_at,
+        updated_at=run.updated_at,
+    )
+
+
 def _start_real_stage(run_id: str, stage: str) -> None:
     with _REAL_RUNS_LOCK:
         run = _REAL_RUNS.get(run_id)
         if run is None:
+            return
+        if run.status == "cancelled" or run.cancel_requested:
             return
         run.status = "running"
         run.current_stage = stage
@@ -1090,6 +1138,8 @@ def _complete_real_stage(
         run = _REAL_RUNS.get(run_id)
         if run is None:
             return
+        if run.status == "cancelled" or run.cancel_requested:
+            return
         run.status = "running"
         run.current_stage = stage
         if stage not in run.progress.completed_stages:
@@ -1106,6 +1156,8 @@ def _fail_real_run(run_id: str, message: str) -> None:
     with _REAL_RUNS_LOCK:
         run = _REAL_RUNS.get(run_id)
         if run is None:
+            return
+        if run.status == "cancelled" or run.cancel_requested:
             return
         run.status = "failed"
         run.current_stage = "failed"

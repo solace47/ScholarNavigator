@@ -25,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
+  cancelRealSearchRun,
   createRealSearchRun,
   createSearchRun,
   getHealth,
@@ -107,6 +108,7 @@ export function ScholarNavigatorApp() {
   const [backendError, setBackendError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [status, setStatus] = useState<SearchRunStatusResponse | null>(null);
   const [events, setEvents] = useState<StreamEvent[]>([]);
@@ -156,6 +158,7 @@ export function ScholarNavigatorApp() {
     setFormError(null);
     setBackendError(null);
     setIsSubmitting(true);
+    setIsCancelling(false);
     setRunId(null);
     setStatus(null);
     setEvents([]);
@@ -191,6 +194,7 @@ export function ScholarNavigatorApp() {
         });
 
         setRunId(created.run_id);
+        setStatus(buildInitialRealStatus(created.run_id, created.status));
         eventSourceCleanup.current = streamRealSearchRunEvents(
           created.run_id,
           (event) => {
@@ -322,6 +326,10 @@ export function ScholarNavigatorApp() {
           return;
         }
 
+        if (runStatus.status === "cancelled") {
+          return;
+        }
+
         if (runStatus.status === "succeeded") {
           while (searchSequence.current === sequence) {
             try {
@@ -347,6 +355,30 @@ export function ScholarNavigatorApp() {
       if (searchSequence.current === sequence) {
         setIsSubmitting(false);
       }
+    }
+  }
+
+  async function handleCancelRealSearch() {
+    if (!runId || searchMode !== "real_preview") {
+      return;
+    }
+
+    setIsCancelling(true);
+    setBackendError(null);
+    try {
+      const cancelledStatus = await cancelRealSearchRun(runId);
+      searchSequence.current += 1;
+      eventSourceCleanup.current?.();
+      setStatus(cancelledStatus);
+      setIsSubmitting(false);
+    } catch (error) {
+      setBackendError(
+        error instanceof Error
+          ? error.message
+          : "取消 Real Search 失败，请稍后重试。",
+      );
+    } finally {
+      setIsCancelling(false);
     }
   }
 
@@ -392,6 +424,8 @@ export function ScholarNavigatorApp() {
             events={events}
             costReport={costReport}
             isSubmitting={isSubmitting}
+            isCancelling={isCancelling}
+            onCancelRealSearch={handleCancelRealSearch}
           />
         </div>
 
@@ -399,6 +433,41 @@ export function ScholarNavigatorApp() {
       </div>
     </main>
   );
+}
+
+function buildInitialRealStatus(
+  runId: string,
+  status: SearchRunStatusResponse["status"],
+): SearchRunStatusResponse {
+  const now = new Date().toISOString();
+  return {
+    run_id: runId,
+    status,
+    current_stage: status,
+    progress: {
+      completed_stages: [],
+      candidate_paper_count: 0,
+      judged_paper_count: 0,
+    },
+    cost_report: emptyCostReport(),
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function emptyCostReport(): CostReport {
+  return {
+    api_call_count: 0,
+    search_api_call_count: 0,
+    llm_call_count: 0,
+    estimated_input_tokens: 0,
+    estimated_output_tokens: 0,
+    estimated_total_tokens: 0,
+    latency_seconds: 0,
+    cache_hit_count: 0,
+    search_rounds: 0,
+    judged_paper_count: 0,
+  };
 }
 
 function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"] {
@@ -725,6 +794,8 @@ function RunProgress({
   events,
   costReport,
   isSubmitting,
+  isCancelling,
+  onCancelRealSearch,
 }: {
   searchMode: SearchMode;
   runId: string | null;
@@ -732,6 +803,8 @@ function RunProgress({
   events: StreamEvent[];
   costReport: CostReport | null;
   isSubmitting: boolean;
+  isCancelling: boolean;
+  onCancelRealSearch: () => void;
 }) {
   const completedStages = new Set(status?.progress.completed_stages ?? []);
   events.forEach((event) => {
@@ -742,6 +815,10 @@ function RunProgress({
   if (status?.status === "succeeded") {
     completedStages.add("synthesis");
   }
+  const canCancelRealSearch =
+    searchMode === "real_preview" &&
+    Boolean(runId) &&
+    Boolean(status && ["queued", "running"].includes(status.status));
 
   return (
     <SectionPanel aria-labelledby="run-progress-title">
@@ -754,9 +831,26 @@ function RunProgress({
             {runId ? `run_id: ${runId}` : "等待创建检索任务"}
           </p>
         </div>
-        <Badge className={isSubmitting ? "text-[var(--warning)]" : "text-[var(--accent)]"}>
-          {isSubmitting ? "running" : status?.status ?? "idle"}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {canCancelRealSearch ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onCancelRealSearch}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <RefreshCw className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
+              ) : (
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              )}
+              取消 Real Search
+            </Button>
+          ) : null}
+          <Badge className={isSubmitting ? "text-[var(--warning)]" : "text-[var(--accent)]"}>
+            {isSubmitting ? status?.status ?? "running" : status?.status ?? "idle"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">

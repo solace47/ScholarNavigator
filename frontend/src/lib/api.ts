@@ -111,6 +111,15 @@ export function getRealSearchRunResult(
   );
 }
 
+export function cancelRealSearchRun(runId: string): Promise<SearchRunStatusResponse> {
+  return requestJson<SearchRunStatusResponse>(
+    `/api/v1/real/search/runs/${runId}/cancel`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export function previewRealSearchApiResult(
   payload: InternalSearchPreviewRequest,
 ): Promise<SearchRunResultResponse> {
