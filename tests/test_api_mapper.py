@@ -153,10 +153,16 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
         ],
         retrieval_output_count=2,
     )
+    output.stage_latencies = {
+        "query_understanding": 0.01234567,
+        "retrieval": 0.2,
+    }
 
     response = map_search_service_output_to_api_result("run_real_4", output)
 
     assert "retrieval_warning" in response.missing_evidence
+    assert "stage_latency:query_understanding:0.012346" in response.missing_evidence
+    assert "stage_latency:retrieval:0.200000" in response.missing_evidence
     assert "source_error:openalex:HTTP 503" in response.missing_evidence
     assert response.cost_report.search_api_call_count == 2
     assert response.cost_report.api_call_count == 2

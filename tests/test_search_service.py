@@ -100,6 +100,14 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert output.synthesis_output is not None
     assert output.synthesis_output.evidence_table
     assert output.latency_seconds >= 0
+    assert set(output.stage_latencies) >= {
+        "query_understanding",
+        "retrieval",
+        "judgement",
+        "reranking",
+        "synthesis",
+    }
+    assert all(seconds >= 0 for seconds in output.stage_latencies.values())
     assert all(call[1] == output.search_plan.limit_per_source for call in calls)
     assert all(call[2] == ["openalex", "arxiv"] for call in calls)
 
@@ -705,6 +713,8 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
     assert output.ranked_papers
     assert output.synthesis_output is not None
     assert output.synthesis_output.evidence_table
+    assert output.stage_latencies["query_evolution"] >= 0
+    assert output.stage_latencies["refchain"] >= 0
 
 
 def test_run_search_can_use_llm_query_understanding_with_injected_client() -> None:

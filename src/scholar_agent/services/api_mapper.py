@@ -363,6 +363,8 @@ def _citation_graph(
 def _missing_evidence(output: SearchServiceOutput) -> list[str]:
     missing: list[str] = []
     missing.extend(output.warnings)
+    for stage, seconds in output.stage_latencies.items():
+        missing.append(f"stage_latency:{stage}:{seconds:.6f}")
 
     for stats in output.source_stats:
         if stats.error_message:
