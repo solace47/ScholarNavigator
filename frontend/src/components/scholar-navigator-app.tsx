@@ -114,6 +114,7 @@ export function ScholarNavigatorApp() {
   const [sourceMode, setSourceMode] = useState<SourceMode>("arxiv");
   const [enableRefchain, setEnableRefchain] = useState(true);
   const [enableQueryEvolution, setEnableQueryEvolution] = useState(true);
+  const [enableLlmJudgement, setEnableLlmJudgement] = useState(false);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigResponse | null>(null);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -195,6 +196,8 @@ export function ScholarNavigatorApp() {
         options: {
           enable_query_evolution: enableQueryEvolution,
           enable_refchain: enableRefchain,
+          enable_llm_query_understanding: true,
+          enable_llm_judgement: enableLlmJudgement,
           refchain_depth: enableRefchain ? 1 : 0,
           return_markdown: true,
           return_json: true,
@@ -342,6 +345,7 @@ export function ScholarNavigatorApp() {
             sourceMode={sourceMode}
             enableRefchain={enableRefchain}
             enableQueryEvolution={enableQueryEvolution}
+            enableLlmJudgement={enableLlmJudgement}
             isSubmitting={isSubmitting}
             formError={formError}
             onQueryChange={setQuery}
@@ -351,6 +355,7 @@ export function ScholarNavigatorApp() {
             onSourceModeChange={setSourceMode}
             onRefchainChange={setEnableRefchain}
             onQueryEvolutionChange={setEnableQueryEvolution}
+            onLlmJudgementChange={setEnableLlmJudgement}
             onSearch={handleSearch}
           />
 
@@ -519,6 +524,7 @@ function SearchWorkbench({
   sourceMode,
   enableRefchain,
   enableQueryEvolution,
+  enableLlmJudgement,
   isSubmitting,
   formError,
   onQueryChange,
@@ -528,6 +534,7 @@ function SearchWorkbench({
   onSourceModeChange,
   onRefchainChange,
   onQueryEvolutionChange,
+  onLlmJudgementChange,
   onSearch,
 }: {
   query: string;
@@ -537,6 +544,7 @@ function SearchWorkbench({
   sourceMode: SourceMode;
   enableRefchain: boolean;
   enableQueryEvolution: boolean;
+  enableLlmJudgement: boolean;
   isSubmitting: boolean;
   formError: string | null;
   onQueryChange: (value: string) => void;
@@ -546,6 +554,7 @@ function SearchWorkbench({
   onSourceModeChange: (value: SourceMode) => void;
   onRefchainChange: (value: boolean) => void;
   onQueryEvolutionChange: (value: boolean) => void;
+  onLlmJudgementChange: (value: boolean) => void;
   onSearch: () => void;
 }) {
   return (
@@ -650,7 +659,7 @@ function SearchWorkbench({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <ToggleControl
             label="enable_refchain"
             description="单层引用扩展"
@@ -662,6 +671,12 @@ function SearchWorkbench({
             description="查询演化"
             checked={enableQueryEvolution}
             onChange={onQueryEvolutionChange}
+          />
+          <ToggleControl
+            label="enable_llm_judgement"
+            description="相关性判断更强，但会增加延迟"
+            checked={enableLlmJudgement}
+            onChange={onLlmJudgementChange}
           />
         </div>
 

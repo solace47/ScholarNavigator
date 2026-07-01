@@ -15,7 +15,7 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
 - Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。
-- Judgement：默认规则版 metadata 判断，可选通过后端环境变量启用 LLM relevance judgement。
+- Judgement：默认规则版 metadata 判断，前端提供 `enable_llm_judgement` 开关；开启后由后端环境变量控制的真实 LLM provider 执行 relevance judgement，会增加延迟。
 - Reranking / Synthesis：仍为规则版，不调用 LLM。
 - Query Evolution / RefChain：可选规则版扩展阶段。
 - Citation-backed Synthesis Panel：基于 metadata/evidence rows 的规则版 synthesis 展示。

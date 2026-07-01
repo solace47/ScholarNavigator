@@ -143,6 +143,10 @@ The workbench has one product search path:
 The Search Workbench includes a `source_preferences` selector with `arXiv`,
 `OpenAlex`, and `Both`. It defaults to `arXiv` because arXiv is usually more
 stable and faster for demos; OpenAlex can broaden coverage but may return `503`.
+LLM Query Understanding is sent as enabled by default. The
+`enable_llm_judgement` toggle is off by default; turning it on can improve
+metadata relevance judgement when the backend LLM provider is configured, but it
+adds latency. The frontend never reads or stores the LLM API key.
 
 The backend still exposes `POST /api/v1/internal/search/preview/api-result` for
 debugging the mapper path, but it is not the frontend's product search path and
