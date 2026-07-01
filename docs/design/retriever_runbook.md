@@ -90,6 +90,18 @@ Supported sources:
 
 Unsupported sources are reported in `warnings` and `source_stats`; they do not raise.
 
+The aggregator uses detailed connector functions:
+
+- `search_openalex_detailed`
+- `search_arxiv_detailed`
+
+The older connector wrappers remain available for direct callers:
+
+- `search_openalex`
+- `search_arxiv`
+
+Those wrappers still return only `list[Paper]`.
+
 `RetrievalOutput` contains:
 
 - `query`
@@ -111,7 +123,11 @@ Each `source_stats` item contains:
 Failure handling:
 
 - Each source is isolated.
-- If one source raises, the aggregator records a warning and continues with the remaining sources.
+- If a connector returns `ConnectorSearchResult.error_message`, the aggregator
+  stores it in `SourceStats.error_message`.
+- Connector warnings are appended to `RetrievalOutput.warnings`.
+- If one source raises unexpectedly, the aggregator records a warning and
+  continues with the remaining sources.
 - Deduplication runs after all successful source results are collected.
 
 ## Manual Usage
@@ -168,4 +184,3 @@ Recommended integration steps:
 3. Persist `RetrievalOutput.source_stats` into pipeline trace.
 4. Keep connector errors as warnings in final output.
 5. Only after tests pass, wire the service into a non-mock API endpoint or a feature-flagged path.
-

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote
 
-from scholar_agent.connectors.openalex import fetch_openalex_references, search_openalex
+from scholar_agent.connectors.openalex import (
+    fetch_openalex_references,
+    search_openalex,
+    search_openalex_detailed,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 
 
@@ -86,6 +90,29 @@ def test_search_openalex_parses_normal_response(monkeypatch) -> None:
     assert captured["timeout"] == 10.0
 
 
+def test_search_openalex_detailed_normal_response_has_no_error(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "https://openalex.org/W123",
+                        "display_name": "Detailed OpenAlex Paper",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking", limit=5)
+
+    assert len(result.papers) == 1
+    assert result.papers[0].title == "Detailed OpenAlex Paper"
+    assert result.error_message is None
+    assert result.warnings == []
+
+
 def test_search_openalex_exception_returns_empty(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         raise URLError("timeout")
@@ -93,6 +120,67 @@ def test_search_openalex_exception_returns_empty(monkeypatch) -> None:
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
 
     assert search_openalex("llm reranking") == []
+
+
+def test_search_openalex_detailed_url_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise URLError("timeout")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "timeout" in result.error_message
+    assert result.error_message in result.warnings
+
+
+def test_search_openalex_detailed_timeout_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise TimeoutError("request timed out")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "request timed out" in result.error_message
+    assert result.error_message in result.warnings
+
+
+def test_search_openalex_detailed_http_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            503,
+            "Service Unavailable",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "HTTP Error 503" in result.error_message
+    assert result.error_message in result.warnings
+
+
+def test_search_openalex_detailed_non_2xx_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse({}, status=503)
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message == "OpenAlex search returned non-2xx status: 503"
+    assert result.warnings == ["OpenAlex search returned non-2xx status: 503"]
 
 
 def test_search_openalex_missing_fields_returns_available_result(monkeypatch) -> None:

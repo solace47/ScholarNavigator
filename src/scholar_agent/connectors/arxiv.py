@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from scholar_agent.connectors.schemas import ConnectorSearchResult
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -25,9 +26,15 @@ ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 def search_arxiv(query: str, limit: int = 20) -> list[Paper]:
     """Search papers from the arXiv public API."""
 
+    return search_arxiv_detailed(query, limit).papers
+
+
+def search_arxiv_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
+    """Search papers from the arXiv public API with diagnostic details."""
+
     query = query.strip()
     if not query or limit <= 0:
-        return []
+        return ConnectorSearchResult()
 
     params = {
         "search_query": f"all:{query}",
@@ -43,25 +50,36 @@ def search_arxiv(query: str, limit: int = 20) -> list[Paper]:
         with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
             status = getattr(response, "status", getattr(response, "code", 200))
             if status < 200 or status >= 300:
-                logger.warning("arXiv returned non-2xx status: %s", status)
-                return []
+                message = f"arXiv search returned non-2xx status: {status}"
+                logger.warning(message)
+                return ConnectorSearchResult(
+                    error_message=message,
+                    warnings=[message],
+                )
             payload = response.read()
         root = ET.fromstring(payload)
     except (HTTPError, URLError, TimeoutError, OSError, ET.ParseError) as exc:
-        logger.warning("arXiv search failed: %s", exc)
-        return []
+        message = f"arXiv search failed: {exc}"
+        logger.warning(message)
+        return ConnectorSearchResult(
+            error_message=message,
+            warnings=[message],
+        )
 
     papers: list[Paper] = []
+    warnings: list[str] = []
     for entry in root.findall(f"{ATOM_NS}entry"):
         try:
             paper = _parse_entry(entry)
         except Exception as exc:  # noqa: BLE001 - isolate malformed records
-            logger.warning("Failed to parse arXiv entry: %s", exc)
+            message = f"Failed to parse arXiv entry: {exc}"
+            logger.warning(message)
+            warnings.append(message)
             continue
         if paper is not None:
             papers.append(paper)
 
-    return papers
+    return ConnectorSearchResult(papers=papers, warnings=warnings)
 
 
 def _parse_entry(entry: ET.Element) -> Paper | None:
@@ -142,4 +160,3 @@ def _normalize_space(value: Any) -> str | None:
         return None
     text = re.sub(r"\s+", " ", str(value)).strip()
     return text or None
-

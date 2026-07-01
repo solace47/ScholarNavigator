@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
-from scholar_agent.connectors.arxiv import search_arxiv
+from scholar_agent.connectors.arxiv import search_arxiv, search_arxiv_detailed
 
 
 class MockResponse:
@@ -70,6 +70,19 @@ def test_search_arxiv_parses_normal_response(monkeypatch) -> None:
     assert captured["timeout"] == 10.0
 
 
+def test_search_arxiv_detailed_normal_response_has_no_error(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse(ARXIV_FEED)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("scientific literature search", limit=3)
+
+    assert len(result.papers) == 1
+    assert result.error_message is None
+    assert result.warnings == []
+
+
 def test_search_arxiv_exception_returns_empty(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         raise URLError("timeout")
@@ -77,6 +90,53 @@ def test_search_arxiv_exception_returns_empty(monkeypatch) -> None:
     monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
 
     assert search_arxiv("llm reranking") == []
+
+
+def test_search_arxiv_detailed_url_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise URLError("timeout")
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "timeout" in result.error_message
+    assert result.error_message in result.warnings
+
+
+def test_search_arxiv_detailed_http_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            503,
+            "Service Unavailable",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "HTTP Error 503" in result.error_message
+    assert result.error_message in result.warnings
+
+
+def test_search_arxiv_detailed_non_2xx_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse("", status=503)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("llm reranking")
+
+    assert result.papers == []
+    assert result.error_message == "arXiv search returned non-2xx status: 503"
+    assert result.warnings == ["arXiv search returned non-2xx status: 503"]
 
 
 def test_search_arxiv_missing_fields_returns_available_result(monkeypatch) -> None:
@@ -112,3 +172,16 @@ def test_search_arxiv_xml_parse_error_returns_empty(monkeypatch) -> None:
 
     assert search_arxiv("bad xml") == []
 
+
+def test_search_arxiv_detailed_xml_parse_error_returns_error_message(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse("<feed><broken></feed>")
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("bad xml")
+
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "mismatched tag" in result.error_message
+    assert result.error_message in result.warnings

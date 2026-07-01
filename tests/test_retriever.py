@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from scholar_agent.connectors import ConnectorSearchResult
 from scholar_agent.agents.retriever import retrieve_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 
@@ -24,34 +25,38 @@ def make_paper(
 
 
 def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
-    def fake_openalex(query: str, limit: int) -> list[Paper]:
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
         assert query == "llm reranking"
         assert limit == 5
-        return [
-            make_paper(
-                "Shared Paper",
-                doi="10.123/shared",
-                sources=["openalex"],
-                citation_count=2,
-                abstract="short",
-            ),
-            make_paper("OpenAlex Only", sources=["openalex"], citation_count=1),
-        ]
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    "Shared Paper",
+                    doi="10.123/shared",
+                    sources=["openalex"],
+                    citation_count=2,
+                    abstract="short",
+                ),
+                make_paper("OpenAlex Only", sources=["openalex"], citation_count=1),
+            ]
+        )
 
-    def fake_arxiv(query: str, limit: int) -> list[Paper]:
-        return [
-            make_paper(
-                "Shared Paper Extended",
-                doi="https://doi.org/10.123/shared",
-                sources=["arxiv"],
-                citation_count=9,
-                abstract="This abstract is longer and should be retained.",
-            ),
-            make_paper("arXiv Only", sources=["arxiv"], citation_count=0),
-        ]
+    def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    "Shared Paper Extended",
+                    doi="https://doi.org/10.123/shared",
+                    sources=["arxiv"],
+                    citation_count=9,
+                    abstract="This abstract is longer and should be retained.",
+                ),
+                make_paper("arXiv Only", sources=["arxiv"], citation_count=0),
+            ]
+        )
 
-    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex", fake_openalex)
-    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv", fake_arxiv)
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
     output = retrieve_papers("llm reranking", limit_per_source=5)
 
@@ -70,15 +75,20 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
     assert output.latency_seconds >= 0
 
 
-def test_retrieve_papers_single_source_failure_keeps_other_results(monkeypatch) -> None:
-    def failing_openalex(query: str, limit: int) -> list[Paper]:
-        raise RuntimeError("openalex unavailable")
+def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) -> None:
+    def failing_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        return ConnectorSearchResult(
+            error_message="OpenAlex search failed: HTTP Error 503: Service Unavailable",
+            warnings=["OpenAlex search failed: HTTP Error 503: Service Unavailable"],
+        )
 
-    def fake_arxiv(query: str, limit: int) -> list[Paper]:
-        return [make_paper("arXiv Result", sources=["arxiv"])]
+    def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
+        return ConnectorSearchResult(
+            papers=[make_paper("arXiv Result", sources=["arxiv"])]
+        )
 
-    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex", failing_openalex)
-    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv", fake_arxiv)
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", failing_openalex)
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
     output = retrieve_papers("llm reranking")
 
@@ -88,17 +98,24 @@ def test_retrieve_papers_single_source_failure_keeps_other_results(monkeypatch) 
     assert len(output.source_stats) == 2
     assert output.source_stats[0].source == "openalex"
     assert output.source_stats[0].returned_count == 0
-    assert output.source_stats[0].error_message == "openalex unavailable"
+    assert (
+        output.source_stats[0].error_message
+        == "OpenAlex search failed: HTTP Error 503: Service Unavailable"
+    )
     assert output.source_stats[1].source == "arxiv"
     assert output.source_stats[1].returned_count == 1
-    assert output.warnings == ["openalex failed: openalex unavailable"]
+    assert output.warnings == [
+        "OpenAlex search failed: HTTP Error 503: Service Unavailable"
+    ]
 
 
 def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:
-    def fake_arxiv(query: str, limit: int) -> list[Paper]:
-        return [make_paper("arXiv Result", sources=["arxiv"])]
+    def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
+        return ConnectorSearchResult(
+            papers=[make_paper("arXiv Result", sources=["arxiv"])]
+        )
 
-    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv", fake_arxiv)
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
     output = retrieve_papers("llm reranking", sources=["unknown", "arxiv"])
 
@@ -109,3 +126,19 @@ def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:
     assert output.source_stats[0].error_message == "unsupported_source:unknown"
     assert output.warnings == ["unsupported_source:unknown"]
 
+
+def test_retrieve_papers_connector_warning_without_error_is_aggregated(monkeypatch) -> None:
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        return ConnectorSearchResult(
+            papers=[make_paper("OpenAlex Result", sources=["openalex"])],
+            warnings=["OpenAlex parse warning"],
+        )
+
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
+
+    output = retrieve_papers("llm reranking", sources=["openalex"])
+
+    assert output.source_stats[0].source == "openalex"
+    assert output.source_stats[0].returned_count == 1
+    assert output.source_stats[0].error_message is None
+    assert output.warnings == ["OpenAlex parse warning"]

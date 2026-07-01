@@ -7,7 +7,11 @@ from collections.abc import Callable
 
 from pydantic import BaseModel, Field
 
-from scholar_agent.connectors import search_arxiv, search_openalex
+from scholar_agent.connectors import (
+    ConnectorSearchResult,
+    search_arxiv_detailed,
+    search_openalex_detailed,
+)
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 
@@ -66,13 +70,17 @@ def retrieve_papers(
 
         source_start = time.perf_counter()
         try:
-            papers = search(query, limit_per_source)
-            raw_papers.extend(papers)
+            result = search(query, limit_per_source)
+            raw_papers.extend(result.papers)
+            warnings.extend(result.warnings)
+            if result.error_message and result.error_message not in warnings:
+                warnings.append(result.error_message)
             source_stats.append(
                 SourceStats(
                     source=source,
-                    returned_count=len(papers),
+                    returned_count=len(result.papers),
                     latency_seconds=time.perf_counter() - source_start,
+                    error_message=result.error_message,
                 )
             )
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
@@ -115,9 +123,8 @@ def _normalize_sources(sources: list[str] | None) -> list[str]:
     return normalized
 
 
-def _source_registry() -> dict[str, Callable[[str, int], list[Paper]]]:
+def _source_registry() -> dict[str, Callable[[str, int], ConnectorSearchResult]]:
     return {
-        "openalex": search_openalex,
-        "arxiv": search_arxiv,
+        "openalex": search_openalex_detailed,
+        "arxiv": search_arxiv_detailed,
     }
-

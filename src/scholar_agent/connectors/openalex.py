@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from scholar_agent.connectors.schemas import ConnectorSearchResult
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -28,9 +29,15 @@ def search_openalex(query: str, limit: int = 20) -> list[Paper]:
     full response.
     """
 
+    return search_openalex_detailed(query, limit).papers
+
+
+def search_openalex_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
+    """Search papers from OpenAlex Works with diagnostic details."""
+
     query = query.strip()
     if not query or limit <= 0:
-        return []
+        return ConnectorSearchResult()
 
     params = {
         "search": query,
@@ -40,13 +47,23 @@ def search_openalex(query: str, limit: int = 20) -> list[Paper]:
     if mailto:
         params["mailto"] = mailto
 
-    payload = _request_json(f"{OPENALEX_WORKS_URL}?{urlencode(params)}")
+    payload, error_message, warnings = _request_json_detailed(
+        f"{OPENALEX_WORKS_URL}?{urlencode(params)}",
+        context="OpenAlex search",
+    )
     if payload is None:
-        return []
+        return ConnectorSearchResult(
+            error_message=error_message,
+            warnings=warnings,
+        )
 
     results = payload.get("results", [])
     if not isinstance(results, list):
-        return []
+        message = "OpenAlex search response missing list results"
+        return ConnectorSearchResult(
+            error_message=message,
+            warnings=[message],
+        )
 
     papers: list[Paper] = []
     for item in results:
@@ -55,12 +72,14 @@ def search_openalex(query: str, limit: int = 20) -> list[Paper]:
         try:
             paper = _parse_work(item)
         except Exception as exc:  # noqa: BLE001 - isolate malformed records
-            logger.warning("Failed to parse OpenAlex work: %s", exc)
+            message = f"Failed to parse OpenAlex work: {exc}"
+            logger.warning(message)
+            warnings.append(message)
             continue
         if paper is not None:
             papers.append(paper)
 
-    return papers
+    return ConnectorSearchResult(papers=papers, warnings=warnings)
 
 
 def fetch_openalex_references(paper: Paper, limit: int = 20) -> list[Paper]:
@@ -158,19 +177,34 @@ def _referenced_work_ids(value: Any) -> list[str]:
 
 
 def _request_json(url: str) -> dict[str, Any] | None:
+    payload, _, _ = _request_json_detailed(url, context="OpenAlex request")
+    return payload
+
+
+def _request_json_detailed(
+    url: str,
+    *,
+    context: str,
+) -> tuple[dict[str, Any] | None, str | None, list[str]]:
     request = Request(url, headers=_openalex_headers())
     try:
         with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
             status = getattr(response, "status", getattr(response, "code", 200))
             if status < 200 or status >= 300:
-                logger.warning("OpenAlex returned non-2xx status: %s", status)
-                return None
+                message = f"{context} returned non-2xx status: {status}"
+                logger.warning(message)
+                return None, message, [message]
             payload = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        logger.warning("OpenAlex request failed: %s", exc)
-        return None
+        message = f"{context} failed: {exc}"
+        logger.warning(message)
+        return None, message, [message]
 
-    return payload if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        message = f"{context} returned non-object JSON payload"
+        logger.warning(message)
+        return None, message, [message]
+    return payload, None, []
 
 
 def _url_with_mailto(base_url: str, params: dict[str, str]) -> str:

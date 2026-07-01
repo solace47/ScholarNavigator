@@ -21,6 +21,7 @@ Function:
 
 ```python
 search_openalex(query: str, limit: int = 20) -> list[Paper]
+search_openalex_detailed(query: str, limit: int = 20) -> ConnectorSearchResult
 fetch_openalex_references(paper: Paper, limit: int = 20) -> list[Paper]
 ```
 
@@ -29,9 +30,21 @@ Behavior:
 - Calls the OpenAlex Works API.
 - Uses `search` and `per-page` query parameters.
 - Applies a 10 second timeout.
-- Returns an empty list on network errors, timeout, non-2xx response, or malformed top-level JSON.
+- `search_openalex` returns an empty list on network errors, timeout, non-2xx
+  response, or malformed top-level JSON.
+- `search_openalex_detailed` preserves the same fail-closed behavior but also
+  returns `error_message` and `warnings` for diagnostics.
 - Skips malformed individual results instead of failing the whole search.
 - Returns connector-layer `Paper` objects with `sources=["openalex"]`.
+
+`ConnectorSearchResult` contains:
+
+- `papers`
+- `error_message`
+- `warnings`
+
+`search_openalex` is a compatibility wrapper around
+`search_openalex_detailed(...).papers`.
 
 Optional environment variable:
 
@@ -92,6 +105,7 @@ Function:
 
 ```python
 search_arxiv(query: str, limit: int = 20) -> list[Paper]
+search_arxiv_detailed(query: str, limit: int = 20) -> ConnectorSearchResult
 ```
 
 Behavior:
@@ -99,9 +113,15 @@ Behavior:
 - Calls the arXiv public API.
 - Uses `search_query=all:<query>`, `start=0`, and `max_results=<limit>`.
 - Applies a 10 second timeout.
-- Returns an empty list on network errors, timeout, non-2xx response, or XML parse failure.
+- `search_arxiv` returns an empty list on network errors, timeout, non-2xx
+  response, or XML parse failure.
+- `search_arxiv_detailed` preserves the same fail-closed behavior but also
+  returns `error_message` and `warnings` for diagnostics.
 - Skips malformed individual entries instead of failing the whole search.
 - Returns connector-layer `Paper` objects with `sources=["arxiv"]`.
+
+`search_arxiv` is a compatibility wrapper around
+`search_arxiv_detailed(...).papers`.
 
 ## Manual Real Retrieval Test
 
