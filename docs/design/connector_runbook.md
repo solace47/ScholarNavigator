@@ -21,6 +21,7 @@ Function:
 
 ```python
 search_openalex(query: str, limit: int = 20) -> list[Paper]
+fetch_openalex_references(paper: Paper, limit: int = 20) -> list[Paper]
 ```
 
 Behavior:
@@ -39,6 +40,45 @@ export OPENALEX_MAILTO=your-email@example.com
 ```
 
 When set, the connector includes `mailto` in the OpenAlex request parameters and identifies the caller in the `User-Agent`.
+
+### OpenAlex Reference Fetching
+
+`fetch_openalex_references` is a standalone helper for the future RefChain
+stage. It is not connected to `SearchService` yet.
+
+Seed resolution:
+
+1. Prefer `paper.identifiers.openalex_id`.
+2. If OpenAlex ID is missing, use `paper.identifiers.doi` to resolve the seed
+   work through OpenAlex.
+3. If neither identifier exists, return an empty list without making a network
+   call.
+
+Reference retrieval:
+
+- Reads the seed work's `referenced_works` field.
+- Normalizes OpenAlex work IDs from either full URLs or bare IDs.
+- Fetches referenced work metadata from the Works API.
+- Parses each referenced work through the same work-to-`Paper` logic used by
+  `search_openalex`.
+- Applies the caller-provided `limit`.
+- Returns `Paper` objects with `sources=["openalex"]`.
+
+Failure handling:
+
+- Timeout, network errors, non-2xx responses, malformed JSON, missing
+  `referenced_works`, or unsupported seed identifiers do not raise to callers.
+- Seed resolution failures return an empty list.
+- Individual reference fetch/parse failures are skipped so other references can
+  still be returned.
+
+Current boundaries:
+
+- No full-text PDF parsing.
+- No arXiv reference extraction.
+- No recursive/multi-layer citation expansion.
+- No judgement or reranking inside the connector.
+- No SearchService integration yet.
 
 ## arXiv Connector
 
@@ -84,7 +124,6 @@ PYTHONPATH=src python scripts/dev_search_connectors.py "LLM reranking scientific
 - No LLM calls.
 - No ranking or judgement.
 - No query evolution.
-- No citation expansion.
+- No SearchService-level citation expansion.
 - No replacement of the existing FastAPI Mock API response logic.
 - No frontend changes.
-

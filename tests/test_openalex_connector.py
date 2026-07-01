@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from urllib.error import URLError
+from urllib.parse import unquote
 
-from scholar_agent.connectors.openalex import search_openalex
+from scholar_agent.connectors.openalex import fetch_openalex_references, search_openalex
+from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 
 
 class MockResponse:
@@ -108,3 +110,185 @@ def test_search_openalex_missing_fields_returns_available_result(monkeypatch) ->
     assert papers[0].identifiers.openalex_id == "W999"
     assert papers[0].sources == ["openalex"]
 
+
+def test_fetch_openalex_references_with_openalex_id_seed(monkeypatch) -> None:
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/WREF1",
+                        "https://openalex.org/WREF2",
+                    ],
+                }
+            )
+        if request.full_url.endswith("/WREF1"):
+            return MockResponse(_openalex_work("WREF1", "Reference One"))
+        if request.full_url.endswith("/WREF2"):
+            return MockResponse(_openalex_work("WREF2", "Reference Two"))
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(
+        title="Seed",
+        identifiers=PaperIdentifiers(openalex_id="WSEED"),
+    )
+
+    references = fetch_openalex_references(seed, limit=20)
+
+    assert [paper.title for paper in references] == ["Reference One", "Reference Two"]
+    assert [paper.identifiers.openalex_id for paper in references] == ["WREF1", "WREF2"]
+    assert all(paper.sources == ["openalex"] for paper in references)
+    assert requested_urls[0].endswith("/WSEED")
+
+
+def test_fetch_openalex_references_with_doi_seed(monkeypatch) -> None:
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        decoded = unquote(request.full_url)
+        if "filter=doi:10.555/seed" in decoded:
+            return MockResponse(
+                {
+                    "results": [
+                        {
+                            "id": "https://openalex.org/WSEED",
+                            "referenced_works": ["https://openalex.org/WREFDOI"],
+                        }
+                    ]
+                }
+            )
+        if request.full_url.endswith("/WREFDOI"):
+            return MockResponse(_openalex_work("WREFDOI", "DOI Reference"))
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(
+        title="Seed",
+        identifiers=PaperIdentifiers(doi="https://doi.org/10.555/seed"),
+    )
+
+    references = fetch_openalex_references(seed)
+
+    assert len(references) == 1
+    assert references[0].title == "DOI Reference"
+    assert references[0].identifiers.openalex_id == "WREFDOI"
+    assert "filter=doi:10.555/seed" in unquote(requested_urls[0])
+
+
+def test_fetch_openalex_references_limit_is_applied(monkeypatch) -> None:
+    requested_urls: list[str] = []
+
+    def fake_urlopen(request, timeout):
+        requested_urls.append(request.full_url)
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/WREF1",
+                        "https://openalex.org/WREF2",
+                    ],
+                }
+            )
+        if request.full_url.endswith("/WREF1"):
+            return MockResponse(_openalex_work("WREF1", "Reference One"))
+        if request.full_url.endswith("/WREF2"):
+            raise AssertionError("limit should avoid requesting WREF2")
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(
+        title="Seed",
+        identifiers=PaperIdentifiers(openalex_id="WSEED"),
+    )
+
+    references = fetch_openalex_references(seed, limit=1)
+
+    assert len(references) == 1
+    assert references[0].title == "Reference One"
+    assert not any(url.endswith("/WREF2") for url in requested_urls)
+
+
+def test_fetch_openalex_references_without_supported_identifier_returns_empty(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        raise AssertionError("OpenAlex should not be called without an identifier")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(title="Seed", identifiers=PaperIdentifiers())
+
+    assert fetch_openalex_references(seed) == []
+
+
+def test_fetch_openalex_references_timeout_and_non_2xx_return_empty(monkeypatch) -> None:
+    seed = Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+
+    def timeout_urlopen(request, timeout):
+        raise URLError("timeout")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", timeout_urlopen)
+    assert fetch_openalex_references(seed) == []
+
+    def non_2xx_urlopen(request, timeout):
+        return MockResponse({}, status=503)
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", non_2xx_urlopen)
+    assert fetch_openalex_references(seed) == []
+
+
+def test_fetch_openalex_references_missing_fields_are_tolerated(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/WMINIMAL",
+                        None,
+                    ],
+                }
+            )
+        if request.full_url.endswith("/WMINIMAL"):
+            return MockResponse({"id": "https://openalex.org/WMINIMAL"})
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+
+    references = fetch_openalex_references(seed)
+
+    assert len(references) == 1
+    assert references[0].title == "Untitled OpenAlex Work"
+    assert references[0].authors == []
+    assert references[0].abstract == ""
+    assert references[0].identifiers.openalex_id == "WMINIMAL"
+    assert references[0].sources == ["openalex"]
+
+
+def _openalex_work(openalex_id: str, title: str) -> dict:
+    return {
+        "id": f"https://openalex.org/{openalex_id}",
+        "display_name": title,
+        "publication_year": 2023,
+        "cited_by_count": 5,
+        "ids": {
+            "openalex": f"https://openalex.org/{openalex_id}",
+            "doi": f"https://doi.org/10.123/{openalex_id.casefold()}",
+        },
+        "authorships": [{"author": {"display_name": "Reference Author"}}],
+        "primary_location": {
+            "landing_page_url": f"https://example.org/{openalex_id}",
+            "source": {"display_name": "OpenAlex Venue"},
+        },
+        "abstract_inverted_index": {
+            "Reference": [0],
+            "abstract": [1],
+        },
+    }
