@@ -159,6 +159,42 @@ def test_run_search_aggregates_warnings() -> None:
     assert output.warnings.count("mock_retriever_warning") == 1
 
 
+def test_run_search_preserves_retrieval_cache_hit_stats() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return RetrievalOutput(
+            query=query,
+            requested_sources=["openalex"],
+            raw_count=1,
+            deduplicated_count=1,
+            papers=[
+                make_paper("LLM Reranking Retrieval Paper", doi="10.123/cache-hit")
+            ],
+            source_stats=[
+                SourceStats(
+                    source="openalex",
+                    returned_count=1,
+                    latency_seconds=0.0,
+                    cache_hit=True,
+                )
+            ],
+            warnings=["retrieval_cache_hit:openalex"],
+            latency_seconds=0.0,
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "LLM reranking retrieval papers",
+        current_year=2026,
+    )
+
+    assert output.source_stats[0].source == "openalex"
+    assert output.source_stats[0].cache_hit is True
+    assert "retrieval_cache_hit:openalex" in output.warnings
+
+
 def test_run_search_can_disable_synthesis() -> None:
     def fake_retriever(
         query: str,

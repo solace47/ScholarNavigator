@@ -252,6 +252,7 @@ def map_search_plan(
 
 def _cost_report(output: SearchServiceOutput) -> api.CostReport:
     search_api_call_count = len(output.source_stats)
+    cache_hit_count = sum(1 for stats in output.source_stats if stats.cache_hit)
     return api.CostReport(
         api_call_count=search_api_call_count,
         search_api_call_count=search_api_call_count,
@@ -260,7 +261,7 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
         estimated_output_tokens=0,
         estimated_total_tokens=0,
         latency_seconds=output.latency_seconds,
-        cache_hit_count=0,
+        cache_hit_count=cache_hit_count,
         search_rounds=_search_rounds(output, output.search_plan),
         judged_paper_count=len(output.judgements),
     )

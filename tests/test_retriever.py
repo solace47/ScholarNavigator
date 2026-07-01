@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+import pytest
+
 from scholar_agent.connectors import ConnectorSearchResult
-from scholar_agent.agents.retriever import retrieve_papers
+from scholar_agent.agents.retriever import clear_retrieval_cache, retrieve_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
+
+
+@pytest.fixture(autouse=True)
+def reset_retrieval_cache(monkeypatch: pytest.MonkeyPatch):
+    clear_retrieval_cache()
+    monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE", raising=False)
+    monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS", raising=False)
+    monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES", raising=False)
+    yield
+    clear_retrieval_cache()
 
 
 def make_paper(
@@ -71,6 +83,7 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
     assert [stat.source for stat in output.source_stats] == ["openalex", "arxiv"]
     assert [stat.returned_count for stat in output.source_stats] == [2, 2]
     assert all(stat.error_message is None for stat in output.source_stats)
+    assert all(stat.cache_hit is False for stat in output.source_stats)
     assert output.warnings == []
     assert output.latency_seconds >= 0
 
@@ -98,12 +111,14 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
     assert len(output.source_stats) == 2
     assert output.source_stats[0].source == "openalex"
     assert output.source_stats[0].returned_count == 0
+    assert output.source_stats[0].cache_hit is False
     assert (
         output.source_stats[0].error_message
         == "OpenAlex search failed: HTTP Error 503: Service Unavailable"
     )
     assert output.source_stats[1].source == "arxiv"
     assert output.source_stats[1].returned_count == 1
+    assert output.source_stats[1].cache_hit is False
     assert output.warnings == [
         "OpenAlex search failed: HTTP Error 503: Service Unavailable"
     ]
@@ -142,3 +157,107 @@ def test_retrieve_papers_connector_warning_without_error_is_aggregated(monkeypat
     assert output.source_stats[0].returned_count == 1
     assert output.source_stats[0].error_message is None
     assert output.warnings == ["OpenAlex parse warning"]
+
+
+def test_retrieve_papers_cache_hit_reuses_successful_connector_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"openalex": 0}
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls["openalex"] += 1
+        return ConnectorSearchResult(
+            papers=[make_paper("Cached OpenAlex Result", sources=["openalex"])],
+            warnings=["OpenAlex parse warning"],
+        )
+
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
+
+    first = retrieve_papers("llm reranking cache", limit_per_source=5, sources=["openalex"])
+    second = retrieve_papers("llm reranking cache", limit_per_source=5, sources=["openalex"])
+
+    assert calls["openalex"] == 1
+    assert first.source_stats[0].cache_hit is False
+    assert second.source_stats[0].cache_hit is True
+    assert second.papers[0].title == "Cached OpenAlex Result"
+    assert "OpenAlex parse warning" in second.warnings
+    assert "retrieval_cache_hit:openalex" in second.warnings
+
+
+def test_retrieve_papers_cache_key_includes_query_and_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, int]] = []
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append((query, limit))
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    f"Result {query} {limit}",
+                    doi=f"10.123/{len(calls)}",
+                    sources=["openalex"],
+                )
+            ]
+        )
+
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
+
+    retrieve_papers("query one", limit_per_source=5, sources=["openalex"])
+    retrieve_papers("query two", limit_per_source=5, sources=["openalex"])
+    retrieve_papers("query one", limit_per_source=10, sources=["openalex"])
+    cached = retrieve_papers("query one", limit_per_source=5, sources=["openalex"])
+
+    assert calls == [("query one", 5), ("query two", 5), ("query one", 10)]
+    assert cached.source_stats[0].cache_hit is True
+
+
+def test_retrieve_papers_cache_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"openalex": 0}
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls["openalex"] += 1
+        return ConnectorSearchResult(
+            papers=[make_paper("No Cache Result", sources=["openalex"])]
+        )
+
+    monkeypatch.setenv("SCHOLAR_AGENT_RETRIEVAL_CACHE", "0")
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
+
+    first = retrieve_papers("llm reranking no cache", sources=["openalex"])
+    second = retrieve_papers("llm reranking no cache", sources=["openalex"])
+
+    assert calls["openalex"] == 2
+    assert first.source_stats[0].cache_hit is False
+    assert second.source_stats[0].cache_hit is False
+
+
+def test_retrieve_papers_does_not_cache_connector_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"openalex": 0}
+
+    def flaky_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls["openalex"] += 1
+        if calls["openalex"] == 1:
+            return ConnectorSearchResult(
+                error_message="OpenAlex search failed: timeout",
+                warnings=["OpenAlex search failed: timeout"],
+            )
+        return ConnectorSearchResult(
+            papers=[make_paper("Recovered OpenAlex Result", sources=["openalex"])]
+        )
+
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", flaky_openalex)
+
+    first = retrieve_papers("llm reranking flaky", sources=["openalex"])
+    second = retrieve_papers("llm reranking flaky", sources=["openalex"])
+
+    assert calls["openalex"] == 2
+    assert first.source_stats[0].cache_hit is False
+    assert first.source_stats[0].error_message == "OpenAlex search failed: timeout"
+    assert second.source_stats[0].cache_hit is False
+    assert second.source_stats[0].error_message is None
+    assert second.papers[0].title == "Recovered OpenAlex Result"

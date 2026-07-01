@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import time
+from collections import OrderedDict
 from collections.abc import Callable
+from threading import RLock
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +20,16 @@ from scholar_agent.core.paper_schemas import Paper
 
 
 SUPPORTED_SOURCES = ("openalex", "arxiv")
+DEFAULT_CACHE_TTL_SECONDS = 15 * 60
+DEFAULT_CACHE_MAX_ENTRIES = 256
+CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
+
+
+_CacheKey = tuple[str, str, int]
+_RETRIEVAL_CACHE: OrderedDict[_CacheKey, tuple[float, ConnectorSearchResult]] = (
+    OrderedDict()
+)
+_RETRIEVAL_CACHE_LOCK = RLock()
 
 
 class SourceStats(BaseModel):
@@ -24,6 +37,7 @@ class SourceStats(BaseModel):
     returned_count: int = 0
     latency_seconds: float = 0.0
     error_message: str | None = None
+    cache_hit: bool = False
 
 
 class RetrievalOutput(BaseModel):
@@ -70,9 +84,16 @@ def retrieve_papers(
 
         source_start = time.perf_counter()
         try:
-            result = search(query, limit_per_source)
+            result, cache_hit = _search_with_cache(
+                source,
+                query,
+                limit_per_source,
+                search,
+            )
             raw_papers.extend(result.papers)
             warnings.extend(result.warnings)
+            if cache_hit:
+                warnings.append(f"retrieval_cache_hit:{source}")
             if result.error_message and result.error_message not in warnings:
                 warnings.append(result.error_message)
             source_stats.append(
@@ -81,6 +102,7 @@ def retrieve_papers(
                     returned_count=len(result.papers),
                     latency_seconds=time.perf_counter() - source_start,
                     error_message=result.error_message,
+                    cache_hit=cache_hit,
                 )
             )
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
@@ -108,6 +130,17 @@ def retrieve_papers(
     )
 
 
+def clear_retrieval_cache() -> None:
+    """Clear the process-local retrieval cache.
+
+    This is primarily intended for tests and local debugging. The cache is
+    intentionally in-memory only and is not shared across worker processes.
+    """
+
+    with _RETRIEVAL_CACHE_LOCK:
+        _RETRIEVAL_CACHE.clear()
+
+
 def _normalize_sources(sources: list[str] | None) -> list[str]:
     if sources is None:
         return list(SUPPORTED_SOURCES)
@@ -128,3 +161,105 @@ def _source_registry() -> dict[str, Callable[[str, int], ConnectorSearchResult]]
         "openalex": search_openalex_detailed,
         "arxiv": search_arxiv_detailed,
     }
+
+
+def _search_with_cache(
+    source: str,
+    query: str,
+    limit_per_source: int,
+    search: Callable[[str, int], ConnectorSearchResult],
+) -> tuple[ConnectorSearchResult, bool]:
+    config = _cache_config()
+    if not config.enabled:
+        return search(query, limit_per_source), False
+
+    key = _cache_key(source, query, limit_per_source)
+    cached = _get_cached_result(key, config.ttl_seconds)
+    if cached is not None:
+        return cached, True
+
+    result = search(query, limit_per_source)
+    if result.error_message is None:
+        _store_cached_result(key, result, config.max_entries)
+    return result, False
+
+
+class _CacheConfig(BaseModel):
+    enabled: bool
+    ttl_seconds: float
+    max_entries: int
+
+
+def _cache_config() -> _CacheConfig:
+    enabled_value = os.getenv("SCHOLAR_AGENT_RETRIEVAL_CACHE", "1")
+    enabled = enabled_value not in CACHE_DISABLED_VALUES
+    ttl_seconds = _float_env(
+        "SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS",
+        DEFAULT_CACHE_TTL_SECONDS,
+    )
+    max_entries = _int_env(
+        "SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES",
+        DEFAULT_CACHE_MAX_ENTRIES,
+    )
+    if ttl_seconds <= 0 or max_entries <= 0:
+        enabled = False
+    return _CacheConfig(
+        enabled=enabled,
+        ttl_seconds=ttl_seconds,
+        max_entries=max_entries,
+    )
+
+
+def _cache_key(source: str, query: str, limit_per_source: int) -> _CacheKey:
+    return (source.strip().lower(), query.strip(), int(limit_per_source))
+
+
+def _get_cached_result(
+    key: _CacheKey,
+    ttl_seconds: float,
+) -> ConnectorSearchResult | None:
+    now = time.monotonic()
+    with _RETRIEVAL_CACHE_LOCK:
+        cached = _RETRIEVAL_CACHE.get(key)
+        if cached is None:
+            return None
+
+        stored_at, result = cached
+        if now - stored_at > ttl_seconds:
+            _RETRIEVAL_CACHE.pop(key, None)
+            return None
+
+        _RETRIEVAL_CACHE.move_to_end(key)
+        return result.model_copy(deep=True)
+
+
+def _store_cached_result(
+    key: _CacheKey,
+    result: ConnectorSearchResult,
+    max_entries: int,
+) -> None:
+    with _RETRIEVAL_CACHE_LOCK:
+        _RETRIEVAL_CACHE[key] = (time.monotonic(), result.model_copy(deep=True))
+        _RETRIEVAL_CACHE.move_to_end(key)
+        while len(_RETRIEVAL_CACHE) > max_entries:
+            _RETRIEVAL_CACHE.popitem(last=False)
+
+
+def _float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return float(default)
+    try:
+        return float(value)
+    except ValueError:
+        return float(default)
+
+
+def _int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return int(default)
+    try:
+        return int(value)
+    except ValueError:
+        return int(default)

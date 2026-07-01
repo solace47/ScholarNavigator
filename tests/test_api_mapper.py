@@ -148,6 +148,7 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
                 source="arxiv",
                 returned_count=1,
                 latency_seconds=0.1,
+                cache_hit=True,
             ),
         ],
         retrieval_output_count=2,
@@ -161,6 +162,7 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
     assert response.cost_report.api_call_count == 2
     assert response.cost_report.search_rounds == 2
     assert response.cost_report.judged_paper_count == 1
+    assert response.cost_report.cache_hit_count == 1
     assert response.cost_report.llm_call_count == 0
 
 

@@ -22,6 +22,11 @@ When RefChain is enabled, the default service can call OpenAlex reference
 fetching through `fetch_openalex_references`. Unit tests inject fake retrievers
 and fake reference fetchers and do not access the network.
 
+The default retriever includes a process-local in-memory cache for detailed
+OpenAlex/arXiv connector results. Cache hits are represented in
+`SourceStats.cache_hit` and can be surfaced by API mappers as
+`cost_report.cache_hit_count`.
+
 ## Module Responsibility
 
 File:
@@ -98,6 +103,8 @@ Details:
 - `analyze_query` generates a `SearchPlan`.
 - Each `SearchSubquery` is sent to `retrieve_papers`.
 - `retrieve_papers` returns a `RetrievalOutput` per subquery.
+- `retrieve_papers` may return cached per-source connector results when the
+  same `source + query + limit_per_source` was recently requested.
 - `SearchService` combines all retrieved papers and runs cross-subquery
   `deduplicate_papers`.
 - `judge_papers` evaluates deduplicated candidates against
@@ -297,6 +304,11 @@ Warnings are aggregated from:
 
 Warnings are deduplicated while preserving first-seen order.
 
+`source_stats` preserve each retriever-emitted `SourceStats.cache_hit` value.
+This allows downstream API mapping to report cache effectiveness without
+changing the meaning of `search_api_call_count`, which still counts source
+attempt records represented in `source_stats`.
+
 ## Retriever Injection
 
 `SearchService` accepts a retriever function:
@@ -311,6 +323,17 @@ def retriever(
 ```
 
 This keeps service tests offline and makes future connector experiments easier.
+
+The default retriever cache can be configured with:
+
+```bash
+SCHOLAR_AGENT_RETRIEVAL_CACHE=0
+SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS=900
+SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES=256
+```
+
+Failed connector results with `error_message` are not cached, so temporary
+OpenAlex/arXiv failures can be retried by later SearchService calls.
 
 `SearchService` also accepts a reference fetcher:
 

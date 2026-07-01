@@ -119,6 +119,7 @@ Each `source_stats` item contains:
 - `returned_count`
 - `latency_seconds`
 - `error_message`
+- `cache_hit`
 
 Failure handling:
 
@@ -129,6 +130,54 @@ Failure handling:
 - If one source raises unexpectedly, the aggregator records a warning and
   continues with the remaining sources.
 - Deduplication runs after all successful source results are collected.
+
+## In-memory Retrieval Cache
+
+`retrieve_papers` includes a lightweight process-local cache around detailed
+connector calls.
+
+Cache key:
+
+```text
+source + query + limit_per_source
+```
+
+This keeps OpenAlex and arXiv entries isolated, so one source can hit cache while
+another source retries normally.
+
+Defaults:
+
+- enabled by default
+- TTL: 900 seconds
+- max entries: 256
+- storage: in-memory only, not shared across processes
+
+Environment variables:
+
+```bash
+SCHOLAR_AGENT_RETRIEVAL_CACHE=0
+SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS=900
+SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES=256
+```
+
+Behavior:
+
+- cache hit: connector is not called, cached papers and connector warnings are
+  returned, and `SourceStats.cache_hit=True`
+- cache miss: connector runs normally and `SourceStats.cache_hit=False`
+- successful detailed connector results are cached
+- results with `error_message` are not cached, so transient connector failures
+  are retried on the next request
+- cache-hit diagnostics are surfaced as `retrieval_cache_hit:{source}` warnings
+  without modifying paper content
+
+Tests can call:
+
+```python
+from scholar_agent.agents.retriever import clear_retrieval_cache
+```
+
+to avoid cross-test state pollution.
 
 ## Manual Usage
 
