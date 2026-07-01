@@ -140,6 +140,10 @@ The workbench has one product search path:
 
 `Real Search` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
 
+The Search Workbench includes a `source_preferences` selector with `arXiv`,
+`OpenAlex`, and `Both`. It defaults to `arXiv` because arXiv is usually more
+stable and faster for demos; OpenAlex can broaden coverage but may return `503`.
+
 The backend still exposes `POST /api/v1/internal/search/preview/api-result` for
 debugging the mapper path, but it is not the frontend's product search path and
 does not return mock data.

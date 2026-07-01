@@ -11,6 +11,7 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 - Real Search lifecycle：`create/status/result/events/cancel` 独立真实检索路径。
 - Real Search SSE：展示 `connector_completed`、`warning`、`cost_updated` 等事件。
 - OpenAlex / arXiv connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
+- Source selector：前端可选择 `arXiv`、`OpenAlex` 或 `Both`，默认 `arXiv` 以降低演示延迟和 OpenAlex 503 风险。
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
 - Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。

@@ -90,7 +90,20 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
   evaluation: "evaluation",
 };
 
+type SourceMode = "arxiv" | "openalex" | "both";
 type ThemeMode = "dark" | "light";
+
+const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
+  arxiv: "arXiv",
+  openalex: "OpenAlex",
+  both: "Both",
+};
+
+const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
+  arxiv: "更稳定更快",
+  openalex: "覆盖更广，可能 503",
+  both: "同时检索两源",
+};
 
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
@@ -98,6 +111,7 @@ export function ScholarNavigatorApp() {
   const [topK, setTopK] = useState(20);
   const [currentYear, setCurrentYear] = useState(2026);
   const [runProfile, setRunProfile] = useState<RunProfile>("balanced");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("arxiv");
   const [enableRefchain, setEnableRefchain] = useState(true);
   const [enableQueryEvolution, setEnableQueryEvolution] = useState(true);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigResponse | null>(null);
@@ -174,7 +188,7 @@ export function ScholarNavigatorApp() {
           datasets: [],
           paper_types: [],
         },
-        source_preferences: ["openalex", "arxiv"],
+        source_preferences: sourcePreferencesForMode(sourceMode),
         run_profile: runProfile,
         top_k: topK,
         budgets: buildBudgets(runProfile),
@@ -325,6 +339,7 @@ export function ScholarNavigatorApp() {
             topK={topK}
             currentYear={currentYear}
             runProfile={runProfile}
+            sourceMode={sourceMode}
             enableRefchain={enableRefchain}
             enableQueryEvolution={enableQueryEvolution}
             isSubmitting={isSubmitting}
@@ -333,6 +348,7 @@ export function ScholarNavigatorApp() {
             onTopKChange={setTopK}
             onCurrentYearChange={setCurrentYear}
             onRunProfileChange={setRunProfile}
+            onSourceModeChange={setSourceMode}
             onRefchainChange={setEnableRefchain}
             onQueryEvolutionChange={setEnableQueryEvolution}
             onSearch={handleSearch}
@@ -398,6 +414,16 @@ function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"]
     max_total_tokens: 0,
     max_latency_seconds: runProfile === "fast" ? 45 : 90,
   };
+}
+
+function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
+  if (sourceMode === "arxiv") {
+    return ["arxiv"];
+  }
+  if (sourceMode === "openalex") {
+    return ["openalex"];
+  }
+  return ["openalex", "arxiv"];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -490,6 +516,7 @@ function SearchWorkbench({
   topK,
   currentYear,
   runProfile,
+  sourceMode,
   enableRefchain,
   enableQueryEvolution,
   isSubmitting,
@@ -498,6 +525,7 @@ function SearchWorkbench({
   onTopKChange,
   onCurrentYearChange,
   onRunProfileChange,
+  onSourceModeChange,
   onRefchainChange,
   onQueryEvolutionChange,
   onSearch,
@@ -506,6 +534,7 @@ function SearchWorkbench({
   topK: number;
   currentYear: number;
   runProfile: RunProfile;
+  sourceMode: SourceMode;
   enableRefchain: boolean;
   enableQueryEvolution: boolean;
   isSubmitting: boolean;
@@ -514,6 +543,7 @@ function SearchWorkbench({
   onTopKChange: (value: number) => void;
   onCurrentYearChange: (value: number) => void;
   onRunProfileChange: (value: RunProfile) => void;
+  onSourceModeChange: (value: SourceMode) => void;
   onRefchainChange: (value: boolean) => void;
   onQueryEvolutionChange: (value: boolean) => void;
   onSearch: () => void;
@@ -580,6 +610,43 @@ function SearchWorkbench({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-end justify-between gap-3">
+            <p className="text-sm font-semibold text-[var(--muted-strong)]">source_preferences</p>
+            <p className="text-xs text-[var(--muted)]">arXiv 更稳定更快；OpenAlex 可能 503</p>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Real Search source preference"
+            className="grid gap-2 sm:grid-cols-3"
+          >
+            {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
+              const selected = sourceMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => onSourceModeChange(mode)}
+                  className={`min-h-16 rounded-md border px-3 py-2 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${
+                    selected
+                      ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_14%,var(--surface))]"
+                      : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--primary)]"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold text-[var(--foreground)]">
+                    {SOURCE_MODE_LABELS[mode]}
+                  </span>
+                  <span className="mt-1 block text-xs text-[var(--muted)]">
+                    {SOURCE_MODE_DESCRIPTIONS[mode]}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
