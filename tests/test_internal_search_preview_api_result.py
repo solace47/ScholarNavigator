@@ -37,8 +37,12 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
     monkeypatch,
 ) -> None:
     captured: dict[str, object] = {}
+    monkeypatch.delenv("REAL_PREVIEW_MAX_WORKERS", raising=False)
 
     class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["max_workers"] = kwargs.get("max_workers")
+
         def run_search(
             self,
             query: str,
@@ -102,10 +106,47 @@ def test_internal_search_preview_api_result_returns_existing_api_shape(
         "query": "latest LLM reranking retrieval papers",
         "top_k": 5,
         "run_profile": "high_recall",
-        "enable_refchain": True,
-        "enable_query_evolution": True,
-        "current_year": 2026,
-    }
+            "enable_refchain": True,
+            "enable_query_evolution": True,
+            "current_year": 2026,
+            "max_workers": 2,
+        }
+
+
+def test_internal_search_preview_api_result_uses_real_preview_max_workers_env(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["max_workers"] = kwargs.get("max_workers")
+
+        def run_search(
+            self,
+            query: str,
+            top_k: int = 20,
+            run_profile: str = "balanced",
+            enable_refchain: bool = False,
+            enable_query_evolution: bool = False,
+            current_year: int | None = None,
+        ) -> SearchServiceOutput:
+            return _fake_output(query)
+
+    monkeypatch.setenv("REAL_PREVIEW_MAX_WORKERS", "1")
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
+
+    response = client.post(
+        "/api/v1/internal/search/preview/api-result",
+        json={
+            "query": "latest LLM reranking retrieval papers",
+            "top_k": 5,
+            "current_year": 2026,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["max_workers"] == 1
 
 
 def test_existing_mock_search_runs_api_behavior_is_unchanged(monkeypatch) -> None:

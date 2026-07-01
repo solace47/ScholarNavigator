@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -45,6 +46,8 @@ from ...services.search_service import SearchService
 
 
 API_VERSION = "0.1.0"
+DEFAULT_REAL_PREVIEW_MAX_WORKERS = 2
+REAL_PREVIEW_MAX_WORKERS_ENV = "REAL_PREVIEW_MAX_WORKERS"
 
 router = APIRouter(prefix="/api/v1", tags=["mock-api"])
 
@@ -103,6 +106,20 @@ def _get_run(run_id: str) -> MockRun:
 
 def _model_dump(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json")
+
+
+def _real_preview_max_workers() -> int:
+    raw_value = os.getenv(REAL_PREVIEW_MAX_WORKERS_ENV)
+    if raw_value is None:
+        return DEFAULT_REAL_PREVIEW_MAX_WORKERS
+    try:
+        return max(1, int(raw_value))
+    except ValueError:
+        return DEFAULT_REAL_PREVIEW_MAX_WORKERS
+
+
+def _preview_search_service() -> SearchService:
+    return SearchService(max_workers=_real_preview_max_workers())
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -243,7 +260,7 @@ def internal_search_preview(
     request: InternalSearchPreviewRequest,
 ) -> InternalSearchPreviewResponse:
     try:
-        output = SearchService().run_search(
+        output = _preview_search_service().run_search(
             request.query,
             top_k=request.top_k,
             run_profile=request.run_profile,
@@ -283,7 +300,7 @@ def internal_search_preview_api_result(
     request: InternalSearchPreviewRequest,
 ) -> SearchRunResultResponse:
     try:
-        output = SearchService().run_search(
+        output = _preview_search_service().run_search(
             request.query,
             top_k=request.top_k,
             run_profile=request.run_profile,

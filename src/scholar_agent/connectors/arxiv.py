@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -19,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+DEFAULT_MAX_RETRIES = 1
+DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
@@ -29,7 +33,13 @@ def search_arxiv(query: str, limit: int = 20) -> list[Paper]:
     return search_arxiv_detailed(query, limit).papers
 
 
-def search_arxiv_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
+def search_arxiv_detailed(
+    query: str,
+    limit: int = 20,
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+) -> ConnectorSearchResult:
     """Search papers from the arXiv public API with diagnostic details."""
 
     query = query.strip()
@@ -46,28 +56,28 @@ def search_arxiv_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
         headers={"User-Agent": "SPAR Scholar Agent"},
     )
 
+    payload, error_message, warnings = _request_feed_detailed(
+        request,
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
+    )
+    if payload is None:
+        return ConnectorSearchResult(
+            error_message=error_message,
+            warnings=warnings,
+        )
+
     try:
-        with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-            status = getattr(response, "status", getattr(response, "code", 200))
-            if status < 200 or status >= 300:
-                message = f"arXiv search returned non-2xx status: {status}"
-                logger.warning(message)
-                return ConnectorSearchResult(
-                    error_message=message,
-                    warnings=[message],
-                )
-            payload = response.read()
         root = ET.fromstring(payload)
-    except (HTTPError, URLError, TimeoutError, OSError, ET.ParseError) as exc:
+    except ET.ParseError as exc:
         message = f"arXiv search failed: {exc}"
         logger.warning(message)
         return ConnectorSearchResult(
             error_message=message,
-            warnings=[message],
+            warnings=warnings + [message],
         )
 
     papers: list[Paper] = []
-    warnings: list[str] = []
     for entry in root.findall(f"{ATOM_NS}entry"):
         try:
             paper = _parse_entry(entry)
@@ -80,6 +90,89 @@ def search_arxiv_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
             papers.append(paper)
 
     return ConnectorSearchResult(papers=papers, warnings=warnings)
+
+
+def _request_feed_detailed(
+    request: Request,
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+) -> tuple[bytes | None, str | None, list[str]]:
+    warnings: list[str] = []
+    attempts = max(0, max_retries) + 1
+    sleep = retry_sleep or time.sleep
+
+    for attempt in range(attempts):
+        try:
+            with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+                status = getattr(response, "status", getattr(response, "code", 200))
+                if status < 200 or status >= 300:
+                    message = f"arXiv search returned non-2xx status: {status}"
+                    if _should_retry_status(status) and attempt < attempts - 1:
+                        _record_retry_warning(
+                            warnings,
+                            attempt=attempt,
+                            attempts=attempts,
+                            reason=message,
+                        )
+                        sleep(_retry_backoff_seconds(attempt))
+                        continue
+                    logger.warning(message)
+                    return None, message, warnings + [message]
+                return response.read(), None, warnings
+        except HTTPError as exc:
+            if _should_retry_status(exc.code) and attempt < attempts - 1:
+                _record_retry_warning(
+                    warnings,
+                    attempt=attempt,
+                    attempts=attempts,
+                    reason=str(exc),
+                )
+                sleep(_retry_backoff_seconds(attempt))
+                continue
+            message = f"arXiv search failed: {exc}"
+            logger.warning(message)
+            return None, message, warnings + [message]
+        except (URLError, TimeoutError, OSError) as exc:
+            if attempt < attempts - 1:
+                _record_retry_warning(
+                    warnings,
+                    attempt=attempt,
+                    attempts=attempts,
+                    reason=str(exc),
+                )
+                sleep(_retry_backoff_seconds(attempt))
+                continue
+            message = f"arXiv search failed: {exc}"
+            logger.warning(message)
+            return None, message, warnings + [message]
+
+    message = "arXiv search failed: retry attempts exhausted"
+    logger.warning(message)
+    return None, message, warnings + [message]
+
+
+def _record_retry_warning(
+    warnings: list[str],
+    *,
+    attempt: int,
+    attempts: int,
+    reason: str,
+) -> None:
+    message = (
+        f"arXiv search transient error on attempt {attempt + 1}/{attempts}: "
+        f"{reason}; retried"
+    )
+    logger.warning(message)
+    warnings.append(message)
+
+
+def _retry_backoff_seconds(attempt: int) -> float:
+    return DEFAULT_RETRY_BACKOFF_SECONDS * (attempt + 1)
+
+
+def _should_retry_status(status: int | None) -> bool:
+    return status == 429 or (status is not None and 500 <= status <= 599)
 
 
 def _parse_entry(entry: ET.Element) -> Paper | None:

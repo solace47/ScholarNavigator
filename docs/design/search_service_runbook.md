@@ -59,6 +59,10 @@ Concurrency can be configured at construction time:
 service = SearchService(retriever=fake_retriever, max_workers=4)
 ```
 
+The default `SearchService` constructor still uses `max_workers=4`.
+Internal preview endpoints intentionally use a lower default to reduce pressure
+on live OpenAlex/arXiv calls during manual frontend/backend validation.
+
 ## Pipeline
 
 Execution order:
@@ -313,12 +317,22 @@ Debug field behavior:
 - When enabled, these fields expose internal SearchService records for manual
   backend validation. They are not part of the existing Mock API contract.
 
-Important: this preview endpoint calls the default `SearchService`, which calls
-`retrieve_papers`. Unless tests monkeypatch the service, manual requests may
-access OpenAlex and arXiv over the network. If `enable_query_evolution=True`,
-accepted evolved queries may cause additional OpenAlex/arXiv retrieval calls.
-If `enable_refchain=True`, selected seed papers may cause additional OpenAlex
-reference metadata calls.
+Important: this preview endpoint constructs `SearchService` with the default
+retriever/reference fetcher and a preview-specific `max_workers` value. Unless
+tests monkeypatch the service, manual requests may access OpenAlex and arXiv
+over the network. If `enable_query_evolution=True`, accepted evolved queries
+may cause additional OpenAlex/arXiv retrieval calls. If `enable_refchain=True`,
+selected seed papers may cause additional OpenAlex reference metadata calls.
+
+Preview concurrency:
+
+- `/api/v1/internal/search/preview` constructs `SearchService` with
+  `max_workers` from `REAL_PREVIEW_MAX_WORKERS`.
+- Default preview `max_workers` is `2`.
+- Invalid env values fall back to `2`.
+- Values below `1` are normalized to `1`.
+- This setting does not change the default `SearchService(max_workers=4)` and
+  does not affect Mock API endpoints.
 
 The service also has an API-contract preview endpoint:
 
@@ -344,6 +358,15 @@ existing frontend API result shape before replacing any public Mock API route.
 Like the raw preview endpoint, manual calls may access OpenAlex/arXiv and, when
 RefChain is enabled, OpenAlex reference metadata. Tests monkeypatch
 `SearchService` and do not access external services.
+
+This endpoint uses the same preview concurrency setting:
+
+```bash
+REAL_PREVIEW_MAX_WORKERS=1
+```
+
+Use a lower value when OpenAlex/arXiv rate limits or transient failures are
+frequent during manual validation.
 
 The existing Mock API remains unchanged:
 

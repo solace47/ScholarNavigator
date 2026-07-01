@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from urllib.error import HTTPError, URLError
 
+import pytest
+
 from scholar_agent.connectors.arxiv import search_arxiv, search_arxiv_detailed
 
 
@@ -39,6 +41,11 @@ ARXIV_FEED = """<?xml version="1.0" encoding="UTF-8"?>
   </entry>
 </feed>
 """
+
+
+@pytest.fixture(autouse=True)
+def no_retry_sleep(monkeypatch) -> None:
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.time.sleep", lambda _: None)
 
 
 def test_search_arxiv_parses_normal_response(monkeypatch) -> None:
@@ -81,6 +88,60 @@ def test_search_arxiv_detailed_normal_response_has_no_error(monkeypatch) -> None
     assert len(result.papers) == 1
     assert result.error_message is None
     assert result.warnings == []
+
+
+def test_search_arxiv_detailed_retries_transient_error_then_succeeds(
+    monkeypatch,
+) -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(
+                request.full_url,
+                429,
+                "Too Many Requests",
+                hdrs=None,
+                fp=None,
+            )
+        return MockResponse(ARXIV_FEED)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed(
+        "scientific literature search",
+        retry_sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert calls == 2
+    assert sleeps == [0.5]
+    assert result.error_message is None
+    assert len(result.papers) == 1
+    assert any("retried" in warning for warning in result.warnings)
+    assert any("HTTP Error 429" in warning for warning in result.warnings)
+
+
+def test_search_arxiv_detailed_retry_failure_keeps_diagnostics(monkeypatch) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        raise TimeoutError("read timed out")
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+
+    result = search_arxiv_detailed("llm reranking")
+
+    assert calls == 2
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "read timed out" in result.error_message
+    assert result.error_message in result.warnings
+    assert any("retried" in warning for warning in result.warnings)
 
 
 def test_search_arxiv_exception_returns_empty(monkeypatch) -> None:
@@ -136,7 +197,8 @@ def test_search_arxiv_detailed_non_2xx_returns_error_message(monkeypatch) -> Non
 
     assert result.papers == []
     assert result.error_message == "arXiv search returned non-2xx status: 503"
-    assert result.warnings == ["arXiv search returned non-2xx status: 503"]
+    assert result.error_message in result.warnings
+    assert any("retried" in warning for warning in result.warnings)
 
 
 def test_search_arxiv_missing_fields_returns_available_result(monkeypatch) -> None:

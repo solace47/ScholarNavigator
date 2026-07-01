@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
+from collections.abc import Callable
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlparse
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 DEFAULT_TIMEOUT_SECONDS = 10.0
+DEFAULT_MAX_RETRIES = 1
+DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
 MAX_OPENALEX_LIMIT = 200
 
 
@@ -32,7 +36,13 @@ def search_openalex(query: str, limit: int = 20) -> list[Paper]:
     return search_openalex_detailed(query, limit).papers
 
 
-def search_openalex_detailed(query: str, limit: int = 20) -> ConnectorSearchResult:
+def search_openalex_detailed(
+    query: str,
+    limit: int = 20,
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+) -> ConnectorSearchResult:
     """Search papers from OpenAlex Works with diagnostic details."""
 
     query = query.strip()
@@ -50,6 +60,8 @@ def search_openalex_detailed(query: str, limit: int = 20) -> ConnectorSearchResu
     payload, error_message, warnings = _request_json_detailed(
         f"{OPENALEX_WORKS_URL}?{urlencode(params)}",
         context="OpenAlex search",
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
     )
     if payload is None:
         return ConnectorSearchResult(
@@ -185,26 +197,97 @@ def _request_json_detailed(
     url: str,
     *,
     context: str,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None, list[str]]:
     request = Request(url, headers=_openalex_headers())
-    try:
-        with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
-            status = getattr(response, "status", getattr(response, "code", 200))
-            if status < 200 or status >= 300:
-                message = f"{context} returned non-2xx status: {status}"
-                logger.warning(message)
-                return None, message, [message]
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        message = f"{context} failed: {exc}"
-        logger.warning(message)
-        return None, message, [message]
+    warnings: list[str] = []
+    attempts = max(0, max_retries) + 1
+    sleep = retry_sleep or time.sleep
+    payload: Any = None
+
+    for attempt in range(attempts):
+        try:
+            with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+                status = getattr(response, "status", getattr(response, "code", 200))
+                if status < 200 or status >= 300:
+                    message = f"{context} returned non-2xx status: {status}"
+                    if _should_retry_status(status) and attempt < attempts - 1:
+                        _record_retry_warning(
+                            warnings,
+                            context=context,
+                            attempt=attempt,
+                            attempts=attempts,
+                            reason=message,
+                        )
+                        sleep(_retry_backoff_seconds(attempt))
+                        continue
+                    logger.warning(message)
+                    return None, message, warnings + [message]
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            if _should_retry_status(exc.code) and attempt < attempts - 1:
+                _record_retry_warning(
+                    warnings,
+                    context=context,
+                    attempt=attempt,
+                    attempts=attempts,
+                    reason=str(exc),
+                )
+                sleep(_retry_backoff_seconds(attempt))
+                continue
+            message = f"{context} failed: {exc}"
+            logger.warning(message)
+            return None, message, warnings + [message]
+        except (URLError, TimeoutError, OSError) as exc:
+            if attempt < attempts - 1:
+                _record_retry_warning(
+                    warnings,
+                    context=context,
+                    attempt=attempt,
+                    attempts=attempts,
+                    reason=str(exc),
+                )
+                sleep(_retry_backoff_seconds(attempt))
+                continue
+            message = f"{context} failed: {exc}"
+            logger.warning(message)
+            return None, message, warnings + [message]
+        except json.JSONDecodeError as exc:
+            message = f"{context} failed: {exc}"
+            logger.warning(message)
+            return None, message, warnings + [message]
+        break
 
     if not isinstance(payload, dict):
         message = f"{context} returned non-object JSON payload"
         logger.warning(message)
-        return None, message, [message]
-    return payload, None, []
+        return None, message, warnings + [message]
+    return payload, None, warnings
+
+
+def _record_retry_warning(
+    warnings: list[str],
+    *,
+    context: str,
+    attempt: int,
+    attempts: int,
+    reason: str,
+) -> None:
+    message = (
+        f"{context} transient error on attempt {attempt + 1}/{attempts}: "
+        f"{reason}; retried"
+    )
+    logger.warning(message)
+    warnings.append(message)
+
+
+def _retry_backoff_seconds(attempt: int) -> float:
+    return DEFAULT_RETRY_BACKOFF_SECONDS * (attempt + 1)
+
+
+def _should_retry_status(status: int | None) -> bool:
+    return status == 429 or (status is not None and 500 <= status <= 599)
 
 
 def _url_with_mailto(base_url: str, params: dict[str, str]) -> str:

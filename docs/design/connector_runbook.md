@@ -34,6 +34,14 @@ Behavior:
   response, or malformed top-level JSON.
 - `search_openalex_detailed` preserves the same fail-closed behavior but also
   returns `error_message` and `warnings` for diagnostics.
+- `search_openalex_detailed` retries transient failures once by default:
+  HTTP `429`, HTTP `5xx`, timeout, `URLError`, and related `OSError` failures.
+  Retry backoff is intentionally light. Tests inject or monkeypatch sleep so
+  retry tests do not wait in real time.
+- If retry succeeds, `warnings` keeps a `retried` diagnostic and
+  `error_message` remains `None`.
+- If retry still fails, `error_message` contains the final error and `warnings`
+  contain both the retry diagnostic and final error.
 - Skips malformed individual results instead of failing the whole search.
 - Returns connector-layer `Paper` objects with `sources=["openalex"]`.
 
@@ -117,6 +125,14 @@ Behavior:
   response, or XML parse failure.
 - `search_arxiv_detailed` preserves the same fail-closed behavior but also
   returns `error_message` and `warnings` for diagnostics.
+- `search_arxiv_detailed` retries transient failures once by default:
+  HTTP `429`, HTTP `5xx`, timeout, `URLError`, and related `OSError` failures.
+  XML parse failures are not retried because they indicate a malformed payload
+  already returned by the service.
+- If retry succeeds, `warnings` keeps a `retried` diagnostic and
+  `error_message` remains `None`.
+- If retry still fails, `error_message` contains the final error and `warnings`
+  contain both the retry diagnostic and final error.
 - Skips malformed individual entries instead of failing the whole search.
 - Returns connector-layer `Paper` objects with `sources=["arxiv"]`.
 

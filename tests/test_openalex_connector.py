@@ -4,6 +4,8 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote
 
+import pytest
+
 from scholar_agent.connectors.openalex import (
     fetch_openalex_references,
     search_openalex,
@@ -25,6 +27,11 @@ class MockResponse:
 
     def read(self) -> bytes:
         return json.dumps(self.payload).encode("utf-8")
+
+
+@pytest.fixture(autouse=True)
+def no_retry_sleep(monkeypatch) -> None:
+    monkeypatch.setattr("scholar_agent.connectors.openalex.time.sleep", lambda _: None)
 
 
 def test_search_openalex_parses_normal_response(monkeypatch) -> None:
@@ -113,6 +120,77 @@ def test_search_openalex_detailed_normal_response_has_no_error(monkeypatch) -> N
     assert result.warnings == []
 
 
+def test_search_openalex_detailed_retries_transient_error_then_succeeds(
+    monkeypatch,
+) -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(
+                request.full_url,
+                503,
+                "Service Unavailable",
+                hdrs=None,
+                fp=None,
+            )
+        return MockResponse(
+            {
+                "results": [
+                    {
+                        "id": "https://openalex.org/WRETRY",
+                        "display_name": "Recovered OpenAlex Paper",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed(
+        "llm reranking",
+        retry_sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert calls == 2
+    assert sleeps == [0.5]
+    assert result.error_message is None
+    assert [paper.title for paper in result.papers] == ["Recovered OpenAlex Paper"]
+    assert any("retried" in warning for warning in result.warnings)
+    assert any("HTTP Error 503" in warning for warning in result.warnings)
+
+
+def test_search_openalex_detailed_retry_failure_keeps_diagnostics(
+    monkeypatch,
+) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        raise HTTPError(
+            request.full_url,
+            503,
+            "Service Unavailable",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("llm reranking")
+
+    assert calls == 2
+    assert result.papers == []
+    assert result.error_message is not None
+    assert "HTTP Error 503" in result.error_message
+    assert result.error_message in result.warnings
+    assert any("retried" in warning for warning in result.warnings)
+
+
 def test_search_openalex_exception_returns_empty(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         raise URLError("timeout")
@@ -180,7 +258,8 @@ def test_search_openalex_detailed_non_2xx_returns_error_message(monkeypatch) -> 
 
     assert result.papers == []
     assert result.error_message == "OpenAlex search returned non-2xx status: 503"
-    assert result.warnings == ["OpenAlex search returned non-2xx status: 503"]
+    assert result.error_message in result.warnings
+    assert any("retried" in warning for warning in result.warnings)
 
 
 def test_search_openalex_missing_fields_returns_available_result(monkeypatch) -> None:

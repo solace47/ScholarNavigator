@@ -36,8 +36,12 @@ client = TestClient(app)
 
 def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None:
     captured: dict[str, object] = {}
+    monkeypatch.delenv("REAL_PREVIEW_MAX_WORKERS", raising=False)
 
     class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["max_workers"] = kwargs.get("max_workers")
+
         def run_search(
             self,
             query: str,
@@ -79,10 +83,11 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
         "query": "latest LLM reranking retrieval papers",
         "top_k": 3,
         "run_profile": "high_recall",
-        "enable_refchain": False,
-        "enable_query_evolution": False,
-        "current_year": 2026,
-    }
+            "enable_refchain": False,
+            "enable_query_evolution": False,
+            "current_year": 2026,
+            "max_workers": 2,
+        }
     assert body["query_analysis"]["original_query"] == captured["query"]
     assert body["search_plan"]["selected_sources"] == ["openalex", "arxiv"]
     assert body["query_evolution_records"] == []
@@ -98,6 +103,9 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
 
 def test_internal_search_preview_includes_query_evolution_records(monkeypatch) -> None:
     class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
         def run_search(
             self,
             query: str,
@@ -136,6 +144,9 @@ def test_internal_search_preview_includes_query_evolution_records(monkeypatch) -
 
 def test_internal_search_preview_includes_refchain_output(monkeypatch) -> None:
     class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
         def run_search(
             self,
             query: str,
@@ -174,6 +185,9 @@ def test_internal_search_preview_includes_refchain_output(monkeypatch) -> None:
 
 def test_internal_search_preview_returns_400_for_service_value_error(monkeypatch) -> None:
     class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
         def run_search(self, *args, **kwargs) -> SearchServiceOutput:
             raise ValueError("query must not be empty")
 
@@ -190,6 +204,42 @@ def test_internal_search_preview_returns_400_for_service_value_error(monkeypatch
 
     assert response.status_code == 400
     assert response.json()["detail"] == "query must not be empty"
+
+
+def test_internal_search_preview_uses_real_preview_max_workers_env(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["max_workers"] = kwargs.get("max_workers")
+
+        def run_search(
+            self,
+            query: str,
+            top_k: int = 20,
+            run_profile: str = "balanced",
+            enable_refchain: bool = False,
+            enable_query_evolution: bool = False,
+            current_year: int | None = None,
+        ) -> SearchServiceOutput:
+            return _fake_output(query, top_k)
+
+    monkeypatch.setenv("REAL_PREVIEW_MAX_WORKERS", "1")
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
+
+    response = client.post(
+        "/api/v1/internal/search/preview",
+        json={
+            "query": "latest LLM reranking retrieval papers",
+            "top_k": 3,
+            "current_year": 2026,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["max_workers"] == 1
 
 
 def test_existing_mock_search_runs_endpoint_still_works(monkeypatch) -> None:
