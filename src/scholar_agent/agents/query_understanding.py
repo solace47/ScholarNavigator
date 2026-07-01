@@ -1,0 +1,602 @@
+"""Rule-based query understanding for the first internal search pipeline."""
+
+from __future__ import annotations
+
+import re
+from datetime import date
+
+from scholar_agent.core.search_schemas import (
+    QueryAnalysis,
+    QueryConstraint,
+    QueryIntent,
+    QueryUnderstandingOptions,
+    ResearchDomain,
+    SearchPlan,
+    SearchSubquery,
+    TimeRange,
+)
+
+
+RECENT_WINDOW_YEARS = 3
+
+VENUES = (
+    "ACL",
+    "EMNLP",
+    "NAACL",
+    "SIGIR",
+    "WWW",
+    "KDD",
+    "NeurIPS",
+    "ICLR",
+    "ICML",
+    "CVPR",
+    "ICCV",
+    "ECCV",
+    "AAAI",
+    "IJCAI",
+)
+
+INTENT_PATTERNS: tuple[tuple[QueryIntent, tuple[str, ...]], ...] = (
+    ("survey", ("综述", "survey", "review", "related work", "literature review")),
+    (
+        "recent_progress",
+        (
+            "最新",
+            "近年",
+            "近几年",
+            "近三年",
+            "recent",
+            "latest",
+            "sota",
+            "state-of-the-art",
+            "cutting-edge",
+        ),
+    ),
+    (
+        "method_comparison",
+        ("对比", "比较", "compare", "comparison", "versus", " vs ", " vs."),
+    ),
+    (
+        "benchmark_or_dataset",
+        ("benchmark", "dataset", "数据集", "评测", "基准"),
+    ),
+    ("application", ("应用", "落地", "application", "deployment")),
+    (
+        "paper_finding",
+        (
+            "找论文",
+            "代表性论文",
+            "find papers",
+            "which studies",
+            "representative papers",
+        ),
+    ),
+)
+
+BIOMEDICAL_TERMS = (
+    "protein",
+    "gene",
+    "genomic",
+    "clinical",
+    "pubmed",
+    "biomedical",
+    "medicine",
+    "medical",
+    "医学",
+    "生物",
+    "蛋白",
+    "基因",
+    "临床",
+)
+
+MACHINE_LEARNING_TERMS = (
+    "llm",
+    "large language model",
+    "rag",
+    "reranking",
+    "retrieval",
+    "agent",
+    "transformer",
+    "nlp",
+    "cv",
+    "computer vision",
+    "deep learning",
+    "machine learning",
+    "embedding",
+    "大模型",
+    "机器学习",
+    "深度学习",
+    "检索增强",
+    "重排序",
+)
+
+COMPUTER_SCIENCE_TERMS = (
+    "algorithm",
+    "database",
+    "software",
+    "systems",
+    "information retrieval",
+    "computer science",
+    "算法",
+    "数据库",
+    "软件",
+    "信息检索",
+)
+
+METHOD_TERMS = (
+    "llm",
+    "rag",
+    "reranking",
+    "retrieval",
+    "agent",
+    "transformer",
+    "embedding",
+    "deep learning",
+    "machine learning",
+    "大模型",
+    "检索",
+    "重排序",
+)
+
+DATASET_TERMS = ("dataset", "benchmark", "数据集", "评测", "基准")
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "about",
+    "after",
+    "application",
+    "applications",
+    "based",
+    "compare",
+    "comparison",
+    "find",
+    "for",
+    "from",
+    "help",
+    "in",
+    "latest",
+    "of",
+    "on",
+    "papers",
+    "please",
+    "recent",
+    "review",
+    "search",
+    "since",
+    "studies",
+    "survey",
+    "the",
+    "to",
+    "using",
+    "which",
+    "with",
+}
+
+CHINESE_KEYWORD_MAP: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("大模型", ("LLM",)),
+    ("重排序", ("reranking",)),
+    ("检索增强", ("RAG",)),
+    ("检索", ("retrieval",)),
+    ("搜索", ("search",)),
+    ("推荐", ("recommendation",)),
+    ("综述", ("survey",)),
+    ("数据集", ("dataset",)),
+    ("评测", ("benchmark",)),
+    ("学术", ("academic",)),
+    ("科研", ("scientific literature",)),
+    ("论文", ("papers",)),
+    ("机器学习", ("machine learning",)),
+    ("深度学习", ("deep learning",)),
+    ("多模态", ("multimodal",)),
+    ("医学", ("biomedical",)),
+    ("生物", ("biomedical",)),
+    ("蛋白", ("protein",)),
+    ("基因", ("gene",)),
+    ("临床", ("clinical",)),
+)
+
+
+class QueryUnderstandingAgent:
+    """Deterministic query analysis without LLM calls."""
+
+    def analyze(
+        self,
+        query: str,
+        options: QueryUnderstandingOptions | None = None,
+    ) -> SearchPlan:
+        options = options or QueryUnderstandingOptions()
+        normalized_query = _normalize_query(query)
+        if not normalized_query:
+            raise ValueError("query must not be empty")
+
+        current_year = options.current_year or date.today().year
+        language = _detect_language(normalized_query)
+        intent = _detect_intent(normalized_query)
+        domain = _detect_domain(normalized_query)
+        time_range = _parse_time_range(normalized_query, current_year)
+        venues = _extract_venues(normalized_query)
+        methods = _extract_terms(normalized_query, METHOD_TERMS)
+        datasets = _extract_terms(normalized_query, DATASET_TERMS)
+        keyword_terms = _extract_keyword_terms(normalized_query, venues)
+        selected_sources, warnings = _select_sources(normalized_query, domain)
+        limit_per_source, max_subqueries = _profile_settings(
+            options.run_profile, options.top_k
+        )
+
+        constraints = QueryConstraint(
+            time_range=time_range,
+            venues=venues,
+            methods=methods,
+            datasets=datasets,
+            domains=[domain],
+            must_include_terms=keyword_terms,
+            exclude_terms=[],
+        )
+        reasoning = [
+            f"language={language}",
+            f"intent={intent}",
+            f"domain={domain}",
+            f"sources={','.join(selected_sources)}",
+        ]
+        if time_range is not None:
+            reasoning.append("time_range_detected")
+        if venues:
+            reasoning.append("venue_constraints_detected")
+
+        query_analysis = QueryAnalysis(
+            original_query=normalized_query,
+            language=language,
+            intent=intent,
+            domain=domain,
+            constraints=constraints,
+            needs_expansion=_needs_expansion(intent, keyword_terms, max_subqueries),
+            reasoning=reasoning,
+        )
+        subqueries = _build_subqueries(
+            original_query=normalized_query,
+            keyword_terms=keyword_terms,
+            intent=intent,
+            domain=domain,
+            constraints=constraints,
+            selected_sources=selected_sources,
+            max_subqueries=max_subqueries,
+        )
+
+        return SearchPlan(
+            query_analysis=query_analysis,
+            subqueries=subqueries,
+            selected_sources=selected_sources,
+            limit_per_source=limit_per_source,
+            top_k=options.top_k,
+            run_profile=options.run_profile,
+            enable_refchain=options.enable_refchain,
+            enable_query_evolution=options.enable_query_evolution,
+            warnings=warnings,
+        )
+
+
+def analyze_query(
+    query: str,
+    *,
+    top_k: int = 20,
+    run_profile: str = "balanced",
+    enable_refchain: bool = False,
+    enable_query_evolution: bool = False,
+    current_year: int | None = None,
+) -> SearchPlan:
+    """Analyze a user query into a deterministic SearchPlan."""
+
+    options = QueryUnderstandingOptions(
+        top_k=top_k,
+        run_profile=run_profile,
+        enable_refchain=enable_refchain,
+        enable_query_evolution=enable_query_evolution,
+        current_year=current_year,
+    )
+    return QueryUnderstandingAgent().analyze(query, options)
+
+
+def _normalize_query(query: str) -> str:
+    return re.sub(r"\s+", " ", query).strip()
+
+
+def _detect_language(query: str) -> str:
+    has_cjk = bool(re.search(r"[\u4e00-\u9fff]", query))
+    has_latin = bool(re.search(r"[A-Za-z]", query))
+    if has_cjk and has_latin:
+        return "mixed"
+    if has_cjk:
+        return "zh"
+    if has_latin:
+        return "en"
+    return "unknown"
+
+
+def _detect_intent(query: str) -> QueryIntent:
+    lowered = f" {query.casefold()} "
+    for intent, patterns in INTENT_PATTERNS:
+        if any(pattern in lowered for pattern in patterns):
+            return intent
+    return "general"
+
+
+def _detect_domain(query: str) -> ResearchDomain:
+    lowered = query.casefold()
+    if _contains_any(lowered, BIOMEDICAL_TERMS):
+        return "biomedical"
+    if _contains_any(lowered, MACHINE_LEARNING_TERMS):
+        return "machine_learning"
+    if _contains_any(lowered, COMPUTER_SCIENCE_TERMS):
+        return "computer_science"
+    return "general_science"
+
+
+def _parse_time_range(query: str, current_year: int) -> TimeRange | None:
+    lowered = query.casefold()
+
+    range_match = re.search(
+        r"((?:19|20)\d{2})\s*(?:-|–|—|~|至|到)\s*((?:19|20)\d{2})",
+        lowered,
+    )
+    if range_match:
+        start_year = int(range_match.group(1))
+        end_year = int(range_match.group(2))
+        return TimeRange(start_year=start_year, end_year=end_year, label="explicit_range")
+
+    from_to_match = re.search(
+        r"from\s+((?:19|20)\d{2})\s+(?:to|through|until)\s+((?:19|20)\d{2})",
+        lowered,
+    )
+    if from_to_match:
+        start_year = int(from_to_match.group(1))
+        end_year = int(from_to_match.group(2))
+        return TimeRange(start_year=start_year, end_year=end_year, label="from_to")
+
+    since_match = re.search(r"(?:since|from)\s+((?:19|20)\d{2})", lowered)
+    if since_match:
+        return TimeRange(
+            start_year=int(since_match.group(1)),
+            end_year=None,
+            label="since",
+        )
+
+    after_match = re.search(r"after\s+((?:19|20)\d{2})", lowered)
+    if after_match:
+        return TimeRange(
+            start_year=int(after_match.group(1)) + 1,
+            end_year=None,
+            label="after",
+        )
+
+    last_years_match = re.search(r"last\s+(\d{1,2})\s+years?", lowered)
+    if last_years_match:
+        years = max(1, int(last_years_match.group(1)))
+        return TimeRange(
+            start_year=current_year - years,
+            end_year=current_year,
+            label="recent",
+        )
+
+    if "近三年" in lowered:
+        return TimeRange(
+            start_year=current_year - 3,
+            end_year=current_year,
+            label="recent",
+        )
+
+    recent_markers = (
+        "recent",
+        "latest",
+        "sota",
+        "state-of-the-art",
+        "cutting-edge",
+        "最新",
+        "近年",
+        "近几年",
+    )
+    if any(marker in lowered for marker in recent_markers):
+        return TimeRange(
+            start_year=current_year - RECENT_WINDOW_YEARS,
+            end_year=current_year,
+            label="recent",
+        )
+
+    return None
+
+
+def _extract_venues(query: str) -> list[str]:
+    venues: list[str] = []
+    for venue in VENUES:
+        if re.search(rf"(?<![A-Za-z0-9]){re.escape(venue)}(?![A-Za-z0-9])", query, re.I):
+            venues.append(venue)
+    return venues
+
+
+def _extract_terms(query: str, candidates: tuple[str, ...]) -> list[str]:
+    lowered = query.casefold()
+    return _dedupe([term for term in candidates if term in lowered])
+
+
+def _extract_keyword_terms(query: str, venues: list[str]) -> list[str]:
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9+.#-]*", query):
+        normalized = token.strip(".,;:()[]{}").casefold()
+        if not normalized or normalized in STOPWORDS:
+            continue
+        if len(normalized) <= 2 and token.upper() not in {"AI", "ML", "CV"}:
+            continue
+        terms.append(_canonical_token(token))
+
+    lowered = query.casefold()
+    for chinese, mapped_terms in CHINESE_KEYWORD_MAP:
+        if chinese in lowered:
+            terms.extend(mapped_terms)
+
+    terms.extend(venues)
+    return _dedupe(terms)
+
+
+def _canonical_token(token: str) -> str:
+    upper_tokens = {"llm", "rag", "nlp", "cv", "ai"}
+    if token.casefold() in upper_tokens:
+        return token.upper()
+    return token.strip()
+
+
+def _select_sources(query: str, domain: ResearchDomain) -> tuple[list[str], list[str]]:
+    warnings: list[str] = []
+    lowered = query.casefold()
+    if domain == "biomedical" or "pubmed" in lowered:
+        warnings.append("pubmed_not_implemented")
+    if "semantic scholar" in lowered or "semanticscholar" in lowered:
+        warnings.append("semantic_scholar_not_implemented")
+    return ["openalex", "arxiv"], _dedupe(warnings)
+
+
+def _profile_settings(run_profile: str, top_k: int) -> tuple[int, int]:
+    if run_profile == "fast":
+        return max(5, min(10, top_k)), 2
+    if run_profile == "high_recall":
+        return max(30, min(50, top_k * 2)), 5
+    if run_profile == "evaluation":
+        return max(10, min(20, top_k)), 3
+    return max(10, min(20, top_k)), 3
+
+
+def _needs_expansion(
+    intent: QueryIntent,
+    keyword_terms: list[str],
+    max_subqueries: int,
+) -> bool:
+    return max_subqueries > 1 and (intent != "general" or len(keyword_terms) >= 3)
+
+
+def _build_subqueries(
+    *,
+    original_query: str,
+    keyword_terms: list[str],
+    intent: QueryIntent,
+    domain: ResearchDomain,
+    constraints: QueryConstraint,
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> list[SearchSubquery]:
+    base_query = " ".join(keyword_terms).strip() or original_query
+    candidates: list[tuple[str, str]] = [
+        (original_query, "original_query"),
+    ]
+
+    if base_query.casefold() != original_query.casefold():
+        candidates.append((base_query, "normalized_keywords"))
+
+    intent_query = _intent_subquery(intent, base_query, constraints.time_range)
+    if intent_query:
+        candidates.append(intent_query)
+
+    domain_query = _domain_subquery(domain, base_query)
+    if domain_query:
+        candidates.append(domain_query)
+
+    constraint_query = _constraint_subquery(base_query, constraints)
+    if constraint_query:
+        candidates.append(constraint_query)
+
+    subqueries: list[SearchSubquery] = []
+    seen: set[str] = set()
+    for raw_query, purpose in candidates:
+        normalized = _normalize_query(raw_query)
+        key = normalized.casefold()
+        if not normalized or key in seen:
+            continue
+        subqueries.append(
+            SearchSubquery(
+                query=normalized,
+                source_hints=selected_sources,
+                priority=min(len(subqueries) + 1, 5),
+                purpose=purpose,
+            )
+        )
+        seen.add(key)
+        if len(subqueries) >= max_subqueries:
+            break
+
+    return subqueries[:5]
+
+
+def _intent_subquery(
+    intent: QueryIntent,
+    base_query: str,
+    time_range: TimeRange | None,
+) -> tuple[str, str] | None:
+    if intent == "survey":
+        return f"{base_query} survey review", "survey_expansion"
+    if intent == "recent_progress":
+        time_suffix = _format_time_suffix(time_range)
+        return f"recent advances {base_query}{time_suffix}", "recent_progress_expansion"
+    if intent == "method_comparison":
+        return f"{base_query} comparison versus", "method_comparison_expansion"
+    if intent == "benchmark_or_dataset":
+        return f"{base_query} benchmark dataset evaluation", "benchmark_dataset_expansion"
+    if intent == "application":
+        return f"{base_query} application deployment", "application_expansion"
+    if intent == "paper_finding":
+        return f"representative papers {base_query}", "paper_finding_expansion"
+    return None
+
+
+def _domain_subquery(
+    domain: ResearchDomain,
+    base_query: str,
+) -> tuple[str, str] | None:
+    if domain == "machine_learning":
+        return f"{base_query} machine learning deep learning", "domain_ml_expansion"
+    if domain == "computer_science":
+        return f"{base_query} computer science information retrieval", "domain_cs_expansion"
+    if domain == "biomedical":
+        return f"{base_query} biomedical clinical", "domain_biomedical_expansion"
+    return None
+
+
+def _constraint_subquery(
+    base_query: str,
+    constraints: QueryConstraint,
+) -> tuple[str, str] | None:
+    fragments: list[str] = []
+    if constraints.venues:
+        fragments.extend(constraints.venues)
+    time_suffix = _format_time_suffix(constraints.time_range).strip()
+    if time_suffix:
+        fragments.append(time_suffix)
+    if not fragments:
+        return None
+    return f"{base_query} {' '.join(fragments)}", "constraint_expansion"
+
+
+def _format_time_suffix(time_range: TimeRange | None) -> str:
+    if time_range is None:
+        return ""
+    if time_range.start_year is not None and time_range.end_year is not None:
+        return f" {time_range.start_year}-{time_range.end_year}"
+    if time_range.start_year is not None:
+        return f" since {time_range.start_year}"
+    return ""
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = value.strip()
+        key = item.casefold()
+        if not item or key in seen:
+            continue
+        deduped.append(item)
+        seen.add(key)
+    return deduped
+
