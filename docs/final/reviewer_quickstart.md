@@ -238,6 +238,20 @@ PYTHONPATH=src python scripts/run_search_batch.py \
 
 注意：该脚本调用默认 `SearchService` 时可能真实访问 OpenAlex / arXiv；启用 RefChain 时还可能访问 OpenAlex references。测试中通过 monkeypatch 替换 `SearchService`，不访问外网。
 
+批量结果可汇总成 Markdown：
+
+```bash
+PYTHONPATH=src python scripts/summarize_search_batch.py \
+  --input outputs/batch_runs/result.jsonl \
+  --output outputs/batch_runs/summary.md \
+  --top-n 10
+```
+
+不传 `--output` 时会直接打印到 stdout。汇总报告包含成功率、延迟、API
+调用、cache hit、token 估计、逐 case 简表、Top papers、missing evidence /
+warning 统计、`source_error` 统计和 failed cases。该汇总脚本只读取本地
+JSONL，不访问外网。
+
 ## 关键边界提醒
 
 - 当前系统是 no-LLM 规则版 MVP。

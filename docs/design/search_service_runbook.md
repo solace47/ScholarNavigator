@@ -412,6 +412,45 @@ Manual runs may access OpenAlex/arXiv through the default retriever and OpenAlex
 reference metadata when `enable_refchain=True`. Tests monkeypatch
 `SearchService` and do not access the network.
 
+### Batch Summary CLI
+
+`scripts/summarize_search_batch.py` reads the JSONL produced by
+`run_search_batch.py` and renders a Markdown report. It does not call
+`SearchService`, access the network, or change API/frontend behavior.
+
+Print to stdout:
+
+```bash
+PYTHONPATH=src python scripts/summarize_search_batch.py \
+  --input outputs/batch_runs/result.jsonl
+```
+
+Write to a Markdown file:
+
+```bash
+PYTHONPATH=src python scripts/summarize_search_batch.py \
+  --input outputs/batch_runs/result.jsonl \
+  --output outputs/batch_runs/summary.md \
+  --top-n 10
+```
+
+The report includes:
+
+- total cases, succeeded/failed counts, and success rate
+- latency average/min/max
+- total API calls, search API calls, cache hits, and estimated token counts
+- per-case counts for highly relevant and partially relevant papers
+- synthesis status per case
+- top queries by latency
+- top papers by repeated title
+- missing evidence / warning counts
+- separate `source_error...` counts
+- failed cases with query and error
+
+Invalid input paths, malformed JSONL, or non-object JSONL rows return non-zero.
+Rows with `status="succeeded"` and `result=null` are summarized as zero-paper
+rows and add a `succeeded_result_missing` warning count.
+
 ## FastAPI Integration Plan
 
 The service has a standalone preview endpoint for manual backend validation:
