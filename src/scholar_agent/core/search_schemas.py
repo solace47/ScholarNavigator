@@ -156,6 +156,38 @@ class RankedPaper(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class QueryEvolutionOptions(BaseModel):
+    max_evolved_queries: int = Field(default=3, ge=0, le=10)
+    max_seed_papers: int = Field(default=5, ge=0, le=20)
+    min_seed_score: float = Field(default=0.45, ge=0.0, le=1.0)
+
+
+class EvolvedSubquery(BaseModel):
+    query: str = Field(..., min_length=1)
+    source_hints: list[SourceName] = Field(
+        default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
+    )
+    priority: int = Field(default=1, ge=1, le=5)
+    purpose: str = Field(..., min_length=1)
+    seed_paper_titles: list[str] = Field(default_factory=list)
+    generated_by: Literal["rules", "llm"] = "rules"
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("source_hints", mode="before")
+    @classmethod
+    def normalize_source_hints(cls, value: object) -> list[str]:
+        return _normalize_sources(value)
+
+
+class QueryEvolutionRecord(BaseModel):
+    round_index: int = Field(default=1, ge=1)
+    seed_count: int = Field(default=0, ge=0)
+    generated_queries: list[EvolvedSubquery] = Field(default_factory=list)
+    skipped_reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+
+
 def _normalize_sources(value: object) -> list[str]:
     if value is None:
         return list(SUPPORTED_SEARCH_SOURCES)
