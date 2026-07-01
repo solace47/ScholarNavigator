@@ -1,0 +1,296 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts import evaluate_search_batch  # noqa: E402
+
+
+def test_complete_match_metrics_are_correct(tmp_path: Path) -> None:
+    batch_path = _write_jsonl(
+        tmp_path / "batch.jsonl",
+        [
+            _batch_row(
+                "case_001",
+                high=[
+                    _ranked("Paper A", year=2025, doi="10.1000/a"),
+                    _ranked("Paper B", year=2024, doi="10.1000/b"),
+                ],
+            )
+        ],
+    )
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [
+            {
+                "case_id": "case_001",
+                "relevant_papers": [
+                    {"title": "Paper A", "year": 2025, "doi": "10.1000/a"},
+                    {"title": "Paper B", "year": 2024, "doi": "10.1000/b"},
+                ],
+            }
+        ],
+    )
+    output_path = tmp_path / "reports" / "eval.json"
+
+    code = evaluate_search_batch.main(
+        [
+            "--batch-results",
+            str(batch_path),
+            "--gold",
+            str(gold_path),
+            "--output",
+            str(output_path),
+            "--k",
+            "2",
+        ]
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert code == 0
+    assert payload["case_count"] == 1
+    assert payload["evaluated_case_count"] == 1
+    assert payload["aggregate"]["recall_at_k"]["2"] == pytest.approx(1.0)
+    assert payload["aggregate"]["precision_at_k"]["2"] == pytest.approx(1.0)
+    assert payload["aggregate"]["mrr"] == pytest.approx(1.0)
+    assert payload["aggregate"]["ndcg_at_k"]["2"] == pytest.approx(1.0)
+
+
+def test_doi_arxiv_without_version_and_title_year_fallback_match() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[
+                _ranked("DOI Paper", year=2025, doi="https://doi.org/10.1000/ABC"),
+                _ranked("Arxiv Paper", year=2024, arxiv_id="2501.00001v2"),
+                _ranked("Fallback Paper!", year=2023),
+            ],
+        )
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {"title": "DOI Paper", "year": 2025, "doi": "10.1000/abc"},
+                {"title": "Arxiv Paper", "year": 2024, "arxiv_id": "2501.00001"},
+                {"title": "Fallback Paper", "year": 2023},
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[3],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == [
+        "doi:10.1000/abc",
+        "arxiv:2501.00001",
+        "title_year:fallback paper:2023",
+    ]
+    assert result["aggregate"]["recall_at_k"]["3"] == pytest.approx(1.0)
+
+
+def test_failed_missing_gold_and_missing_result_cases_are_tracked() -> None:
+    batch_rows = [
+        _batch_row("case_ok", high=[_ranked("Paper A", doi="10.1/a")]),
+        {
+            "case_id": "case_failed",
+            "query": "failed query",
+            "status": "failed",
+            "result": None,
+            "error": "connector failed",
+            "latency_seconds": 0.2,
+        },
+        _batch_row("case_missing_gold", high=[_ranked("Paper X", doi="10.1/x")]),
+    ]
+    gold_rows = [
+        {"case_id": "case_ok", "relevant_papers": [{"doi": "10.1/a"}]},
+        {"case_id": "case_failed", "relevant_papers": [{"doi": "10.1/f"}]},
+        {"case_id": "case_missing_result", "relevant_papers": [{"doi": "10.1/m"}]},
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+    )
+
+    assert result["case_count"] == 3
+    assert result["evaluated_case_count"] == 1
+    assert result["failed_cases"] == [
+        {
+            "case_id": "case_failed",
+            "query": "failed query",
+            "error": "connector failed",
+        }
+    ]
+    assert result["missing_gold_cases"] == ["case_missing_gold"]
+    assert result["missing_result_cases"] == ["case_missing_result"]
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+
+
+def test_include_partial_controls_ranked_list() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[],
+            partial=[_ranked("Partial Paper", doi="10.1/partial")],
+        )
+    ]
+    gold_rows = [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/partial"}]}]
+
+    without_partial = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+        include_partial=False,
+    )
+    with_partial = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+        include_partial=True,
+    )
+
+    assert without_partial["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
+    assert without_partial["per_case"][0]["ranked_count"] == 0
+    assert with_partial["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert with_partial["per_case"][0]["ranked_count"] == 1
+
+
+def test_invalid_jsonl_returns_nonzero(tmp_path: Path) -> None:
+    batch_path = tmp_path / "bad.jsonl"
+    batch_path.write_text('{"case_id": "ok"}\n{bad-json}\n', encoding="utf-8")
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [{"case_id": "ok", "relevant_papers": []}],
+    )
+
+    code = evaluate_search_batch.main(
+        ["--batch-results", str(batch_path), "--gold", str(gold_path)]
+    )
+
+    assert code == 1
+
+
+def test_non_object_jsonl_returns_nonzero(tmp_path: Path) -> None:
+    batch_path = tmp_path / "batch.jsonl"
+    batch_path.write_text('["not", "object"]\n', encoding="utf-8")
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [{"case_id": "ok", "relevant_papers": []}],
+    )
+
+    code = evaluate_search_batch.main(
+        ["--batch-results", str(batch_path), "--gold", str(gold_path)]
+    )
+
+    assert code == 1
+
+
+def test_missing_file_returns_nonzero(tmp_path: Path) -> None:
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [{"case_id": "ok", "relevant_papers": []}],
+    )
+
+    code = evaluate_search_batch.main(
+        [
+            "--batch-results",
+            str(tmp_path / "missing.jsonl"),
+            "--gold",
+            str(gold_path),
+        ]
+    )
+
+    assert code == 1
+
+
+def test_stdout_output_without_output_path(tmp_path: Path, capsys) -> None:
+    batch_path = _write_jsonl(
+        tmp_path / "batch.jsonl",
+        [_batch_row("case_001", high=[_ranked("Paper A", doi="10.1/a")])],
+    )
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/a"}]}],
+    )
+
+    code = evaluate_search_batch.main(
+        ["--batch-results", str(batch_path), "--gold", str(gold_path)]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert code == 0
+    assert payload["evaluated_case_count"] == 1
+    assert payload["aggregate"]["mrr"] == pytest.approx(1.0)
+
+
+def _batch_row(
+    case_id: str,
+    *,
+    high: list[dict[str, Any]] | None = None,
+    partial: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "case_id": case_id,
+        "query": f"query for {case_id}",
+        "status": "succeeded",
+        "result": {
+            "highly_relevant_papers": high or [],
+            "partially_relevant_papers": partial or [],
+        },
+        "error": None,
+        "latency_seconds": 0.1,
+    }
+
+
+def _ranked(
+    title: str,
+    *,
+    year: int = 2025,
+    doi: str | None = None,
+    arxiv_id: str | None = None,
+    openalex_id: str | None = None,
+    semantic_scholar_id: str | None = None,
+    pubmed_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "paper": {
+            "title": title,
+            "year": year,
+            "identifiers": {
+                "doi": doi,
+                "arxiv_id": arxiv_id,
+                "openalex_id": openalex_id,
+                "semantic_scholar_id": semantic_scholar_id,
+                "pubmed_id": pubmed_id,
+            },
+        }
+    }
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> Path:
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_jsonl_for_rows(rows: list[dict[str, Any]]) -> Path:
+    import tempfile
+
+    path = Path(tempfile.mkdtemp()) / "rows.jsonl"
+    return _write_jsonl(path, rows)

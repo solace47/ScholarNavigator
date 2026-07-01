@@ -252,6 +252,30 @@ PYTHONPATH=src python scripts/summarize_search_batch.py \
 warning 统计、`source_error` 统计和 failed cases。该汇总脚本只读取本地
 JSONL，不访问外网。
 
+如需用 gold/qrels JSONL 对批量搜索结果计算 Recall@K、Precision@K、MRR
+和 nDCG@K，可运行：
+
+```bash
+PYTHONPATH=src python scripts/evaluate_search_batch.py \
+  --batch-results outputs/batch_runs/result.jsonl \
+  --gold path/to/qrels.jsonl \
+  --output outputs/batch_runs/eval.json \
+  --k 5 \
+  --k 10 \
+  --include-partial
+```
+
+gold/qrels JSONL 每行按 `case_id` 对齐：
+
+```json
+{"case_id":"case_001","relevant_papers":[{"title":"...","year":2025,"doi":"10.xxxx/example","arxiv_id":"2501.00001","openalex_id":"W123","semantic_scholar_id":"S2...","pubmed_id":"PMID..."}]}
+```
+
+默认只评测 `highly_relevant_papers`；加 `--include-partial` 后会把
+`partially_relevant_papers` 追加进 ranked list。failed case 会列入
+`failed_cases`，但不参与指标平均；缺 gold 和缺 batch result 的 case 会
+分别列入 `missing_gold_cases` 和 `missing_result_cases`。
+
 ## 关键边界提醒
 
 - 当前系统是 no-LLM 规则版 MVP。

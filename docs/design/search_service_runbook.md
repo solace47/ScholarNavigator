@@ -451,6 +451,45 @@ Invalid input paths, malformed JSONL, or non-object JSONL rows return non-zero.
 Rows with `status="succeeded"` and `result=null` are summarized as zero-paper
 rows and add a `succeeded_result_missing` warning count.
 
+### Batch Evaluation CLI
+
+`scripts/evaluate_search_batch.py` reads the JSONL produced by
+`run_search_batch.py` plus a local gold/qrels JSONL file and computes ranking
+metrics. It only reads local files and reuses the project evaluation metrics; it
+does not run SearchService or change API/frontend behavior.
+
+Gold/qrels JSONL format:
+
+```json
+{"case_id":"case_001","relevant_papers":[{"title":"...","year":2025,"doi":"10.xxxx/example","arxiv_id":"2501.00001","openalex_id":"W123","semantic_scholar_id":"S2...","pubmed_id":"PMID..."}]}
+```
+
+Run:
+
+```bash
+PYTHONPATH=src python scripts/evaluate_search_batch.py \
+  --batch-results outputs/batch_runs/result.jsonl \
+  --gold datasets/my_gold/qrels.jsonl \
+  --output outputs/batch_runs/eval.json \
+  --k 5 \
+  --k 10 \
+  --include-partial
+```
+
+By default, the ranked list uses only `highly_relevant_papers`. The
+`--include-partial` flag appends `partially_relevant_papers`.
+
+Metrics:
+
+- Recall@K
+- Precision@K
+- MRR
+- nDCG@K
+
+Failed rows are reported in `failed_cases` and excluded from metric averages.
+Batch rows without gold are reported in `missing_gold_cases`. Gold cases absent
+from the batch output are reported in `missing_result_cases`.
+
 ## FastAPI Integration Plan
 
 The service has a standalone preview endpoint for manual backend validation:
