@@ -1,0 +1,368 @@
+{
+  "query_results": [
+    {
+      "query_id": "sample_llm_rerank",
+      "query": "latest LLM reranking methods for scientific literature retrieval",
+      "group_results": {
+        "baseline": {
+          "query_id": "sample_llm_rerank",
+          "group": "baseline",
+          "metrics": {
+            "recall_at_k": {
+              "5": 0.3333333333333333,
+              "10": 0.3333333333333333,
+              "20": 0.3333333333333333
+            },
+            "precision_at_k": {
+              "5": 0.2,
+              "10": 0.1,
+              "20": 0.05
+            },
+            "ndcg_at_k": {
+              "5": 0.541942129480027,
+              "10": 0.541942129480027,
+              "20": 0.541942129480027
+            },
+            "mrr": 1.0,
+            "raw_count": 3,
+            "deduplicated_count": 1,
+            "ranked_count": 1,
+            "duplicate_count": 2,
+            "duplicate_ratio": 0.6666666666666666,
+            "per_source_returned_count": {
+              "fixture-openalex": 2,
+              "fixture-arxiv": 1
+            },
+            "source_call_count": 3,
+            "source_error_count": 1,
+            "source_error_rate": 0.3333333333333333,
+            "warning_count": 1,
+            "query_warning_rate": 1.0,
+            "failed_case_count": 0,
+            "failed_case_rate": 0.0
+          },
+          "ranked_paper_ids": [
+            "doi:10.123/baseline"
+          ],
+          "warnings": [
+            "fixture simulated source warning"
+          ],
+          "source_stats": [
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-arxiv",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": "fixture simulated source warning"
+            }
+          ],
+          "raw_count": 3,
+          "deduplicated_count": 1,
+          "latency_seconds": 0.005501750041730702,
+          "failed": false,
+          "error_message": null
+        },
+        "query_evolution": {
+          "query_id": "sample_llm_rerank",
+          "group": "query_evolution",
+          "metrics": {
+            "recall_at_k": {
+              "5": 0.6666666666666666,
+              "10": 0.6666666666666666,
+              "20": 0.6666666666666666
+            },
+            "precision_at_k": {
+              "5": 0.4,
+              "10": 0.2,
+              "20": 0.1
+            },
+            "ndcg_at_k": {
+              "5": 0.8838695436828513,
+              "10": 0.8838695436828513,
+              "20": 0.8838695436828513
+            },
+            "mrr": 1.0,
+            "raw_count": 6,
+            "deduplicated_count": 2,
+            "ranked_count": 2,
+            "duplicate_count": 4,
+            "duplicate_ratio": 0.6666666666666666,
+            "per_source_returned_count": {
+              "fixture-openalex": 4,
+              "fixture-arxiv": 2
+            },
+            "source_call_count": 6,
+            "source_error_count": 1,
+            "source_error_rate": 0.16666666666666666,
+            "warning_count": 1,
+            "query_warning_rate": 1.0,
+            "failed_case_count": 0,
+            "failed_case_rate": 0.0
+          },
+          "ranked_paper_ids": [
+            "doi:10.123/baseline",
+            "doi:10.123/evolved"
+          ],
+          "warnings": [
+            "fixture simulated source warning"
+          ],
+          "source_stats": [
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-arxiv",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": "fixture simulated source warning"
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-arxiv",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            }
+          ],
+          "raw_count": 6,
+          "deduplicated_count": 2,
+          "latency_seconds": 0.0014649579534307122,
+          "failed": false,
+          "error_message": null
+        },
+        "refchain": {
+          "query_id": "sample_llm_rerank",
+          "group": "refchain",
+          "metrics": {
+            "recall_at_k": {
+              "5": 1.0,
+              "10": 1.0,
+              "20": 1.0
+            },
+            "precision_at_k": {
+              "5": 0.6,
+              "10": 0.3,
+              "20": 0.15
+            },
+            "ndcg_at_k": {
+              "5": 1.0,
+              "10": 1.0,
+              "20": 1.0
+            },
+            "mrr": 1.0,
+            "raw_count": 8,
+            "deduplicated_count": 3,
+            "ranked_count": 3,
+            "duplicate_count": 5,
+            "duplicate_ratio": 0.625,
+            "per_source_returned_count": {
+              "fixture-openalex": 4,
+              "fixture-arxiv": 2,
+              "refchain": 2
+            },
+            "source_call_count": 7,
+            "source_error_count": 1,
+            "source_error_rate": 0.14285714285714285,
+            "warning_count": 1,
+            "query_warning_rate": 1.0,
+            "failed_case_count": 0,
+            "failed_case_rate": 0.0
+          },
+          "ranked_paper_ids": [
+            "doi:10.123/baseline",
+            "doi:10.123/evolved",
+            "doi:10.123/refchain"
+          ],
+          "warnings": [
+            "fixture simulated source warning"
+          ],
+          "source_stats": [
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-arxiv",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": "fixture simulated source warning"
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-arxiv",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "fixture-openalex",
+              "returned_count": 1,
+              "latency_seconds": 0.01,
+              "error_message": null
+            },
+            {
+              "source": "refchain",
+              "returned_count": 2,
+              "latency_seconds": 5.825003609061241e-05,
+              "error_message": null
+            }
+          ],
+          "raw_count": 8,
+          "deduplicated_count": 3,
+          "latency_seconds": 0.0026712079998105764,
+          "failed": false,
+          "error_message": null
+        }
+      }
+    }
+  ],
+  "aggregate_metrics": {
+    "baseline": {
+      "recall_at_k": {
+        "5": 0.3333333333333333,
+        "10": 0.3333333333333333,
+        "20": 0.3333333333333333
+      },
+      "precision_at_k": {
+        "5": 0.2,
+        "10": 0.1,
+        "20": 0.05
+      },
+      "ndcg_at_k": {
+        "5": 0.541942129480027,
+        "10": 0.541942129480027,
+        "20": 0.541942129480027
+      },
+      "mrr": 1.0,
+      "raw_count": 3,
+      "deduplicated_count": 1,
+      "ranked_count": 1,
+      "duplicate_count": 2,
+      "duplicate_ratio": 0.6666666666666666,
+      "per_source_returned_count": {
+        "fixture-openalex": 2,
+        "fixture-arxiv": 1
+      },
+      "source_call_count": 3,
+      "source_error_count": 1,
+      "source_error_rate": 0.3333333333333333,
+      "warning_count": 1,
+      "query_warning_rate": 1.0,
+      "failed_case_count": 0,
+      "failed_case_rate": 0.0
+    },
+    "query_evolution": {
+      "recall_at_k": {
+        "5": 0.6666666666666666,
+        "10": 0.6666666666666666,
+        "20": 0.6666666666666666
+      },
+      "precision_at_k": {
+        "5": 0.4,
+        "10": 0.2,
+        "20": 0.1
+      },
+      "ndcg_at_k": {
+        "5": 0.8838695436828513,
+        "10": 0.8838695436828513,
+        "20": 0.8838695436828513
+      },
+      "mrr": 1.0,
+      "raw_count": 6,
+      "deduplicated_count": 2,
+      "ranked_count": 2,
+      "duplicate_count": 4,
+      "duplicate_ratio": 0.6666666666666666,
+      "per_source_returned_count": {
+        "fixture-openalex": 4,
+        "fixture-arxiv": 2
+      },
+      "source_call_count": 6,
+      "source_error_count": 1,
+      "source_error_rate": 0.16666666666666666,
+      "warning_count": 1,
+      "query_warning_rate": 1.0,
+      "failed_case_count": 0,
+      "failed_case_rate": 0.0
+    },
+    "refchain": {
+      "recall_at_k": {
+        "5": 1.0,
+        "10": 1.0,
+        "20": 1.0
+      },
+      "precision_at_k": {
+        "5": 0.6,
+        "10": 0.3,
+        "20": 0.15
+      },
+      "ndcg_at_k": {
+        "5": 1.0,
+        "10": 1.0,
+        "20": 1.0
+      },
+      "mrr": 1.0,
+      "raw_count": 8,
+      "deduplicated_count": 3,
+      "ranked_count": 3,
+      "duplicate_count": 5,
+      "duplicate_ratio": 0.625,
+      "per_source_returned_count": {
+        "fixture-openalex": 4,
+        "fixture-arxiv": 2,
+        "refchain": 2
+      },
+      "source_call_count": 7,
+      "source_error_count": 1,
+      "source_error_rate": 0.14285714285714285,
+      "warning_count": 1,
+      "query_warning_rate": 1.0,
+      "failed_case_count": 0,
+      "failed_case_rate": 0.0
+    }
+  }
+}
