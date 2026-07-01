@@ -47,6 +47,22 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 http://127.0.0.1:8000/docs
 ```
 
+Real Search 的 in-memory run store 会自动清理 terminal runs，避免长时间
+运行时无限增长。可选环境变量：
+
+```bash
+REAL_SEARCH_RUN_TTL_SECONDS=3600
+REAL_SEARCH_MAX_STORED_RUNS=200
+```
+
+- `REAL_SEARCH_RUN_TTL_SECONDS` 默认 `3600` 秒；非法值回退默认值；`<=0`
+  表示关闭 TTL 清理。
+- `REAL_SEARCH_MAX_STORED_RUNS` 默认 `200`；非法值回退默认值；`<=0`
+  表示关闭数量上限清理。
+- 清理只删除 `succeeded` / `failed` / `cancelled`，不会删除 `queued` /
+  `running`。
+- 该清理只作用于 Real Search lifecycle，不影响 Mock Demo API。
+
 ## 启动前端
 
 ```bash

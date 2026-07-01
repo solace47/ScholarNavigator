@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import time
+from datetime import timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -15,7 +16,13 @@ if str(SRC) not in sys.path:
 
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats  # noqa: E402
 from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
+from scholar_agent.app.api import routes  # noqa: E402
 from scholar_agent.app.main import app  # noqa: E402
+from scholar_agent.core.api_schemas import (  # noqa: E402
+    CostReport,
+    RunProgress,
+    SearchRunCreateRequest,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     EvidenceItem,
@@ -461,6 +468,119 @@ def test_existing_mock_api_does_not_call_search_service(monkeypatch) -> None:
     ].startswith("SPAR:")
 
 
+def test_real_run_cleanup_ttl_removes_old_succeeded_run(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "1")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "0")
+        _store_real_run("run_real_old", status="succeeded", age_seconds=10)
+        _store_real_run("run_real_new", status="succeeded", age_seconds=0)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == ["run_real_old"]
+        with routes._REAL_RUNS_LOCK:
+            assert "run_real_old" not in routes._REAL_RUNS
+            assert "run_real_new" in routes._REAL_RUNS
+    finally:
+        _clear_real_runs()
+
+
+def test_real_run_cleanup_ttl_does_not_remove_running_run(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "1")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "0")
+        _store_real_run("run_real_running", status="running", age_seconds=10)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == []
+        with routes._REAL_RUNS_LOCK:
+            assert "run_real_running" in routes._REAL_RUNS
+    finally:
+        _clear_real_runs()
+
+
+def test_real_run_cleanup_max_count_removes_oldest_terminal_runs(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "0")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "2")
+        _store_real_run("run_real_running", status="running", age_seconds=100)
+        _store_real_run("run_real_old_failed", status="failed", age_seconds=90)
+        _store_real_run("run_real_old_cancelled", status="cancelled", age_seconds=80)
+        _store_real_run("run_real_new_succeeded", status="succeeded", age_seconds=1)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == ["run_real_old_failed", "run_real_old_cancelled"]
+        with routes._REAL_RUNS_LOCK:
+            assert set(routes._REAL_RUNS) == {
+                "run_real_running",
+                "run_real_new_succeeded",
+            }
+    finally:
+        _clear_real_runs()
+
+
+def test_real_run_cleanup_max_count_keeps_queued_and_running(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "0")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "1")
+        _store_real_run("run_real_queued", status="queued", age_seconds=100)
+        _store_real_run("run_real_running", status="running", age_seconds=90)
+        _store_real_run("run_real_succeeded", status="succeeded", age_seconds=80)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == ["run_real_succeeded"]
+        with routes._REAL_RUNS_LOCK:
+            assert set(routes._REAL_RUNS) == {
+                "run_real_queued",
+                "run_real_running",
+            }
+    finally:
+        _clear_real_runs()
+
+
+def test_real_run_cleanup_invalid_env_falls_back_to_defaults(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "not-an-int")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "not-an-int")
+        _store_real_run("run_real_expired", status="succeeded", age_seconds=4000)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == ["run_real_expired"]
+        with routes._REAL_RUNS_LOCK:
+            assert routes._REAL_RUNS == {}
+    finally:
+        _clear_real_runs()
+
+
+def test_real_run_cleanup_nonpositive_env_disables_rules(monkeypatch) -> None:
+    _clear_real_runs()
+    try:
+        monkeypatch.setenv("REAL_SEARCH_RUN_TTL_SECONDS", "0")
+        monkeypatch.setenv("REAL_SEARCH_MAX_STORED_RUNS", "-1")
+        _store_real_run("run_real_old_one", status="succeeded", age_seconds=4000)
+        _store_real_run("run_real_old_two", status="failed", age_seconds=3000)
+
+        deleted = routes._cleanup_real_runs(now=routes._now())
+
+        assert deleted == []
+        with routes._REAL_RUNS_LOCK:
+            assert set(routes._REAL_RUNS) == {
+                "run_real_old_one",
+                "run_real_old_two",
+            }
+    finally:
+        _clear_real_runs()
+
+
 def _wait_for_status(run_id: str, expected_status: str) -> dict[str, object]:
     deadline = time.monotonic() + 3
     latest: dict[str, object] | None = None
@@ -571,6 +691,30 @@ def _parse_sse_events(text: str) -> list[dict[str, object]]:
             current_event = None
             current_data = []
     return events
+
+
+def _clear_real_runs() -> None:
+    with routes._REAL_RUNS_LOCK:
+        routes._REAL_RUNS.clear()
+
+
+def _store_real_run(run_id: str, *, status: str, age_seconds: int) -> None:
+    timestamp = routes._now() - timedelta(seconds=age_seconds)
+    with routes._REAL_RUNS_LOCK:
+        routes._REAL_RUNS[run_id] = routes.RealRun(
+            run_id=run_id,
+            request=SearchRunCreateRequest(query=f"fixture query {run_id}"),
+            status=status,
+            current_stage=status,
+            progress=RunProgress(),
+            cost_report=CostReport(),
+            result=None,
+            events=[],
+            error_message=None,
+            cancel_requested=False,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
 
 
 def _paper(title: str, *, doi: str) -> Paper:

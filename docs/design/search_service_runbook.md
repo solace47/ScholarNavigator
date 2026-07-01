@@ -578,6 +578,59 @@ REAL_PREVIEW_MAX_WORKERS=1
 Use a lower value when OpenAlex/arXiv rate limits or transient failures are
 frequent during manual validation.
 
+## Real Search Run Store Cleanup
+
+The Real Search lifecycle endpoints keep run state in an in-memory `_REAL_RUNS`
+store for manual validation and frontend demos:
+
+```text
+POST /api/v1/real/search/runs
+GET /api/v1/real/search/runs/{run_id}
+GET /api/v1/real/search/runs/{run_id}/result
+GET /api/v1/real/search/runs/{run_id}/events
+POST /api/v1/real/search/runs/{run_id}/cancel
+```
+
+To avoid unbounded growth in long-lived backend processes, the store performs a
+lightweight cleanup on Real Search route entry. Cleanup never touches Mock API
+runs and only deletes terminal Real Search runs:
+
+- `succeeded`
+- `failed`
+- `cancelled`
+
+It never deletes `queued` or `running` runs, even if they are old or the store is
+above the configured maximum.
+
+TTL cleanup:
+
+```bash
+REAL_SEARCH_RUN_TTL_SECONDS=3600
+```
+
+- Default is `3600` seconds.
+- Invalid values fall back to `3600`.
+- Values `<= 0` disable TTL cleanup.
+- A terminal run can be deleted when `updated_at` is older than `now - TTL`.
+
+Max-count cleanup:
+
+```bash
+REAL_SEARCH_MAX_STORED_RUNS=200
+```
+
+- Default is `200`.
+- Invalid values fall back to `200`.
+- Values `<= 0` disable max-count cleanup.
+- When the store exceeds the limit, the oldest terminal runs are removed first,
+  ordered by `updated_at`, then `created_at`.
+- If queued/running runs alone exceed the limit, they are preserved and the
+  store may remain above the configured maximum.
+
+GET/result/events/cancel routes protect the current `run_id` during cleanup, so
+the request does not delete the run it is about to read. Unknown run IDs still
+return `404`.
+
 The existing Mock API remains unchanged:
 
 ```text

@@ -54,6 +54,11 @@ DEFAULT_REAL_SEARCH_MAX_WORKERS = 2
 REAL_SEARCH_MAX_WORKERS_ENV = "REAL_SEARCH_MAX_WORKERS"
 DEFAULT_REAL_SEARCH_BACKGROUND_WORKERS = 2
 REAL_SEARCH_BACKGROUND_WORKERS_ENV = "REAL_SEARCH_BACKGROUND_WORKERS"
+DEFAULT_REAL_SEARCH_RUN_TTL_SECONDS = 3600
+REAL_SEARCH_RUN_TTL_SECONDS_ENV = "REAL_SEARCH_RUN_TTL_SECONDS"
+DEFAULT_REAL_SEARCH_MAX_STORED_RUNS = 200
+REAL_SEARCH_MAX_STORED_RUNS_ENV = "REAL_SEARCH_MAX_STORED_RUNS"
+REAL_SEARCH_TERMINAL_STATUSES = {"succeeded", "failed", "cancelled"}
 
 router = APIRouter(prefix="/api/v1", tags=["mock-api"])
 
@@ -183,6 +188,74 @@ def _real_search_background_workers() -> int:
         REAL_SEARCH_BACKGROUND_WORKERS_ENV,
         DEFAULT_REAL_SEARCH_BACKGROUND_WORKERS,
     )
+
+
+def _int_from_env(env_name: str, default: int) -> int:
+    raw_value = os.getenv(env_name)
+    if raw_value is None:
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
+def _real_search_run_ttl_seconds() -> int:
+    return _int_from_env(
+        REAL_SEARCH_RUN_TTL_SECONDS_ENV,
+        DEFAULT_REAL_SEARCH_RUN_TTL_SECONDS,
+    )
+
+
+def _real_search_max_stored_runs() -> int:
+    return _int_from_env(
+        REAL_SEARCH_MAX_STORED_RUNS_ENV,
+        DEFAULT_REAL_SEARCH_MAX_STORED_RUNS,
+    )
+
+
+def _cleanup_real_runs(
+    *,
+    protected_run_id: str | None = None,
+    now: datetime | None = None,
+) -> list[str]:
+    """Remove old terminal real-search runs from the in-memory store."""
+
+    timestamp = now or _now()
+    deleted: list[str] = []
+    ttl_seconds = _real_search_run_ttl_seconds()
+    max_stored_runs = _real_search_max_stored_runs()
+
+    with _REAL_RUNS_LOCK:
+        if ttl_seconds > 0:
+            threshold = timestamp.timestamp() - ttl_seconds
+            expired_run_ids = [
+                run_id
+                for run_id, run in _REAL_RUNS.items()
+                if run_id != protected_run_id
+                and run.status in REAL_SEARCH_TERMINAL_STATUSES
+                and run.updated_at.timestamp() < threshold
+            ]
+            for run_id in expired_run_ids:
+                if _REAL_RUNS.pop(run_id, None) is not None:
+                    deleted.append(run_id)
+
+        if max_stored_runs > 0 and len(_REAL_RUNS) > max_stored_runs:
+            delete_count = len(_REAL_RUNS) - max_stored_runs
+            candidates = sorted(
+                (
+                    run
+                    for run_id, run in _REAL_RUNS.items()
+                    if run_id != protected_run_id
+                    and run.status in REAL_SEARCH_TERMINAL_STATUSES
+                ),
+                key=lambda run: (run.updated_at, run.created_at, run.run_id),
+            )
+            for run in candidates[:delete_count]:
+                if _REAL_RUNS.pop(run.run_id, None) is not None:
+                    deleted.append(run.run_id)
+
+    return deleted
 
 
 def _preview_search_service() -> SearchService:
@@ -343,6 +416,7 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
 
+    _cleanup_real_runs()
     run_id = f"run_real_{uuid4().hex[:12]}"
     timestamp = _now()
     with _REAL_RUNS_LOCK:
@@ -360,6 +434,7 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
             created_at=timestamp,
             updated_at=timestamp,
         )
+    _cleanup_real_runs(protected_run_id=run_id)
     _append_real_event(
         run_id,
         "run_started",
@@ -384,6 +459,7 @@ def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateRe
     tags=["real-search"],
 )
 def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
+    _cleanup_real_runs(protected_run_id=run_id)
     with _REAL_RUNS_LOCK:
         run = _get_real_run(run_id)
         return _real_status_response(run)
@@ -395,6 +471,7 @@ def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
     tags=["real-search"],
 )
 def get_real_search_result(run_id: str) -> SearchRunResultResponse:
+    _cleanup_real_runs(protected_run_id=run_id)
     with _REAL_RUNS_LOCK:
         run = _get_real_run(run_id)
         if run.status in {"queued", "running"}:
@@ -417,6 +494,7 @@ def get_real_search_result(run_id: str) -> SearchRunResultResponse:
     tags=["real-search"],
 )
 def cancel_real_search_run(run_id: str) -> SearchRunStatusResponse:
+    _cleanup_real_runs(protected_run_id=run_id)
     with _REAL_RUNS_LOCK:
         run = _get_real_run(run_id)
         if run.status in {"queued", "running"}:
@@ -440,6 +518,7 @@ def cancel_real_search_run(run_id: str) -> SearchRunStatusResponse:
 
 @router.get("/real/search/runs/{run_id}/events", tags=["real-search"])
 def stream_real_search_events(run_id: str) -> StreamingResponse:
+    _cleanup_real_runs(protected_run_id=run_id)
     _get_real_run(run_id)
 
     async def event_generator():
