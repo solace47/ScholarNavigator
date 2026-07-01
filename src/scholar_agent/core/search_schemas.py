@@ -188,6 +188,45 @@ class QueryEvolutionRecord(BaseModel):
     latency_seconds: float = Field(default=0.0, ge=0.0)
 
 
+class RefChainOptions(BaseModel):
+    max_seed_papers: int = Field(default=3, ge=0, le=20)
+    max_references_per_seed: int = Field(default=15, ge=0, le=100)
+    max_total_references: int = Field(default=50, ge=0, le=500)
+    min_seed_score: float = Field(default=0.45, ge=0.0, le=1.0)
+
+
+class RefChainSeed(BaseModel):
+    paper: Paper
+    rank: int = Field(ge=1)
+    score: float = Field(ge=0.0, le=1.0)
+    reason: str
+
+
+class ReferenceEdge(BaseModel):
+    seed_paper_id: str
+    reference_paper_id: str
+    source: SourceName = "openalex"
+    relation: Literal["references"] = "references"
+
+
+class RefChainRecord(BaseModel):
+    seeds: list[RefChainSeed] = Field(default_factory=list)
+    reference_edges: list[ReferenceEdge] = Field(default_factory=list)
+    raw_reference_count: int = Field(default=0, ge=0)
+    returned_reference_count: int = Field(default=0, ge=0)
+    skipped_reasons: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+
+
+class RefChainOutput(BaseModel):
+    references: list[Paper] = Field(default_factory=list)
+    reference_edges: list[ReferenceEdge] = Field(default_factory=list)
+    record: RefChainRecord
+    warnings: list[str] = Field(default_factory=list)
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+
+
 def _normalize_sources(value: object) -> list[str]:
     if value is None:
         return list(SUPPORTED_SEARCH_SOURCES)
