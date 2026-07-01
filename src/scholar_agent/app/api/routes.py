@@ -48,6 +48,8 @@ from ...services.search_service import SearchService
 API_VERSION = "0.1.0"
 DEFAULT_REAL_PREVIEW_MAX_WORKERS = 2
 REAL_PREVIEW_MAX_WORKERS_ENV = "REAL_PREVIEW_MAX_WORKERS"
+DEFAULT_REAL_SEARCH_MAX_WORKERS = 2
+REAL_SEARCH_MAX_WORKERS_ENV = "REAL_SEARCH_MAX_WORKERS"
 
 router = APIRouter(prefix="/api/v1", tags=["mock-api"])
 
@@ -56,6 +58,16 @@ router = APIRouter(prefix="/api/v1", tags=["mock-api"])
 class MockRun:
     run_id: str
     request: SearchRunCreateRequest
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class RealRun:
+    run_id: str
+    request: SearchRunCreateRequest
+    result: SearchRunResultResponse
+    events: list[tuple[str, dict[str, Any]]]
     created_at: datetime
     updated_at: datetime
 
@@ -84,6 +96,7 @@ class InternalSearchPreviewResponse(BaseModel):
 
 
 _RUNS: dict[str, MockRun] = {}
+_REAL_RUNS: dict[str, RealRun] = {}
 
 
 def _now() -> datetime:
@@ -98,6 +111,14 @@ def _links(run_id: str) -> dict[str, str]:
     }
 
 
+def _real_links(run_id: str) -> dict[str, str]:
+    return {
+        "self": f"/api/v1/real/search/runs/{run_id}",
+        "events": f"/api/v1/real/search/runs/{run_id}/events",
+        "result": f"/api/v1/real/search/runs/{run_id}/result",
+    }
+
+
 def _get_run(run_id: str) -> MockRun:
     try:
         return _RUNS[run_id]
@@ -105,22 +126,47 @@ def _get_run(run_id: str) -> MockRun:
         raise HTTPException(status_code=404, detail=f"Unknown run_id: {run_id}") from exc
 
 
+def _get_real_run(run_id: str) -> RealRun:
+    try:
+        return _REAL_RUNS[run_id]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown real run_id: {run_id}") from exc
+
+
 def _model_dump(model: BaseModel) -> dict[str, Any]:
     return model.model_dump(mode="json")
 
 
-def _real_preview_max_workers() -> int:
-    raw_value = os.getenv(REAL_PREVIEW_MAX_WORKERS_ENV)
+def _max_workers_from_env(env_name: str, default: int) -> int:
+    raw_value = os.getenv(env_name)
     if raw_value is None:
-        return DEFAULT_REAL_PREVIEW_MAX_WORKERS
+        return default
     try:
         return max(1, int(raw_value))
     except ValueError:
-        return DEFAULT_REAL_PREVIEW_MAX_WORKERS
+        return default
+
+
+def _real_preview_max_workers() -> int:
+    return _max_workers_from_env(
+        REAL_PREVIEW_MAX_WORKERS_ENV,
+        DEFAULT_REAL_PREVIEW_MAX_WORKERS,
+    )
+
+
+def _real_search_max_workers() -> int:
+    return _max_workers_from_env(
+        REAL_SEARCH_MAX_WORKERS_ENV,
+        DEFAULT_REAL_SEARCH_MAX_WORKERS,
+    )
 
 
 def _preview_search_service() -> SearchService:
     return SearchService(max_workers=_real_preview_max_workers())
+
+
+def _real_search_service() -> SearchService:
+    return SearchService(max_workers=_real_search_max_workers())
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -237,6 +283,119 @@ def stream_search_events(run_id: str) -> StreamingResponse:
 
     async def event_generator():
         for event_name, payload in _mock_sse_events(run):
+            yield f"event: {event_name}\n"
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.01)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post(
+    "/real/search/runs",
+    response_model=SearchRunCreateResponse,
+    status_code=201,
+    tags=["real-search"],
+)
+def create_real_search_run(request: SearchRunCreateRequest) -> SearchRunCreateResponse:
+    run_id = f"run_real_{uuid4().hex[:12]}"
+    timestamp = _now()
+    current_year = (
+        request.constraints.time_range.end_year
+        if request.constraints.time_range is not None
+        else None
+    )
+    try:
+        output = _real_search_service().run_search(
+            request.query,
+            top_k=request.top_k,
+            run_profile=request.run_profile,
+            enable_refchain=request.options.enable_refchain,
+            enable_query_evolution=request.options.enable_query_evolution,
+            enable_synthesis=True,
+            current_year=current_year,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - expose controlled API failure
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    result = map_search_service_output_to_api_result(
+        run_id=run_id,
+        output=output,
+        status="succeeded",
+        partial=False,
+    )
+    _REAL_RUNS[run_id] = RealRun(
+        run_id=run_id,
+        request=request,
+        result=result,
+        events=_real_sse_events(request, result, timestamp),
+        created_at=timestamp,
+        updated_at=_now(),
+    )
+    return SearchRunCreateResponse(
+        run_id=run_id,
+        status="succeeded",
+        created_at=timestamp,
+        links=_real_links(run_id),
+    )
+
+
+@router.get(
+    "/real/search/runs/{run_id}",
+    response_model=SearchRunStatusResponse,
+    tags=["real-search"],
+)
+def get_real_search_run(run_id: str) -> SearchRunStatusResponse:
+    run = _get_real_run(run_id)
+    result = run.result
+    return SearchRunStatusResponse(
+        run_id=run.run_id,
+        status="succeeded",
+        current_stage="synthesis",
+        progress=RunProgress(
+            completed_stages=[
+                "query_understanding",
+                "retrieval",
+                "judgement",
+                "reranking",
+                "synthesis",
+            ],
+            candidate_paper_count=(
+                len(result.highly_relevant_papers)
+                + len(result.partially_relevant_papers)
+            ),
+            judged_paper_count=result.cost_report.judged_paper_count,
+        ),
+        cost_report=result.cost_report,
+        created_at=run.created_at,
+        updated_at=run.updated_at,
+    )
+
+
+@router.get(
+    "/real/search/runs/{run_id}/result",
+    response_model=SearchRunResultResponse,
+    tags=["real-search"],
+)
+def get_real_search_result(run_id: str) -> SearchRunResultResponse:
+    return _get_real_run(run_id).result
+
+
+@router.get("/real/search/runs/{run_id}/events", tags=["real-search"])
+def stream_real_search_events(run_id: str) -> StreamingResponse:
+    run = _get_real_run(run_id)
+
+    async def event_generator():
+        for event_name, payload in run.events:
             yield f"event: {event_name}\n"
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             await asyncio.sleep(0.01)
@@ -739,6 +898,126 @@ def _mock_sse_events(run: MockRun) -> list[tuple[str, dict[str, Any]]]:
                 "status": "succeeded",
                 "timestamp": timestamp,
                 "cost_report": _model_dump(_mock_cost_report()),
+            },
+        ),
+    ]
+
+
+def _real_sse_events(
+    request: SearchRunCreateRequest,
+    result: SearchRunResultResponse,
+    timestamp: datetime,
+) -> list[tuple[str, dict[str, Any]]]:
+    timestamp_text = timestamp.isoformat()
+    run_id = result.run_id
+    candidate_count = len(result.highly_relevant_papers) + len(
+        result.partially_relevant_papers
+    )
+    return [
+        (
+            "run_started",
+            {
+                "run_id": run_id,
+                "timestamp": timestamp_text,
+                "query": request.query,
+                "mode": "real_search",
+            },
+        ),
+        (
+            "stage_started",
+            {
+                "run_id": run_id,
+                "stage": "query_understanding",
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_completed",
+            {
+                "run_id": run_id,
+                "stage": "query_understanding",
+                "expanded_query_count": len(result.search_plan.expanded_queries),
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_started",
+            {
+                "run_id": run_id,
+                "stage": "retrieval",
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_completed",
+            {
+                "run_id": run_id,
+                "stage": "retrieval",
+                "candidate_paper_count": candidate_count,
+                "search_api_call_count": result.cost_report.search_api_call_count,
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_started",
+            {
+                "run_id": run_id,
+                "stage": "judgement",
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_completed",
+            {
+                "run_id": run_id,
+                "stage": "judgement",
+                "judged_paper_count": result.cost_report.judged_paper_count,
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_started",
+            {
+                "run_id": run_id,
+                "stage": "reranking",
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_completed",
+            {
+                "run_id": run_id,
+                "stage": "reranking",
+                "top_k": request.top_k,
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_started",
+            {
+                "run_id": run_id,
+                "stage": "synthesis",
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "stage_completed",
+            {
+                "run_id": run_id,
+                "stage": "synthesis",
+                "synthesis_status": result.synthesis.status
+                if result.synthesis is not None
+                else None,
+                "timestamp": timestamp_text,
+            },
+        ),
+        (
+            "run_completed",
+            {
+                "run_id": run_id,
+                "status": "succeeded",
+                "timestamp": timestamp_text,
+                "cost_report": _model_dump(result.cost_report),
             },
         ),
     ]
