@@ -51,6 +51,7 @@ export interface RuntimeConfigResponse {
     retrieval_cache?: boolean;
     batch_cli?: boolean;
     llm_query_understanding?: boolean;
+    llm_judgement?: boolean;
   };
 }
 
@@ -82,6 +83,7 @@ export interface SearchRunCreateRequest {
     enable_query_evolution?: boolean;
     enable_refchain?: boolean;
     enable_llm_query_understanding?: boolean | null;
+    enable_llm_judgement?: boolean | null;
     refchain_depth?: number;
     return_markdown?: boolean;
     return_json?: boolean;
@@ -96,6 +98,7 @@ export interface InternalSearchPreviewRequest {
   enable_refchain?: boolean;
   enable_query_evolution?: boolean;
   enable_llm_query_understanding?: boolean | null;
+  enable_llm_judgement?: boolean | null;
   current_year?: number | null;
 }
 

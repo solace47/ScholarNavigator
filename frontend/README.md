@@ -92,25 +92,40 @@ The backend reports a Real Search runtime. Product-facing example-search endpoin
 and example UI mode are removed; searches use the Real Search lifecycle with
 OpenAlex and arXiv connectors.
 
-The backend can optionally enable OpenAI-compatible LLM Query Understanding by
-environment variables. The frontend never reads, stores, or displays the LLM API
-key. If the backend LLM provider is disabled or unavailable, the backend uses its
-deterministic rule-based Query Understanding path and surfaces an explicit
-diagnostic such as `llm_query_understanding_disabled` or
-`llm_query_understanding_failed:<reason>`.
+The backend can optionally enable OpenAI-compatible LLM Query Understanding and
+LLM Judgement by environment variables. The frontend never reads, stores, or
+displays the LLM API key. If the backend LLM provider is disabled or unavailable,
+the backend uses deterministic rule-based paths and surfaces explicit
+diagnostics such as `llm_query_understanding_disabled`,
+`llm_query_understanding_failed:<reason>`, `llm_judgement_disabled`, or
+`llm_judgement_failed:<reason>`.
 
-Backend-only LLM environment variables:
+Backend-only LLM environment variables can be placed in the repository-root
+`.env` file. Copy the template first:
 
 ```bash
-SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
-SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
-SCHOLAR_AGENT_LLM_API_KEY=...
-SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
-SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+cp .env.example .env
 ```
 
-This LLM integration is currently limited to Query Understanding. Judgement,
-Reranking, and Synthesis remain rule-based.
+Then edit `.env`:
+
+```dotenv
+SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
+SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
+SCHOLAR_AGENT_LLM_API_KEY=your_api_key
+SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
+SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT=1
+SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
+```
+
+The FastAPI backend automatically loads `.env` on startup. The frontend `.env`
+is not used for LLM secrets.
+
+This LLM integration is currently limited to Query Understanding and relevance
+Judgement. LLM Judgement only evaluates provided candidate-paper metadata; it
+does not read full-text PDFs, generate new papers, or introduce papers outside
+the candidate list. Reranking and Synthesis remain rule-based.
 
 OpenAlex and arXiv are implemented for Real Search, but live calls can still be
 affected by external service failures such as OpenAlex `503`, arXiv `429`, or
