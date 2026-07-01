@@ -141,16 +141,16 @@ The workbench has one product search path:
 
 `Real Search` may access real OpenAlex, arXiv, and Semantic Scholar through the backend. It still does not read, store, or display API keys in the frontend.
 
-The Search Workbench includes a `source_preferences` selector with `arXiv`,
-`Semantic Scholar`, `OpenAlex`, and `All`. It defaults to `arXiv` because arXiv
-is usually more stable and faster for demos; Semantic Scholar can improve recall
-but may be rate-limited without an API key, and OpenAlex can broaden coverage but
-may return `503`.
+The Search Workbench includes a `source_preferences` selector with `Recommended`,
+`arXiv`, `Semantic Scholar`, `OpenAlex`, and `All`. It defaults to `Recommended`,
+which maps to `["arxiv", "semantic_scholar"]` and balances stability with
+coverage. `All` maps to `["openalex", "arxiv", "semantic_scholar"]` for maximum
+coverage, but OpenAlex may be less stable and can return `503`.
 The recommended default is optimized for stability and low latency:
-`top_k=5`, `run_profile=fast`, `source_preferences=["arxiv"]`,
+`top_k=5`, `run_profile=fast`, `source_preferences=["arxiv", "semantic_scholar"]`,
 `enable_query_evolution=false`, `enable_refchain=false`, LLM Query
 Understanding disabled, and LLM Judgement disabled. For higher recall, manually
-enable Query Evolution, RefChain, `Semantic Scholar`, or `All` sources. The
+enable Query Evolution, RefChain, or `All` sources. The
 `enable_llm_query_understanding` toggle can improve query parsing when the
 backend LLM provider is configured, but it adds latency. The
 `enable_llm_judgement` toggle can improve metadata relevance judgement, but it

@@ -91,7 +91,7 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
   evaluation: "evaluation",
 };
 
-type SourceMode = "arxiv" | "semantic_scholar" | "openalex" | "all";
+type SourceMode = "recommended" | "arxiv" | "semantic_scholar" | "openalex" | "all";
 type ThemeMode = "dark" | "light";
 type StageLatencyItem = {
   stage: string;
@@ -109,6 +109,7 @@ type RunConfigSnapshot = {
 };
 
 const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
+  recommended: "Recommended",
   arxiv: "arXiv",
   semantic_scholar: "Semantic Scholar",
   openalex: "OpenAlex",
@@ -116,10 +117,11 @@ const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
 };
 
 const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
+  recommended: "arXiv + Semantic Scholar，兼顾稳定性和覆盖",
   arxiv: "更稳定更快",
   semantic_scholar: "提升召回，可能限流",
   openalex: "覆盖更广，可能 503",
-  all: "三源并行，高召回",
+  all: "覆盖最大，但 OpenAlex 可能不稳定",
 };
 
 const STAGE_LATENCY_LABELS: Record<string, string> = {
@@ -148,7 +150,7 @@ export function ScholarNavigatorApp() {
   const [topK, setTopK] = useState(5);
   const [currentYear, setCurrentYear] = useState(2026);
   const [runProfile, setRunProfile] = useState<RunProfile>("fast");
-  const [sourceMode, setSourceMode] = useState<SourceMode>("arxiv");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("recommended");
   const [enableRefchain, setEnableRefchain] = useState(false);
   const [enableQueryEvolution, setEnableQueryEvolution] = useState(false);
   const [enableLlmQueryUnderstanding, setEnableLlmQueryUnderstanding] = useState(false);
@@ -474,6 +476,9 @@ function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"]
 }
 
 function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
+  if (sourceMode === "recommended") {
+    return ["arxiv", "semantic_scholar"];
+  }
   if (sourceMode === "arxiv") {
     return ["arxiv"];
   }
@@ -691,7 +696,7 @@ function SearchWorkbench({
           <div
             role="radiogroup"
             aria-label="Real Search source preference"
-            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
+            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5"
           >
             {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
               const selected = sourceMode === mode;
@@ -721,7 +726,7 @@ function SearchWorkbench({
         </div>
 
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-          默认配置优先稳定和低延迟：arXiv、fast、top_k=5、关闭 Query Evolution / RefChain、
+          默认配置优先稳定和覆盖平衡：Recommended sources、fast、top_k=5、关闭 Query Evolution / RefChain、
           关闭 LLM Query Understanding / LLM Judgement。需要高召回时，可手动开启 Query Evolution、
           RefChain 或 All sources。
         </div>
