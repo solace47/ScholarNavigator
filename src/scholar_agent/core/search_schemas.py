@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from scholar_agent.core.paper_schemas import Paper
 
 
-SourceName = Literal["openalex", "arxiv"]
+SourceName = Literal["openalex", "arxiv", "semantic_scholar"]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryLanguage = Literal["zh", "en", "mixed", "unknown"]
 QueryIntent = Literal[
@@ -36,7 +36,7 @@ JudgementCategory = Literal[
     "insufficient_evidence",
 ]
 
-SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = ("openalex", "arxiv")
+SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = ("openalex", "arxiv", "semantic_scholar")
 
 
 class TimeRange(BaseModel):

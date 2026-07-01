@@ -10,8 +10,8 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 
 - Real Search lifecycle：`create/status/result/events/cancel` 独立真实检索路径。
 - Real Search SSE：展示 `connector_completed`、`warning`、`cost_updated` 等事件。
-- OpenAlex / arXiv connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
-- Source selector：前端可选择 `arXiv`、`OpenAlex` 或 `Both`，默认 `arXiv` 以降低演示延迟和 OpenAlex 503 风险。
+- OpenAlex / arXiv / Semantic Scholar connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
+- Source selector：前端可选择 `arXiv`、`Semantic Scholar`、`OpenAlex` 或 `All`，默认 `arXiv` 以降低演示延迟和外部 API 限流风险。
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
 - Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。
@@ -57,7 +57,7 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 - `mode=real_search`
 - 默认 `llm.available=false`；配置真实 provider 后可为 `true`
-- OpenAlex / arXiv connector 可用于 Real Search
+- OpenAlex / arXiv / Semantic Scholar connector 可用于 Real Search
 - `real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` feature 可见
 - `llm_query_understanding=true` / `llm_judgement=true` 仅在 provider 可用且启用对应开关时出现
 
@@ -87,6 +87,7 @@ SCHOLAR_AGENT_LLM_NVIDIA_THINKING=false
 SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
 SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS=8
 SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS=25
+SEMANTIC_SCHOLAR_API_KEY=
 ```
 
 如果使用 NVIDIA hosted DeepSeek，建议先用低延迟配置做 smoke test：
@@ -121,7 +122,7 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 - `SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS` 控制最多让前 N 篇候选进入 LLM Judgement，默认 8；N 之后的论文继续使用规则版 Judgement，并记录 `llm_judgement_skipped_by_limit:{index}`，用于降低延迟和成本。
 - `SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS` 是 LLM Judgement 的独立调用超时，默认 25 秒。
 - LLM Judgement 禁用、配置缺失、批次失败或返回非法 JSON 时，只回退对应批次或论文的规则版 Judgement，并记录 `llm_judgement_disabled`、`llm_judgement_failed:<reason>`、`llm_judgement_invalid_category` 等诊断。
-- 这不是示例数据 fallback；检索仍走真实 OpenAlex / arXiv。
+- 这不是示例数据 fallback；检索仍走真实 OpenAlex / arXiv / Semantic Scholar。
 - `cost_report.llm_call_count` 已统计 Query Understanding / Judgement 的 LLM 调用次数；精确 token usage 仍待接入。
 
 启动前端：
@@ -176,7 +177,7 @@ cd frontend && npm run build
 src/scholar_agent/        后端核心包
 src/scholar_agent/app/    FastAPI 应用和 API 路由
 src/scholar_agent/agents/ QueryUnderstanding/Judgement/Reranker 等规则版 agents
-src/scholar_agent/connectors/ OpenAlex 和 arXiv connectors
+src/scholar_agent/connectors/ OpenAlex、arXiv 和 Semantic Scholar connectors
 src/scholar_agent/services/ SearchService、API mapper
 src/scholar_agent/evaluation/ 离线评测 metrics/evaluator/fixtures
 frontend/                Next.js + TypeScript + Tailwind 前端
@@ -221,7 +222,7 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
   --include-partial
 ```
 
-说明：批量搜索默认可能真实访问 OpenAlex / arXiv；汇总和评测脚本只读取本地文件。
+说明：批量搜索默认可能真实访问 OpenAlex / arXiv / Semantic Scholar；汇总和评测脚本只读取本地文件。
 
 ## 边界与非目标
 
@@ -229,9 +230,9 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 - 当前 LLM 仅可选用于 Query Understanding 和 Judgement；Reranking、Synthesis 仍为规则版。
 - 当前不读取全文 PDF，Synthesis 只基于 metadata 和 evidence rows。
 - 当前未接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 和 CLI 评测链路。
-- OpenAlex / arXiv 是真实外部依赖，可能出现 503、429 或 timeout；系统会降级并展示诊断。
+- OpenAlex / arXiv / Semantic Scholar 是真实外部依赖，可能出现 503、429 或 timeout；系统会降级并展示诊断。
 - Real Search 当前使用 in-memory run store，不是生产级持久化任务队列。
-- Semantic Scholar 和 PubMed connector 尚未实现。
+- Semantic Scholar connector 已实现，API key 可选；PubMed connector 尚未实现。
 - 前端不读取、不保存、不展示任何 API Key。
 
 ## 提交前检查

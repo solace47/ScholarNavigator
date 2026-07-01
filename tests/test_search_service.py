@@ -139,15 +139,14 @@ def test_run_search_respects_sources_override_and_filters_unimplemented_sources(
         sources_override=["arxiv", "semantic_scholar", "pubmed", "openalex", "arxiv"],
     )
 
-    assert output.search_plan.selected_sources == ["arxiv", "openalex"]
+    assert output.search_plan.selected_sources == ["arxiv", "semantic_scholar", "openalex"]
     assert output.search_plan.subqueries
     assert all(
-        subquery.source_hints == ["arxiv", "openalex"]
+        subquery.source_hints == ["arxiv", "semantic_scholar", "openalex"]
         for subquery in output.search_plan.subqueries
     )
     assert calls
-    assert all(call == ["arxiv", "openalex"] for call in calls)
-    assert "source_preference_not_implemented:semantic_scholar" in output.warnings
+    assert all(call == ["arxiv", "semantic_scholar", "openalex"] for call in calls)
     assert "source_preference_not_implemented:pubmed" in output.warnings
 
 

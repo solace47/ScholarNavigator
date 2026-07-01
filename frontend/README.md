@@ -90,7 +90,7 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 The backend reports a Real Search runtime. Product-facing example-search endpoints
 and example UI mode are removed; searches use the Real Search lifecycle with
-OpenAlex and arXiv connectors.
+OpenAlex, arXiv, and Semantic Scholar connectors.
 
 The backend can optionally enable OpenAI-compatible LLM Query Understanding and
 LLM Judgement by environment variables. The frontend never reads, stores, or
@@ -117,6 +117,7 @@ SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
 SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
 SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT=1
 SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
+SEMANTIC_SCHOLAR_API_KEY=
 ```
 
 The FastAPI backend automatically loads `.env` on startup. The frontend `.env`
@@ -127,9 +128,9 @@ Judgement. LLM Judgement only evaluates provided candidate-paper metadata; it
 does not read full-text PDFs, generate new papers, or introduce papers outside
 the candidate list. Reranking and Synthesis remain rule-based.
 
-OpenAlex and arXiv are implemented for Real Search, but live calls can still be
-affected by external service failures such as OpenAlex `503`, arXiv `429`, or
-timeouts. Those diagnostics are surfaced through Real Search events,
+OpenAlex, arXiv, and Semantic Scholar are implemented for Real Search, but live
+calls can still be affected by external service failures such as OpenAlex `503`,
+arXiv `429`, Semantic Scholar `429`, or timeouts. Those diagnostics are surfaced through Real Search events,
 `missing_evidence`, and cost/source statistics when reported by the backend.
 
 ## Real Search Workflow
@@ -138,16 +139,18 @@ The workbench has one product search path:
 
 - `Real Search`: uses the asynchronous real run lifecycle under `/api/v1/real/search/runs`, including real run creation, queued/running/succeeded/failed status polling, result fetch after completion, and real search SSE events.
 
-`Real Search` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
+`Real Search` may access real OpenAlex, arXiv, and Semantic Scholar through the backend. It still does not read, store, or display API keys in the frontend.
 
 The Search Workbench includes a `source_preferences` selector with `arXiv`,
-`OpenAlex`, and `Both`. It defaults to `arXiv` because arXiv is usually more
-stable and faster for demos; OpenAlex can broaden coverage but may return `503`.
+`Semantic Scholar`, `OpenAlex`, and `All`. It defaults to `arXiv` because arXiv
+is usually more stable and faster for demos; Semantic Scholar can improve recall
+but may be rate-limited without an API key, and OpenAlex can broaden coverage but
+may return `503`.
 The recommended default is optimized for stability and low latency:
 `top_k=5`, `run_profile=fast`, `source_preferences=["arxiv"]`,
 `enable_query_evolution=false`, `enable_refchain=false`, LLM Query
 Understanding disabled, and LLM Judgement disabled. For higher recall, manually
-enable Query Evolution, RefChain, or `Both` sources. The
+enable Query Evolution, RefChain, `Semantic Scholar`, or `All` sources. The
 `enable_llm_query_understanding` toggle can improve query parsing when the
 backend LLM provider is configured, but it adds latency. The
 `enable_llm_judgement` toggle can improve metadata relevance judgement, but it

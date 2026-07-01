@@ -551,9 +551,12 @@ def _normalize_sources_override(raw_sources: list[str]) -> tuple[list[str], list
         seen.add(normalized)
         if normalized in SUPPORTED_SEARCH_SOURCES:
             selected_sources.append(normalized)
-        elif normalized in {"semantic_scholar", "semanticscholar", "pubmed"}:
-            canonical = "semantic_scholar" if "semantic" in normalized else "pubmed"
-            warnings.append(f"source_preference_not_implemented:{canonical}")
+        elif normalized in {"semanticscholar"}:
+            if "semantic_scholar" not in seen:
+                selected_sources.append("semantic_scholar")
+                seen.add("semantic_scholar")
+        elif normalized == "pubmed":
+            warnings.append("source_preference_not_implemented:pubmed")
         else:
             warnings.append(f"source_preference_unsupported:{normalized}")
     if not selected_sources:

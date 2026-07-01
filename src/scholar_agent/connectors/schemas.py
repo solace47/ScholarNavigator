@@ -11,4 +11,4 @@ class ConnectorSearchResult(BaseModel):
     papers: list[Paper] = Field(default_factory=list)
     error_message: str | None = None
     warnings: list[str] = Field(default_factory=list)
-
+    latency_seconds: float = 0.0

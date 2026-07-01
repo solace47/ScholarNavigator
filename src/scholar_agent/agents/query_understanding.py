@@ -521,8 +521,6 @@ def _select_sources(query: str, domain: ResearchDomain) -> tuple[list[str], list
     lowered = query.casefold()
     if domain == "biomedical" or "pubmed" in lowered:
         warnings.append("pubmed_not_implemented")
-    if "semantic scholar" in lowered or "semanticscholar" in lowered:
-        warnings.append("semantic_scholar_not_implemented")
     return ["openalex", "arxiv"], _dedupe(warnings)
 
 
@@ -680,8 +678,8 @@ def _build_llm_messages(query: str) -> list[dict[str, str]]:
                 "You are ScholarNavigator's query understanding planner. "
                 "Return only one JSON object. Do not include API keys, secrets, "
                 "or unsupported sources. Allowed selected_sources/source_hints are "
-                "openalex and arxiv only. Do not fabricate citations or retrieval "
-                "results; only analyze the user query."
+                "openalex, arxiv, and semantic_scholar only. Do not fabricate "
+                "citations or retrieval results; only analyze the user query."
             ),
         },
         {
@@ -964,14 +962,15 @@ def _filter_llm_sources(
     seen: set[str] = set()
     for source in candidates:
         key = str(source).strip().lower().replace("-", "_").replace(" ", "_")
+        if key == "semanticscholar":
+            key = "semantic_scholar"
         if not key or key in seen:
             continue
         seen.add(key)
-        if key in {"openalex", "arxiv"}:
+        if key in {"openalex", "arxiv", "semantic_scholar"}:
             allowed.append(key)
-        elif key in {"semantic_scholar", "semanticscholar", "pubmed"}:
-            canonical = "semantic_scholar" if "semantic" in key else "pubmed"
-            warnings.append(f"{warning_prefix}_not_implemented:{canonical}")
+        elif key == "pubmed":
+            warnings.append(f"{warning_prefix}_not_implemented:pubmed")
         else:
             warnings.append(f"{warning_prefix}_unsupported:{key}")
 

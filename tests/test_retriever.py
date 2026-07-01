@@ -70,7 +70,11 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
     monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
     monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
-    output = retrieve_papers("llm reranking", limit_per_source=5)
+    output = retrieve_papers(
+        "llm reranking",
+        limit_per_source=5,
+        sources=["openalex", "arxiv"],
+    )
 
     assert output.query == "llm reranking"
     assert output.requested_sources == ["openalex", "arxiv"]
@@ -103,7 +107,7 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
     monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", failing_openalex)
     monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
-    output = retrieve_papers("llm reranking")
+    output = retrieve_papers("llm reranking", sources=["openalex", "arxiv"])
 
     assert output.raw_count == 1
     assert output.deduplicated_count == 1
@@ -122,6 +126,44 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
     assert output.warnings == [
         "OpenAlex search failed: HTTP Error 503: Service Unavailable"
     ]
+
+
+def test_retrieve_papers_supports_semantic_scholar_source(monkeypatch) -> None:
+    def fake_semantic_scholar(query: str, limit: int) -> ConnectorSearchResult:
+        assert query == "llm reranking"
+        assert limit == 7
+        return ConnectorSearchResult(
+            papers=[
+                Paper(
+                    title="Semantic Scholar Result",
+                    authors=["S2 Author"],
+                    year=2025,
+                    abstract="Semantic Scholar paper.",
+                    identifiers=PaperIdentifiers(semantic_scholar_id="S2-1"),
+                    sources=["semantic_scholar"],
+                    citation_count=3,
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        fake_semantic_scholar,
+    )
+
+    output = retrieve_papers(
+        "llm reranking",
+        limit_per_source=7,
+        sources=["semantic_scholar"],
+    )
+
+    assert output.requested_sources == ["semantic_scholar"]
+    assert output.raw_count == 1
+    assert output.deduplicated_count == 1
+    assert output.papers[0].identifiers.semantic_scholar_id == "S2-1"
+    assert output.source_stats[0].source == "semantic_scholar"
+    assert output.source_stats[0].returned_count == 1
+    assert output.warnings == []
 
 
 def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:

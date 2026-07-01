@@ -318,7 +318,7 @@ def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
     )
 
 
-def test_llm_unsupported_sources_are_filtered_and_warned() -> None:
+def test_llm_semantic_scholar_source_is_allowed_and_pubmed_is_filtered() -> None:
     client = FakeLLMClient(
         {
             "language": "en",
@@ -342,13 +342,15 @@ def test_llm_unsupported_sources_are_filtered_and_warned() -> None:
         llm_client=client,
     )
 
-    assert plan.selected_sources == ["openalex"]
-    assert plan.subqueries[0].source_hints == ["arxiv"]
-    assert "semantic_scholar" not in plan.selected_sources
+    assert plan.selected_sources == ["semantic_scholar", "openalex"]
+    assert plan.subqueries[0].source_hints == ["semantic_scholar", "arxiv"]
+    assert "semantic_scholar" in plan.selected_sources
     assert "pubmed" not in plan.selected_sources
-    assert "llm_selected_source_not_implemented:semantic_scholar" in plan.warnings
     assert "llm_selected_source_not_implemented:pubmed" in plan.warnings
-    assert "llm_subquery_source_not_implemented:semantic_scholar" in plan.warnings
+    assert not any(
+        warning == "llm_subquery_source_not_implemented:semantic_scholar"
+        for warning in plan.warnings
+    )
 
 
 class FakeLLMClient:

@@ -91,7 +91,7 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
   evaluation: "evaluation",
 };
 
-type SourceMode = "arxiv" | "openalex" | "both";
+type SourceMode = "arxiv" | "semantic_scholar" | "openalex" | "all";
 type ThemeMode = "dark" | "light";
 type StageLatencyItem = {
   stage: string;
@@ -110,14 +110,16 @@ type RunConfigSnapshot = {
 
 const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
   arxiv: "arXiv",
+  semantic_scholar: "Semantic Scholar",
   openalex: "OpenAlex",
-  both: "Both",
+  all: "All",
 };
 
 const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   arxiv: "更稳定更快",
+  semantic_scholar: "提升召回，可能限流",
   openalex: "覆盖更广，可能 503",
-  both: "同时检索两源",
+  all: "三源并行，高召回",
 };
 
 const STAGE_LATENCY_LABELS: Record<string, string> = {
@@ -475,10 +477,13 @@ function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
   if (sourceMode === "arxiv") {
     return ["arxiv"];
   }
+  if (sourceMode === "semantic_scholar") {
+    return ["semantic_scholar"];
+  }
   if (sourceMode === "openalex") {
     return ["openalex"];
   }
-  return ["openalex", "arxiv"];
+  return ["openalex", "arxiv", "semantic_scholar"];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -679,12 +684,14 @@ function SearchWorkbench({
         <div>
           <div className="mb-2 flex items-end justify-between gap-3">
             <p className="text-sm font-semibold text-[var(--muted-strong)]">source_preferences</p>
-            <p className="text-xs text-[var(--muted)]">arXiv 更稳定更快；OpenAlex 可能 503</p>
+            <p className="text-xs text-[var(--muted)]">
+              arXiv 更稳定更快；Semantic Scholar 提升召回；OpenAlex 可能 503
+            </p>
           </div>
           <div
             role="radiogroup"
             aria-label="Real Search source preference"
-            className="grid gap-2 sm:grid-cols-3"
+            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
           >
             {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
               const selected = sourceMode === mode;
@@ -716,7 +723,7 @@ function SearchWorkbench({
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
           默认配置优先稳定和低延迟：arXiv、fast、top_k=5、关闭 Query Evolution / RefChain、
           关闭 LLM Query Understanding / LLM Judgement。需要高召回时，可手动开启 Query Evolution、
-          RefChain 或 Both sources。
+          RefChain 或 All sources。
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

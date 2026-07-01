@@ -14,12 +14,13 @@ from scholar_agent.connectors import (
     ConnectorSearchResult,
     search_arxiv_detailed,
     search_openalex_detailed,
+    search_semantic_scholar_detailed,
 )
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 
 
-SUPPORTED_SOURCES = ("openalex", "arxiv")
+SUPPORTED_SOURCES = ("openalex", "arxiv", "semantic_scholar")
 DEFAULT_CACHE_TTL_SECONDS = 15 * 60
 DEFAULT_CACHE_MAX_ENTRIES = 256
 CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
@@ -160,6 +161,7 @@ def _source_registry() -> dict[str, Callable[[str, int], ConnectorSearchResult]]
     return {
         "openalex": search_openalex_detailed,
         "arxiv": search_arxiv_detailed,
+        "semantic_scholar": search_semantic_scholar_detailed,
     }
 
 

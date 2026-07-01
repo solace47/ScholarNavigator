@@ -53,6 +53,7 @@ DEFAULT_REAL_SEARCH_RUN_TTL_SECONDS = 3600
 REAL_SEARCH_RUN_TTL_SECONDS_ENV = "REAL_SEARCH_RUN_TTL_SECONDS"
 DEFAULT_REAL_SEARCH_MAX_STORED_RUNS = 200
 REAL_SEARCH_MAX_STORED_RUNS_ENV = "REAL_SEARCH_MAX_STORED_RUNS"
+SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
 REAL_SEARCH_TERMINAL_STATUSES = {"succeeded", "failed", "cancelled"}
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
@@ -290,9 +291,9 @@ def runtime_config() -> RuntimeConfigResponse:
             ),
             ConnectorRuntimeConfig(
                 name="semantic_scholar",
-                available=False,
-                requires_key=True,
-                reason="not_implemented",
+                available=True,
+                requires_key=False,
+                reason=_semantic_scholar_runtime_reason(),
             ),
             ConnectorRuntimeConfig(
                 name="pubmed",
@@ -325,6 +326,12 @@ def runtime_config() -> RuntimeConfigResponse:
             llm_judgement=llm_judgement_enabled,
         ),
     )
+
+
+def _semantic_scholar_runtime_reason() -> str:
+    if os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip():
+        return "implemented_for_real_search_with_optional_api_key"
+    return "implemented_for_real_search_without_api_key_rate_limited"
 
 
 @router.post(
