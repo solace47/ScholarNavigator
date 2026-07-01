@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -45,9 +45,45 @@ class EvalMetricSet(BaseModel):
     ranked_count: int = Field(default=0, ge=0)
     duplicate_count: int = Field(default=0, ge=0)
     duplicate_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    per_source_returned_count: dict[str, int] = Field(default_factory=dict)
     source_call_count: int = Field(default=0, ge=0)
     source_error_count: int = Field(default=0, ge=0)
     source_error_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     warning_count: int = Field(default=0, ge=0)
     query_warning_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    failed_case_count: int = Field(default=0, ge=0)
     failed_case_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+EvalGroupName = Literal["baseline", "query_evolution", "refchain"]
+
+
+class EvalGroupResult(BaseModel):
+    """Evaluation result for one query under one feature group."""
+
+    query_id: str
+    group: EvalGroupName
+    metrics: EvalMetricSet
+    ranked_paper_ids: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    source_stats: list[dict[str, Any]] = Field(default_factory=list)
+    raw_count: int = Field(default=0, ge=0)
+    deduplicated_count: int = Field(default=0, ge=0)
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+    failed: bool = False
+    error_message: str | None = None
+
+
+class EvalQueryResult(BaseModel):
+    """All group results for one query."""
+
+    query_id: str
+    query: str
+    group_results: dict[EvalGroupName, EvalGroupResult] = Field(default_factory=dict)
+
+
+class EvalSuiteResult(BaseModel):
+    """Complete offline evaluation result."""
+
+    query_results: list[EvalQueryResult] = Field(default_factory=list)
+    aggregate_metrics: dict[EvalGroupName, EvalMetricSet] = Field(default_factory=dict)
