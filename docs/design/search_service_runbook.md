@@ -297,12 +297,21 @@ Response fields:
 
 - `query_analysis`
 - `search_plan`
+- `query_evolution_records`
+- `refchain_output`
 - `ranked_papers`
 - `raw_count`
 - `deduplicated_count`
 - `warnings`
 - `source_stats`
 - `latency_seconds`
+
+Debug field behavior:
+
+- `query_evolution_records` is `[]` when `enable_query_evolution=False`.
+- `refchain_output` is `null` when `enable_refchain=False`.
+- When enabled, these fields expose internal SearchService records for manual
+  backend validation. They are not part of the existing Mock API contract.
 
 Important: this preview endpoint calls the default `SearchService`, which calls
 `retrieve_papers`. Unless tests monkeypatch the service, manual requests may
