@@ -132,6 +132,30 @@ class JudgementResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class RerankScoreBreakdown(BaseModel):
+    relevance_score: float = Field(ge=0.0, le=1.0)
+    authority_score: float = Field(ge=0.0, le=1.0)
+    timeliness_score: float = Field(ge=0.0, le=1.0)
+    metadata_score: float = Field(ge=0.0, le=1.0)
+    final_score: float = Field(ge=0.0, le=1.0)
+    relevance_weight: float = Field(ge=0.0, le=1.0)
+    authority_weight: float = Field(ge=0.0, le=1.0)
+    timeliness_weight: float = Field(ge=0.0, le=1.0)
+    metadata_weight: float = Field(ge=0.0, le=1.0)
+
+
+class RankedPaper(BaseModel):
+    rank: int = Field(ge=1)
+    paper: Paper
+    final_score: float = Field(ge=0.0, le=1.0)
+    category: JudgementCategory
+    score_breakdown: RerankScoreBreakdown
+    ranking_reason: str
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 def _normalize_sources(value: object) -> list[str]:
     if value is None:
         return list(SUPPORTED_SEARCH_SOURCES)
