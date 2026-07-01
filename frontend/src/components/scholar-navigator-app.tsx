@@ -92,6 +92,11 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
 
 type SourceMode = "arxiv" | "openalex" | "both";
 type ThemeMode = "dark" | "light";
+type StageLatencyItem = {
+  stage: string;
+  label: string;
+  seconds: number;
+};
 
 const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
   arxiv: "arXiv",
@@ -104,6 +109,26 @@ const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   openalex: "覆盖更广，可能 503",
   both: "同时检索两源",
 };
+
+const STAGE_LATENCY_LABELS: Record<string, string> = {
+  query_understanding: "Query Understanding",
+  retrieval: "Retrieval",
+  judgement: "Judgement",
+  reranking: "Reranking",
+  query_evolution: "Query Evolution",
+  refchain: "RefChain",
+  synthesis: "Synthesis",
+};
+
+const STAGE_LATENCY_ORDER = [
+  "query_understanding",
+  "retrieval",
+  "judgement",
+  "reranking",
+  "query_evolution",
+  "refchain",
+  "synthesis",
+];
 
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
@@ -979,6 +1004,8 @@ function ResultsPanel({
         <div className="space-y-6">
           {hasDiagnosticsWithoutCandidates ? <SourceDiagnosticNotice result={result} /> : null}
 
+          <StageLatencyPanel result={result} />
+
           {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
 
           <CitationGraphPanel result={result} />
@@ -1064,6 +1091,74 @@ function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse })
         </div>
       </div>
     </div>
+  );
+}
+
+function StageLatencyPanel({ result }: { result: SearchRunResultResponse }) {
+  const latencies = parseStageLatencies(result.missing_evidence);
+  if (!latencies.length) {
+    return null;
+  }
+
+  const maxSeconds = Math.max(...latencies.map((item) => item.seconds), 0.001);
+  const totalSeconds = latencies.reduce((total, item) => total + item.seconds, 0);
+
+  return (
+    <section
+      aria-labelledby="stage-latency-title"
+      className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm"
+    >
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Timer className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+            <h3 id="stage-latency-title" className="text-lg font-bold">
+              Stage Latency
+            </h3>
+          </div>
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            来自后端 `missing_evidence` 的 stage_latency diagnostics，用于定位 Real Search
+            pipeline 中耗时较高的阶段。
+          </p>
+        </div>
+        <Badge>{formatDetailedSeconds(totalSeconds)} total</Badge>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {latencies.map((item) => {
+          const width = `${Math.max(4, Math.round((item.seconds / maxSeconds) * 100))}%`;
+          return (
+            <div
+              key={item.stage}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-[var(--muted)]">
+                    {item.stage}
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold text-[var(--primary)]">
+                  {formatDetailedSeconds(item.seconds)}
+                </span>
+              </div>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-[var(--surface-soft)]"
+                aria-hidden="true"
+              >
+                <div
+                  className="h-full rounded-full bg-[var(--primary)]"
+                  style={{ width }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1315,6 +1410,49 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
       </div>
     </section>
   );
+}
+
+function parseStageLatencies(missingEvidence: string[]): StageLatencyItem[] {
+  const byStage = new Map<string, number>();
+  missingEvidence.forEach((item) => {
+    const match = /^stage_latency:([^:]+):(.+)$/.exec(item.trim());
+    if (!match) {
+      return;
+    }
+    const stage = match[1];
+    const seconds = Number(match[2]);
+    if (!stage || !Number.isFinite(seconds) || seconds < 0) {
+      return;
+    }
+    byStage.set(stage, seconds);
+  });
+
+  return Array.from(byStage.entries())
+    .map(([stage, seconds]) => ({
+      stage,
+      label: STAGE_LATENCY_LABELS[stage] ?? stage,
+      seconds,
+    }))
+    .sort((left, right) => {
+      const leftIndex = STAGE_LATENCY_ORDER.indexOf(left.stage);
+      const rightIndex = STAGE_LATENCY_ORDER.indexOf(right.stage);
+      const normalizedLeft = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+      const normalizedRight = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+      if (normalizedLeft !== normalizedRight) {
+        return normalizedLeft - normalizedRight;
+      }
+      return left.stage.localeCompare(right.stage);
+    });
+}
+
+function formatDetailedSeconds(seconds: number): string {
+  if (seconds < 1) {
+    return `${seconds.toFixed(3)}s`;
+  }
+  if (seconds < 10) {
+    return `${seconds.toFixed(2)}s`;
+  }
+  return `${seconds.toFixed(1)}s`;
 }
 
 function GraphEndpoint({ label, value }: { label: string; value: string }) {
