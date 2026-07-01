@@ -97,6 +97,8 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert output.raw_count == len(output.search_plan.subqueries)
     assert output.deduplicated_count == len(output.judgements)
     assert output.ranked_papers
+    assert output.synthesis_output is not None
+    assert output.synthesis_output.evidence_table
     assert output.latency_seconds >= 0
     assert all(call[1] == output.search_plan.limit_per_source for call in calls)
     assert all(call[2] == ["openalex", "arxiv"] for call in calls)
@@ -155,6 +157,81 @@ def test_run_search_aggregates_warnings() -> None:
     assert "pubmed_not_implemented" in output.warnings
     assert "mock_retriever_warning" in output.warnings
     assert output.warnings.count("mock_retriever_warning") == 1
+
+
+def test_run_search_can_disable_synthesis() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [make_paper("LLM Reranking Retrieval Paper", doi="10.123/no-synthesis")],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "LLM reranking retrieval papers",
+        enable_synthesis=False,
+        current_year=2026,
+    )
+
+    assert output.ranked_papers
+    assert output.synthesis_output is None
+
+
+def test_synthesis_output_includes_source_warnings_and_errors() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return RetrievalOutput(
+            query=query,
+            requested_sources=["openalex", "arxiv"],
+            raw_count=1,
+            deduplicated_count=1,
+            papers=[
+                make_paper(
+                    "LLM Reranking Retrieval Paper",
+                    doi="10.123/source-error",
+                )
+            ],
+            source_stats=[
+                SourceStats(
+                    source="openalex",
+                    returned_count=0,
+                    latency_seconds=0.01,
+                    error_message="HTTP Error 503: Service Unavailable",
+                ),
+                SourceStats(
+                    source="arxiv",
+                    returned_count=1,
+                    latency_seconds=0.01,
+                ),
+            ],
+            warnings=["retriever_warning"],
+            latency_seconds=0.02,
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "LLM reranking retrieval papers",
+        current_year=2026,
+    )
+
+    assert output.synthesis_output is not None
+    assert "retriever_warning" in output.synthesis_output.limitations
+    assert (
+        "source_error:openalex:HTTP Error 503: Service Unavailable"
+        in output.synthesis_output.limitations
+    )
+    expected_error_count = sum(
+        1 for stats in output.source_stats if stats.error_message
+    )
+    assert (
+        output.synthesis_output.citation_coverage.source_error_count
+        == expected_error_count
+    )
 
 
 def test_run_search_top_k_is_applied() -> None:
@@ -551,6 +628,8 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
     assert reference_calls
     assert output.refchain_output.references
     assert output.ranked_papers
+    assert output.synthesis_output is not None
+    assert output.synthesis_output.evidence_table
 
 
 def test_run_search_empty_query_raises_value_error() -> None:

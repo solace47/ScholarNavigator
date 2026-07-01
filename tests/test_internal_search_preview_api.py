@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
 from scholar_agent.agents.retriever import SourceStats  # noqa: E402
 from scholar_agent.app.main import app  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
@@ -92,6 +93,8 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
     assert body["search_plan"]["selected_sources"] == ["openalex", "arxiv"]
     assert body["query_evolution_records"] == []
     assert body["refchain_output"] is None
+    assert body["synthesis_output"] is not None
+    assert body["synthesis_output"]["evidence_table"][0]["citation_key"] == "R1"
     assert body["ranked_papers"][0]["rank"] == 1
     assert body["ranked_papers"][0]["paper"]["title"] == "Preview Paper"
     assert body["raw_count"] == 4
@@ -376,7 +379,7 @@ def _fake_output(
             record=record,
         )
 
-    return SearchServiceOutput(
+    output = SearchServiceOutput(
         search_plan=search_plan,
         query_evolution_records=query_evolution_records,
         refchain_output=refchain_output,
@@ -393,3 +396,5 @@ def _fake_output(
         ],
         latency_seconds=0.123,
     )
+    output.synthesis_output = synthesize_answer(output)
+    return output

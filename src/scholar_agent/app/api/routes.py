@@ -74,6 +74,7 @@ class InternalSearchPreviewResponse(BaseModel):
     search_plan: dict[str, Any]
     query_evolution_records: list[dict[str, Any]]
     refchain_output: dict[str, Any] | None
+    synthesis_output: dict[str, Any] | None
     ranked_papers: list[dict[str, Any]]
     raw_count: int
     deduplicated_count: int
@@ -280,6 +281,11 @@ def internal_search_preview(
         refchain_output=(
             _model_dump(output.refchain_output)
             if output.refchain_output is not None
+            else None
+        ),
+        synthesis_output=(
+            _model_dump(output.synthesis_output)
+            if output.synthesis_output is not None
             else None
         ),
         ranked_papers=[_model_dump(paper) for paper in output.ranked_papers],

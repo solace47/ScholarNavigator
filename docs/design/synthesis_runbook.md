@@ -11,7 +11,7 @@ src/scholar_agent/agents/synthesis.py
 
 Current boundaries:
 
-- No SearchService integration.
+- Integrated into `SearchService` as an optional final internal output.
 - No FastAPI/API schema changes.
 - No frontend changes.
 - No `third_party` changes.
@@ -95,6 +95,38 @@ Default limits:
 The agent skips papers classified as `irrelevant` or
 `insufficient_evidence`.
 
+## SearchService Integration
+
+`SearchServiceOutput` now includes:
+
+```text
+synthesis_output: SynthesisOutput | None = None
+```
+
+`SearchService.run_search` accepts:
+
+```text
+enable_synthesis: bool = True
+```
+
+When enabled, synthesis runs after the final `rerank_papers` call. This means
+the synthesis sees final ranked papers after the optional Query Evolution and
+RefChain stages have already participated in deduplication, judgement, and
+reranking.
+
+When `enable_synthesis=False`, `synthesis_output` remains `None`.
+
+The implementation constructs `SearchServiceOutput` first, then calls
+`synthesize_answer(output)` and assigns the result. This avoids import-time
+cycles between `search_service.py` and `agents/synthesis.py`.
+
+API boundaries:
+
+- The raw internal preview endpoint can expose `synthesis_output`.
+- The API-result preview endpoint still maps to the existing
+  `SearchRunResultResponse` schema and does not expose synthesis yet.
+- Existing Mock API endpoints are unchanged.
+
 ## Insufficient Evidence Behavior
 
 If no valid evidence rows are available, the agent returns:
@@ -145,11 +177,9 @@ When no ranked papers exist, the ratio is `0.0`.
 
 Recommended next steps:
 
-1. Add `synthesis_output: SynthesisOutput | None` to `SearchServiceOutput`.
-2. Run synthesis after final `rerank_papers`.
-3. Extend `api_mapper` to expose an optional synthesis field.
-4. Add a frontend synthesis panel above paper cards.
-5. Keep `missing_evidence` as the fallback diagnostic surface for clients that
+1. Extend `api_mapper` to expose an optional synthesis field.
+2. Add a frontend synthesis panel above paper cards.
+3. Keep `missing_evidence` as the fallback diagnostic surface for clients that
    do not render synthesis yet.
 
 ## Future LLM Enhancement

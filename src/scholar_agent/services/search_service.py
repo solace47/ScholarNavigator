@@ -35,6 +35,7 @@ from scholar_agent.core.search_schemas import (
     SearchPlan,
     SearchSubquery,
 )
+from scholar_agent.core.synthesis_schemas import SynthesisOutput
 
 
 class RetrieverFn(Protocol):
@@ -57,6 +58,7 @@ class SearchServiceOutput(BaseModel):
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
     query_evolution_records: list[QueryEvolutionRecord] = Field(default_factory=list)
     refchain_output: RefChainOutput | None = None
+    synthesis_output: SynthesisOutput | None = None
     raw_count: int = 0
     deduplicated_count: int = 0
     judgements: list[JudgementResult] = Field(default_factory=list)
@@ -86,6 +88,7 @@ class SearchService:
         run_profile: RunProfile = "balanced",
         enable_refchain: bool = False,
         enable_query_evolution: bool = False,
+        enable_synthesis: bool = True,
         current_year: int | None = None,
     ) -> SearchServiceOutput:
         start = time.perf_counter()
@@ -189,7 +192,7 @@ class SearchService:
             else 0
         )
 
-        return SearchServiceOutput(
+        output = SearchServiceOutput(
             search_plan=search_plan,
             retrieval_outputs=retrieval_outputs,
             query_evolution_records=query_evolution_records,
@@ -203,6 +206,11 @@ class SearchService:
             source_stats=source_stats,
             latency_seconds=time.perf_counter() - start,
         )
+        if enable_synthesis:
+            from scholar_agent.agents.synthesis import synthesize_answer
+
+            output.synthesis_output = synthesize_answer(output)
+        return output
 
     def _retrieve_subqueries(self, search_plan: SearchPlan) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
@@ -315,6 +323,7 @@ def run_search(
     run_profile: RunProfile = "balanced",
     enable_refchain: bool = False,
     enable_query_evolution: bool = False,
+    enable_synthesis: bool = True,
     current_year: int | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
@@ -325,6 +334,7 @@ def run_search(
         run_profile=run_profile,
         enable_refchain=enable_refchain,
         enable_query_evolution=enable_query_evolution,
+        enable_synthesis=enable_synthesis,
         current_year=current_year,
     )
 

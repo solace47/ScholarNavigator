@@ -14,6 +14,8 @@ Current boundaries:
   `enable_refchain=True`.
 - Query Evolution is available as an optional no-LLM stage when
   `enable_query_evolution=True`.
+- Citation-backed synthesis is available as a no-LLM final stage when
+  `enable_synthesis=True`; it is enabled by default.
 
 The default service can call real retrieval connectors through `retrieve_papers`.
 When RefChain is enabled, the default service can call OpenAlex reference
@@ -37,6 +39,7 @@ output = run_search(
     "LLM reranking for scientific literature retrieval",
     top_k=20,
     run_profile="balanced",
+    enable_synthesis=True,
     current_year=2026,
 )
 ```
@@ -86,6 +89,7 @@ query
   -> optional deduplicate_papers across all papers and references
   -> optional judge_papers
   -> optional rerank_papers
+  -> optional synthesize_answer
   -> SearchServiceOutput
 ```
 
@@ -110,12 +114,50 @@ Details:
   seed candidates and calls the injected reference fetcher.
 - RefChain references are merged into the candidate pool, then deduplicated,
   judged, and reranked so references can participate in the final ranking.
+- If `enable_synthesis=True`, `synthesize_answer` runs after the final rerank
+  and stores a `SynthesisOutput` on `SearchServiceOutput.synthesis_output`.
 
 When `enable_query_evolution=False`, the service keeps the original one-pass
 behavior and `query_evolution_records` is empty.
 
 When `enable_refchain=False`, the service does not call the reference fetcher
 and `refchain_output` is `None`.
+
+When `enable_synthesis=False`, the service skips synthesis and
+`synthesis_output` is `None`.
+
+## Synthesis
+
+The final synthesis stage is no-LLM and citation-backed. It calls:
+
+```python
+from scholar_agent.agents.synthesis import synthesize_answer
+```
+
+Inputs:
+
+- final `ranked_papers`
+- ranked-paper evidence rows
+- `SearchServiceOutput.warnings`
+- `source_stats`
+- optional `refchain_output`
+
+Behavior:
+
+- Runs after all optional Query Evolution and RefChain reranking is complete.
+- Uses only evidence sources `title`, `abstract`, `venue`, and `metadata`.
+- Generates deterministic citation keys such as `R1`, `R2`, and `R3`.
+- Adds source warnings/errors to synthesis limitations.
+- Returns insufficient evidence rather than fabricating conclusions when no
+  valid evidence rows exist.
+- Does not call LLMs, read PDFs, or access the network.
+
+API boundary:
+
+- The internal raw preview endpoint can show `synthesis_output`.
+- The `/api/v1/internal/search/preview/api-result` mapper does not expose a
+  synthesis field yet.
+- Existing `/api/v1/search/runs` Mock API behavior is unchanged.
 
 ## Subquery Concurrency
 
