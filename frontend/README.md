@@ -131,3 +131,19 @@ flow remains unchanged.
 The current synthesis MVP is rule-based and grounded in ranked-paper metadata
 and evidence rows. It is citation-backed, but it does not mean the system has
 read full-text PDFs.
+
+## Citation Graph Panel
+
+The Results area also renders a Citation Graph panel when
+`SearchRunResultResponse.citation_graph.nodes` or `.edges` is non-empty.
+
+The panel shows:
+
+- node and edge counts
+- node list with `label`, `id`, and optional `rank`
+- edge list with `source`, `target`, and `relation`
+- an explicit empty-edge state when nodes exist but no edges were returned
+
+The graph panel only displays structured citation graph / RefChain metadata
+returned by the backend. The frontend does not infer missing citation
+relationships or create graph edges on its own.

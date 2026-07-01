@@ -1021,6 +1021,8 @@ function ResultsPanel({
 
           {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
 
+          <CitationGraphPanel result={result} />
+
           <QuerySummary result={result} />
 
           <PaperSection
@@ -1226,6 +1228,115 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
         )}
       </div>
     </section>
+  );
+}
+
+function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
+  const nodes = result.citation_graph?.nodes ?? [];
+  const edges = result.citation_graph?.edges ?? [];
+
+  if (!nodes.length && !edges.length) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby="citation-graph-title"
+      className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm"
+    >
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Network className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+            <h3 id="citation-graph-title" className="text-lg font-bold">
+              Citation Graph
+            </h3>
+            <Badge>{formatNumber(nodes.length)} nodes</Badge>
+            <Badge>{formatNumber(edges.length)} edges</Badge>
+          </div>
+          <p className="max-w-4xl text-sm leading-6 text-[var(--muted)]">
+            当前图谱只展示后端返回的 citation_graph / RefChain metadata；前端不推断未返回的引用关系。
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h4 className="font-semibold">Nodes</h4>
+            <Badge>{formatNumber(nodes.length)}</Badge>
+          </div>
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {nodes.map((node) => (
+              <div
+                key={node.id}
+                className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+              >
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  {node.rank ? <Badge>rank {node.rank}</Badge> : <Badge>unranked</Badge>}
+                  <Badge>node</Badge>
+                </div>
+                <p className="break-words text-sm font-semibold leading-5 text-[var(--foreground)]">
+                  {node.label}
+                </p>
+                <p className="mt-2 break-all font-mono text-xs leading-5 text-[var(--muted)]">
+                  {node.id}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h4 className="font-semibold">Edges</h4>
+            <Badge>{formatNumber(edges.length)}</Badge>
+          </div>
+          {edges.length ? (
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {edges.map((edge, index) => (
+                <div
+                  key={`${edge.source}-${edge.target}-${edge.relation}-${index}`}
+                  className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge>{edge.relation}</Badge>
+                    <Badge>edge {index + 1}</Badge>
+                  </div>
+                  <div className="grid gap-2 text-xs">
+                    <GraphEndpoint label="source" value={edge.source} />
+                    <GraphEndpoint label="target" value={edge.target} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface-raised)] p-4">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                当前无引用边/关系边
+              </p>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                后端返回了 graph nodes，但未返回 citation_graph.edges。Real Preview 在未启用
+                RefChain 或没有可用引用元数据时可能出现这种状态。
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GraphEndpoint({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+      <span className="block text-xs font-semibold uppercase text-[var(--muted)]">
+        {label}
+      </span>
+      <span className="mt-1 block break-all font-mono text-xs leading-5 text-[var(--foreground)]">
+        {value}
+      </span>
+    </div>
   );
 }
 
