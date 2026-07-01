@@ -1007,6 +1007,9 @@ def _execute_real_search_run(run_id: str) -> None:
             if run.status == "cancelled" or run.cancel_requested:
                 return
 
+        _append_real_connector_events(run_id, output)
+        _append_real_warning_events(run_id, output.warnings)
+
         candidate_count = len(result.highly_relevant_papers) + len(
             result.partially_relevant_papers
         )
@@ -1063,6 +1066,17 @@ def _execute_real_search_run(run_id: str) -> None:
             run.result = result
             run.error_message = None
             run.updated_at = _now()
+        if _real_run_is_cancelled(run_id):
+            return
+        _append_real_event(
+            run_id,
+            "cost_updated",
+            {
+                "cost_report": _model_dump(result.cost_report),
+            },
+        )
+        if _real_run_is_cancelled(run_id):
+            return
         _append_real_event(
             run_id,
             "run_completed",
@@ -1075,6 +1089,43 @@ def _execute_real_search_run(run_id: str) -> None:
         _fail_real_run(run_id, str(exc))
     except Exception as exc:  # noqa: BLE001 - isolate background failure
         _fail_real_run(run_id, str(exc))
+
+
+def _append_real_connector_events(
+    run_id: str,
+    output: Any,
+) -> None:
+    for stats in output.source_stats:
+        if _real_run_is_cancelled(run_id):
+            return
+        _append_real_event(
+            run_id,
+            "connector_completed",
+            {
+                "stage": "retrieval",
+                "connector": stats.source,
+                "source": stats.source,
+                "returned_count": stats.returned_count,
+                "latency_seconds": stats.latency_seconds,
+                "cache_hit": stats.cache_hit,
+                "error_message": stats.error_message,
+            },
+        )
+
+
+def _append_real_warning_events(run_id: str, warnings: list[str]) -> None:
+    for warning in warnings:
+        if _real_run_is_cancelled(run_id):
+            return
+        _append_real_event(run_id, "warning", {"message": warning})
+
+
+def _real_run_is_cancelled(run_id: str) -> bool:
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None:
+            return True
+        return run.status == "cancelled" or run.cancel_requested
 
 
 def _append_real_event(

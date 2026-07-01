@@ -101,6 +101,15 @@ If the SSE connection fails while status polling continues, the UI keeps the
 current run status/result and records an `sse_error` event instead of clearing
 the results.
 
+`Real Preview` events include the stage lifecycle events plus retrieval
+observability events:
+
+- `connector_completed`: one event per connector/source with `returned_count`,
+  `latency_seconds`, `cache_hit`, and any connector `error_message`
+- `warning`: backend search warnings from retrieval, query evolution, RefChain,
+  synthesis, or connector diagnostics
+- `cost_updated`: the final mapped cost report once the result is available
+
 `Real Preview` also supports cancelling a queued/running real search run. The UI
 calls `POST /api/v1/real/search/runs/{run_id}/cancel`, stops polling, closes the
 SSE connection, and keeps already received events visible. The current backend

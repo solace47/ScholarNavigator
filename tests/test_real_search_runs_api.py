@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import threading
 import time
@@ -151,13 +152,39 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
         text = "".join(response.iter_text())
+    events = _parse_sse_events(text)
+    connector_events = [
+        event for event in events if event["event"] == "connector_completed"
+    ]
+    warning_events = [event for event in events if event["event"] == "warning"]
+    cost_events = [event for event in events if event["event"] == "cost_updated"]
 
     assert "event: run_started" in text
     assert "event: stage_started" in text
     assert "event: stage_completed" in text
+    assert "event: connector_completed" in text
+    assert "event: warning" in text
+    assert "event: cost_updated" in text
     assert '"stage": "synthesis"' in text
     assert "event: run_completed" in text
     assert '"status": "succeeded"' in text
+    assert len(connector_events) == 2
+    assert connector_events[0]["payload"] == {
+        "stage": "retrieval",
+        "connector": "openalex",
+        "source": "openalex",
+        "returned_count": 1,
+        "latency_seconds": 0.1,
+        "cache_hit": False,
+        "error_message": None,
+        "run_id": run_id,
+        "timestamp": connector_events[0]["payload"]["timestamp"],
+    }
+    assert connector_events[1]["payload"]["source"] == "arxiv"
+    assert connector_events[1]["payload"]["cache_hit"] is True
+    assert warning_events[0]["payload"]["message"] == "real_search_warning"
+    assert cost_events[0]["payload"]["run_id"] == run_id
+    assert cost_events[0]["payload"]["cost_report"]["judged_paper_count"] == 2
 
 
 def test_real_search_failed_run_records_error_and_failed_status(monkeypatch) -> None:
@@ -246,6 +273,8 @@ def test_running_real_search_can_be_cancelled_and_ignores_late_result(
     assert "run cancelled" in text
     assert "event: run_completed" in text
     assert '"status": "cancelled"' in text
+    assert "event: cost_updated" not in text
+    assert '"status": "succeeded"' not in text
 
 
 def test_queued_real_search_can_be_cancelled_before_worker_starts(monkeypatch) -> None:
@@ -483,6 +512,7 @@ def _fake_output(query: str, top_k: int = 5) -> SearchServiceOutput:
                 source="arxiv",
                 returned_count=1,
                 latency_seconds=0.1,
+                cache_hit=True,
             ),
         ],
         latency_seconds=0.25,
@@ -518,6 +548,29 @@ def _search_plan(query: str, top_k: int = 5) -> SearchPlan:
         top_k=top_k,
         run_profile="balanced",
     )
+
+
+def _parse_sse_events(text: str) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    current_event: str | None = None
+    current_data: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("event: "):
+            current_event = line.removeprefix("event: ").strip()
+            continue
+        if line.startswith("data: "):
+            current_data.append(line.removeprefix("data: ").strip())
+            continue
+        if line == "" and current_event is not None:
+            events.append(
+                {
+                    "event": current_event,
+                    "payload": json.loads("".join(current_data) or "{}"),
+                }
+            )
+            current_event = None
+            current_data = []
+    return events
 
 
 def _paper(title: str, *, doi: str) -> Paper:
