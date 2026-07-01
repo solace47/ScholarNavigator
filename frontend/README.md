@@ -147,3 +147,31 @@ The panel shows:
 The graph panel only displays structured citation graph / RefChain metadata
 returned by the backend. The frontend does not infer missing citation
 relationships or create graph edges on its own.
+
+## Result Export
+
+When a search result is loaded, the Results header shows:
+
+- `Export JSON`
+- `Export Markdown`
+
+`Export JSON` downloads the complete current `SearchRunResultResponse` object as:
+
+```text
+scholar-navigator-result-{run_id}.json
+```
+
+`Export Markdown` downloads a readable report as:
+
+```text
+scholar-navigator-result-{run_id}.md
+```
+
+The Markdown report includes run metadata, query analysis, expanded queries,
+cost report, optional synthesis, highly relevant papers, partially relevant
+papers, citation graph nodes/edges, and missing evidence diagnostics.
+
+Both export actions run entirely in the browser with `Blob` and
+`URL.createObjectURL`. They use the result already present on the page, do not
+trigger a new search, do not upload data to the backend, and do not access any
+external service.

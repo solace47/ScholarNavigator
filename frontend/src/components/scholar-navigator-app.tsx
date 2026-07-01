@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  Download,
   ExternalLink,
   FileText,
   GitBranch,
@@ -37,6 +38,7 @@ import {
   streamRealSearchRunEvents,
   streamSearchRunEvents,
 } from "@/lib/api";
+import { exportSearchResultAsJson, exportSearchResultAsMarkdown } from "@/lib/export";
 import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
 import type {
   CostReport,
@@ -1005,10 +1007,13 @@ function ResultsPanel({
           <p className="mt-1 text-sm text-[var(--muted)]">结构化论文列表、方法聚类、时间线与证据缺口</p>
         </div>
         {result ? (
-          <div className="flex flex-wrap gap-2">
-            <Badge>{result.highly_relevant_papers.length} highly relevant</Badge>
-            <Badge>{result.partially_relevant_papers.length} partially relevant</Badge>
-            <Badge>{result.search_plan.source_preferences.join(" / ")}</Badge>
+          <div className="flex flex-col gap-3 md:items-end">
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <Badge>{result.highly_relevant_papers.length} highly relevant</Badge>
+              <Badge>{result.partially_relevant_papers.length} partially relevant</Badge>
+              <Badge>{result.search_plan.source_preferences.join(" / ")}</Badge>
+            </div>
+            <ResultExportActions result={result} />
           </div>
         ) : null}
       </div>
@@ -1045,6 +1050,36 @@ function ResultsPanel({
         </div>
       ) : null}
     </SectionPanel>
+  );
+}
+
+function ResultExportActions({ result }: { result: SearchRunResultResponse }) {
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => exportSearchResultAsJson(result)}
+          aria-label="Export current result as JSON"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          Export JSON
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => exportSearchResultAsMarkdown(result)}
+          aria-label="Export current result as Markdown"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          Export Markdown
+        </Button>
+      </div>
+      <p className="mt-2 max-w-sm text-xs leading-5 text-[var(--muted)]">
+        导出内容来自当前页面 result，不会重新检索，也不会上传到后端。
+      </p>
+    </div>
   );
 }
 
