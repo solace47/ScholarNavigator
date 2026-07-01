@@ -23,14 +23,22 @@ export OPENALEX_MAILTO=your_email@example.com
 - 当前 LLM 只可选用于 Query Understanding；默认不需要 LLM key，不读取全文 PDF。
 - 产品路径不再提供示例数据兜底；外部源失败时展示 diagnostics。
 
-如需演示 LLM Query Understanding，可只在后端设置：
+如需演示 LLM Query Understanding / Judgement，可复制 `.env.example` 到 `.env` 后填写：
 
 ```bash
+cp .env.example .env
+```
+
+`.env` 示例：
+
+```dotenv
 SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
 SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
 SCHOLAR_AGENT_LLM_API_KEY=...
 SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
 SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT=1
+SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
 ```
 
 前端不输入、不读取、不展示 LLM key。
@@ -237,7 +245,7 @@ Synthesis：
 
 边界：
 
-> 当前版本已经接入真实 LLM provider 基础设施，但只用于 Query Understanding。即使 LLM provider 不可用，系统也不会返回示例数据，而是记录诊断并使用规则解析继续真实检索。
+> 当前版本已经接入真实 LLM provider 基础设施，但只用于 Query Understanding 和 Judgement。即使 LLM provider 不可用，系统也不会返回示例数据，而是记录诊断并使用规则解析继续真实检索。
 
 ## 预期展示亮点
 

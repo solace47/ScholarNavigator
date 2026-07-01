@@ -124,7 +124,7 @@ git status --short
 
 ## 当前边界和非目标
 
-- 当前 LLM 只可选用于 Query Understanding；Judgement、Reranking、Synthesis 仍为规则版。
+- 当前 LLM 只可选用于 Query Understanding 和 Judgement；Reranking、Synthesis 仍为规则版。
 - 当前没有读取全文 PDF。
 - Citation-backed synthesis 只基于 metadata / evidence rows，不代表全文级证据归纳。
 - 当前未完整接入 LitSearch / AstaBench benchmark。
@@ -133,7 +133,7 @@ git status --short
 - Retrieval cache 是轻量 in-memory cache，不是生产级分布式缓存。
 - Semantic Scholar 和 PubMed connector 尚未实现。
 - 当前没有用户鉴权、配额管理、生产部署脚本或长期日志系统。
-- 后续可将 LLM 扩展到 Judgement、Reranking、Synthesis；provider 不可用时也应返回明确错误或诊断。
+- 后续可将 LLM 扩展到 Reranking、Synthesis；provider 不可用时也应返回明确错误或诊断。
 
 ## 交付摘要
 

@@ -4,7 +4,7 @@
 
 - 项目名称：ScholarNavigator
 - 对应赛题：华为企业赛题三，科研场景下复杂学术查询的智能论文搜索与推荐
-- 当前阶段：前后端分离的 Real Search only MVP，已接入可选真实 LLM Query Understanding 基础设施；默认可在无 LLM key 下运行规则版路径。
+- 当前阶段：前后端分离的 Real Search only MVP，已接入可选真实 LLM Query Understanding / Judgement 基础设施；默认可在无 LLM key 下运行规则版路径。
 
 ## 项目目标
 
@@ -14,7 +14,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 2. 控制外部 API 调用、Token 成本和端到端延迟。
 3. 输出结构化论文列表、相关性解释、证据与诊断信息。
 
-当前版本只允许 LLM 可选增强 Query Understanding，且 API key 仅从后端环境变量读取。Judgement、Reranking、Query Evolution、RefChain 和 Synthesis 仍是规则版实现，主要基于论文 metadata、标题、摘要、venue、identifier、来源和检索过程诊断。系统不读取全文 PDF。
+当前版本只允许 LLM 可选增强 Query Understanding 和 Judgement，且 API key 仅从后端环境变量读取。Reranking、Query Evolution、RefChain 和 Synthesis 仍是规则版实现，主要基于论文 metadata、标题、摘要、venue、identifier、来源和检索过程诊断。系统不读取全文 PDF。
 
 ## 系统架构
 
@@ -30,7 +30,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 1. QueryUnderstandingAgent：默认规则解析 query；启用真实 OpenAI-compatible LLM provider 时，可先请求结构化 JSON，再归一化为 QueryAnalysis 和 SearchPlan。
 2. Retriever：按 subquery 调用 OpenAlex / arXiv connector，记录 source_stats、warnings 和 latency。
 3. Dedup：跨来源、跨 subquery 做 DOI、arXiv ID、OpenAlex ID、Semantic Scholar ID、PubMed ID、title+year 去重。
-4. JudgementAgent：基于 QueryAnalysis 与 Paper metadata 生成相关性 score、category、reasoning 和 evidence。
+4. JudgementAgent：默认基于 QueryAnalysis 与 Paper metadata 生成相关性 score、category、reasoning 和 evidence；启用 LLM Judgement 时，LLM 只能判断候选论文 metadata。
 5. RerankerAgent：综合 judgement score、引用数、来源数、identifier 完整度、venue、year、metadata 完整度生成 final_score。
 6. QueryEvolutionAgent：在开关开启时，基于高相关 seed 生成有限数量 evolved queries，并进行第二轮检索。
 7. RefChainAgent：在开关开启时，基于高相关 seed 做单层 OpenAlex references 扩展。
@@ -82,7 +82,8 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - Export JSON / Export Markdown，本地浏览器导出，不上传后端。
 - Runtime 与工程能力：
   - `/api/v1/runtime/config` 返回 `mode=real_search`，明确 LLM provider 状态、OpenAlex/arXiv 可用于 Real Search。
-  - LLM provider 支持 OpenAI-compatible Chat Completions；当前只用于 Query Understanding，禁用或失败时会记录明确 warning，并走规则版解析。
+  - LLM provider 支持 OpenAI-compatible Chat Completions；当前只用于 Query Understanding 和 Judgement，禁用或失败时会记录明确 warning，并走规则版 fallback。
+  - `cost_report.llm_call_count` 已统计 Query Understanding / Judgement 的 LLM 调用次数；token 精确统计待后续接入。
   - CORS allowlist 可配置，默认支持 `3000`、`3001`、`5173` 的 localhost / 127.0.0.1。
   - Real Search in-memory run store 支持 TTL 和最大数量清理，只清理 terminal runs。
 - 批量 CLI：
@@ -147,7 +148,7 @@ Real-only 重构后需要重新执行最终验收。上一版最终验收记录 
 ## 当前已知问题
 
 - OpenAlex 503、arXiv 429 / timeout 是真实外部依赖风险，retry/backoff 只能提升可观测性和部分恢复能力，不能保证外部服务可用。
-- 当前只有 Query Understanding 支持可选 LLM JSON 增强；其他 agent 仍为规则版，复杂语义判断、跨语言概念扩展和证据归纳能力有限。
+- 当前只有 Query Understanding 和 Judgement 支持可选 LLM JSON 增强；Reranking、Synthesis 等其他 agent 仍为规则版，复杂归纳能力有限。
 - 当前 Synthesis 只基于 metadata 和 evidence rows，不读取全文 PDF，不做段落级证据检索。
 - Real Search 使用 in-memory run store，不是生产级持久化队列。
 - 评测当前只完成 fake fixture 离线链路，尚未接入完整 LitSearch / AstaBench 数据。
@@ -155,7 +156,7 @@ Real-only 重构后需要重新执行最终验收。上一版最终验收记录 
 
 ## 后续可扩展方向
 
-1. 将 LLM 增强从 Query Understanding 扩展到 Judgement / Reranking / Synthesis，但必须保留证据边界和 no-key diagnostics。
+1. 将 LLM 增强从 Query Understanding / Judgement 扩展到 Reranking / Synthesis，但必须保留证据边界和 no-key diagnostics。
 2. 将 Real Search lifecycle 从 in-memory store 升级为持久化任务队列和可部署服务。
 3. 增加 Semantic Scholar、PubMed 等检索源，并完善 biomedical query 的 source selection。
 4. 增加全文 PDF / abstract chunk 证据检索，但必须保留引用来源和证据边界。

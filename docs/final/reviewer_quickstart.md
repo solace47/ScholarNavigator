@@ -57,24 +57,34 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 - `mode` 为 `real_search`。
 - 默认 `llm.available=false`，表示未配置后端 LLM provider。
-- 如果后端设置了 OpenAI-compatible LLM 环境变量并启用 Query Understanding，则 `llm.available=true` 且 `features.llm_query_understanding=true`。
+- 如果后端设置了 OpenAI-compatible LLM 环境变量并启用 Query Understanding / Judgement，则 `llm.available=true`，并可看到 `features.llm_query_understanding=true` / `features.llm_judgement=true`。
 - `openalex` / `arxiv` connector 可用于 Real Search。
 - `semantic_scholar` / `pubmed` 仍为未实现或不可用。
 - 不再包含产品级示例 connector。
 
 OpenAlex / arXiv 可用于 Real Search 是预期；它们仍可能受外部服务 `503`、`429` 或 timeout 影响，相关诊断会进入 Real Search events、`missing_evidence` 和 source stats。
 
-可选 LLM Query Understanding 只在后端配置，不需要也不允许前端读取 key：
+可选 LLM Query Understanding / Judgement 只在后端配置，不需要也不允许前端读取 key。推荐复制模板到项目根目录 `.env`：
 
 ```bash
+cp .env.example .env
+```
+
+然后编辑 `.env`：
+
+```dotenv
 SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
 SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
 SCHOLAR_AGENT_LLM_API_KEY=...
 SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
 SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT=1
+SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
 ```
 
-当前 LLM 只用于 Query Understanding。禁用、配置缺失或调用失败时，系统会回到规则版 Query Understanding，并在 warnings / Real Search Events / missing evidence 中显示明确诊断；不会返回示例数据。
+FastAPI 后端启动时会自动读取项目根目录 `.env`；真实 shell/部署环境变量优先，不会被 `.env` 覆盖。
+
+当前 LLM 只用于 Query Understanding 和 Judgement。LLM Judgement 只判断候选论文 metadata，不读取全文 PDF，不生成新论文。禁用、配置缺失或调用失败时，系统会回到规则版 Query Understanding / Judgement，并在 warnings / Real Search Events / missing evidence 中显示明确诊断；不会返回示例数据。
 
 Real Search 的 in-memory run store 会自动清理 terminal runs。可选环境变量：
 
@@ -217,10 +227,10 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 ## 关键边界提醒
 
-- 当前系统仅 Query Understanding 可选使用 LLM；Judgement、Reranking、Synthesis 仍为规则版。
+- 当前系统仅 Query Understanding 和 Judgement 可选使用 LLM；Reranking、Synthesis 仍为规则版。
 - 当前没有读取全文 PDF。
 - 当前没有完整接入 LitSearch / AstaBench benchmark。
 - 前端不读取、不保存、不展示任何 API Key。
 - 产品路径不再提供示例检索兜底。
 - OpenAlex / arXiv 网络错误会被记录并展示，不代表系统逻辑崩溃。
-- 下一阶段将接入真实 LLM provider；provider 不可用时也应返回明确错误或诊断。
+- 后续可继续把 LLM 扩展到 Reranking / Synthesis；provider 不可用时也应返回明确错误或诊断。

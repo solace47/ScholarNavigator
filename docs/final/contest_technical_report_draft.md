@@ -177,7 +177,7 @@ Real-only 重构后需要重新执行最终验收。旧 `docs/design/final_engin
 
 ## 已知问题与边界
 
-1. 当前只有 Query Understanding 支持可选 LLM JSON 增强；Judgement、Reranking、Synthesis 仍为规则版。
+1. 当前只有 Query Understanding 和 Judgement 支持可选 LLM JSON 增强；Reranking、Synthesis 仍为规则版。
 2. 当前没有读取全文 PDF，所有证据来自 title、abstract、venue、metadata。
 3. 当前没有接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 评测链路。
 4. Real Search 依赖 OpenAlex / arXiv，可能受到 503、429、timeout 等外部服务影响。
@@ -187,7 +187,7 @@ Real-only 重构后需要重新执行最终验收。旧 `docs/design/final_engin
 
 ## 后续工作
 
-1. 将 LLM provider 从 Query Understanding 扩展到 Judgement / Reranking / Synthesis，并实现更完整的 token 成本统计。
+1. 将 LLM provider 从 Query Understanding / Judgement 扩展到 Reranking / Synthesis，并实现更完整的 token 成本统计。
 2. 将 Real Search lifecycle 升级为持久化任务队列。
 3. 增加 Semantic Scholar、PubMed 等检索源。
 4. 增加全文或分段证据检索能力，并严格绑定证据来源。

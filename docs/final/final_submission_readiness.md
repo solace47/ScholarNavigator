@@ -89,6 +89,6 @@ ready for automated checks。
 
 1. pytest 存在既有 `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated`，不影响当前测试通过。
 2. Real Search 依赖真实 OpenAlex / arXiv，外部服务可能出现 `503`、`429` 或 timeout。
-3. 当前仅 Query Understanding 可选调用 LLM；Judgement、Reranking、Synthesis 仍为 metadata/evidence-row 规则版，不读取全文 PDF。
+3. 当前仅 Query Understanding 和 Judgement 可选调用 LLM；Reranking、Synthesis 仍为 metadata/evidence-row 规则版，不读取全文 PDF。
 4. 当前未完整接入 LitSearch / AstaBench benchmark，已有的是本地 fake fixture 与 CLI 评测链路。
 5. Real Search 使用 in-memory run store，不是生产级持久化队列。
