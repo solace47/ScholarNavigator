@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core.api_schemas import (
     CitationGraph,
@@ -39,6 +39,8 @@ from ...core.api_schemas import (
     SearchRunStatusResponse,
     TimelineItem,
 )
+from ...core.search_schemas import RunProfile
+from ...services.search_service import SearchService
 
 
 API_VERSION = "0.1.0"
@@ -52,6 +54,26 @@ class MockRun:
     request: SearchRunCreateRequest
     created_at: datetime
     updated_at: datetime
+
+
+class InternalSearchPreviewRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(default=20, ge=1, le=100)
+    run_profile: RunProfile = "balanced"
+    enable_refchain: bool = False
+    enable_query_evolution: bool = False
+    current_year: int | None = Field(default=None, ge=1900, le=2200)
+
+
+class InternalSearchPreviewResponse(BaseModel):
+    query_analysis: dict[str, Any]
+    search_plan: dict[str, Any]
+    ranked_papers: list[dict[str, Any]]
+    raw_count: int
+    deduplicated_count: int
+    warnings: list[str]
+    source_stats: list[dict[str, Any]]
+    latency_seconds: float
 
 
 _RUNS: dict[str, MockRun] = {}
@@ -206,6 +228,38 @@ def stream_search_events(run_id: str) -> StreamingResponse:
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@router.post(
+    "/internal/search/preview",
+    response_model=InternalSearchPreviewResponse,
+    tags=["internal-preview"],
+)
+def internal_search_preview(
+    request: InternalSearchPreviewRequest,
+) -> InternalSearchPreviewResponse:
+    try:
+        output = SearchService().run_search(
+            request.query,
+            top_k=request.top_k,
+            run_profile=request.run_profile,
+            enable_refchain=request.enable_refchain,
+            enable_query_evolution=request.enable_query_evolution,
+            current_year=request.current_year,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return InternalSearchPreviewResponse(
+        query_analysis=_model_dump(output.search_plan.query_analysis),
+        search_plan=_model_dump(output.search_plan),
+        ranked_papers=[_model_dump(paper) for paper in output.ranked_papers],
+        raw_count=output.raw_count,
+        deduplicated_count=output.deduplicated_count,
+        warnings=output.warnings,
+        source_stats=[_model_dump(stats) for stats in output.source_stats],
+        latency_seconds=output.latency_seconds,
     )
 
 
@@ -626,4 +680,3 @@ def _mock_sse_events(run: MockRun) -> list[tuple[str, dict[str, Any]]]:
             },
         ),
     ]
-

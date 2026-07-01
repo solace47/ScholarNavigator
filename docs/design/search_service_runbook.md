@@ -111,11 +111,50 @@ This keeps service tests offline and makes future connector experiments easier.
 
 ## FastAPI Integration Plan
 
-Do not wire this directly into the existing Mock API yet.
+The service has a standalone preview endpoint for manual backend validation:
+
+```text
+POST /api/v1/internal/search/preview
+```
+
+Request fields:
+
+- `query`
+- `top_k`
+- `run_profile`
+- `enable_refchain`
+- `enable_query_evolution`
+- `current_year`
+
+Response fields:
+
+- `query_analysis`
+- `search_plan`
+- `ranked_papers`
+- `raw_count`
+- `deduplicated_count`
+- `warnings`
+- `source_stats`
+- `latency_seconds`
+
+Important: this preview endpoint calls the default `SearchService`, which calls
+`retrieve_papers`. Unless tests monkeypatch the service, manual requests may
+access OpenAlex and arXiv over the network.
+
+The existing Mock API remains unchanged:
+
+```text
+POST /api/v1/search/runs
+GET /api/v1/search/runs/{run_id}
+GET /api/v1/search/runs/{run_id}/result
+GET /api/v1/search/runs/{run_id}/events
+```
+
+Do not replace these Mock endpoints yet.
 
 Recommended next steps:
 
-1. Add a backend feature flag or a separate endpoint for real internal search.
+1. Add a backend feature flag before routing frontend traffic to real search.
 2. Map `SearchServiceOutput` into the existing API response contract.
 3. Persist run state and progress events before exposing it to the frontend.
 4. Keep Mock API as the stable frontend demo path until the service path is
@@ -128,7 +167,6 @@ Recommended next steps:
 - No LLM judgement.
 - No LLM reranking.
 - No external search in tests.
-- No API route changes.
+- No replacement of Mock API routes.
 - No frontend changes.
 - No `third_party` changes.
-
