@@ -19,7 +19,7 @@ export OPENALEX_MAILTO=your_email@example.com
 
 - `OPENALEX_MAILTO` 仅用于 OpenAlex polite pool，不是 API Key。
 - 前端不会读取、保存或展示任何 API Key。
-- 当前演示的 Real Preview 会通过后端访问真实 OpenAlex / arXiv。
+- 当前演示的 Real Preview 会通过后端 Real Search lifecycle 访问真实 OpenAlex / arXiv。
 - 当前 MVP 不调用 LLM，不读取全文 PDF。
 
 建议演示前先执行：
@@ -32,10 +32,12 @@ cd frontend && npm run build
 
 ## 后端启动命令
 
-推荐演示时降低真实检索并发，减少 OpenAlex / arXiv 压力：
+推荐演示时启用 retrieval cache，并降低真实检索并发，减少 OpenAlex / arXiv 压力：
 
 ```bash
-REAL_PREVIEW_MAX_WORKERS=1 \
+SCHOLAR_AGENT_RETRIEVAL_CACHE=1 \
+REAL_SEARCH_MAX_WORKERS=1 \
+REAL_SEARCH_BACKGROUND_WORKERS=2 \
 PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -50,6 +52,19 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --reload --host 127.0.0.1 --po
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+Runtime config 检查：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/runtime/config
+```
+
+现场应确认：
+
+- `mode=hybrid`。
+- `llm.available=false`，当前为 no-LLM MVP。
+- OpenAlex / arXiv connector 可用于 Real Search。
+- `features.real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` 可见。
 
 ## 前端启动命令
 
@@ -69,6 +84,15 @@ http://localhost:3000
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
 ```
+
+## Runtime Config 演示步骤
+
+1. 后端启动后，先执行 runtime config curl。
+2. 讲解系统不是纯 mock：
+   - Mock Demo 用于稳定演示。
+   - Real Search 用于真实 OpenAlex / arXiv 检索。
+   - LLM 当前明确不可用，`model=mock-no-llm`。
+3. 说明 CORS 默认支持 `3000`、`3001`、`5173`，Next.js 端口切换不会导致常见开发环境 CORS 失败。
 
 ## Mock Demo 演示步骤
 
@@ -111,13 +135,17 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
    - `enable_refchain=false`
 4. 点击启动 Real Preview。
 5. 讲解交互差异：
-   - run_id 应以 `run_preview_` 开头。
-   - Preview Transport 会显示 Real Preview 使用一次性 REST 响应，不开启 SSE。
+   - run_id 应以 `run_real_` 开头。
+   - Run Progress 展示 `Real Search Events`。
+   - status 会经历 queued / running / succeeded；失败时显示 failed。
+   - SSE 中可看到 `connector_completed`、`warning`、`cost_updated`。
    - 后端会真实调用 OpenAlex / arXiv，前端仍不接触任何密钥。
+   - 检索运行中会出现“取消 Real Search”按钮；取消后 status 为 cancelled。
 6. 如果返回论文：
    - 展示前 5 篇论文卡片。
    - 讲解 relevance_score、category、ranking_reason 和 evidence。
    - 指出 sources 中可能出现 `arxiv`、`openalex`。
+   - 讲解 cost_report 中的 API calls、latency、cache_hit_count。
 7. 如果没有论文：
    - 展示“检索源失败/无候选”。
    - 展示 `missing_evidence` 中的 OpenAlex / arXiv 错误诊断。
@@ -159,6 +187,39 @@ Real Preview 返回 `synthesis` 时，在论文列表上方展示 Citation-backe
 - citation-backed 表示结论绑定到当前候选论文证据行。
 - 不代表系统已读取全文 PDF。
 - 当前没有调用 LLM。
+
+## Citation Graph Panel 演示步骤
+
+有 result 且后端返回 `citation_graph` 时，Results 区域会展示 Citation Graph Panel。
+
+建议讲解：
+
+1. nodes 数量和 edges 数量。
+2. node 列表中的 label、id、rank。
+3. edge 列表中的 source、target、relation。
+4. 如果只有 nodes 没有 edges，说明“当前无引用边/关系边”是合法状态。
+
+必须明确说明：
+
+- graph 只展示后端返回的结构化关系。
+- 前端不推断未返回的引用关系。
+- `enable_refchain=false` 时 edges 可能为空。
+
+## Export JSON / Markdown 演示步骤
+
+有 result 时，Results 区域会显示：
+
+- `Export JSON`
+- `Export Markdown`
+
+建议讲解：
+
+1. 导出内容来自当前页面已有 `SearchRunResultResponse`。
+2. JSON 导出包含完整 result 对象。
+3. Markdown 导出包含 query analysis、search plan、cost report、synthesis、论文列表、citation graph 和 missing evidence。
+4. 导出完全在浏览器本地通过 Blob 完成，不上传后端，不重新检索。
+
+现场可以点击一次 Markdown 导出，说明该文件适合后续整理成答辩记录或报告附录。
 
 ## OpenAlex 503 或 arXiv 超时的解释
 
@@ -226,11 +287,15 @@ Mock Demo：
 
 Real Preview：
 
-> Real Preview 会调用后端 internal preview endpoint，真实访问 OpenAlex 和 arXiv。这里可以看到 run_id、真实候选论文、source badges、相关性原因和检索错误诊断。前端不保存任何密钥。
+> Real Preview 会调用后端 `/api/v1/real/search/runs` 生命周期接口，真实访问 OpenAlex 和 arXiv。这里可以看到 run_real 开头的 run_id、queued/running/succeeded 状态、Real Search Events、connector_completed、warning、cost_updated、真实候选论文、source badges、相关性原因和检索错误诊断。前端不保存任何密钥。
 
 Synthesis：
 
 > Synthesis Panel 是当前的规则版 citation-backed synthesis。它只使用候选论文 metadata 和 evidence rows，不读取全文 PDF，也不调用 LLM。每条 finding 都绑定到 R1、R2 这样的 citation key，限制和 source error 也会明确展示。
+
+Citation Graph 与导出：
+
+> Citation Graph Panel 只显示后端返回的 citation_graph nodes 和 edges，不在前端推断关系。结果导出则把当前页面的 SearchRunResultResponse 保存为 JSON 或 Markdown，方便复盘和答辩材料整理，不会触发新的检索。
 
 边界：
 
@@ -240,11 +305,15 @@ Synthesis：
 
 - 前后端分离，前端不接触 API Key。
 - Mock Demo 与 Real Preview 双模式，兼顾稳定演示和真实检索。
+- Real Search lifecycle 支持 create/status/result/events/cancel。
+- Real Search Events 暴露 connector_completed、warning、cost_updated。
 - OpenAlex / arXiv 真实检索源接入，且错误可观测。
+- retrieval cache 可降低重复检索压力，并在 cost_report 中显示 cache_hit_count。
 - 规则版 Query Understanding、Judgement、Reranker、Query Evolution、RefChain、Synthesis 形成完整 pipeline。
 - Citation-backed Synthesis Panel 明确显示引用 key、证据表和 limitations。
+- Citation Graph Panel 和本地 JSON / Markdown 导出增强结果可解释与复盘能力。
 - no-LLM MVP 下 Token 成本为 0，便于展示效率与成本控制。
-- 离线评测链路已具备 baseline / query_evolution / refchain 对比雏形。
+- Batch CLI 与离线评测链路已具备批量搜索、汇总、gold/qrels 评测和 baseline / query_evolution / refchain 对比雏形。
 
 ## 演示失败兜底方案
 
@@ -258,11 +327,58 @@ Synthesis：
    - 展示 `missing_evidence`。
    - 解释 OpenAlex / arXiv 是真实外部依赖。
    - 切换 Mock Demo 完成完整交互展示。
+   - 展示 `docs/design/final_engineering_acceptance.md` 中 OpenAlex 503 被诊断但系统仍完成的记录。
 4. 没有 synthesis：
    - Mock Demo 默认隐藏 synthesis，这是预期行为。
    - Real Preview 若无候选，Synthesis 可能进入 insufficient-evidence 或只展示 limitations。
 5. 构建或测试需要证明：
    - 展示已有验证记录和本轮命令输出。
+6. 真实检索运行时间过长：
+   - 点击“取消 Real Search”演示 cancel 语义。
+   - 说明当前取消不能强杀已经发出的外部请求，但会忽略后续结果并停止前端等待。
+
+## Batch CLI / Evaluation CLI 备选展示
+
+如果现场网络不适合实时 Real Search，可展示批量 CLI 的输入输出格式和最终验收记录中的 smoke 结果。
+
+批量搜索：
+
+```bash
+PYTHONPATH=src python scripts/run_search_batch.py \
+  --input path/to/queries.jsonl \
+  --output outputs/batch_runs/result.jsonl \
+  --top-k 10 \
+  --run-profile balanced \
+  --current-year 2026 \
+  --enable-query-evolution \
+  --max-workers 2
+```
+
+汇总 Markdown：
+
+```bash
+PYTHONPATH=src python scripts/summarize_search_batch.py \
+  --input outputs/batch_runs/result.jsonl \
+  --output outputs/batch_runs/summary.md
+```
+
+gold/qrels 评测：
+
+```bash
+PYTHONPATH=src python scripts/evaluate_search_batch.py \
+  --batch-results outputs/batch_runs/result.jsonl \
+  --gold path/to/qrels.jsonl \
+  --output outputs/batch_runs/eval.json \
+  --k 5 \
+  --k 10 \
+  --include-partial
+```
+
+说明：
+
+- 批量搜索默认会真实访问 OpenAlex / arXiv。
+- 汇总和评测脚本只读取本地文件，不访问外网。
+- 当前项目没有完整接入 LitSearch / AstaBench benchmark，CLI 只是评测链路基础设施。
 
 ## 演示结束
 
@@ -275,6 +391,7 @@ Ctrl-C
 可补充展示的文档：
 
 - `docs/final/project_delivery_summary.md`
+- `docs/design/final_engineering_acceptance.md`
 - `docs/design/frontend_synthesis_validation.md`
 - `docs/design/real_preview_stability_validation.md`
 - `docs/design/evaluation_sample_run.md`

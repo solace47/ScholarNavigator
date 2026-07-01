@@ -4,7 +4,7 @@
 
 - 项目名称：ScholarNavigator
 - 对应赛题：华为企业赛题三，科研场景下复杂学术查询的智能论文搜索与推荐
-- 当前阶段：前后端分离的 no-LLM 规则版 MVP，已具备真实 OpenAlex / arXiv 检索预览、结构化结果展示、规则版 citation-backed synthesis 和离线评测雏形。
+- 当前阶段：前后端分离的 no-LLM 规则版 MVP，已具备 Mock Demo + Real Search hybrid runtime、真实 OpenAlex / arXiv 检索、异步 run lifecycle、结构化结果展示、规则版 citation-backed synthesis、批量搜索和离线评测雏形。
 
 ## 项目目标
 
@@ -23,7 +23,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 - 后端：FastAPI + Python 3.11+，负责学术检索 pipeline、外部检索源调用、聚合去重、规则判断、重排、可选 Query Evolution、可选 RefChain、规则版 Synthesis、API mapper、离线评测和成本统计。
 - 前端：Next.js + TypeScript + Tailwind CSS，负责 ScholarNavigator 工作台、参数交互、运行过程展示、结果卡片、missing evidence 诊断和 Citation-backed Synthesis Panel。
 - 安全边界：前端不读取、不保存、不展示任何 API Key；外部 API 和未来 LLM 调用都应保留在后端。
-- API 形态：现有 Mock API 保持稳定；真实检索通过 internal preview endpoint 验证，便于后续受控替换或灰度接入。
+- API 形态：现有 Mock API 保持稳定；真实检索通过独立 `/api/v1/real/search/runs` lifecycle 暴露，支持 create/status/result/events/cancel；internal preview endpoint 仅保留为后端调试入口。
 
 ## 核心 Pipeline
 
@@ -48,6 +48,14 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - `GET /api/v1/search/runs/{run_id}`
   - `GET /api/v1/search/runs/{run_id}/result`
   - `GET /api/v1/search/runs/{run_id}/events`
+- Real Search API：
+  - `POST /api/v1/real/search/runs`
+  - `GET /api/v1/real/search/runs/{run_id}`
+  - `GET /api/v1/real/search/runs/{run_id}/result`
+  - `GET /api/v1/real/search/runs/{run_id}/events`
+  - `POST /api/v1/real/search/runs/{run_id}/cancel`
+  - 异步后台执行，支持 queued / running / succeeded / failed / cancelled 状态。
+  - SSE 回放真实事件，包括 `connector_completed`、`warning`、`cost_updated`。
 - Internal Preview API：
   - `POST /api/v1/internal/search/preview`
   - `POST /api/v1/internal/search/preview/api-result`
@@ -62,6 +70,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - `retrieve_papers` 支持 OpenAlex / arXiv。
   - 单个 source 失败不会中断整体 pipeline。
   - `source_stats` 和 `warnings` 可观测。
+  - 轻量 in-memory retrieval cache，支持 TTL、最大条目数、环境变量关闭，`cache_hit_count` 会进入 `cost_report`。
 - 论文去重：
   - 支持 identifier 优先和 title+year fallback。
   - 合并 sources、identifiers、urls、citation_count、abstract、authors 等字段。
@@ -81,9 +90,19 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - 可选暴露 `synthesis` 字段，不破坏 Mock Demo。
 - 前端：
   - Mock Demo 模式：保留原 Mock API 和 SSE 流程。
-  - Real Preview 模式：调用 internal api-result preview endpoint。
+  - Real Preview 模式：调用独立 Real Search lifecycle，并展示真实 SSE events。
   - Results 展示论文卡片、source badges、identifier、links、missing evidence。
   - Citation-backed Synthesis Panel：展示 summary、findings、coverage、limitations、evidence rows。
+  - Citation Graph Panel：展示后端返回的 citation graph nodes / edges，不做前端推断。
+  - Export JSON / Export Markdown：在浏览器本地导出当前 `SearchRunResultResponse`，不上传后端。
+- Runtime 与工程能力：
+  - `/api/v1/runtime/config` 返回 `mode=hybrid`，明确 no-LLM、OpenAlex/arXiv 可用于 Real Search。
+  - CORS allowlist 可配置，默认支持 `3000`、`3001`、`5173` 的 localhost / 127.0.0.1。
+  - Real Search in-memory run store 支持 TTL 和最大数量清理，只清理 terminal runs。
+- 批量 CLI：
+  - `scripts/run_search_batch.py`：从 JSONL 批量运行 SearchService。
+  - `scripts/summarize_search_batch.py`：汇总批量结果为 Markdown。
+  - `scripts/evaluate_search_batch.py`：基于 gold/qrels JSONL 计算 Recall@K、Precision@K、MRR、nDCG。
 - 离线评测：
   - evaluation schemas、metrics、offline evaluator、fixture loader。
   - sample fake fixture 和报告输出脚本。
@@ -152,39 +171,53 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - 有 run 创建、状态查询、Mock SSE、Mock 结果。
   - 默认 `synthesis=null` 或缺省，Synthesis Panel 不展示。
 - Real Preview：
-  - 调用 `POST /api/v1/internal/search/preview/api-result`。
+  - 调用 `POST /api/v1/real/search/runs` 创建异步真实检索 run。
+  - 轮询 `GET /api/v1/real/search/runs/{run_id}`，成功后读取 result。
+  - 连接 `GET /api/v1/real/search/runs/{run_id}/events` 展示 Real Search Events。
+  - 支持 `POST /api/v1/real/search/runs/{run_id}/cancel` 取消 queued / running run。
   - 可能真实访问 OpenAlex / arXiv。
-  - 不使用 SSE，前端显示一次性 REST loading。
   - 返回论文时复用结果卡片；无候选或检索源失败时展示“检索源失败/无候选”和 missing_evidence。
   - 返回 `synthesis` 时展示 Citation-backed Synthesis Panel。
+  - 有 citation graph 时展示 Citation Graph Panel。
+  - 有 result 时支持 Export JSON / Export Markdown。
 
 ## 当前测试与验证结果
 
-以下结果来自已有验证记录和本轮最终检查：
+以下结果来自最终工程验收记录 `docs/design/final_engineering_acceptance.md`：
 
-- 后端测试：`PYTHONPATH=src pytest -q` 通过，记录中为 `140 passed, 1 warning`。
+- 后端测试：`PYTHONPATH=src pytest -q` 通过，`190 passed, 1 warning`。
 - 前端 lint：`cd frontend && npm run lint` 通过。
 - 前端 build：`cd frontend && npm run build` 通过。
-- Mock Demo 验证：Mock run、SSE、论文卡片展示成功，Synthesis Panel 按预期隐藏。
-- Real Preview 验证：
-  - 网络失败场景下，前端展示 missing_evidence，不白屏。
-  - 降并发后两次真实 preview 均返回 HTTP 200，arXiv 返回可用论文，OpenAlex 503 诊断可见。
+- Runtime config 验证：`mode=hybrid`，`llm.available=false`，OpenAlex/arXiv connector 对 Real Search 可用，real_search/cancel/sse/retrieval_cache/batch_cli feature 可见。
+- Mock Demo 验证：Mock run、Mock SSE、论文卡片展示成功，`synthesis=null` 按预期隐藏。
+- Real Search API 验证：
+  - 异步 run 创建、状态轮询、result、events 均通过。
+  - events 包含 `connector_completed`、`warning`、`cost_updated`。
+  - cancel endpoint 返回 `cancelled`，cancelled run 的 result 返回 `409 run cancelled`。
+  - OpenAlex 503 进入 `missing_evidence` / source stats / SSE events，arXiv 仍可返回候选，系统不崩溃。
+- 前端 smoke 验证：
+  - Header 显示 `Mock + Real Search`、`Hybrid Runtime`、`no-LLM`、`backend ready`。
+  - Mock Demo 与 Real Preview 均可演示。
+  - Synthesis Panel、Citation Graph Panel、Export JSON / Markdown 在有 result 时可见。
 - Synthesis Panel 验证：
   - Real Preview 返回论文时，panel 可展示 status、summary、findings、coverage、limitations 和 evidence rows。
   - 明确显示当前 MVP 不代表系统已读取全文 PDF。
+- Batch CLI 验证：
+  - 批量运行、Markdown 汇总、gold/qrels 评测均通过 smoke 验证。
+  - 该评测使用临时小型 gold，只验证链路，不代表完整 benchmark。
 
 ## 当前已知问题
 
 - OpenAlex 503、arXiv 429 / timeout 是真实外部依赖风险，retry/backoff 只能提升可观测性和部分恢复能力，不能保证外部服务可用。
 - 当前所有 agent 均为 no-LLM 规则版，复杂语义理解、跨语言概念扩展和证据归纳能力有限。
 - 当前 Synthesis 只基于 metadata 和 evidence rows，不读取全文 PDF，不做段落级证据检索。
-- 公共 Mock API 仍是演示 mock flow，真实搜索暂通过 internal preview endpoint 暴露。
+- 公共 Mock API 仍是演示 mock flow；真实搜索已通过独立 Real Search lifecycle 暴露，但仍是 in-memory run store，不是生产级持久化队列。
 - 评测当前只完成 fake fixture 离线链路，尚未接入完整 LitSearch / AstaBench 数据。
 - 尚未实现生产级持久化缓存、任务队列、用户级日志、成本看板和部署配置。
 
 ## 后续可扩展方向
 
-1. 将真实 SearchService 以 feature flag 方式逐步接入正式 `/api/v1/search/runs`。
+1. 将 Real Search lifecycle 从 in-memory store 升级为持久化任务队列和可部署服务。
 2. 增加 Semantic Scholar、PubMed 等检索源，并完善 biomedical query 的 source selection。
 3. 接入可选 LLM 增强 Query Understanding、Judgement、Reranking、Synthesis，同时保留无 Key fallback。
 4. 增加全文 PDF / abstract chunk 证据检索，但必须保留引用来源和证据边界。

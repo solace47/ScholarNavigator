@@ -8,11 +8,13 @@
    阅读完整技术报告初稿。
 3. `docs/final/demo_script.md`  
    查看演示流程和现场兜底方案。
-4. `docs/design/frontend_synthesis_validation.md`  
+4. `docs/design/final_engineering_acceptance.md`  
+   查看最终工程验收记录，包括 runtime config、Mock Demo、Real Search lifecycle、cancel、前端 smoke 和 Batch CLI 验证。
+5. `docs/design/frontend_synthesis_validation.md`  
    查看前端 Synthesis Panel 的端到端验证记录。
-5. `docs/design/real_preview_stability_validation.md`  
+6. `docs/design/real_preview_stability_validation.md`  
    查看 Real Preview 在降并发和 retry/backoff 下的真实检索表现。
-6. `docs/design/evaluation_runbook.md`  
+7. `docs/design/evaluation_runbook.md`  
    查看离线评测 schema、metrics、fixtures 和脚本说明。
 
 ## 安装依赖
@@ -148,7 +150,7 @@ cd frontend && npm run build
 
 当前记录中的预期结果：
 
-- `pytest`：应全部通过，具体数量以当前测试集为准
+- `pytest`：最终验收记录为 `190 passed, 1 warning`
 - `npm run lint`：通过
 - `npm run build`：通过
 
@@ -184,9 +186,12 @@ cd frontend && npm run build
    - run_id 以 `run_real_` 开头。
    - Run Progress 展示 `Real Search Events`。
    - queued/running/succeeded/failed 状态会通过轮询更新。
+   - SSE 中可见 `connector_completed`、`warning`、`cost_updated`。
    - 如果 OpenAlex / arXiv 返回论文，Results 展示真实论文卡片。
    - 如果外部源失败，Results 展示“检索源失败/无候选”和 `missing_evidence` 诊断。
    - 如果返回 `synthesis`，Results 上方展示 Citation-backed Synthesis Panel。
+   - 如果后端返回 citation graph，Results 展示 Citation Graph Panel。
+   - 有 result 时可以点击 `Export JSON` / `Export Markdown`。
 
 Real Preview 支持：
 
@@ -194,6 +199,8 @@ Real Preview 支持：
 - SSE event replay：`/api/v1/real/search/runs/{run_id}/events`
 - cancelling queued/running runs：`POST /api/v1/real/search/runs/{run_id}/cancel`
 - retrieval cache diagnostics：`cost_report.cache_hit_count`
+- connector observability：`connector_completed` event 会展示 source、returned_count、latency、cache_hit、error_message
+- cost updates：`cost_updated` event 会回放后端 cost_report
 
 注意：Real Preview 会通过后端真实访问 OpenAlex / arXiv，可能受到 OpenAlex 503、arXiv 429 或 timeout 影响。
 
@@ -216,6 +223,29 @@ Real Preview 返回 `synthesis` 时，论文列表上方会展示 Citation-backe
 - 不代表系统读取了全文 PDF。
 - 不调用 LLM。
 - source error 和 metadata-only 限制会显示在 limitations 中。
+
+## 查看 Citation Graph 与导出
+
+有 result 时，如果 `citation_graph.nodes` 或 `citation_graph.edges` 非空，Results 会展示 Citation Graph Panel。
+
+重点查看：
+
+- nodes 数量、edges 数量
+- node 的 label、id、rank
+- edge 的 source、target、relation
+
+边界：
+
+- Citation Graph 只展示后端返回的结构化关系。
+- 前端不推断未返回的引用关系。
+- `enable_refchain=false` 时可能只有 nodes 或没有 edges，这是正常情况。
+
+有 result 时还会展示：
+
+- `Export JSON`
+- `Export Markdown`
+
+导出完全在浏览器本地完成，不上传后端，不重新检索。JSON 是完整 `SearchRunResultResponse`；Markdown 包含 query analysis、search plan、cost report、synthesis、论文列表、citation graph 和 missing evidence。
 
 ## 离线评测样例
 
@@ -318,3 +348,4 @@ gold/qrels JSONL 每行按 `case_id` 对齐：
 - 前端不读取、不保存、不展示任何 API Key。
 - Mock Demo API 行为保持不变；Real Preview 走独立 Real Search lifecycle。
 - OpenAlex / arXiv 网络错误会被记录并展示，不代表系统逻辑崩溃。
+- 最终工程验收入口：`docs/design/final_engineering_acceptance.md`。
