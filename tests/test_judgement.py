@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from scholar_agent.agents import judgement as judgement_module
 from scholar_agent.agents.judgement import judge_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import QueryAnalysis, QueryConstraint, TimeRange
@@ -354,6 +355,66 @@ def test_llm_missing_evidence_keeps_valid_judgement_with_warning() -> None:
     assert result.evidence == []
     assert "llm_judgement_missing_evidence:0" in result.warnings
     assert "llm_judgement_failed" not in " ".join(result.warnings)
+
+
+def test_llm_judgement_max_papers_limits_llm_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS", "1")
+    query_analysis = make_query_analysis()
+    first = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="LLM reranking improves retrieval.",
+    )
+    second = make_paper(
+        "Neural Retrieval Survey",
+        abstract="A survey of neural retrieval methods.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.91,
+                        "category": "highly_relevant",
+                        "reasoning": "LLM judged the first candidate.",
+                        "evidence": {
+                            "source": "title",
+                            "text": "LLM Reranking for Scientific Literature Retrieval",
+                            "confidence": 0.9,
+                        },
+                    }
+                ]
+            }
+        ]
+    )
+
+    first_result, second_result = judge_papers(
+        query_analysis,
+        [first, second],
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.calls == 1
+    assert first_result.score == 0.91
+    assert "llm_judgement_used" in first_result.warnings
+    assert "llm_judgement_skipped_by_limit:1" in second_result.warnings
+    assert "llm_judgement_used" not in second_result.warnings
+
+
+@pytest.mark.parametrize("raw_value", ["0", "-1", "not-an-int"])
+def test_llm_judgement_max_papers_invalid_values_fall_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_value: str,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS", raw_value)
+
+    assert (
+        judgement_module.llm_judgement_max_papers_from_env()
+        == judgement_module.DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
+    )
 
 
 def test_llm_exception_falls_back_to_rules_with_warning() -> None:

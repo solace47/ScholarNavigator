@@ -739,6 +739,52 @@ def test_run_search_can_use_llm_judgement_with_injected_client() -> None:
     assert output.ranked_papers
 
 
+def test_run_search_respects_llm_judgement_max_papers_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS", "1")
+    llm_client = FakeJudgementLLMClient()
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Judged Reranking Retrieval Paper",
+                    doi="10.123/llm-judgement",
+                ),
+                make_paper(
+                    "Rule Judged Retrieval Paper",
+                    doi="10.123/rule-judgement",
+                ),
+                make_paper(
+                    "Skipped LLM Judgement Paper",
+                    doi="10.123/skipped-judgement",
+                ),
+            ],
+        )
+
+    output = SearchService(
+        retriever=fake_retriever,
+        llm_client=llm_client,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        current_year=2026,
+        enable_llm_judgement=True,
+    )
+
+    assert llm_client.calls == 1
+    assert output.llm_call_count == 1
+    assert "llm_judgement_used" in output.warnings
+    assert "llm_judgement_skipped_by_limit:1" in output.warnings
+    assert "llm_judgement_skipped_by_limit:2" in output.warnings
+    assert output.ranked_papers
+
+
 def test_run_search_empty_query_raises_value_error() -> None:
     def fake_retriever(
         query: str,

@@ -94,7 +94,9 @@ DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
 }
 
 LLM_JUDGEMENT_BATCH_SIZE_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE"
+LLM_JUDGEMENT_MAX_PAPERS_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS"
 DEFAULT_LLM_JUDGEMENT_BATCH_SIZE = 8
+DEFAULT_LLM_JUDGEMENT_MAX_PAPERS = 8
 MIN_LLM_JUDGEMENT_BATCH_SIZE = 1
 MAX_LLM_JUDGEMENT_BATCH_SIZE = 20
 JUDGEMENT_CATEGORIES: set[str] = {
@@ -183,9 +185,16 @@ class JudgementAgent:
             return _with_warning(rule_results, "llm_judgement_disabled")
 
         batch_size = llm_judgement_batch_size_from_env()
+        llm_limit = min(len(papers), llm_judgement_max_papers_from_env())
         results: list[JudgementResult] = list(rule_results)
-        for start in range(0, len(papers), batch_size):
-            end = min(start + batch_size, len(papers))
+        for skipped_index in range(llm_limit, len(papers)):
+            results[skipped_index] = _with_warning(
+                [results[skipped_index]],
+                f"llm_judgement_skipped_by_limit:{skipped_index}",
+            )[0]
+
+        for start in range(0, llm_limit, batch_size):
+            end = min(start + batch_size, llm_limit)
             batch_papers = papers[start:end]
             batch_rule_results = rule_results[start:end]
             try:
@@ -247,6 +256,19 @@ def llm_judgement_batch_size_from_env() -> int:
     except ValueError:
         return DEFAULT_LLM_JUDGEMENT_BATCH_SIZE
     return max(MIN_LLM_JUDGEMENT_BATCH_SIZE, min(MAX_LLM_JUDGEMENT_BATCH_SIZE, value))
+
+
+def llm_judgement_max_papers_from_env() -> int:
+    import os
+
+    raw_value = os.getenv(LLM_JUDGEMENT_MAX_PAPERS_ENV)
+    if raw_value is None:
+        return DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
+    return value if value >= 1 else DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
 
 
 def _judge_papers_rules(
