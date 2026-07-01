@@ -14,7 +14,7 @@ real-search API integration.
 
 Current boundaries:
 
-- The mapper is not connected to any FastAPI route.
+- The mapper is connected only to an internal preview endpoint.
 - Existing `/api/v1/search/runs` Mock API behavior is unchanged.
 - No frontend changes.
 - No `third_party` changes.
@@ -39,6 +39,47 @@ Return type:
 ```python
 SearchRunResultResponse
 ```
+
+## Internal Preview Endpoint
+
+The mapper can be exercised through:
+
+```text
+POST /api/v1/internal/search/preview/api-result
+```
+
+Request fields reuse `InternalSearchPreviewRequest`:
+
+- `query`
+- `top_k`
+- `run_profile`
+- `enable_refchain`
+- `enable_query_evolution`
+- `current_year`
+
+Response model:
+
+```python
+SearchRunResultResponse
+```
+
+The endpoint calls:
+
+```python
+SearchService().run_search(...)
+map_search_service_output_to_api_result(...)
+```
+
+The generated `run_id` uses the debug-friendly prefix:
+
+```text
+run_preview_
+```
+
+Important: this endpoint is still an internal preview path. Manual calls may
+access OpenAlex/arXiv through the default `SearchService`, and may access
+OpenAlex references when RefChain is enabled. Tests monkeypatch `SearchService`
+and do not access the network.
 
 ## Field Mapping
 
@@ -141,7 +182,8 @@ available. It does not infer citation relationships from external knowledge.
 
 ## Current Limitations
 
-- No route uses this mapper yet.
+- Only the internal preview endpoint uses this mapper.
+- The public Mock API result endpoint still returns mock data.
 - `citation_count` is not present in the API paper schema.
 - Method clusters are simple deterministic groupings, not semantic topic
   clusters.
@@ -155,6 +197,7 @@ Recommended next steps:
 
 1. Add a feature flag for real-search API mode.
 2. Persist real SearchService run state.
-3. Use this mapper in the result endpoint only when real-search mode is enabled.
+3. Use this mapper in the public result endpoint only when real-search mode is
+   enabled.
 4. Keep Mock API behavior available until frontend and demo flows are stable.
 5. Add SSE stage events around real pipeline execution before frontend rollout.

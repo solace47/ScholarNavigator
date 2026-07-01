@@ -320,6 +320,31 @@ accepted evolved queries may cause additional OpenAlex/arXiv retrieval calls.
 If `enable_refchain=True`, selected seed papers may cause additional OpenAlex
 reference metadata calls.
 
+The service also has an API-contract preview endpoint:
+
+```text
+POST /api/v1/internal/search/preview/api-result
+```
+
+It accepts the same request fields as `/api/v1/internal/search/preview`, then
+maps `SearchServiceOutput` through:
+
+```python
+map_search_service_output_to_api_result(...)
+```
+
+Response model:
+
+```text
+SearchRunResultResponse
+```
+
+This endpoint is for validating that real internal search output can fit the
+existing frontend API result shape before replacing any public Mock API route.
+Like the raw preview endpoint, manual calls may access OpenAlex/arXiv and, when
+RefChain is enabled, OpenAlex reference metadata. Tests monkeypatch
+`SearchService` and do not access external services.
+
 The existing Mock API remains unchanged:
 
 ```text
@@ -334,11 +359,11 @@ Do not replace these Mock endpoints yet.
 Recommended next steps:
 
 1. Add a backend feature flag before routing frontend traffic to real search.
-2. Map `SearchServiceOutput` into the existing API response contract.
-3. Persist run state and progress events before exposing it to the frontend.
-4. Keep Mock API as the stable frontend demo path until the service path is
+2. Persist run state and progress events before exposing it to the frontend.
+3. Keep Mock API as the stable frontend demo path until the service path is
    tested with real connector latency and failures.
-5. Add SSE events around every pipeline stage before enabling UI integration.
+4. Add SSE events around every pipeline stage before enabling UI integration.
+5. Gate public result endpoint replacement behind an explicit real-search mode.
 
 ## Current Non-goals
 

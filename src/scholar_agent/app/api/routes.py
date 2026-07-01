@@ -40,6 +40,7 @@ from ...core.api_schemas import (
     TimelineItem,
 )
 from ...core.search_schemas import RunProfile
+from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import SearchService
 
 
@@ -270,6 +271,34 @@ def internal_search_preview(
         warnings=output.warnings,
         source_stats=[_model_dump(stats) for stats in output.source_stats],
         latency_seconds=output.latency_seconds,
+    )
+
+
+@router.post(
+    "/internal/search/preview/api-result",
+    response_model=SearchRunResultResponse,
+    tags=["internal-preview"],
+)
+def internal_search_preview_api_result(
+    request: InternalSearchPreviewRequest,
+) -> SearchRunResultResponse:
+    try:
+        output = SearchService().run_search(
+            request.query,
+            top_k=request.top_k,
+            run_profile=request.run_profile,
+            enable_refchain=request.enable_refchain,
+            enable_query_evolution=request.enable_query_evolution,
+            current_year=request.current_year,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return map_search_service_output_to_api_result(
+        run_id=f"run_preview_{uuid4().hex[:12]}",
+        output=output,
+        status="succeeded",
+        partial=False,
     )
 
 
