@@ -85,6 +85,7 @@ SCHOLAR_AGENT_LLM_MAX_TOKENS=1024
 SCHOLAR_AGENT_LLM_NVIDIA_THINKING=false
 SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE=8
 SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS=8
+SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS=25
 ```
 
 如果使用 NVIDIA hosted DeepSeek，建议先用低延迟配置做 smoke test：
@@ -116,6 +117,7 @@ PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 - LLM Query Understanding 禁用、配置缺失或调用失败时，系统使用确定性的规则版 Query Understanding，并在 `SearchPlan.warnings`、SSE warning 和 `missing_evidence` 中记录 `llm_query_understanding_disabled` 或 `llm_query_understanding_failed:<reason>`。
 - LLM Judgement 只基于候选论文 metadata，不读取全文 PDF，不生成新论文，不引入候选列表之外的论文。
 - `SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS` 控制最多让前 N 篇候选进入 LLM Judgement，默认 8；N 之后的论文继续使用规则版 Judgement，并记录 `llm_judgement_skipped_by_limit:{index}`，用于降低延迟和成本。
+- `SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS` 是 LLM Judgement 的独立调用超时，默认 25 秒；Query Understanding 仍使用 `SCHOLAR_AGENT_LLM_TIMEOUT_SECONDS`。
 - LLM Judgement 禁用、配置缺失、批次失败或返回非法 JSON 时，只回退对应批次或论文的规则版 Judgement，并记录 `llm_judgement_disabled`、`llm_judgement_failed:<reason>`、`llm_judgement_invalid_category` 等诊断。
 - 这不是示例数据 fallback；检索仍走真实 OpenAlex / arXiv。
 - `cost_report.llm_call_count` 已统计 Query Understanding / Judgement 的 LLM 调用次数；精确 token usage 仍待接入。

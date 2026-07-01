@@ -95,8 +95,10 @@ DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
 
 LLM_JUDGEMENT_BATCH_SIZE_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE"
 LLM_JUDGEMENT_MAX_PAPERS_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS"
+LLM_JUDGEMENT_TIMEOUT_SECONDS_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS"
 DEFAULT_LLM_JUDGEMENT_BATCH_SIZE = 8
 DEFAULT_LLM_JUDGEMENT_MAX_PAPERS = 8
+DEFAULT_LLM_JUDGEMENT_TIMEOUT_SECONDS = 25.0
 MIN_LLM_JUDGEMENT_BATCH_SIZE = 1
 MAX_LLM_JUDGEMENT_BATCH_SIZE = 20
 JUDGEMENT_CATEGORIES: set[str] = {
@@ -186,6 +188,7 @@ class JudgementAgent:
 
         batch_size = llm_judgement_batch_size_from_env()
         llm_limit = min(len(papers), llm_judgement_max_papers_from_env())
+        llm_timeout = llm_judgement_timeout_seconds_from_env()
         results: list[JudgementResult] = list(rule_results)
         for skipped_index in range(llm_limit, len(papers)):
             results[skipped_index] = _with_warning(
@@ -206,6 +209,7 @@ class JudgementAgent:
                         batch_papers,
                         start_index=start,
                     ),
+                    timeout=llm_timeout,
                 )
                 batch_results = _judgement_results_from_llm_json(
                     raw_response,
@@ -269,6 +273,19 @@ def llm_judgement_max_papers_from_env() -> int:
     except ValueError:
         return DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
     return value if value >= 1 else DEFAULT_LLM_JUDGEMENT_MAX_PAPERS
+
+
+def llm_judgement_timeout_seconds_from_env() -> float:
+    import os
+
+    raw_value = os.getenv(LLM_JUDGEMENT_TIMEOUT_SECONDS_ENV)
+    if raw_value is None:
+        return DEFAULT_LLM_JUDGEMENT_TIMEOUT_SECONDS
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return DEFAULT_LLM_JUDGEMENT_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_LLM_JUDGEMENT_TIMEOUT_SECONDS
 
 
 def _judge_papers_rules(
@@ -688,10 +705,12 @@ def _clamp(value: float) -> float:
 def _chat_json(
     llm_client: LLMJsonClient | None,
     messages: list[dict[str, str]],
+    *,
+    timeout: float,
 ) -> dict[str, Any]:
     if llm_client is not None:
-        return llm_client.chat_json(messages, temperature=0)
-    return provider_chat_json(messages, temperature=0)
+        return llm_client.chat_json(messages, temperature=0, timeout=timeout)
+    return provider_chat_json(messages, temperature=0, timeout=timeout)
 
 
 def _build_llm_judgement_messages(

@@ -278,6 +278,58 @@ def test_valid_llm_json_generates_judgement_result() -> None:
     assert "batch_note" in result.warnings
 
 
+def test_llm_judgement_timeout_is_passed_to_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS", "7.5")
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="This paper studies LLM reranking for retrieval.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.9,
+                        "category": "highly_relevant",
+                        "reasoning": "Relevant based on metadata.",
+                        "evidence": {
+                            "source": "title",
+                            "text": "LLM Reranking for Scientific Literature Retrieval",
+                            "confidence": 0.9,
+                        },
+                    }
+                ]
+            }
+        ]
+    )
+
+    judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.timeouts == [7.5]
+
+
+@pytest.mark.parametrize("raw_value", ["0", "-1", "not-a-float"])
+def test_llm_judgement_timeout_invalid_values_fall_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_value: str,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_TIMEOUT_SECONDS", raw_value)
+
+    assert (
+        judgement_module.llm_judgement_timeout_seconds_from_env()
+        == judgement_module.DEFAULT_LLM_JUDGEMENT_TIMEOUT_SECONDS
+    )
+
+
 def test_llm_evidence_object_is_accepted_as_single_item() -> None:
     query_analysis = make_query_analysis()
     paper = make_paper(
@@ -589,9 +641,11 @@ class FakeLLMClient:
     def __init__(self, responses: list[object]) -> None:
         self.responses = responses
         self.calls = 0
+        self.timeouts: list[float | None] = []
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
+        self.timeouts.append(timeout)
         assert messages
         assert temperature == 0
         return self.responses[self.calls - 1]
