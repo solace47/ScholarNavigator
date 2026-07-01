@@ -41,6 +41,7 @@ import type {
   SearchRunResultResponse,
   SearchRunStatusResponse,
   StreamEvent,
+  SynthesisOutput,
 } from "@/types/api";
 import { Badge, Button, FieldLabel, SectionPanel, SkeletonLine, TextInput } from "./ui";
 
@@ -833,6 +834,8 @@ function ResultsPanel({
         <div className="space-y-6">
           {hasDiagnosticsWithoutCandidates ? <SourceDiagnosticNotice result={result} /> : null}
 
+          {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
+
           <QuerySummary result={result} />
 
           <PaperSection
@@ -884,6 +887,160 @@ function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse })
         </div>
       </div>
     </div>
+  );
+}
+
+function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
+  const coverage = synthesis.citation_coverage;
+  const evidenceRows = synthesis.evidence_table.slice(0, 6);
+  const limitationItems = [...synthesis.limitations, ...synthesis.warnings];
+  const coverageMetrics = [
+    {
+      label: "Ranked",
+      value: formatNumber(coverage.ranked_paper_count),
+    },
+    {
+      label: "Cited",
+      value: formatNumber(coverage.cited_paper_count),
+    },
+    {
+      label: "Evidence",
+      value: formatNumber(coverage.evidence_row_count),
+    },
+    {
+      label: "Coverage",
+      value: formatScore(coverage.coverage_ratio),
+    },
+    {
+      label: "Source errors",
+      value: formatNumber(coverage.source_error_count),
+    },
+  ];
+
+  return (
+    <section
+      aria-labelledby="synthesis-title"
+      className="rounded-lg border border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_7%,var(--surface-raised))] p-5 shadow-sm"
+    >
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Sparkles className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
+            <h3 id="synthesis-title" className="text-lg font-bold">
+              Citation-backed Synthesis
+            </h3>
+            <Badge>{synthesis.status}</Badge>
+          </div>
+          <p className="text-sm leading-6 text-[var(--muted-strong)]">
+            {synthesis.answer_summary}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+            规则版 metadata/evidence-row synthesis；当前 MVP 不代表系统已读取全文 PDF。
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {coverageMetrics.map((metric) => (
+          <div
+            key={metric.label}
+            className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3"
+          >
+            <p className="text-xs font-semibold uppercase text-[var(--muted)]">
+              {metric.label}
+            </p>
+            <p className="metric-value mt-1 text-lg font-bold text-[var(--foreground)]">
+              {metric.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <BookOpenCheck className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <h4 className="font-semibold">Key Findings</h4>
+          </div>
+          {synthesis.key_findings.length ? (
+            <div className="space-y-3">
+              {synthesis.key_findings.map((finding, index) => (
+                <div
+                  key={`${finding.text}-${index}`}
+                  className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+                >
+                  <p className="text-sm leading-6 text-[var(--muted-strong)]">{finding.text}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {finding.citation_keys.map((key) => (
+                      <Badge key={key}>{key}</Badge>
+                    ))}
+                    <Badge>{formatScore(finding.confidence)}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">暂无可引用 finding。</p>
+          )}
+        </div>
+
+        <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-[var(--warning)]" aria-hidden="true" />
+            <h4 className="font-semibold">Limitations / Warnings</h4>
+          </div>
+          {limitationItems.length ? (
+            <div className="space-y-2">
+              {limitationItems.slice(0, 8).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--muted-strong)]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">当前 synthesis 未返回额外限制。</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h4 className="font-semibold">Evidence Table</h4>
+            <p className="text-sm text-[var(--muted)]">展示前 {evidenceRows.length} 条证据行。</p>
+          </div>
+          <Badge>{formatNumber(synthesis.evidence_table.length)} rows</Badge>
+        </div>
+        {evidenceRows.length ? (
+          <div className="grid gap-3">
+            {evidenceRows.map((row) => (
+              <div
+                key={row.row_id}
+                className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3"
+              >
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge>{row.citation_key}</Badge>
+                  <Badge>rank {row.rank}</Badge>
+                  {row.year ? <Badge>{row.year}</Badge> : null}
+                  <Badge>{row.evidence_source}</Badge>
+                </div>
+                <p className="font-semibold leading-snug text-[var(--foreground)]">
+                  {row.paper_title}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-strong)]">
+                  {row.evidence_text}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">暂无 evidence row。</p>
+        )}
+      </div>
+    </section>
   );
 }
 

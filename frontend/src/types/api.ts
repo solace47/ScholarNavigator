@@ -153,6 +153,50 @@ export interface EvidenceItem {
   confidence: number;
 }
 
+export interface SynthesisEvidenceRow {
+  row_id: string;
+  citation_key: string;
+  rank: number;
+  paper_title: string;
+  year?: number | null;
+  venue?: string | null;
+  sources: string[];
+  identifiers: PaperIdentifiers;
+  category: string;
+  final_score: number;
+  evidence_source: string;
+  evidence_text: string;
+  supported_terms: string[];
+  supported_claim: string;
+}
+
+export interface SynthesisFinding {
+  text: string;
+  citation_keys: string[];
+  confidence: number;
+  evidence_row_ids: string[];
+}
+
+export interface CitationCoverage {
+  ranked_paper_count: number;
+  cited_paper_count: number;
+  evidence_row_count: number;
+  cited_evidence_row_count: number;
+  missing_evidence_count: number;
+  source_error_count: number;
+  coverage_ratio: number;
+}
+
+export interface SynthesisOutput {
+  answer_summary: string;
+  status: string;
+  key_findings: SynthesisFinding[];
+  evidence_table: SynthesisEvidenceRow[];
+  citation_coverage: CitationCoverage;
+  limitations: string[];
+  warnings: string[];
+}
+
 export interface RankedPaper {
   rank: number;
   paper: Paper;
@@ -213,6 +257,7 @@ export interface SearchRunResultResponse {
   timeline: TimelineItem[];
   citation_graph: CitationGraph;
   missing_evidence: string[];
+  synthesis?: SynthesisOutput | null;
   cost_report: CostReport;
 }
 

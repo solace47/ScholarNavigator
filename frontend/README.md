@@ -71,3 +71,23 @@ The workbench has two modes:
 `Real Preview` may access real OpenAlex and arXiv through the backend. It still does not read, store, or display API keys in the frontend.
 
 If real retrieval returns no visible papers, check the `missing_evidence` diagnostics in the Results panel. Network failures such as OpenAlex 503 or arXiv timeout are surfaced there when the backend reports them.
+
+## Synthesis Panel
+
+`Real Preview` may return an optional `synthesis` object in `SearchRunResultResponse`.
+When present, the Results area renders a citation-backed synthesis panel above the
+paper lists with:
+
+- `answer_summary`
+- `status`
+- key findings with citation keys and confidence
+- citation coverage counters
+- limitations and warnings
+- the first evidence-table rows
+
+`Mock Demo` defaults to `synthesis: null`, so the panel is hidden and the mock
+flow remains unchanged.
+
+The current synthesis MVP is rule-based and grounded in ranked-paper metadata
+and evidence rows. It is citation-backed, but it does not mean the system has
+read full-text PDFs.
