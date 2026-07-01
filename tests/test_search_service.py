@@ -16,6 +16,7 @@ def make_paper(
     title: str,
     *,
     doi: str | None = None,
+    openalex_id: str | None = None,
     year: int | None = 2024,
     citation_count: int = 0,
     sources: list[str] | None = None,
@@ -26,7 +27,7 @@ def make_paper(
         year=year,
         venue="ACL",
         abstract="This paper studies LLM reranking for scientific literature retrieval.",
-        identifiers=PaperIdentifiers(doi=doi),
+        identifiers=PaperIdentifiers(doi=doi, openalex_id=openalex_id),
         sources=sources or ["openalex"],
         citation_count=citation_count,
     )
@@ -76,7 +77,13 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
             ],
         )
 
-    output = SearchService(retriever=fake_retriever).run_search(
+    def failing_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        raise AssertionError("reference_fetcher should not run when refchain is disabled")
+
+    output = SearchService(
+        retriever=fake_retriever,
+        reference_fetcher=failing_reference_fetcher,
+    ).run_search(
         "latest LLM reranking retrieval papers",
         top_k=5,
         current_year=2026,
@@ -86,6 +93,7 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert len(calls) == len(output.search_plan.subqueries)
     assert len(output.retrieval_outputs) == len(output.search_plan.subqueries)
     assert output.query_evolution_records == []
+    assert output.refchain_output is None
     assert output.raw_count == len(output.search_plan.subqueries)
     assert output.deduplicated_count == len(output.judgements)
     assert output.ranked_papers
@@ -344,6 +352,205 @@ def test_query_evolution_used_queries_skip_duplicate_retrieval(monkeypatch) -> N
     assert calls.count(duplicate_query) == 1
     assert "unique evolved LLM reranking retrieval query" in calls
     assert "duplicate_evolved_query_skipped" in output.warnings
+
+
+def test_run_search_with_refchain_calls_reference_fetcher() -> None:
+    calls: list[tuple[str, int]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Reranking for Scientific Literature Retrieval",
+                    doi=f"10.123/{sum(ord(char) for char in query)}",
+                    openalex_id=f"W{sum(ord(char) for char in query)}",
+                )
+            ],
+        )
+
+    def fake_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        calls.append((paper.title, limit))
+        return [
+            make_paper(
+                "Reference LLM Reranking Retrieval Paper",
+                doi="10.123/refchain-reference",
+                openalex_id="WREFCHAIN",
+            )
+        ]
+
+    output = SearchService(
+        retriever=fake_retriever,
+        reference_fetcher=fake_reference_fetcher,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        enable_refchain=True,
+        current_year=2026,
+    )
+
+    assert calls
+    assert output.refchain_output is not None
+    assert output.refchain_output.references
+    assert output.raw_count == (
+        sum(item.raw_count for item in output.retrieval_outputs) + len(calls)
+    )
+    assert output.source_stats[-1].source == "refchain"
+    assert output.source_stats[-1].returned_count == len(calls)
+
+
+def test_refchain_references_participate_in_final_ranking() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Reranking for Scientific Literature Retrieval",
+                    doi=f"10.123/{sum(ord(char) for char in query)}",
+                    openalex_id=f"W{sum(ord(char) for char in query)}",
+                    citation_count=0,
+                )
+            ],
+        )
+
+    def fake_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        return [
+            make_paper(
+                "High Authority LLM Reranking Retrieval Reference",
+                doi="10.123/high-authority-reference",
+                openalex_id="WHIGHREF",
+                citation_count=2000,
+                sources=["openalex", "arxiv"],
+            )
+        ]
+
+    output = SearchService(
+        retriever=fake_retriever,
+        reference_fetcher=fake_reference_fetcher,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        top_k=3,
+        enable_refchain=True,
+        current_year=2026,
+    )
+
+    assert output.refchain_output is not None
+    assert any(
+        ranked.paper.title == "High Authority LLM Reranking Retrieval Reference"
+        for ranked in output.ranked_papers
+    )
+    assert output.ranked_papers[0].paper.title == (
+        "High Authority LLM Reranking Retrieval Reference"
+    )
+
+
+def test_refchain_missing_seed_identifier_warning_is_aggregated() -> None:
+    called = {"value": False}
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Reranking for Scientific Literature Retrieval",
+                    citation_count=10,
+                )
+            ],
+        )
+
+    def fake_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        called["value"] = True
+        return []
+
+    output = SearchService(
+        retriever=fake_retriever,
+        reference_fetcher=fake_reference_fetcher,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        enable_refchain=True,
+        current_year=2026,
+    )
+
+    assert called["value"] is False
+    assert output.refchain_output is not None
+    assert "refchain_seed_missing_supported_identifier:1" in output.warnings
+    assert output.source_stats[-1].source == "refchain"
+    assert output.source_stats[-1].returned_count == 0
+
+
+def test_query_evolution_and_refchain_can_run_together() -> None:
+    query = "latest LLM reranking retrieval papers"
+    expected_plan = analyze_query(query, current_year=2026)
+    initial_queries = {subquery.query for subquery in expected_plan.subqueries}
+    retriever_calls: list[str] = []
+    reference_calls: list[str] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        retriever_calls.append(query)
+        if query in initial_queries:
+            return make_output(
+                query,
+                [
+                    make_paper(
+                        "LLM Reranking for Scientific Literature Retrieval",
+                        doi=f"10.123/initial-{len(retriever_calls)}",
+                        openalex_id=f"WINITIAL{len(retriever_calls)}",
+                    )
+                ],
+            )
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Evolved LLM Reranking Retrieval Paper",
+                    doi=f"10.123/evolved-{len(retriever_calls)}",
+                    openalex_id=f"WEVOLVED{len(retriever_calls)}",
+                    citation_count=100,
+                )
+            ],
+        )
+
+    def fake_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        reference_calls.append(paper.title)
+        return [
+            make_paper(
+                "RefChain LLM Reranking Retrieval Reference",
+                doi=f"10.123/ref-{len(reference_calls)}",
+                openalex_id=f"WREF{len(reference_calls)}",
+            )
+        ]
+
+    output = SearchService(
+        retriever=fake_retriever,
+        reference_fetcher=fake_reference_fetcher,
+    ).run_search(
+        query,
+        enable_query_evolution=True,
+        enable_refchain=True,
+        current_year=2026,
+    )
+
+    assert output.query_evolution_records
+    assert output.refchain_output is not None
+    assert any(call not in initial_queries for call in retriever_calls)
+    assert reference_calls
+    assert output.refchain_output.references
+    assert output.ranked_papers
 
 
 def test_run_search_empty_query_raises_value_error() -> None:

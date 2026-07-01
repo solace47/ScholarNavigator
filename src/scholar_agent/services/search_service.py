@@ -15,12 +15,14 @@ from pydantic import BaseModel, Field
 from scholar_agent.agents.judgement import judge_papers
 from scholar_agent.agents.query_evolution import evolve_queries
 from scholar_agent.agents.query_understanding import analyze_query
+from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.reranker import rerank_papers
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
     SourceStats,
     retrieve_papers,
 )
+from scholar_agent.connectors.openalex import fetch_openalex_references
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
@@ -28,6 +30,7 @@ from scholar_agent.core.search_schemas import (
     JudgementResult,
     QueryEvolutionRecord,
     RankedPaper,
+    RefChainOutput,
     RunProfile,
     SearchPlan,
     SearchSubquery,
@@ -53,6 +56,7 @@ class SearchServiceOutput(BaseModel):
     search_plan: SearchPlan
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
     query_evolution_records: list[QueryEvolutionRecord] = Field(default_factory=list)
+    refchain_output: RefChainOutput | None = None
     raw_count: int = 0
     deduplicated_count: int = 0
     judgements: list[JudgementResult] = Field(default_factory=list)
@@ -68,9 +72,11 @@ class SearchService:
     def __init__(
         self,
         retriever: RetrieverFn = retrieve_papers,
+        reference_fetcher: ReferenceFetcher = fetch_openalex_references,
         max_workers: int = 4,
     ) -> None:
         self._retriever = retriever
+        self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
 
     def run_search(
@@ -95,6 +101,7 @@ class SearchService:
         retrieval_outputs = self._retrieve_subqueries(search_plan)
         warnings: list[str] = list(search_plan.warnings)
         query_evolution_records: list[QueryEvolutionRecord] = []
+        refchain_output: RefChainOutput | None = None
 
         raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
             retrieval_outputs
@@ -150,13 +157,45 @@ class SearchService:
                     top_k=top_k,
                 )
 
+        if enable_refchain:
+            refchain_output = expand_refchain(
+                search_plan.query_analysis,
+                ranked_papers,
+                self._reference_fetcher,
+            )
+            raw_papers.extend(refchain_output.references)
+            warnings.extend(refchain_output.warnings)
+            source_stats.append(
+                SourceStats(
+                    source="refchain",
+                    returned_count=len(refchain_output.references),
+                    latency_seconds=refchain_output.latency_seconds,
+                    error_message=";".join(refchain_output.warnings) or None,
+                )
+            )
+            if refchain_output.references:
+                deduplicated = deduplicate_papers(raw_papers)
+                judgements = judge_papers(search_plan.query_analysis, deduplicated)
+                ranked_papers = rerank_papers(
+                    search_plan.query_analysis,
+                    judgements,
+                    top_k=top_k,
+                )
+
         warnings.extend(_judgement_warnings(judgements))
+        refchain_raw_count = (
+            refchain_output.record.raw_reference_count
+            if refchain_output is not None
+            else 0
+        )
 
         return SearchServiceOutput(
             search_plan=search_plan,
             retrieval_outputs=retrieval_outputs,
             query_evolution_records=query_evolution_records,
-            raw_count=sum(output.raw_count for output in retrieval_outputs),
+            refchain_output=refchain_output,
+            raw_count=sum(output.raw_count for output in retrieval_outputs)
+            + refchain_raw_count,
             deduplicated_count=len(deduplicated),
             judgements=judgements,
             ranked_papers=ranked_papers,

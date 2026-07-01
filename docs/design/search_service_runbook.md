@@ -10,12 +10,15 @@ Current boundaries:
 - No FastAPI Mock API replacement.
 - No frontend changes.
 - No `third_party` changes.
-- No RefChain execution.
+- RefChain is available as an optional no-LLM stage when
+  `enable_refchain=True`.
 - Query Evolution is available as an optional no-LLM stage when
   `enable_query_evolution=True`.
 
 The default service can call real retrieval connectors through `retrieve_papers`.
-Unit tests inject a fake retriever and do not access the network.
+When RefChain is enabled, the default service can call OpenAlex reference
+fetching through `fetch_openalex_references`. Unit tests inject fake retrievers
+and fake reference fetchers and do not access the network.
 
 ## Module Responsibility
 
@@ -43,7 +46,10 @@ Injectable service:
 ```python
 from scholar_agent.services.search_service import SearchService
 
-service = SearchService(retriever=fake_retriever)
+service = SearchService(
+    retriever=fake_retriever,
+    reference_fetcher=fake_reference_fetcher,
+)
 output = service.run_search("LLM reranking")
 ```
 
@@ -71,6 +77,11 @@ query
   -> optional deduplicate_papers across all papers
   -> optional judge_papers
   -> optional rerank_papers
+  -> optional expand_refchain
+  -> optional merge references
+  -> optional deduplicate_papers across all papers and references
+  -> optional judge_papers
+  -> optional rerank_papers
   -> SearchServiceOutput
 ```
 
@@ -91,9 +102,16 @@ Details:
 - After evolved retrieval, `SearchService` merges all papers and reruns
   deduplication, judgement, and reranking so evolved results can participate in
   the final ranking.
+- If `enable_refchain=True`, `expand_refchain` uses the current ranked papers as
+  seed candidates and calls the injected reference fetcher.
+- RefChain references are merged into the candidate pool, then deduplicated,
+  judged, and reranked so references can participate in the final ranking.
 
 When `enable_query_evolution=False`, the service keeps the original one-pass
 behavior and `query_evolution_records` is empty.
+
+When `enable_refchain=False`, the service does not call the reference fetcher
+and `refchain_output` is `None`.
 
 ## Subquery Concurrency
 
@@ -112,6 +130,9 @@ Ordering guarantees:
 - `retrieval_outputs` are stored in original `SearchPlan.subqueries` order.
 - Evolved query outputs, when enabled, are appended after initial outputs in
   evolved-query order.
+- RefChain does not append to `retrieval_outputs` because it is not a query
+  retrieval batch; it appends one `SourceStats(source="refchain")` item when
+  enabled.
 - `source_stats` and retrieval warnings are aggregated by that same stable order.
 - Downstream deduplication, judgement, and reranking receive papers in stable
   subquery order.
@@ -127,6 +148,8 @@ Failure handling:
 - A failed evolved query is represented the same way, with
   `source="evolved_query"` and warning
   `evolved_query_failed:{index}:{error}`.
+- A failed RefChain seed is isolated inside `RefChainAgent` and is surfaced as
+  `refchain_seed_failed:{rank}:{error}`.
 
 ## Query Evolution
 
@@ -157,10 +180,49 @@ Behavior:
 Current Query Evolution boundaries:
 
 - No LLM calls.
-- No RefChain.
 - No external access beyond the normal retriever calls for accepted evolved
   queries.
 - No API contract change for the existing Mock API.
+
+## RefChain
+
+The optional RefChain stage is no-LLM and single-layer. It calls:
+
+```python
+from scholar_agent.agents.refchain import expand_refchain
+```
+
+Inputs:
+
+- `SearchPlan.query_analysis`
+- current `ranked_papers`
+- injected `reference_fetcher`
+
+Default reference fetcher:
+
+```python
+from scholar_agent.connectors.openalex import fetch_openalex_references
+```
+
+Behavior:
+
+- Only runs when `enable_refchain=True`.
+- Selects highly relevant and high-scoring partially relevant ranked papers as
+  seeds.
+- Skips seeds without OpenAlex ID or DOI and records a warning.
+- Calls the injected fetcher once per eligible seed.
+- Limits are enforced by `RefChainAgent`.
+- References are merged into the existing candidate pool and pass through
+  deduplication, judgement, and reranking before final output.
+
+Current RefChain boundaries:
+
+- No LLM calls.
+- No recursive citation traversal.
+- No full-text PDF parsing.
+- No external access in tests.
+- Default manual/internal-preview usage may access OpenAlex when RefChain is
+  enabled.
 
 ## Output
 
@@ -169,6 +231,7 @@ Current Query Evolution boundaries:
 - `search_plan`
 - `retrieval_outputs`
 - `query_evolution_records`
+- `refchain_output`
 - `raw_count`
 - `deduplicated_count`
 - `judgements`
@@ -183,6 +246,7 @@ Warnings are aggregated from:
 - every `RetrievalOutput.warnings`
 - every `QueryEvolutionRecord.warnings`
 - SearchService duplicate-evolved-query filtering
+- every `RefChainOutput.warnings`
 - every `JudgementResult.warnings`
 
 Warnings are deduplicated while preserving first-seen order.
@@ -201,6 +265,16 @@ def retriever(
 ```
 
 This keeps service tests offline and makes future connector experiments easier.
+
+`SearchService` also accepts a reference fetcher:
+
+```python
+def reference_fetcher(paper: Paper, limit: int = 20) -> list[Paper]:
+    ...
+```
+
+The default is `fetch_openalex_references`. Tests should inject a fake
+reference fetcher whenever `enable_refchain=True`.
 
 ## FastAPI Integration Plan
 
@@ -234,6 +308,8 @@ Important: this preview endpoint calls the default `SearchService`, which calls
 `retrieve_papers`. Unless tests monkeypatch the service, manual requests may
 access OpenAlex and arXiv over the network. If `enable_query_evolution=True`,
 accepted evolved queries may cause additional OpenAlex/arXiv retrieval calls.
+If `enable_refchain=True`, selected seed papers may cause additional OpenAlex
+reference metadata calls.
 
 The existing Mock API remains unchanged:
 
@@ -261,7 +337,7 @@ Recommended next steps:
 - No LLM judgement.
 - No LLM reranking.
 - No LLM Query Evolution.
-- No RefChain execution.
+- No LLM RefChain.
 - No external search in tests.
 - No replacement of Mock API routes.
 - No frontend changes.
