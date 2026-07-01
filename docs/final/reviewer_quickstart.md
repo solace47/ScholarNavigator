@@ -56,12 +56,25 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 预期看到：
 
 - `mode` 为 `real_search`。
-- `llm.available=false`，`model=mock-no-llm`，表示当前 MVP 尚未接真实 LLM。
+- 默认 `llm.available=false`，表示未配置后端 LLM provider。
+- 如果后端设置了 OpenAI-compatible LLM 环境变量并启用 Query Understanding，则 `llm.available=true` 且 `features.llm_query_understanding=true`。
 - `openalex` / `arxiv` connector 可用于 Real Search。
 - `semantic_scholar` / `pubmed` 仍为未实现或不可用。
 - 不再包含产品级示例 connector。
 
 OpenAlex / arXiv 可用于 Real Search 是预期；它们仍可能受外部服务 `503`、`429` 或 timeout 影响，相关诊断会进入 Real Search events、`missing_evidence` 和 source stats。
+
+可选 LLM Query Understanding 只在后端配置，不需要也不允许前端读取 key：
+
+```bash
+SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
+SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
+SCHOLAR_AGENT_LLM_API_KEY=...
+SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
+SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+```
+
+当前 LLM 只用于 Query Understanding。禁用、配置缺失或调用失败时，系统会回到规则版 Query Understanding，并在 warnings / Real Search Events / missing evidence 中显示明确诊断；不会返回示例数据。
 
 Real Search 的 in-memory run store 会自动清理 terminal runs。可选环境变量：
 
@@ -204,7 +217,7 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 ## 关键边界提醒
 
-- 当前系统是 no-LLM 规则版 MVP。
+- 当前系统仅 Query Understanding 可选使用 LLM；Judgement、Reranking、Synthesis 仍为规则版。
 - 当前没有读取全文 PDF。
 - 当前没有完整接入 LitSearch / AstaBench benchmark。
 - 前端不读取、不保存、不展示任何 API Key。

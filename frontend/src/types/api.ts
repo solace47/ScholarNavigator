@@ -19,8 +19,10 @@ export interface RuntimeConfigResponse {
   mode: string;
   llm: {
     provider: string;
-    model: string;
+    model?: string | null;
     available: boolean;
+    base_url_host?: string | null;
+    reason?: string | null;
   };
   connectors: Array<{
     name: string;
@@ -48,6 +50,7 @@ export interface RuntimeConfigResponse {
     real_search_sse?: boolean;
     retrieval_cache?: boolean;
     batch_cli?: boolean;
+    llm_query_understanding?: boolean;
   };
 }
 
@@ -78,6 +81,7 @@ export interface SearchRunCreateRequest {
   options?: {
     enable_query_evolution?: boolean;
     enable_refchain?: boolean;
+    enable_llm_query_understanding?: boolean | null;
     refchain_depth?: number;
     return_markdown?: boolean;
     return_json?: boolean;
@@ -91,6 +95,7 @@ export interface InternalSearchPreviewRequest {
   run_profile?: RunProfile;
   enable_refchain?: boolean;
   enable_query_evolution?: boolean;
+  enable_llm_query_understanding?: boolean | null;
   current_year?: number | null;
 }
 

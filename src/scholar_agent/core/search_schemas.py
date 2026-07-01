@@ -114,6 +114,7 @@ class QueryUnderstandingOptions(BaseModel):
     enable_refchain: bool = False
     enable_query_evolution: bool = False
     current_year: int | None = Field(default=None, ge=1900, le=2200)
+    use_llm: bool | None = None
 
 
 class EvidenceItem(BaseModel):

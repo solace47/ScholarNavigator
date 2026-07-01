@@ -90,8 +90,27 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 The backend reports a Real Search runtime. Product-facing example-search endpoints
 and example UI mode are removed; searches use the Real Search lifecycle with
-OpenAlex and arXiv connectors. The LLM runtime is intentionally unavailable
-(`mock-no-llm`), because the current MVP is no-LLM and rule-based.
+OpenAlex and arXiv connectors.
+
+The backend can optionally enable OpenAI-compatible LLM Query Understanding by
+environment variables. The frontend never reads, stores, or displays the LLM API
+key. If the backend LLM provider is disabled or unavailable, the backend uses its
+deterministic rule-based Query Understanding path and surfaces an explicit
+diagnostic such as `llm_query_understanding_disabled` or
+`llm_query_understanding_failed:<reason>`.
+
+Backend-only LLM environment variables:
+
+```bash
+SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
+SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
+SCHOLAR_AGENT_LLM_API_KEY=...
+SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
+SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+```
+
+This LLM integration is currently limited to Query Understanding. Judgement,
+Reranking, and Synthesis remain rule-based.
 
 OpenAlex and arXiv are implemented for Real Search, but live calls can still be
 affected by external service failures such as OpenAlex `503`, arXiv `429`, or

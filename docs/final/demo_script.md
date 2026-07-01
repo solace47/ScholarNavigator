@@ -20,8 +20,20 @@ export OPENALEX_MAILTO=your_email@example.com
 - `OPENALEX_MAILTO` 仅用于 OpenAlex polite pool，不是 API Key。
 - 前端不会读取、保存或展示任何 API Key。
 - 当前演示通过后端 Real Search lifecycle 访问真实 OpenAlex / arXiv。
-- 当前 MVP 不调用 LLM，不读取全文 PDF。
+- 当前 LLM 只可选用于 Query Understanding；默认不需要 LLM key，不读取全文 PDF。
 - 产品路径不再提供示例数据兜底；外部源失败时展示 diagnostics。
+
+如需演示 LLM Query Understanding，可只在后端设置：
+
+```bash
+SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
+SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
+SCHOLAR_AGENT_LLM_API_KEY=...
+SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
+SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+```
+
+前端不输入、不读取、不展示 LLM key。
 
 建议演示前执行：
 
@@ -57,7 +69,8 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 现场应确认：
 
 - `mode=real_search`。
-- `llm.available=false`，当前为 no-LLM MVP。
+- 默认 `llm.available=false`；配置后端 LLM provider 后可为 `true`。
+- `features.llm_query_understanding=true` 仅表示 Query Understanding 可选走 LLM JSON 增强。
 - OpenAlex / arXiv connector 可用于 Real Search。
 - `features.real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` 可见。
 - connectors 中不再有产品级示例 connector。
@@ -80,7 +93,7 @@ http://localhost:3000
 ## Real Search 演示步骤
 
 1. 打开前端页面。
-2. 确认 Header 显示 `Real Search Runtime`、`Real Search`、`no-LLM`、`backend ready`。
+2. 确认 Header 显示 `Real Search Runtime`、`Real Search` 和 `backend ready`；未配置 LLM 时会显示规则解析 / no LLM 语义。
 3. 输入推荐 query：
 
    ```text
@@ -128,7 +141,7 @@ Real Search 返回 `synthesis` 时，在论文列表上方展示 Citation-backed
 - 当前 synthesis 是规则版 metadata/evidence-row synthesis。
 - citation-backed 表示结论绑定到当前候选论文证据行。
 - 不代表系统已读取全文 PDF。
-- 当前没有调用 LLM。
+- 当前 synthesis 没有调用 LLM。
 
 ## Citation Graph Panel 演示步骤
 
@@ -224,7 +237,7 @@ Synthesis：
 
 边界：
 
-> 当前版本是 no-LLM MVP，重点是先把可测试、可复现、可观测的真实检索 pipeline 搭起来。下一阶段会接入真实 LLM provider，但 provider 不可用时也只会返回错误或诊断，不会返回示例数据。
+> 当前版本已经接入真实 LLM provider 基础设施，但只用于 Query Understanding。即使 LLM provider 不可用，系统也不会返回示例数据，而是记录诊断并使用规则解析继续真实检索。
 
 ## 预期展示亮点
 
@@ -233,10 +246,10 @@ Synthesis：
 - Real Search Events 暴露 connector_completed、warning、cost_updated。
 - OpenAlex / arXiv 真实检索源接入，且错误可观测。
 - retrieval cache 可降低重复检索压力，并在 cost_report 中显示 cache_hit_count。
-- 规则版 Query Understanding、Judgement、Reranker、Query Evolution、RefChain、Synthesis 形成完整 pipeline。
+- Query Understanding 支持规则版和可选 LLM JSON 增强；Judgement、Reranker、Query Evolution、RefChain、Synthesis 仍为规则版。
 - Citation-backed Synthesis Panel 明确显示引用 key、证据表和 limitations。
 - Citation Graph Panel 和本地 JSON / Markdown 导出增强结果可解释与复盘能力。
-- no-LLM MVP 下 Token 成本为 0，便于展示效率与成本控制。
+- 默认关闭 LLM 时 token 成本为 0；启用 LLM Query Understanding 后，当前阶段还未完整统计 token 成本。
 - Batch CLI 与离线评测链路具备批量搜索、汇总、gold/qrels 评测能力。
 
 ## 演示失败处理

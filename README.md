@@ -2,7 +2,7 @@
 
 ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的前后端分离系统。
 
-一句话说明：当前版本是 **Real Search only runtime 的 no-LLM 规则版 MVP**。系统已形成可演示、可测试、可观测的真实论文检索闭环，但不调用 LLM，不读取全文 PDF，也不声称已完成完整 LitSearch / AstaBench benchmark。
+一句话说明：当前版本是 **Real Search only runtime 的规则版 MVP，并已接入可选真实 LLM Query Understanding 基础设施**。系统已形成可演示、可测试、可观测的真实论文检索闭环；默认不要求 LLM key，不读取全文 PDF，也不声称已完成完整 LitSearch / AstaBench benchmark。
 
 本仓库参考 SPAR、PaSa、PaperQA2、ai2-scholarqa-lib、LitSearch 和 AstaBench 的相关思想实现参赛 MVP。原 SPAR 论文入口：[SPAR paper](https://arxiv.org/abs/2507.15245)。
 
@@ -13,7 +13,8 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 - OpenAlex / arXiv connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
-- Query Understanding / Judgement / Reranking：规则版 no-LLM pipeline。
+- Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。
+- Judgement / Reranking / Synthesis：仍为规则版，不调用 LLM。
 - Query Evolution / RefChain：可选规则版扩展阶段。
 - Citation-backed Synthesis Panel：基于 metadata/evidence rows 的规则版 synthesis 展示。
 - Citation Graph Panel：展示后端返回的 citation graph nodes / edges，不做前端推断。
@@ -53,9 +54,44 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 预期要点：
 
 - `mode=real_search`
-- `llm.available=false`
+- 默认 `llm.available=false`；配置真实 provider 后可为 `true`
 - OpenAlex / arXiv connector 可用于 Real Search
 - `real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` feature 可见
+- `llm_query_understanding=true` 仅在 provider 可用且启用对应开关时出现
+
+## 可选 LLM Query Understanding
+
+本轮只把真实 LLM 用于 Query Understanding，不把 Judgement、Reranking 或 Synthesis 改成 LLM。
+
+默认关闭：
+
+```bash
+SCHOLAR_AGENT_LLM_PROVIDER=disabled
+```
+
+启用 OpenAI-compatible Chat Completions：
+
+```bash
+SCHOLAR_AGENT_LLM_PROVIDER=openai_compatible
+SCHOLAR_AGENT_LLM_BASE_URL=https://api.openai.com/v1
+SCHOLAR_AGENT_LLM_API_KEY=...
+SCHOLAR_AGENT_LLM_MODEL=gpt-4.1-mini
+SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING=1
+```
+
+可选超时：
+
+```bash
+SCHOLAR_AGENT_LLM_TIMEOUT_SECONDS=30
+```
+
+安全边界：
+
+- API key 只从后端环境变量读取。
+- runtime config 只返回 provider、model、base_url_host、available 和 reason，不返回 API key。
+- LLM 禁用、配置缺失或调用失败时，系统使用确定性的规则版 Query Understanding，并在 `SearchPlan.warnings`、SSE warning 和 `missing_evidence` 中记录 `llm_query_understanding_disabled` 或 `llm_query_understanding_failed:<reason>`。
+- 这不是示例数据 fallback；检索仍走真实 OpenAlex / arXiv。
+- 当前尚未完整统计 LLM token 成本，`cost_report.llm_call_count` 仍可能为 0。
 
 启动前端：
 
@@ -92,11 +128,7 @@ cd frontend && npm run lint
 cd frontend && npm run build
 ```
 
-最终工程验收记录中的结果：
-
-- Real Search only 重构后，`PYTHONPATH=src pytest -q`：`189 passed, 1 warning`
-- `cd frontend && npm run lint`：通过
-- `cd frontend && npm run build`：通过
+运行结果以本地命令输出为准；最新提交前应重新执行上述三条命令。
 
 ## 推荐阅读顺序
 
@@ -163,7 +195,7 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 ## 边界与非目标
 
 - 产品路径不再提供示例检索模式或静默 fallback；外部源失败时返回明确 diagnostics。
-- 当前是 no-LLM 规则版 MVP，没有调用 LLM。
+- 当前 LLM 仅可选用于 Query Understanding；Judgement、Reranking、Synthesis 仍为规则版。
 - 当前不读取全文 PDF，Synthesis 只基于 metadata 和 evidence rows。
 - 当前未接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 和 CLI 评测链路。
 - OpenAlex / arXiv 是真实外部依赖，可能出现 503、429 或 timeout；系统会降级并展示诊断。

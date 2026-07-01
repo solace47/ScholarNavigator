@@ -668,6 +668,42 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
     assert output.synthesis_output.evidence_table
 
 
+def test_run_search_can_use_llm_query_understanding_with_injected_client() -> None:
+    llm_client = FakeLLMClient()
+    calls: list[str] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append(query)
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "LLM Planned Reranking Retrieval Paper",
+                    doi="10.123/llm-plan",
+                )
+            ],
+        )
+
+    output = SearchService(
+        retriever=fake_retriever,
+        llm_client=llm_client,
+    ).run_search(
+        "latest LLM reranking retrieval papers",
+        current_year=2026,
+        enable_llm_query_understanding=True,
+    )
+
+    assert llm_client.calls == 1
+    assert output.search_plan.subqueries[0].query == "LLM reranking scientific retrieval"
+    assert calls == ["LLM reranking scientific retrieval"]
+    assert "llm_query_understanding_used" in output.warnings
+    assert output.ranked_papers
+
+
 def test_run_search_empty_query_raises_value_error() -> None:
     def fake_retriever(
         query: str,
@@ -789,3 +825,25 @@ def test_run_search_subquery_failure_keeps_other_results_and_warnings() -> None:
     assert output.warnings.count("retriever_warning") == 1
     assert output.raw_count == len(expected_plan.subqueries) - 1
     assert output.ranked_papers
+
+
+class FakeLLMClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        self.calls += 1
+        return {
+            "language": "en",
+            "intent": "recent_progress",
+            "domain": "machine_learning",
+            "selected_sources": ["openalex", "arxiv"],
+            "subqueries": [
+                {
+                    "query": "LLM reranking scientific retrieval",
+                    "source_hints": ["openalex", "arxiv"],
+                    "purpose": "llm_test_plan",
+                }
+            ],
+            "warnings": [],
+        }

@@ -6,7 +6,7 @@
 
 - 项目名称：ScholarNavigator
 - 对应赛题：华为企业赛题三，科研场景下复杂学术查询的智能论文搜索与推荐
-- 当前形态：Real Search only runtime 的 no-LLM 规则版 MVP
+- 当前形态：Real Search only runtime；可选真实 LLM 仅用于 Query Understanding，默认可无 LLM key 运行规则版路径
 - 核心目标：提供可演示、可测试、可观测、可评测的真实学术论文搜索与推荐闭环
 
 ## 最终提交文件地图
@@ -23,6 +23,8 @@
   QueryUnderstanding、Judgement、Reranker、QueryEvolution、RefChain、Synthesis 等规则版 agents。
 - `src/scholar_agent/services/`  
   SearchService、SearchServiceOutput、API mapper。
+- `src/scholar_agent/llm/`  
+  OpenAI-compatible LLM provider 基础设施，仅用于可选 Query Understanding 增强。
 - `src/scholar_agent/evaluation/`  
   metrics、offline evaluator、fixture loader。
 - `tests/`  
@@ -78,9 +80,10 @@ git status --short
 - connectors 中没有产品级示例 connector。
 - OpenAlex / arXiv `available=true`。
 - Semantic Scholar / PubMed 仍 `not_implemented`。
-- `llm.available=false`，本轮未接真实 LLM。
-- 旧 `/api/v1/search/runs` 产品 path 返回 404/405。
-- OpenAPI 不再包含旧 `/api/v1/search/runs` paths。
+- 默认 `llm.available=false`；配置 provider 后可为 `true`。
+- `features.llm_query_understanding=true` 仅表示 Query Understanding 可选走 LLM。
+- legacy product-facing example search path 返回 404/405。
+- OpenAPI 不再包含 legacy product-facing example search paths。
 - 前端只展示 Real Search 入口。
 
 ## 演示建议
@@ -121,7 +124,7 @@ git status --short
 
 ## 当前边界和非目标
 
-- 当前是 no-LLM 规则版 MVP，没有调用 LLM。
+- 当前 LLM 只可选用于 Query Understanding；Judgement、Reranking、Synthesis 仍为规则版。
 - 当前没有读取全文 PDF。
 - Citation-backed synthesis 只基于 metadata / evidence rows，不代表全文级证据归纳。
 - 当前未完整接入 LitSearch / AstaBench benchmark。
@@ -130,7 +133,7 @@ git status --short
 - Retrieval cache 是轻量 in-memory cache，不是生产级分布式缓存。
 - Semantic Scholar 和 PubMed connector 尚未实现。
 - 当前没有用户鉴权、配额管理、生产部署脚本或长期日志系统。
-- 下一阶段会接入真实 LLM provider；provider 不可用时也应返回明确错误或诊断。
+- 后续可将 LLM 扩展到 Judgement、Reranking、Synthesis；provider 不可用时也应返回明确错误或诊断。
 
 ## 交付摘要
 

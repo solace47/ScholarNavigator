@@ -27,8 +27,10 @@ class HealthResponse(BaseModel):
 
 class LLMRuntimeConfig(BaseModel):
     provider: str
-    model: str
+    model: str | None = None
     available: bool
+    base_url_host: str | None = None
+    reason: str | None = None
 
 
 class ConnectorRuntimeConfig(BaseModel):
@@ -59,6 +61,7 @@ class RuntimeFeatures(BaseModel):
     real_search_sse: bool = False
     retrieval_cache: bool = False
     batch_cli: bool = False
+    llm_query_understanding: bool = False
 
 
 class RuntimeConfigResponse(BaseModel):
@@ -94,6 +97,7 @@ class SearchBudgets(BaseModel):
 class SearchOptions(BaseModel):
     enable_query_evolution: bool = True
     enable_refchain: bool = True
+    enable_llm_query_understanding: bool | None = None
     refchain_depth: int = 1
     return_markdown: bool = True
     return_json: bool = True

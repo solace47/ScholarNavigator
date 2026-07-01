@@ -1,14 +1,15 @@
 """Internal search pipeline service.
 
-This service wires the no-LLM backend modules into a real retrieval pipeline.
+This service wires the backend modules into a real retrieval pipeline.
 It is used by the Real Search FastAPI lifecycle endpoints.
 """
 
 from __future__ import annotations
 
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +37,8 @@ from scholar_agent.core.search_schemas import (
     SearchSubquery,
 )
 from scholar_agent.core.synthesis_schemas import SynthesisOutput
+
+ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
 
 
 class RetrieverFn(Protocol):
@@ -69,17 +72,19 @@ class SearchServiceOutput(BaseModel):
 
 
 class SearchService:
-    """Run the internal no-LLM search pipeline."""
+    """Run the internal real search pipeline."""
 
     def __init__(
         self,
         retriever: RetrieverFn = retrieve_papers,
         reference_fetcher: ReferenceFetcher = fetch_openalex_references,
         max_workers: int = 4,
+        llm_client: Any | None = None,
     ) -> None:
         self._retriever = retriever
         self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
+        self._llm_client = llm_client
 
     def run_search(
         self,
@@ -90,8 +95,14 @@ class SearchService:
         enable_query_evolution: bool = False,
         enable_synthesis: bool = True,
         current_year: int | None = None,
+        enable_llm_query_understanding: bool | None = None,
     ) -> SearchServiceOutput:
         start = time.perf_counter()
+        use_llm_query_understanding = (
+            _env_flag(ENABLE_LLM_QUERY_UNDERSTANDING_ENV, default=False)
+            if enable_llm_query_understanding is None
+            else enable_llm_query_understanding
+        )
         search_plan = analyze_query(
             query,
             top_k=top_k,
@@ -99,6 +110,8 @@ class SearchService:
             enable_refchain=enable_refchain,
             enable_query_evolution=enable_query_evolution,
             current_year=current_year,
+            use_llm=use_llm_query_understanding,
+            llm_client=self._llm_client,
         )
 
         retrieval_outputs = self._retrieve_subqueries(search_plan)
@@ -325,6 +338,7 @@ def run_search(
     enable_query_evolution: bool = False,
     enable_synthesis: bool = True,
     current_year: int | None = None,
+    enable_llm_query_understanding: bool | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -336,7 +350,15 @@ def run_search(
         enable_query_evolution=enable_query_evolution,
         enable_synthesis=enable_synthesis,
         current_year=current_year,
+        enable_llm_query_understanding=enable_llm_query_understanding,
     )
+
+
+def _env_flag(env_name: str, *, default: bool) -> bool:
+    raw_value = os.getenv(env_name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:

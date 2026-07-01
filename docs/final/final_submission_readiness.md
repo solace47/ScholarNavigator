@@ -4,7 +4,7 @@
 
 本文档已从旧 hybrid runtime readiness 更新为 Real Search only 重构后的自动检查记录。旧 `docs/design/final_engineering_acceptance.md` 仍可作为历史验收参考，但不再代表当前产品路径状态。
 
-本轮修改了 backend / frontend 产品路径以删除示例检索接口和前端示例模式。未修改 `third_party`。未调用 LLM，未访问外网。
+本轮记录已被后续 LLM Query Understanding 基础设施接入更新。当前系统仍是 Real Search only；LLM 只可选用于 Query Understanding，默认可无 LLM key 运行规则版路径。未修改 `third_party`，本记录不包含真实 LLM 调用。
 
 ## 测试与构建
 
@@ -43,13 +43,14 @@ cd frontend && npm run build
 ## Real Search only 检查
 
 - 产品路径只保留 `/api/v1/real/search/runs` lifecycle。
-- 旧 `/api/v1/search/runs` 产品路径已删除，测试覆盖 404/405。
-- OpenAPI 不再包含旧 `/api/v1/search/runs` paths。
+- legacy product-facing example search path 已删除，测试覆盖 404/405。
+- OpenAPI 不再包含 legacy product-facing example search paths。
 - runtime config 预期为 `mode=real_search`。
 - connectors 中不再包含产品级示例 connector。
 - OpenAlex / arXiv `available=true`。
 - Semantic Scholar / PubMed 仍 `not_implemented`。
-- `llm.available=false`，下一阶段再接真实 LLM provider。
+- 默认 `llm.available=false`；配置 OpenAI-compatible provider 后可为 `true`。
+- `features.llm_query_understanding=true` 仅表示 Query Understanding 可选走 LLM JSON 增强。
 - 前端只保留 Real Search 入口，取消按钮、SSE events、Results、Synthesis Panel、Citation Graph Panel、JSON/Markdown 导出保留。
 
 ## 指定 rg 检查
@@ -88,6 +89,6 @@ ready for automated checks。
 
 1. pytest 存在既有 `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated`，不影响当前测试通过。
 2. Real Search 依赖真实 OpenAlex / arXiv，外部服务可能出现 `503`、`429` 或 timeout。
-3. 当前仍是 no-LLM、metadata/evidence-row MVP，不调用 LLM，不读取全文 PDF。
+3. 当前仅 Query Understanding 可选调用 LLM；Judgement、Reranking、Synthesis 仍为 metadata/evidence-row 规则版，不读取全文 PDF。
 4. 当前未完整接入 LitSearch / AstaBench benchmark，已有的是本地 fake fixture 与 CLI 评测链路。
 5. Real Search 使用 in-memory run store，不是生产级持久化队列。

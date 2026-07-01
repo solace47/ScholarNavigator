@@ -110,3 +110,148 @@ def test_subqueries_are_deduplicated() -> None:
 
     assert len(queries) == len(set(queries))
 
+
+def test_llm_json_can_generate_search_plan() -> None:
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "recent_progress",
+            "domain": "machine_learning",
+            "constraints": {
+                "time_range": {
+                    "start_year": 2024,
+                    "end_year": 2026,
+                    "label": "recent",
+                },
+                "methods": ["reranking"],
+                "must_include_terms": ["LLM", "scientific retrieval"],
+            },
+            "selected_sources": ["openalex", "arxiv"],
+            "subqueries": [
+                {
+                    "query": "LLM reranking scientific literature retrieval",
+                    "source_hints": ["openalex", "arxiv"],
+                    "priority": 1,
+                    "purpose": "llm_keyword_query",
+                }
+            ],
+            "warnings": ["llm_note"],
+        }
+    )
+
+    plan = analyze_query(
+        "latest LLM reranking methods for scientific literature retrieval",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.calls == 1
+    assert plan.query_analysis.intent == "recent_progress"
+    assert plan.query_analysis.constraints.time_range is not None
+    assert plan.query_analysis.constraints.time_range.start_year == 2024
+    assert plan.selected_sources == ["openalex", "arxiv"]
+    assert plan.subqueries[0].query == "LLM reranking scientific literature retrieval"
+    assert plan.subqueries[0].purpose == "llm_keyword_query"
+    assert "llm_query_understanding_used" in plan.warnings
+    assert "llm_note" in plan.warnings
+
+
+def test_llm_disabled_falls_back_to_rules_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SCHOLAR_AGENT_LLM_PROVIDER", raising=False)
+
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+    )
+
+    assert plan.query_analysis.intent == "recent_progress"
+    assert "llm_query_understanding_disabled" in plan.warnings
+
+
+def test_llm_exception_falls_back_to_rules_with_warning() -> None:
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=FailingLLMClient(RuntimeError("provider unavailable")),
+    )
+
+    assert plan.query_analysis.intent == "recent_progress"
+    assert any(
+        warning.startswith("llm_query_understanding_failed:provider unavailable")
+        for warning in plan.warnings
+    )
+
+
+def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
+    client = FakeLLMClient(["not", "a", "json object"])  # type: ignore[arg-type]
+
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert plan.query_analysis.intent == "recent_progress"
+    assert any(
+        warning.startswith("llm_query_understanding_failed:")
+        for warning in plan.warnings
+    )
+
+
+def test_llm_unsupported_sources_are_filtered_and_warned() -> None:
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "paper_finding",
+            "domain": "machine_learning",
+            "selected_sources": ["semantic_scholar", "pubmed", "openalex"],
+            "subqueries": [
+                {
+                    "query": "LLM reranking papers",
+                    "source_hints": ["semantic_scholar", "arxiv"],
+                    "purpose": "unsupported_source_filtering",
+                }
+            ],
+        }
+    )
+
+    plan = analyze_query(
+        "find papers about LLM reranking",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert plan.selected_sources == ["openalex"]
+    assert plan.subqueries[0].source_hints == ["arxiv"]
+    assert "semantic_scholar" not in plan.selected_sources
+    assert "pubmed" not in plan.selected_sources
+    assert "llm_selected_source_not_implemented:semantic_scholar" in plan.warnings
+    assert "llm_selected_source_not_implemented:pubmed" in plan.warnings
+    assert "llm_subquery_source_not_implemented:semantic_scholar" in plan.warnings
+
+
+class FakeLLMClient:
+    def __init__(self, response: dict[str, object]) -> None:
+        self.response = response
+        self.calls = 0
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        self.calls += 1
+        assert temperature == 0
+        assert messages
+        return self.response
+
+
+class FailingLLMClient:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
+        raise self.error

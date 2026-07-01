@@ -32,8 +32,13 @@ from ...core.api_schemas import (
     SearchRunStatusResponse,
 )
 from ...core.search_schemas import RunProfile
+from ...llm.provider import get_llm_runtime_config
 from ...services.api_mapper import map_search_service_output_to_api_result
-from ...services.search_service import SearchService
+from ...services.search_service import (
+    ENABLE_LLM_QUERY_UNDERSTANDING_ENV,
+    SearchService,
+    _env_flag,
+)
 
 
 API_VERSION = "0.1.0"
@@ -74,6 +79,7 @@ class InternalSearchPreviewRequest(BaseModel):
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
     enable_query_evolution: bool = False
+    enable_llm_query_understanding: bool | None = None
     current_year: int | None = Field(default=None, ge=1900, le=2200)
 
 
@@ -249,12 +255,19 @@ def health() -> HealthResponse:
 
 @router.get("/runtime/config", response_model=RuntimeConfigResponse)
 def runtime_config() -> RuntimeConfigResponse:
+    llm_runtime = get_llm_runtime_config()
+    llm_feature_enabled = (
+        llm_runtime.available
+        and _env_flag(ENABLE_LLM_QUERY_UNDERSTANDING_ENV, default=False)
+    )
     return RuntimeConfigResponse(
         mode="real_search",
         llm=LLMRuntimeConfig(
-            provider="mock",
-            model="mock-no-llm",
-            available=False,
+            provider=llm_runtime.provider,
+            model=llm_runtime.model,
+            available=llm_runtime.available,
+            base_url_host=llm_runtime.base_url_host,
+            reason=llm_runtime.reason,
         ),
         connectors=[
             ConnectorRuntimeConfig(
@@ -302,6 +315,7 @@ def runtime_config() -> RuntimeConfigResponse:
             real_search_sse=True,
             retrieval_cache=True,
             batch_cli=True,
+            llm_query_understanding=llm_feature_enabled,
         ),
     )
 
@@ -468,6 +482,7 @@ def internal_search_preview(
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
+            enable_llm_query_understanding=request.enable_llm_query_understanding,
             current_year=request.current_year,
         )
     except ValueError as exc:
@@ -513,6 +528,7 @@ def internal_search_preview_api_result(
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
+            enable_llm_query_understanding=request.enable_llm_query_understanding,
             current_year=request.current_year,
         )
     except ValueError as exc:
@@ -552,6 +568,9 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_query_evolution=request.options.enable_query_evolution,
             enable_synthesis=True,
             current_year=current_year,
+            enable_llm_query_understanding=(
+                request.options.enable_llm_query_understanding
+            ),
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,

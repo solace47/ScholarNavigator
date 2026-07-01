@@ -61,6 +61,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             enable_query_evolution: bool = False,
             enable_synthesis: bool = True,
             current_year: int | None = None,
+            enable_llm_query_understanding: bool | None = None,
         ) -> SearchServiceOutput:
             captured.update(
                 {
@@ -71,6 +72,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                     "enable_query_evolution": enable_query_evolution,
                     "enable_synthesis": enable_synthesis,
                     "current_year": current_year,
+                    "enable_llm_query_understanding": enable_llm_query_understanding,
                 }
             )
             assert release.wait(timeout=2)
@@ -90,6 +92,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             "options": {
                 "enable_query_evolution": True,
                 "enable_refchain": False,
+                "enable_llm_query_understanding": True,
             },
         },
     )
@@ -124,6 +127,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
         "enable_query_evolution": True,
         "enable_synthesis": True,
         "current_year": 2026,
+        "enable_llm_query_understanding": True,
     }
 
     result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")

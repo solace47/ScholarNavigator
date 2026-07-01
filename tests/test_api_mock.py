@@ -25,15 +25,18 @@ def test_health() -> None:
     assert body["time"]
 
 
-def test_runtime_config_is_real_search_only() -> None:
+def test_runtime_config_is_real_search_only(monkeypatch) -> None:
+    _clear_llm_env(monkeypatch)
     response = client.get("/api/v1/runtime/config")
     assert response.status_code == 200
     body = response.json()
     assert body["mode"] in {"real_search", "real"}
     assert body["llm"] == {
-        "provider": "mock",
-        "model": "mock-no-llm",
+        "provider": "disabled",
+        "model": None,
         "available": False,
+        "base_url_host": None,
+        "reason": "provider_disabled",
     }
     assert body["features"]["sse"] is True
     assert body["features"]["real_search"] is True
@@ -41,6 +44,7 @@ def test_runtime_config_is_real_search_only() -> None:
     assert body["features"]["real_search_sse"] is True
     assert body["features"]["retrieval_cache"] is True
     assert body["features"]["batch_cli"] is True
+    assert body["features"]["llm_query_understanding"] is False
     assert body["limits"]["real_search_max_workers"] >= 1
     assert body["limits"]["real_search_background_workers"] >= 1
     assert "real_search_run_ttl_seconds" in body["limits"]
@@ -57,6 +61,29 @@ def test_runtime_config_is_real_search_only() -> None:
     assert connectors["semantic_scholar"]["reason"] == "not_implemented"
     assert connectors["pubmed"]["available"] is False
     assert connectors["pubmed"]["reason"] == "not_implemented"
+
+
+def test_runtime_config_shows_enabled_llm_without_api_key_leak(monkeypatch) -> None:
+    _clear_llm_env(monkeypatch)
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_BASE_URL", "https://api.example.test/v1")
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_API_KEY", "sk-do-not-leak")
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_MODEL", "gpt-test")
+    monkeypatch.setenv("SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING", "1")
+
+    response = client.get("/api/v1/runtime/config")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["llm"] == {
+        "provider": "openai_compatible",
+        "model": "gpt-test",
+        "available": True,
+        "base_url_host": "api.example.test",
+        "reason": None,
+    }
+    assert body["features"]["llm_query_understanding"] is True
+    assert "sk-do-not-leak" not in response.text
 
 
 def test_legacy_mock_search_run_endpoints_are_not_available() -> None:
@@ -88,3 +115,14 @@ def test_legacy_mock_search_run_paths_are_not_in_openapi() -> None:
     assert "/api/v1/real/search/runs/{run_id}/result" in paths
     assert "/api/v1/real/search/runs/{run_id}/events" in paths
     assert "/api/v1/real/search/runs/{run_id}/cancel" in paths
+
+
+def _clear_llm_env(monkeypatch) -> None:
+    for env_name in (
+        "SCHOLAR_AGENT_LLM_PROVIDER",
+        "SCHOLAR_AGENT_LLM_BASE_URL",
+        "SCHOLAR_AGENT_LLM_API_KEY",
+        "SCHOLAR_AGENT_LLM_MODEL",
+        "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING",
+    ):
+        monkeypatch.delenv(env_name, raising=False)

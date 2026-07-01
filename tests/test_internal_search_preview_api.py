@@ -50,6 +50,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            enable_llm_query_understanding: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             captured.update(
@@ -59,6 +60,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
                     "run_profile": run_profile,
                     "enable_refchain": enable_refchain,
                     "enable_query_evolution": enable_query_evolution,
+                    "enable_llm_query_understanding": enable_llm_query_understanding,
                     "current_year": current_year,
                 }
             )
@@ -86,6 +88,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
         "run_profile": "high_recall",
             "enable_refchain": False,
             "enable_query_evolution": False,
+            "enable_llm_query_understanding": None,
             "current_year": 2026,
             "max_workers": 2,
         }
@@ -116,10 +119,12 @@ def test_internal_search_preview_includes_query_evolution_records(monkeypatch) -
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            enable_llm_query_understanding: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             assert enable_query_evolution is True
             assert enable_refchain is False
+            assert enable_llm_query_understanding is None
             return _fake_output(query, top_k, include_query_evolution=True)
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
@@ -157,9 +162,11 @@ def test_internal_search_preview_includes_refchain_output(monkeypatch) -> None:
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            enable_llm_query_understanding: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             assert enable_refchain is True
+            assert enable_llm_query_understanding is None
             return _fake_output(query, top_k, include_refchain=True)
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FakeSearchService)
@@ -225,6 +232,7 @@ def test_internal_search_preview_uses_real_preview_max_workers_env(
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            enable_llm_query_understanding: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             return _fake_output(query, top_k)

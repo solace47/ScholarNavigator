@@ -435,7 +435,10 @@ function Header({
           </span>
           <Badge>{runtimeModeLabel(runtimeConfig)}</Badge>
           {runtimeConfig?.features.real_search ? <Badge>Real Search</Badge> : null}
-          {runtimeConfig?.llm.available === false ? <Badge>no-LLM</Badge> : null}
+          {runtimeConfig?.features.llm_query_understanding ? (
+            <Badge>LLM Query Understanding</Badge>
+          ) : null}
+          {runtimeConfig?.llm.available === false ? <Badge>rules QA / no-LLM</Badge> : null}
           <Badge className={backendError ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
             {backendError ? "backend offline" : "backend ready"}
           </Badge>

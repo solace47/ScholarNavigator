@@ -4,7 +4,7 @@
 
 - 项目名称：ScholarNavigator
 - 对应赛题：华为企业赛题三，科研场景下复杂学术查询的智能论文搜索与推荐
-- 当前阶段：前后端分离的 no-LLM 规则版 MVP，已切换为 Real Search only runtime。
+- 当前阶段：前后端分离的 Real Search only MVP，已接入可选真实 LLM Query Understanding 基础设施；默认可在无 LLM key 下运行规则版路径。
 
 ## 项目目标
 
@@ -14,20 +14,20 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 2. 控制外部 API 调用、Token 成本和端到端延迟。
 3. 输出结构化论文列表、相关性解释、证据与诊断信息。
 
-当前版本没有调用 LLM，也没有读取全文 PDF。所有理解、判断、重排、查询演化和 synthesis 都是规则版实现，主要基于论文 metadata、标题、摘要、venue、identifier、来源和检索过程诊断。
+当前版本只允许 LLM 可选增强 Query Understanding，且 API key 仅从后端环境变量读取。Judgement、Reranking、Query Evolution、RefChain 和 Synthesis 仍是规则版实现，主要基于论文 metadata、标题、摘要、venue、identifier、来源和检索过程诊断。系统不读取全文 PDF。
 
 ## 系统架构
 
 - 后端：FastAPI + Python 3.11+，负责真实检索 pipeline、OpenAlex / arXiv connector、聚合去重、规则判断、重排、可选 Query Evolution、可选 RefChain、规则版 Synthesis、API mapper、离线评测和成本统计。
 - 前端：Next.js + TypeScript + Tailwind CSS，负责 ScholarNavigator 工作台、参数交互、Real Search Events、结果卡片、missing evidence 诊断、Citation-backed Synthesis Panel、Citation Graph Panel 和本地导出。
 - 安全边界：前端不读取、不保存、不展示任何 API Key；外部 API 和未来 LLM 调用都保留在后端。
-- API 形态：产品路径只保留 Real Search lifecycle；旧 `/api/v1/search/runs` 产品接口已删除，不再返回任何示例数据或静默 fallback。
+- API 形态：产品路径只保留 Real Search lifecycle；legacy product-facing example search 接口已删除，不再返回任何示例数据或静默 fallback。
 
 ## 核心 Pipeline
 
 当前 SearchService 的主要流程如下：
 
-1. QueryUnderstandingAgent：规则解析 query，生成 QueryAnalysis 和 SearchPlan。
+1. QueryUnderstandingAgent：默认规则解析 query；启用真实 OpenAI-compatible LLM provider 时，可先请求结构化 JSON，再归一化为 QueryAnalysis 和 SearchPlan。
 2. Retriever：按 subquery 调用 OpenAlex / arXiv connector，记录 source_stats、warnings 和 latency。
 3. Dedup：跨来源、跨 subquery 做 DOI、arXiv ID、OpenAlex ID、Semantic Scholar ID、PubMed ID、title+year 去重。
 4. JudgementAgent：基于 QueryAnalysis 与 Paper metadata 生成相关性 score、category、reasoning 和 evidence。
@@ -81,7 +81,8 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
   - Citation Graph Panel。
   - Export JSON / Export Markdown，本地浏览器导出，不上传后端。
 - Runtime 与工程能力：
-  - `/api/v1/runtime/config` 返回 `mode=real_search`，明确 no-LLM、OpenAlex/arXiv 可用于 Real Search。
+  - `/api/v1/runtime/config` 返回 `mode=real_search`，明确 LLM provider 状态、OpenAlex/arXiv 可用于 Real Search。
+  - LLM provider 支持 OpenAI-compatible Chat Completions；当前只用于 Query Understanding，禁用或失败时会记录明确 warning，并走规则版解析。
   - CORS allowlist 可配置，默认支持 `3000`、`3001`、`5173` 的 localhost / 127.0.0.1。
   - Real Search in-memory run store 支持 TTL 和最大数量清理，只清理 terminal runs。
 - 批量 CLI：
@@ -115,7 +116,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 
 - Query Evolution：已实现规则版，只从 highly relevant 和高分 partially relevant seed 生成少量 evolved queries。
 - RefChain：已实现规则版单层引用扩展，生产默认使用 OpenAlex references，不做递归多层引用扩展。
-- Synthesis：已实现规则版 citation-backed synthesis，输出 answer_summary、key_findings、evidence_table、citation_coverage、limitations、warnings；不调用 LLM，不读取全文 PDF。
+- Synthesis：已实现规则版 citation-backed synthesis，输出 answer_summary、key_findings、evidence_table、citation_coverage、limitations、warnings；当前不调用 LLM，不读取全文 PDF。
 - Evaluation：已实现基础 schema、metrics、offline evaluator、fixture loader 和 sample run；当前 sample 是小型手写 fake fixture，不代表完整 LitSearch / AstaBench benchmark。
 
 ## 前端 Real Search
@@ -139,14 +140,14 @@ Real-only 重构后需要重新执行最终验收。上一版最终验收记录 
 - `PYTHONPATH=src pytest -q`
 - `cd frontend && npm run lint`
 - `cd frontend && npm run build`
-- 旧 `/api/v1/search/runs` 产品路径返回 404/405。
-- OpenAPI 不再包含旧 `/api/v1/search/runs` paths。
+- legacy product-facing example search path 返回 404/405。
+- OpenAPI 不再包含 legacy product-facing example search paths。
 - runtime config 不再包含 mock connector。
 
 ## 当前已知问题
 
 - OpenAlex 503、arXiv 429 / timeout 是真实外部依赖风险，retry/backoff 只能提升可观测性和部分恢复能力，不能保证外部服务可用。
-- 当前所有 agent 均为 no-LLM 规则版，复杂语义理解、跨语言概念扩展和证据归纳能力有限。
+- 当前只有 Query Understanding 支持可选 LLM JSON 增强；其他 agent 仍为规则版，复杂语义判断、跨语言概念扩展和证据归纳能力有限。
 - 当前 Synthesis 只基于 metadata 和 evidence rows，不读取全文 PDF，不做段落级证据检索。
 - Real Search 使用 in-memory run store，不是生产级持久化队列。
 - 评测当前只完成 fake fixture 离线链路，尚未接入完整 LitSearch / AstaBench 数据。
@@ -154,7 +155,7 @@ Real-only 重构后需要重新执行最终验收。上一版最终验收记录 
 
 ## 后续可扩展方向
 
-1. 接入真实 LLM provider，并保留明确的 no-key / provider-unavailable diagnostics。
+1. 将 LLM 增强从 Query Understanding 扩展到 Judgement / Reranking / Synthesis，但必须保留证据边界和 no-key diagnostics。
 2. 将 Real Search lifecycle 从 in-memory store 升级为持久化任务队列和可部署服务。
 3. 增加 Semantic Scholar、PubMed 等检索源，并完善 biomedical query 的 source selection。
 4. 增加全文 PDF / abstract chunk 证据检索，但必须保留引用来源和证据边界。
