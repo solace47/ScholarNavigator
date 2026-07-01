@@ -581,6 +581,7 @@ def _execute_real_search_run(run_id: str) -> None:
                 request.options.enable_llm_query_understanding
             ),
             enable_llm_judgement=request.options.enable_llm_judgement,
+            sources_override=request.source_preferences,
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,

@@ -104,6 +104,45 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert all(call[2] == ["openalex", "arxiv"] for call in calls)
 
 
+def test_run_search_respects_sources_override_and_filters_unimplemented_sources() -> None:
+    calls: list[list[str] | None] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append(sources)
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Source Override Paper",
+                    doi=f"10.123/source-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "latest LLM reranking retrieval papers",
+        top_k=5,
+        current_year=2026,
+        sources_override=["arxiv", "semantic_scholar", "pubmed", "openalex", "arxiv"],
+    )
+
+    assert output.search_plan.selected_sources == ["arxiv", "openalex"]
+    assert output.search_plan.subqueries
+    assert all(
+        subquery.source_hints == ["arxiv", "openalex"]
+        for subquery in output.search_plan.subqueries
+    )
+    assert calls
+    assert all(call == ["arxiv", "openalex"] for call in calls)
+    assert "source_preference_not_implemented:semantic_scholar" in output.warnings
+    assert "source_preference_not_implemented:pubmed" in output.warnings
+
+
 def test_run_search_deduplicates_across_subqueries() -> None:
     def fake_retriever(
         query: str,

@@ -63,6 +63,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             current_year: int | None = None,
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
+            sources_override: list[str] | None = None,
         ) -> SearchServiceOutput:
             captured.update(
                 {
@@ -75,6 +76,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                     "current_year": current_year,
                     "enable_llm_query_understanding": enable_llm_query_understanding,
                     "enable_llm_judgement": enable_llm_judgement,
+                    "sources_override": sources_override,
                 }
             )
             assert release.wait(timeout=2)
@@ -91,6 +93,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             "constraints": {
                 "time_range": {"start_year": 2023, "end_year": 2026},
             },
+            "source_preferences": ["arxiv", "semantic_scholar", "openalex"],
             "options": {
                 "enable_query_evolution": True,
                 "enable_refchain": False,
@@ -132,6 +135,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
         "current_year": 2026,
         "enable_llm_query_understanding": True,
         "enable_llm_judgement": True,
+        "sources_override": ["arxiv", "semantic_scholar", "openalex"],
     }
 
     result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")
