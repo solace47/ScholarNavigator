@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import date
 from typing import Any, Protocol
@@ -21,6 +22,10 @@ from scholar_agent.llm.provider import is_llm_enabled
 
 
 RECENT_WINDOW_YEARS = 3
+LLM_QUERY_UNDERSTANDING_TIMEOUT_ENV = (
+    "SCHOLAR_AGENT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS"
+)
+DEFAULT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS = 20.0
 
 VENUES = (
     "ACL",
@@ -322,6 +327,7 @@ class QueryUnderstandingAgent:
             raw_plan = _chat_json(
                 self._llm_client,
                 _build_llm_messages(normalized_query),
+                timeout=_llm_query_understanding_timeout_from_env(),
             )
             return _search_plan_from_llm_json(
                 raw_plan,
@@ -692,10 +698,27 @@ def _build_llm_messages(query: str) -> list[dict[str, str]]:
 def _chat_json(
     llm_client: LLMJsonClient | None,
     messages: list[dict[str, str]],
+    *,
+    timeout: float,
 ) -> dict[str, Any]:
     if llm_client is not None:
-        return llm_client.chat_json(messages, temperature=0)
-    return provider_chat_json(messages, temperature=0)
+        return llm_client.chat_json(messages, temperature=0, timeout=timeout)
+    return provider_chat_json(messages, temperature=0, timeout=timeout)
+
+
+def _llm_query_understanding_timeout_from_env() -> float:
+    raw_value = os.getenv(LLM_QUERY_UNDERSTANDING_TIMEOUT_ENV)
+    if raw_value is None:
+        return DEFAULT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS
+    try:
+        timeout = float(raw_value)
+    except ValueError:
+        return DEFAULT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS
+    return (
+        timeout
+        if timeout > 0
+        else DEFAULT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS
+    )
 
 
 def _search_plan_from_llm_json(

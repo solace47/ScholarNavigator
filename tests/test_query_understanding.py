@@ -158,6 +158,51 @@ def test_llm_json_can_generate_search_plan() -> None:
 
 
 @pytest.mark.parametrize(
+    ("env_value", "expected_timeout"),
+    [
+        (None, 20.0),
+        ("7.5", 7.5),
+        ("invalid", 20.0),
+        ("0", 20.0),
+        ("-3", 20.0),
+    ],
+)
+def test_llm_query_understanding_passes_configured_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    env_value: str | None,
+    expected_timeout: float,
+) -> None:
+    if env_value is None:
+        monkeypatch.delenv(
+            "SCHOLAR_AGENT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS",
+            raising=False,
+        )
+    else:
+        monkeypatch.setenv(
+            "SCHOLAR_AGENT_LLM_QUERY_UNDERSTANDING_TIMEOUT_SECONDS",
+            env_value,
+        )
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "recent_progress",
+            "domain": "machine_learning",
+            "selected_sources": ["arxiv"],
+            "subqueries": ["LLM reranking retrieval"],
+        }
+    )
+
+    analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.timeouts == [expected_timeout]
+
+
+@pytest.mark.parametrize(
     ("raw_intent", "expected_intent"),
     [
         ("recent methods", "recent_progress"),
@@ -310,9 +355,11 @@ class FakeLLMClient:
     def __init__(self, response: dict[str, object]) -> None:
         self.response = response
         self.calls = 0
+        self.timeouts: list[float | None] = []
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
+        self.timeouts.append(timeout)
         assert temperature == 0
         assert messages
         return self.response
