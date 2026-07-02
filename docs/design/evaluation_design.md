@@ -175,15 +175,7 @@ Optional diagnostic group:
 | --- | --- | --- | --- |
 | `refchain_only` | off | on | Isolates citation expansion from evolved query effects. This is useful for debugging but should not be the primary contest comparison group unless needed. |
 
-The existing manual validation docs show why this split matters:
-
-- `feature_flag_preview_validation.md` showed Query Evolution increasing raw and
-  deduplicated candidate counts for the sample query.
-- `connector_observability_validation.md` showed OpenAlex 503 errors surfacing
-  in `source_stats.error_message` and top-level `warnings`.
-
-The evaluator should preserve those fields so metric tables explain both
-quality and failure modes.
+The existing connector observability validation shows why diagnostics matter: OpenAlex 503 errors surfaced in `source_stats.error_message` and top-level `warnings`. The evaluator should preserve those fields so metric tables explain both quality and failure modes.
 
 ## Metrics
 
@@ -472,7 +464,6 @@ AstaBench:
 Current project:
 
 - `docs/design/search_service_runbook.md`
-- `docs/design/feature_flag_preview_validation.md`
 - `docs/design/connector_observability_validation.md`
 - `src/scholar_agent/services/search_service.py`
 

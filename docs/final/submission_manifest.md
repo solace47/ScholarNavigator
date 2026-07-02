@@ -54,8 +54,6 @@
 
 ### 关键验证记录
 
-- `docs/design/final_engineering_acceptance.md`  
-  hybrid runtime 阶段的历史验收记录。Real Search only 重构后不能作为当前最终验收结论。
 
 ### Batch / Evaluation CLI
 

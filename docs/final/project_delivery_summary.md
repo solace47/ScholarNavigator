@@ -134,7 +134,7 @@ ScholarNavigator 面向复杂学术查询场景，目标是把自然语言研究
 
 ## 当前测试与验证状态
 
-Real-only 重构后需要重新执行最终验收。上一版最终验收记录 `docs/design/final_engineering_acceptance.md` 属于 hybrid runtime 历史记录，不能作为当前 Real Search only runtime 的最终验收结论。
+Real-only 重构后需要重新执行最终验收。hybrid runtime 阶段的旧验收记录已从 `docs/design/` 清理，不能作为当前 Real Search only runtime 的最终验收结论。
 
 本轮目标验证项：
 

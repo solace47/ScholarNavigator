@@ -2,7 +2,7 @@
 
 执行时间：2026-07-01 21:19:37 CST
 
-本文档已从旧 hybrid runtime readiness 更新为 Real Search only 重构后的自动检查记录。旧 `docs/design/final_engineering_acceptance.md` 仍可作为历史验收参考，但不再代表当前产品路径状态。
+本文档已从旧 hybrid runtime readiness 更新为 Real Search only 重构后的自动检查记录。hybrid runtime 阶段的旧验收记录已从 `docs/design/` 清理，不再代表当前产品路径状态。
 
 本轮记录已被后续 LLM Query Understanding 基础设施接入更新。当前系统仍是 Real Search only；LLM 只可选用于 Query Understanding，默认可无 LLM key 运行规则版路径。未修改 `third_party`，本记录不包含真实 LLM 调用。
 

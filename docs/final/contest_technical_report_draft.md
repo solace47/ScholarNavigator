@@ -164,7 +164,7 @@ SynthesisAgent 只使用 final ranked papers、evidence rows、warnings、source
 
 ## 当前测试与验证状态
 
-Real-only 重构后需要重新执行最终验收。旧 `docs/design/final_engineering_acceptance.md` 属于 hybrid runtime 历史记录，不能代表当前最终状态。
+Real-only 重构后需要重新执行最终验收。hybrid runtime 阶段的旧验收记录已从 `docs/design/` 清理，不再作为当前最终状态入口。
 
 本轮应验证：
 

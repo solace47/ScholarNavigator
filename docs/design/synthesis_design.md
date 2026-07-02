@@ -429,7 +429,6 @@ Project files:
 
 - `docs/reference_papers/paperqa2.pdf`
 - `docs/design/api_mapper_runbook.md`
-- `docs/design/frontend_real_preview_validation.md`
 - `docs/design/real_preview_stability_validation.md`
 - `src/scholar_agent/services/search_service.py`
 - `src/scholar_agent/services/api_mapper.py`
