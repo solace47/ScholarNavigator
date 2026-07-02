@@ -83,6 +83,7 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
     paper_counts: Counter[str] = Counter()
     warning_counts: Counter[str] = Counter()
     source_error_counts: Counter[str] = Counter()
+    source_reliability: dict[str, dict[str, Any]] = {}
     case_summaries: list[dict[str, Any]] = []
     failed_cases: list[dict[str, Any]] = []
 
@@ -131,6 +132,8 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
         if result_dict is None:
             continue
 
+        _update_source_reliability(source_reliability, result_dict)
+
         for key in cost_totals:
             cost_totals[key] += int(_as_float(_cost_report(result_dict).get(key)))
 
@@ -168,6 +171,10 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
         "top_papers": paper_counts.most_common(top_n),
         "warning_counts": warning_counts.most_common(top_n),
         "source_error_counts": source_error_counts.most_common(top_n),
+        "source_reliability": _finalize_source_reliability(
+            source_reliability,
+            top_n=top_n,
+        ),
         "failed_cases": failed_cases,
     }
 
@@ -228,6 +235,9 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
 
     lines.extend(["", "## Source Error Counts", ""])
     lines.extend(_count_table("source_error", summary["source_error_counts"]))
+
+    lines.extend(["", "## Source Reliability", ""])
+    lines.extend(_source_reliability_table(summary["source_reliability"]))
 
     lines.extend(
         [
@@ -293,6 +303,102 @@ def _count_table(label: str, values: list[tuple[str, int]]) -> list[str]:
     for value, count in values:
         lines.append(f"| {_escape_md(value)} | {count} |")
     return lines
+
+
+def _source_reliability_table(items: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "| source | call_count | success_count | error_count | cooldown_skip_count | total_returned_count | avg_latency_seconds | top error messages |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    if not items:
+        lines.append("| - | 0 | 0 | 0 | 0 | 0 | 0.000 | - |")
+        return lines
+    for item in items:
+        top_errors = "; ".join(
+            f"{message} ({count})" for message, count in item["top_error_messages"]
+        )
+        lines.append(
+            "| {source} | {call_count} | {success_count} | {error_count} | {cooldown_skip_count} | {total_returned_count} | {avg_latency_seconds} | {top_errors} |".format(
+                source=_escape_md(item["source"]),
+                call_count=item["call_count"],
+                success_count=item["success_count"],
+                error_count=item["error_count"],
+                cooldown_skip_count=item["cooldown_skip_count"],
+                total_returned_count=item["total_returned_count"],
+                avg_latency_seconds=_format_float(item["avg_latency_seconds"]),
+                top_errors=_escape_md(top_errors or "-"),
+            )
+        )
+    return lines
+
+
+def _update_source_reliability(
+    source_reliability: dict[str, dict[str, Any]],
+    result: dict[str, Any],
+) -> None:
+    diagnostics = result.get("retrieval_diagnostics")
+    if not isinstance(diagnostics, dict):
+        return
+    stats_list = diagnostics.get("source_stats")
+    if not isinstance(stats_list, list):
+        return
+
+    for raw_stats in stats_list:
+        if not isinstance(raw_stats, dict):
+            continue
+        source = str(raw_stats.get("source") or "unknown").strip() or "unknown"
+        item = source_reliability.setdefault(
+            source,
+            {
+                "source": source,
+                "call_count": 0,
+                "success_count": 0,
+                "error_count": 0,
+                "cooldown_skip_count": 0,
+                "total_returned_count": 0,
+                "total_latency_seconds": 0.0,
+                "error_messages": Counter(),
+            },
+        )
+        returned_count = int(_as_float(raw_stats.get("returned_count")))
+        latency_seconds = _as_float(raw_stats.get("latency_seconds"))
+        error_message = str(raw_stats.get("error_message") or "").strip()
+
+        item["call_count"] += 1
+        item["total_returned_count"] += max(0, returned_count)
+        item["total_latency_seconds"] += latency_seconds
+        if error_message:
+            item["error_count"] += 1
+            item["error_messages"][error_message] += 1
+            if "source_cooldown_skip" in error_message:
+                item["cooldown_skip_count"] += 1
+        else:
+            item["success_count"] += 1
+
+
+def _finalize_source_reliability(
+    source_reliability: dict[str, dict[str, Any]],
+    *,
+    top_n: int,
+) -> list[dict[str, Any]]:
+    finalized: list[dict[str, Any]] = []
+    for item in source_reliability.values():
+        call_count = item["call_count"]
+        finalized.append(
+            {
+                "source": item["source"],
+                "call_count": call_count,
+                "success_count": item["success_count"],
+                "error_count": item["error_count"],
+                "cooldown_skip_count": item["cooldown_skip_count"],
+                "total_returned_count": item["total_returned_count"],
+                "avg_latency_seconds": (
+                    item["total_latency_seconds"] / call_count if call_count else 0.0
+                ),
+                "top_error_messages": item["error_messages"].most_common(top_n),
+            }
+        )
+    return sorted(finalized, key=lambda value: value["source"])
 
 
 def _iter_result_papers(result: dict[str, Any]) -> list[Any]:

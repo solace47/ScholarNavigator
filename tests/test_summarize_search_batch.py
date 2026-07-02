@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -28,6 +30,9 @@ def test_normal_jsonl_generates_markdown_file(tmp_path: Path) -> None:
     assert "- Failed: 1" in markdown
     assert "| case_001 | succeeded | 1.000 | 1 | 1 | succeeded | - |" in markdown
     assert "| case_003 | failed | 3.000 | 0 | 0 | - | forced failure |" in markdown
+    assert "## Source Reliability" in markdown
+    assert "| arxiv | 2 | 2 | 0 | 0 | 5 | 0.150 | - |" in markdown
+    assert "| semantic_scholar | 2 | 0 | 2 | 1 | 0 | 0.550 | HTTP 429 (1); source_cooldown_skip:semantic_scholar (1) |" in markdown
 
 
 def test_without_output_prints_to_stdout(tmp_path: Path, capsys) -> None:
@@ -62,6 +67,55 @@ def test_top_papers_missing_evidence_and_source_errors_are_counted() -> None:
     assert ("Paper B", 1) in summary["top_papers"]
     assert ("warning_common", 2) in summary["warning_counts"]
     assert ("source_error:openalex:HTTP 503", 1) in summary["source_error_counts"]
+
+
+def test_source_reliability_is_aggregated_from_retrieval_diagnostics() -> None:
+    summary = summarize_search_batch.summarize_rows(_sample_rows(), top_n=5)
+    reliability = {
+        item["source"]: item for item in summary["source_reliability"]
+    }
+
+    assert reliability["arxiv"]["call_count"] == 2
+    assert reliability["arxiv"]["success_count"] == 2
+    assert reliability["arxiv"]["error_count"] == 0
+    assert reliability["arxiv"]["cooldown_skip_count"] == 0
+    assert reliability["arxiv"]["total_returned_count"] == 5
+    assert reliability["arxiv"]["avg_latency_seconds"] == pytest.approx(0.15)
+    assert reliability["arxiv"]["top_error_messages"] == []
+
+    assert reliability["semantic_scholar"]["call_count"] == 2
+    assert reliability["semantic_scholar"]["success_count"] == 0
+    assert reliability["semantic_scholar"]["error_count"] == 2
+    assert reliability["semantic_scholar"]["cooldown_skip_count"] == 1
+    assert reliability["semantic_scholar"]["total_returned_count"] == 0
+    assert reliability["semantic_scholar"]["avg_latency_seconds"] == pytest.approx(0.55)
+    assert reliability["semantic_scholar"]["top_error_messages"] == [
+        ("HTTP 429", 1),
+        ("source_cooldown_skip:semantic_scholar", 1),
+    ]
+
+
+def test_source_reliability_handles_legacy_results_without_diagnostics() -> None:
+    summary = summarize_search_batch.summarize_rows(
+        [
+            {
+                "case_id": "legacy",
+                "query": "query",
+                "status": "succeeded",
+                "result": {
+                    "highly_relevant_papers": [],
+                    "partially_relevant_papers": [],
+                    "missing_evidence": [],
+                    "cost_report": {},
+                    "synthesis": None,
+                },
+                "error": None,
+                "latency_seconds": 0.1,
+            }
+        ]
+    )
+
+    assert summary["source_reliability"] == []
 
 
 def test_missing_input_file_returns_nonzero(tmp_path: Path) -> None:
@@ -135,6 +189,22 @@ def _sample_rows() -> list[dict[str, Any]]:
                     "estimated_total_tokens": 15,
                 },
                 synthesis_status="succeeded",
+                source_stats=[
+                    {
+                        "source": "arxiv",
+                        "returned_count": 5,
+                        "latency_seconds": 0.1,
+                        "cache_hit": False,
+                        "error_message": None,
+                    },
+                    {
+                        "source": "semantic_scholar",
+                        "returned_count": 0,
+                        "latency_seconds": 0.6,
+                        "cache_hit": False,
+                        "error_message": "HTTP 429",
+                    },
+                ],
             ),
             "error": None,
             "latency_seconds": 1.0,
@@ -159,6 +229,22 @@ def _sample_rows() -> list[dict[str, Any]]:
                     "estimated_total_tokens": 15,
                 },
                 synthesis_status="insufficient_evidence",
+                source_stats=[
+                    {
+                        "source": "arxiv",
+                        "returned_count": 0,
+                        "latency_seconds": 0.2,
+                        "cache_hit": True,
+                        "error_message": None,
+                    },
+                    {
+                        "source": "semantic_scholar",
+                        "returned_count": 0,
+                        "latency_seconds": 0.5,
+                        "cache_hit": False,
+                        "error_message": "source_cooldown_skip:semantic_scholar",
+                    },
+                ],
             ),
             "error": None,
             "latency_seconds": 2.0,
@@ -181,6 +267,7 @@ def _result(
     missing_evidence: list[str],
     cost_report: dict[str, int],
     synthesis_status: str,
+    source_stats: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "highly_relevant_papers": [_paper(title) for title in high_titles],
@@ -188,6 +275,9 @@ def _result(
         "missing_evidence": missing_evidence,
         "cost_report": cost_report,
         "synthesis": {"status": synthesis_status},
+        "retrieval_diagnostics": {
+            "source_stats": source_stats or [],
+        },
     }
 
 
