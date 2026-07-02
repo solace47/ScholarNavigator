@@ -171,6 +171,152 @@ def test_gold_arxiv_id_version_matches_result_without_version() -> None:
     assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
 
 
+def test_semantic_scholar_id_matches_even_when_doi_differs() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[
+                _ranked(
+                    "Entity-Duet Neural Ranking",
+                    year=2018,
+                    doi="10.18653/v1/P18-1223",
+                    semantic_scholar_id="4d91b5b2f4306f92f556a866a770ecd0fc22731e",
+                )
+            ],
+        )
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {
+                    "title": "Entity-Duet Neural Ranking",
+                    "year": 2018,
+                    "doi": "10.0000/different",
+                    "semantic_scholar_id": "4d91b5b2f4306f92f556a866a770ecd0fc22731e",
+                }
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == [
+        "s2:4d91b5b2f4306f92f556a866a770ecd0fc22731e"
+    ]
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+
+
+def test_arxiv_id_matches_with_different_doi() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[
+                _ranked(
+                    "arXiv Paper",
+                    year=2024,
+                    doi="10.0000/predicted",
+                    arxiv_id="2501.00001",
+                )
+            ],
+        )
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {
+                    "title": "arXiv Paper",
+                    "year": 2024,
+                    "doi": "10.0000/gold",
+                    "arxiv_id": "2501.00001v2",
+                }
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == ["arxiv:2501.00001"]
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+
+
+def test_title_fallback_only_when_both_sides_have_no_reliable_id() -> None:
+    title = "Fallback Only Paper"
+    no_id_match = evaluate_search_batch.evaluate_batch_results(
+        [_batch_row("case_001", high=[_ranked(title, year=2024)])],
+        evaluate_search_batch.load_gold_rows(
+            _write_jsonl_for_rows(
+                [
+                    {
+                        "case_id": "case_001",
+                        "relevant_papers": [{"title": title, "year": 2024}],
+                    }
+                ]
+            )
+        ),
+        k_values=[1],
+    )
+    one_side_has_id = evaluate_search_batch.evaluate_batch_results(
+        [_batch_row("case_001", high=[_ranked(title, year=2024, doi="10.1000/p")])],
+        evaluate_search_batch.load_gold_rows(
+            _write_jsonl_for_rows(
+                [
+                    {
+                        "case_id": "case_001",
+                        "relevant_papers": [{"title": title, "year": 2024}],
+                    }
+                ]
+            )
+        ),
+        k_values=[1],
+    )
+
+    assert no_id_match["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert no_id_match["per_case"][0]["matched_ids"] == [
+        "title_year:fallback only paper:2024"
+    ]
+    assert one_side_has_id["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
+    assert one_side_has_id["per_case"][0]["matched_ids"] == []
+
+
+def test_different_reliable_ids_do_not_match_by_title() -> None:
+    title = "Same Title Different Identifiers"
+    batch_rows = [
+        _batch_row("case_001", high=[_ranked(title, year=2024, doi="10.1000/a")])
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {
+                    "title": title,
+                    "year": 2024,
+                    "doi": "10.1000/b",
+                    "semantic_scholar_id": "different",
+                }
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == []
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
+
+
 def test_failed_missing_gold_and_missing_result_cases_are_tracked() -> None:
     batch_rows = [
         _batch_row("case_ok", high=[_ranked("Paper A", doi="10.1/a")]),

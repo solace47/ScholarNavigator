@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -16,14 +19,6 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from scholar_agent.core.evaluation_schemas import EvalGoldPaper  # noqa: E402
-from scholar_agent.evaluation.metrics import (  # noqa: E402
-    canonical_paper_id,
-    mrr,
-    ndcg_at_k,
-    precision_at_k,
-    recall_at_k,
-)
-
 
 DEFAULT_K_VALUES = [5, 10]
 
@@ -240,15 +235,16 @@ def _case_metrics(
     gold: list[dict[str, Any]],
     k_values: list[int],
 ) -> dict[str, Any]:
+    gold_records = _gold_match_records(gold)
     return {
         "recall_at_k": {
-            str(k): recall_at_k(ranked, gold, k) for k in k_values
+            str(k): _recall_at_k(ranked, gold_records, k) for k in k_values
         },
         "precision_at_k": {
-            str(k): precision_at_k(ranked, gold, k) for k in k_values
+            str(k): _precision_at_k(ranked, gold_records, k) for k in k_values
         },
-        "mrr": mrr(ranked, gold),
-        "ndcg_at_k": {str(k): ndcg_at_k(ranked, gold, k) for k in k_values},
+        "mrr": _mrr(ranked, gold_records),
+        "ndcg_at_k": {str(k): _ndcg_at_k(ranked, gold_records, k) for k in k_values},
     }
 
 
@@ -287,21 +283,300 @@ def _matched_ids(
     ranked: list[dict[str, Any]],
     gold: list[dict[str, Any]],
 ) -> list[str]:
-    gold_ids = {canonical_paper_id(paper) for paper in gold}
-    gold_ids.discard(None)
+    gold_records = _gold_match_records(gold)
     matched: list[str] = []
-    seen: set[str] = set()
+    seen_gold_indexes: set[int] = set()
     for paper in ranked:
-        paper_id = canonical_paper_id(paper)
-        if paper_id is None or paper_id in seen or paper_id not in gold_ids:
+        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
+        if match is None:
             continue
-        matched.append(paper_id)
-        seen.add(paper_id)
+        gold_index, match_key = match
+        matched.append(match_key)
+        seen_gold_indexes.add(gold_index)
     return matched
 
 
 def _positive_gold_count(gold: list[dict[str, Any]]) -> int:
-    return sum(1 for paper in gold if canonical_paper_id(paper) is not None)
+    return sum(1 for record in _gold_match_records(gold) if record["grade"] > 0)
+
+
+def _recall_at_k(
+    ranked: list[dict[str, Any]],
+    gold_records: list[dict[str, Any]],
+    k: int,
+) -> float:
+    if k <= 0:
+        return 0.0
+    relevant_count = sum(1 for record in gold_records if record["grade"] > 0)
+    if relevant_count == 0:
+        return 0.0
+    matched_indexes = _matched_gold_indexes(ranked[:k], gold_records)
+    return len(matched_indexes) / relevant_count
+
+
+def _precision_at_k(
+    ranked: list[dict[str, Any]],
+    gold_records: list[dict[str, Any]],
+    k: int,
+) -> float:
+    if k <= 0 or not ranked:
+        return 0.0
+    if not any(record["grade"] > 0 for record in gold_records):
+        return 0.0
+    matched_indexes = _matched_gold_indexes(ranked[:k], gold_records)
+    return len(matched_indexes) / k
+
+
+def _mrr(ranked: list[dict[str, Any]], gold_records: list[dict[str, Any]]) -> float:
+    if not any(record["grade"] > 0 for record in gold_records):
+        return 0.0
+    seen_gold_indexes: set[int] = set()
+    for rank, paper in enumerate(ranked, start=1):
+        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
+        if match is not None:
+            return 1.0 / rank
+    return 0.0
+
+
+def _ndcg_at_k(
+    ranked: list[dict[str, Any]],
+    gold_records: list[dict[str, Any]],
+    k: int,
+) -> float:
+    if k <= 0:
+        return 0.0
+    positive_grades = [record["grade"] for record in gold_records if record["grade"] > 0]
+    if not positive_grades:
+        return 0.0
+
+    seen_gold_indexes: set[int] = set()
+    gains: list[float] = []
+    for paper in ranked[:k]:
+        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
+        if match is None:
+            gains.append(0.0)
+            continue
+        gold_index, _ = match
+        gains.append(float(gold_records[gold_index]["grade"]))
+        seen_gold_indexes.add(gold_index)
+
+    dcg = _dcg(gains)
+    idcg = _dcg(sorted(positive_grades, reverse=True)[:k])
+    return dcg / idcg if idcg > 0 else 0.0
+
+
+def _matched_gold_indexes(
+    ranked: list[dict[str, Any]],
+    gold_records: list[dict[str, Any]],
+) -> set[int]:
+    matched: set[int] = set()
+    for paper in ranked:
+        match = _first_matching_gold(paper, gold_records, matched)
+        if match is None:
+            continue
+        gold_index, _ = match
+        matched.add(gold_index)
+    return matched
+
+
+def _first_matching_gold(
+    predicted_paper: dict[str, Any],
+    gold_records: list[dict[str, Any]],
+    seen_gold_indexes: set[int],
+) -> tuple[int, str] | None:
+    predicted_ids = _paper_identifier_set(predicted_paper)
+    predicted_title_key = _title_year_key(predicted_paper)
+    for index, record in enumerate(gold_records):
+        if index in seen_gold_indexes or record["grade"] <= 0:
+            continue
+        match_key = _match_key(
+            predicted_ids,
+            predicted_title_key,
+            record["identifiers"],
+            record["title_key"],
+        )
+        if match_key is not None:
+            return index, match_key
+    return None
+
+
+def _match_key(
+    predicted_ids: set[str],
+    predicted_title_key: str | None,
+    gold_ids: set[str],
+    gold_title_key: str | None,
+) -> str | None:
+    if predicted_ids or gold_ids:
+        shared = predicted_ids.intersection(gold_ids)
+        return _preferred_identifier(shared) if shared else None
+    if predicted_title_key and predicted_title_key == gold_title_key:
+        return predicted_title_key
+    return None
+
+
+def _gold_match_records(gold: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for paper in gold:
+        identifiers = _paper_identifier_set(paper)
+        title_key = None if identifiers else _title_year_key(paper)
+        if not identifiers and title_key is None:
+            continue
+        records.append(
+            {
+                "identifiers": identifiers,
+                "title_key": title_key,
+                "grade": _relevance_grade(paper),
+            }
+        )
+    return records
+
+
+def _paper_identifier_set(paper: Any) -> set[str]:
+    identifiers: set[str] = set()
+
+    doi_value = _extract_identifier(paper, "doi")
+    if doi_value:
+        normalized_doi = _normalize_doi(doi_value)
+        if normalized_doi:
+            identifiers.add(f"doi:{normalized_doi}")
+            arxiv_id = _arxiv_id_from_doi(normalized_doi)
+            if arxiv_id:
+                identifiers.add(f"arxiv:{arxiv_id}")
+
+    arxiv_value = _extract_identifier(paper, "arxiv_id")
+    if arxiv_value:
+        identifiers.add(f"arxiv:{_normalize_arxiv_id(arxiv_value)}")
+
+    semantic_scholar_value = (
+        _extract_identifier(paper, "semantic_scholar_id")
+        or _extract_identifier(paper, "s2_id")
+        or _extract_identifier(paper, "corpus_id")
+        or _extract_identifier(paper, "paper_id")
+    )
+    if semantic_scholar_value:
+        identifiers.add(f"s2:{_normalize_semantic_scholar_id(semantic_scholar_value)}")
+
+    return {identifier for identifier in identifiers if identifier.split(":", 1)[1]}
+
+
+def _extract_identifier(paper: Any, name: str) -> str | None:
+    unwrapped = _unwrap_ranked_paper(paper)
+    value = _get_value(unwrapped, name)
+    if value:
+        return str(value)
+    nested_identifiers = _get_value(unwrapped, "identifiers")
+    value = _get_value(nested_identifiers, name)
+    if value:
+        return str(value)
+    return None
+
+
+def _title_year_key(paper: Any) -> str | None:
+    unwrapped = _unwrap_ranked_paper(paper)
+    title = _normalize_title(str(_get_value(unwrapped, "title") or ""))
+    year = _get_value(unwrapped, "year")
+    if not title or year is None:
+        return None
+    return f"title_year:{title}:{year}"
+
+
+def _preferred_identifier(identifiers: set[str]) -> str | None:
+    if not identifiers:
+        return None
+    priority = ("arxiv:", "doi:", "s2:")
+    for prefix in priority:
+        values = sorted(identifier for identifier in identifiers if identifier.startswith(prefix))
+        if values:
+            return values[0]
+    return sorted(identifiers)[0]
+
+
+def _relevance_grade(paper: Any) -> float:
+    grade = _get_value(_unwrap_ranked_paper(paper), "relevance_grade")
+    if grade is None:
+        return 1.0
+    try:
+        return max(0.0, float(grade))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _dcg(gains: list[float]) -> float:
+    score = 0.0
+    for index, gain in enumerate(gains, start=1):
+        if gain <= 0:
+            continue
+        score += (math.pow(2.0, gain) - 1.0) / math.log2(index + 1)
+    return score
+
+
+def _unwrap_ranked_paper(paper: Any) -> Any:
+    if isinstance(paper, Mapping) and "paper" in paper:
+        return paper["paper"]
+    if hasattr(paper, "paper"):
+        return getattr(paper, "paper")
+    return paper
+
+
+def _get_value(item: Any, key: str) -> Any:
+    if item is None:
+        return None
+    if isinstance(item, Mapping):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
+def _normalize_doi(value: str) -> str:
+    normalized = value.strip().casefold()
+    for prefix in (
+        "https://doi.org/",
+        "http://doi.org/",
+        "https://dx.doi.org/",
+        "http://dx.doi.org/",
+        "doi:",
+    ):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+            break
+    return normalized.strip()
+
+
+def _arxiv_id_from_doi(normalized_doi: str) -> str | None:
+    match = re.fullmatch(r"10\.48550/arxiv\.(.+)", normalized_doi.strip())
+    if not match:
+        return None
+    arxiv_id = _normalize_arxiv_id(match.group(1))
+    return arxiv_id or None
+
+
+def _normalize_arxiv_id(value: str) -> str:
+    normalized = value.strip().casefold()
+    normalized = normalized.split("?", 1)[0].rstrip("/")
+    if "arxiv.org/" in normalized:
+        normalized = normalized.rsplit("/", 1)[-1]
+    for prefix in ("arxiv:", "abs/", "pdf/"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+    if normalized.endswith(".pdf"):
+        normalized = normalized[:-4]
+    return re.sub(r"v\d+$", "", normalized).strip()
+
+
+def _normalize_semantic_scholar_id(value: str) -> str:
+    normalized = value.strip().casefold()
+    for prefix in ("semantic_scholar:", "semantic-scholar:", "corpusid:", "s2:"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+            break
+    return normalized.strip()
+
+
+def _normalize_title(value: str) -> str:
+    normalized = value.casefold()
+    normalized = re.sub(r"\\[a-zA-Z]+\*?", " ", normalized)
+    normalized = re.sub(r"[{}$^_~]", " ", normalized)
+    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
+    return " ".join(normalized.split())
 
 
 def _normalize_k_values(values: list[int]) -> list[int]:
