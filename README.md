@@ -11,11 +11,12 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 - Real Search lifecycle：`create/status/result/events/cancel` 独立真实检索路径。
 - Real Search SSE：展示 `connector_completed`、`warning`、`cost_updated` 等事件。
 - OpenAlex / arXiv / Semantic Scholar / PubMed connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
-- Source selector：前端可选择 `Recommended`、`arXiv`、`Semantic Scholar`、`OpenAlex` 或 `All`；默认 `Recommended` 映射为 `arXiv + Semantic Scholar`，兼顾稳定性和覆盖。PubMed 已接入后端和 batch CLI，但未加入前端 Recommended 默认源。
+- Source selector：前端可选择 `Recommended`、`arXiv`、`Semantic Scholar`、`PubMed`、`OpenAlex` 或 `All`；默认 `Recommended` 仍映射为 `arXiv + Semantic Scholar`，不包含 PubMed。PubMed 可通过 CLI、API 或前端显式选择。
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
-- Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。
-- Judgement：默认规则版 metadata 判断，前端提供 `enable_llm_judgement` 开关；开启后由后端环境变量控制的真实 LLM provider 执行 relevance judgement，会增加延迟。
+- Cost / Efficiency：结果页和 batch summary 展示 API calls、LLM calls、token usage、latency 和 cache hits。
+- Query Understanding：默认关闭 LLM，使用规则版解析；可选通过后端环境变量和请求开关启用 OpenAI-compatible LLM JSON 增强。
+- Judgement：默认关闭 LLM，使用规则版 metadata 判断；前端提供 `enable_llm_judgement` 开关，开启后会增加延迟。
 - Reranking / Synthesis：仍为规则版，不调用 LLM。
 - Query Evolution / RefChain：可选规则版扩展阶段。
 - Citation-backed Synthesis Panel：基于 metadata/evidence rows 的规则版 synthesis 展示。
@@ -58,12 +59,14 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 - `mode=real_search`
 - 默认 `llm.available=false`；配置真实 provider 后可为 `true`
 - OpenAlex / arXiv / Semantic Scholar / PubMed connector 可用于 Real Search
+- PubMed 可选使用 `NCBI_API_KEY` 或 `PUBMED_API_KEY`，无 key 也可用但受 NCBI 公开限流约束
 - `real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` feature 可见
 - `llm_query_understanding=true` / `llm_judgement=true` 仅在 provider 可用且启用对应开关时出现
 
 ## 可选 LLM Query Understanding / Judgement
 
 当前真实 LLM 只可用于 Query Understanding 和 Judgement，不把 Reranking 或 Synthesis 改成 LLM。
+默认配置下 LLM Query Understanding 和 LLM Judgement 都关闭；以下 `.env` 示例用于需要真实 LLM smoke 或手动验证时开启。
 
 推荐使用 `.env` 文件配置本地后端环境：
 
@@ -209,7 +212,8 @@ PYTHONPATH=src python scripts/run_search_batch.py \
 覆盖 CLI 默认值。非法 source 会让对应行输出 `failed`，启用 `--fail-fast`
 时会立即停止。`--sleep-between-cases-seconds` 默认为 `0`，使用 Semantic
 Scholar 批量检索时建议设置为 `1` 到 `3` 秒，以降低连续请求触发 `429`
-的概率。
+的概率。PubMed 可显式传入 `--sources pubmed`，可选读取 `NCBI_API_KEY` 或
+`PUBMED_API_KEY`，无 key 时也会走 NCBI 公共接口。
 
 生成 Markdown 汇总：
 

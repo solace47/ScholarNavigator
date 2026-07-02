@@ -91,7 +91,13 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
   evaluation: "evaluation",
 };
 
-type SourceMode = "recommended" | "arxiv" | "semantic_scholar" | "openalex" | "all";
+type SourceMode =
+  | "recommended"
+  | "arxiv"
+  | "semantic_scholar"
+  | "pubmed"
+  | "openalex"
+  | "all";
 type ThemeMode = "dark" | "light";
 type StageLatencyItem = {
   stage: string;
@@ -112,6 +118,7 @@ const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
   recommended: "Recommended",
   arxiv: "arXiv",
   semantic_scholar: "Semantic Scholar",
+  pubmed: "PubMed",
   openalex: "OpenAlex",
   all: "All",
 };
@@ -120,6 +127,7 @@ const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   recommended: "arXiv + Semantic Scholar，兼顾稳定性和覆盖",
   arxiv: "更稳定更快",
   semantic_scholar: "提升召回，可能限流",
+  pubmed: "生物医学文献，适合临床/医疗查询",
   openalex: "覆盖更广，可能 503",
   all: "覆盖最大，但 OpenAlex 可能不稳定",
 };
@@ -488,6 +496,9 @@ function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
   if (sourceMode === "semantic_scholar") {
     return ["semantic_scholar"];
   }
+  if (sourceMode === "pubmed") {
+    return ["pubmed"];
+  }
   if (sourceMode === "openalex") {
     return ["openalex"];
   }
@@ -699,7 +710,7 @@ function SearchWorkbench({
           <div
             role="radiogroup"
             aria-label="Real Search source preference"
-            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5"
+            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6"
           >
             {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
               const selected = sourceMode === mode;
