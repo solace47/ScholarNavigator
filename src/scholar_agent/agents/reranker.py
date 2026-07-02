@@ -100,8 +100,9 @@ def _score_judgement(
         + timeliness_score * weights["timeliness"]
         + metadata_score * weights["metadata"]
     )
+    category_multiplier = CATEGORY_MULTIPLIER.get(judgement.category, 0.5)
     final_score = round(
-        _clamp(base_score * CATEGORY_MULTIPLIER.get(judgement.category, 0.5)),
+        _clamp(base_score * category_multiplier),
         4,
     )
     breakdown = RerankScoreBreakdown(
@@ -109,6 +110,7 @@ def _score_judgement(
         authority_score=round(authority_score, 4),
         timeliness_score=round(timeliness_score, 4),
         metadata_score=round(metadata_score, 4),
+        category_multiplier=category_multiplier,
         final_score=final_score,
         relevance_weight=weights["relevance"],
         authority_weight=weights["authority"],

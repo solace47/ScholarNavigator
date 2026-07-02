@@ -144,6 +144,14 @@ def test_ranked_candidates_dump_writes_top10_without_changing_results_jsonl(
         "judgement_score": 0.72,
         "final_score": 0.76,
         "ranking_reason": "debug ranking reason 1",
+        "score_breakdown": {
+            "judgement": 0.72,
+            "authority": 0.5,
+            "timeliness": 0.6,
+            "metadata": 0.8,
+            "category_multiplier": 1.0,
+            "final_score": 0.76,
+        },
     }
 
 
@@ -714,6 +722,9 @@ def _ranked_papers(query: str) -> list[RankedPaper]:
                     authority_score=0.5,
                     timeliness_score=0.6,
                     metadata_score=0.8,
+                    category_multiplier=(
+                        1.0 if index == 1 else 0.92
+                    ),
                     final_score=0.76,
                     relevance_weight=0.7,
                     authority_weight=0.1,

@@ -138,6 +138,7 @@ class RerankScoreBreakdown(BaseModel):
     authority_score: float = Field(ge=0.0, le=1.0)
     timeliness_score: float = Field(ge=0.0, le=1.0)
     metadata_score: float = Field(ge=0.0, le=1.0)
+    category_multiplier: float = Field(default=1.0, ge=0.0, le=1.0)
     final_score: float = Field(ge=0.0, le=1.0)
     relevance_weight: float = Field(ge=0.0, le=1.0)
     authority_weight: float = Field(ge=0.0, le=1.0)

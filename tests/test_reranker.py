@@ -87,6 +87,8 @@ def test_relevance_dominates_sorting() -> None:
 
     assert ranked[0].paper.title == "Highly Relevant Low Citation"
     assert ranked[0].score_breakdown.relevance_score == 0.82
+    assert ranked[0].score_breakdown.category_multiplier == 1.0
+    assert ranked[1].score_breakdown.category_multiplier == 0.92
 
 
 def test_high_citation_irrelevant_cannot_outrank_highly_relevant() -> None:

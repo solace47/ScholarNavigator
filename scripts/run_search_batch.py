@@ -308,6 +308,18 @@ def _ranked_candidate_payload(candidate: Any) -> dict[str, Any]:
         "judgement_score": getattr(score_breakdown, "relevance_score", None),
         "final_score": getattr(candidate, "final_score", None),
         "ranking_reason": getattr(candidate, "ranking_reason", None) or "-",
+        "score_breakdown": _score_breakdown_payload(score_breakdown),
+    }
+
+
+def _score_breakdown_payload(score_breakdown: Any) -> dict[str, Any]:
+    return {
+        "judgement": getattr(score_breakdown, "relevance_score", None),
+        "authority": getattr(score_breakdown, "authority_score", None),
+        "timeliness": getattr(score_breakdown, "timeliness_score", None),
+        "metadata": getattr(score_breakdown, "metadata_score", None),
+        "category_multiplier": getattr(score_breakdown, "category_multiplier", None),
+        "final_score": getattr(score_breakdown, "final_score", None),
     }
 
 
