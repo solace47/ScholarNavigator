@@ -9,7 +9,6 @@ Current boundaries:
 - No LLM calls.
 - No network access.
 - No external venue or author authority database.
-- No FastAPI Mock API replacement.
 - No frontend changes.
 - No `third_party` changes.
 
@@ -129,7 +128,7 @@ Ranks start at `1`, and `top_k` is applied after sorting.
 It does not claim external venue prestige, author reputation, or any fact not
 present in the paper metadata.
 
-## Connecting to Judgement and Future API Service
+## Connecting to Judgement and SearchService
 
 Recommended service-layer flow:
 
@@ -150,8 +149,7 @@ judgements = judge_papers(plan.query_analysis, retrieval.papers)
 ranked = rerank_papers(plan.query_analysis, judgements, top_k=plan.top_k)
 ```
 
-The current FastAPI Mock API should remain unchanged until a service layer and
-feature flag are added.
+Real Search uses this stage before mapping ranked papers into the API result.
 
 ## Current Non-goals
 
@@ -161,4 +159,3 @@ feature flag are added.
 - No external citation or venue enrichment.
 - No API response contract changes.
 - No frontend changes.
-

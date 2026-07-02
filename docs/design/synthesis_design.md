@@ -286,9 +286,9 @@ optional field:
 synthesis: SynthesisOutput | None
 ```
 
-The field should be optional so existing Mock Demo and current frontend result
-rendering remain compatible. Until then, selected synthesis limitations can be
-mirrored into `missing_evidence` by the API mapper.
+The field should remain optional so result rendering stays compatible when
+synthesis is disabled or unavailable. Selected synthesis limitations can be
+mirrored into `missing_evidence` only when they are needed as diagnostics.
 
 ## Frontend Display Needs
 

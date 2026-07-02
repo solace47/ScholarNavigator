@@ -2,9 +2,10 @@
 
 ## Scope
 
-本文档设计 `QueryUnderstandingAgent`、`JudgementAgent`、`RerankerAgent` 在当前 SPAR 参赛系统中的落地方案。
+本文档设计 `QueryUnderstandingAgent`、`JudgementAgent`、`RerankerAgent` 在当前 ScholarNavigator 参赛系统中的落地方案。
 
-本轮只做方案设计，不实现 Python/TypeScript 业务代码，不修改 `frontend/`，不修改 `third_party/`，不替换现有 FastAPI Mock API 返回逻辑，不调用真实 LLM。
+当前主线是 Real Search only。本文保留模块设计背景，不描述产品级 mock
+兜底路径。
 
 ## 1. SPAR 可借鉴的核心思想
 
@@ -100,7 +101,8 @@ SPAR 的 Reranker Agent 在 judgement 之后重新排序最终列表。核心思
 - `src/scholar_agent/agents/retriever.py`：复用 `retrieve_papers` 和 `RetrievalOutput` 作为候选论文入口。
 - `src/scholar_agent/connectors/openalex.py`：由 retriever 间接调用。
 - `src/scholar_agent/connectors/arxiv.py`：由 retriever 间接调用。
-- `src/scholar_agent/core/api_schemas.py`：现有 Mock API schema 可作为前端 API 输出格式参考，但不建议直接承担内部 agent schema。
+- `src/scholar_agent/core/api_schemas.py`：Real Search API schema 可作为前端
+  输出格式参考，但不建议直接承担内部 agent schema。
 
 ### 2.3 需要扩展的数据结构
 
@@ -421,7 +423,8 @@ retrieve_papers(query: str, limit_per_source: int = 20, sources: list[str] | Non
 - `limit_per_source = search_plan.limit_per_source`
 - `sources = subquery.source_hints or search_plan.selected_sources`
 
-当前不要直接替换 FastAPI Mock API。后续可新增 SearchService，在服务层切换 mock pipeline 和 real pipeline。
+当前 SearchService 已作为 Real Search 主线服务层，负责连接 query
+understanding、retrieval、judgement、reranking 和 API mapper。
 
 ## 8. 风险和约束
 
@@ -466,8 +469,8 @@ retrieve_papers(query: str, limit_per_source: int = 20, sources: list[str] | Non
 
 1. 新增内部 search schema，不改变 API response。
 2. 实现 `QueryUnderstandingAgent` 的无 LLM fallback。
-3. 将 SearchPlan 接到 `retrieve_papers`，但先通过独立 SearchService 或测试验证，不替换 Mock API。
+3. 将 SearchPlan 接到 `retrieve_papers`，通过 SearchService 和测试验证真实
+   检索链路。
 4. 实现 `JudgementAgent` 规则版并补测试。
 5. 实现 `RerankerAgent` 规则版并补测试。
 6. 再规划 LLM client、prompt 文件和可选 LLM 增强路径。
-

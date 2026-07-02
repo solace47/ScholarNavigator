@@ -8,20 +8,16 @@ This runbook covers:
 src/scholar_agent/services/api_mapper.py
 ```
 
-The mapper converts internal `SearchServiceOutput` objects into the existing
-public `SearchRunResultResponse` schema. It is a preparation layer for future
-real-search API integration.
+The mapper converts internal `SearchServiceOutput` objects into the public
+`SearchRunResultResponse` schema used by the Real Search result lifecycle.
 
 Current boundaries:
 
-- The mapper is connected only to an internal preview endpoint.
-- Existing `/api/v1/search/runs` Mock API behavior is unchanged.
-- `SearchRunResultResponse.synthesis` is optional; Mock API responses may leave
-  it as `null`.
-- No frontend changes.
+- The mapper is used by Real Search result storage/response code and batch
+  tooling.
+- `SearchRunResultResponse.synthesis` is optional and may be `null`.
 - No `third_party` changes.
-- No LLM calls.
-- No network access.
+- The mapper itself does not call LLMs or access the network.
 
 ## Public Entry Point
 
@@ -42,22 +38,13 @@ Return type:
 SearchRunResultResponse
 ```
 
-## Internal Preview Endpoint
+## Real Search API Usage
 
-The mapper can be exercised through:
+The mapper feeds the Real Search result endpoint:
 
 ```text
-POST /api/v1/internal/search/preview/api-result
+GET /api/v1/real/search/runs/{run_id}/result
 ```
-
-Request fields reuse `InternalSearchPreviewRequest`:
-
-- `query`
-- `top_k`
-- `run_profile`
-- `enable_refchain`
-- `enable_query_evolution`
-- `current_year`
 
 Response model:
 
@@ -65,23 +52,24 @@ Response model:
 SearchRunResultResponse
 ```
 
-The endpoint calls:
+The create endpoint starts `SearchService`, stores the mapped result after
+successful background execution, and the result endpoint returns that stored
+response:
 
 ```python
 SearchService().run_search(...)
 map_search_service_output_to_api_result(...)
 ```
 
-The generated `run_id` uses the debug-friendly prefix:
+Real Search run ids use:
 
 ```text
-run_preview_
+run_real_
 ```
 
-Important: this endpoint is still an internal preview path. Manual calls may
-access OpenAlex/arXiv through the default `SearchService`, and may access
-OpenAlex references when RefChain is enabled. Tests monkeypatch `SearchService`
-and do not access the network.
+Manual Real Search calls may access configured external connectors through the
+default `SearchService`. Tests monkeypatch `SearchService` and do not access the
+network.
 
 ## Field Mapping
 
@@ -168,14 +156,14 @@ Filtered irrelevant or insufficient-evidence papers are represented in
 
 ## Cost Report
 
-The mapper generates a no-LLM cost report:
+The mapper generates a cost report:
 
 - `api_call_count`: number of source stats records
 - `search_api_call_count`: number of source stats records
-- `llm_call_count`: `0`
-- token estimates: `0`
+- `llm_call_count`: SearchService LLM calls when enabled, otherwise `0`
+- token usage/estimates: SearchService values when available, otherwise `0`
 - `latency_seconds`: `SearchServiceOutput.latency_seconds`
-- `cache_hit_count`: `0`
+- `cache_hit_count`: count of source stats with `cache_hit=True`
 - `search_rounds`: retrieval output count plus optional RefChain stage
 - `judged_paper_count`: number of internal judgement results
 
@@ -204,26 +192,19 @@ available. It does not infer citation relationships from external knowledge.
 
 ## Current Limitations
 
-- Only the internal preview endpoint uses this mapper.
-- The public Mock API result endpoint still returns mock data.
-- The public Mock API result endpoint does not generate synthesis and returns
-  `synthesis=null`.
 - `citation_count` is not present in the API paper schema.
-- Frontend rendering for `synthesis` is not implemented yet.
 - Method clusters are simple deterministic groupings, not semantic topic
   clusters.
 - Citation graph only uses RefChain edge metadata already present in
   `SearchServiceOutput`.
 - API year is required, so papers without year map to `0`.
 
-## Future Integration
+## Future Improvements
 
 Recommended next steps:
 
-1. Add a feature flag for real-search API mode.
-2. Persist real SearchService run state.
-3. Use this mapper in the public result endpoint only when real-search mode is
-   enabled.
-4. Keep Mock API behavior available until frontend and demo flows are stable.
-5. Add frontend rendering for the optional `synthesis` object.
-6. Add SSE stage events around real pipeline execution before frontend rollout.
+1. Preserve richer score/debug fields in a dedicated diagnostics schema when
+   they are needed by reviewers or offline analysis.
+2. Add semantic clustering only after deterministic grouping stops being
+   sufficient.
+3. Keep API result mapping deterministic and avoid fabricating external facts.

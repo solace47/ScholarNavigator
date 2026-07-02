@@ -6,9 +6,10 @@ This runbook covers the first multi-source retrieval aggregation layer:
 
 - connector-layer paper schema
 - paper deduplication
-- OpenAlex + arXiv aggregation
+- OpenAlex, arXiv, Semantic Scholar, and PubMed aggregation
 
-The existing FastAPI Mock API response logic is unchanged. This layer does not call any LLM, does not rank papers, does not judge relevance, does not run Query Evolution, and does not replace the mock endpoints.
+This layer is used by the Real Search pipeline. It does not call any LLM, rank
+papers, judge relevance, or run Query Evolution.
 
 ## Deduplication
 
@@ -77,16 +78,18 @@ retrieve_papers(
 ) -> RetrievalOutput
 ```
 
-Default sources:
+Default sources when no override is provided:
 
 ```python
-["openalex", "arxiv"]
+["openalex", "arxiv", "semantic_scholar", "pubmed"]
 ```
 
 Supported sources:
 
 - `openalex`
 - `arxiv`
+- `semantic_scholar`
+- `pubmed`
 
 Unsupported sources are reported in `warnings` and `source_stats`; they do not raise.
 
@@ -116,6 +119,7 @@ Those wrappers still return only `list[Paper]`.
 Each `source_stats` item contains:
 
 - `source`
+- `query`
 - `returned_count`
 - `latency_seconds`
 - `error_message`
@@ -142,7 +146,7 @@ Cache key:
 source + query + limit_per_source
 ```
 
-This keeps OpenAlex and arXiv entries isolated, so one source can hit cache while
+This keeps entries isolated by source, so one connector can hit cache while
 another source retries normally.
 
 Defaults:
@@ -189,7 +193,7 @@ from scholar_agent.agents.retriever import retrieve_papers
 output = retrieve_papers(
     "LLM reranking scientific literature search",
     limit_per_source=10,
-    sources=["openalex", "arxiv"],
+    sources=["arxiv", "semantic_scholar"],
 )
 
 print(output.raw_count, output.deduplicated_count)
@@ -206,14 +210,11 @@ The retrieval aggregator may call real connectors if used directly. Unit tests m
 - No reranking.
 - No query evolution.
 - No RefChain expansion.
-- No Semantic Scholar connector.
-- No PubMed connector.
-- No replacement of the existing FastAPI Mock API.
 - No frontend changes.
 
-## Future SearchService Integration
+## SearchService Integration
 
-A later `SearchService` can wrap `retrieve_papers` as the retrieval stage:
+`SearchService` wraps `retrieve_papers` as the retrieval stage:
 
 ```text
 SearchRequest
@@ -226,10 +227,10 @@ SearchRequest
   -> SynthesizerAgent
 ```
 
-Recommended integration steps:
+Integration notes:
 
-1. Add a backend service layer that accepts `SearchPlan`.
-2. Convert `SearchPlan.source_preferences` into `retrieve_papers(..., sources=...)`.
-3. Persist `RetrievalOutput.source_stats` into pipeline trace.
-4. Keep connector errors as warnings in final output.
-5. Only after tests pass, wire the service into a non-mock API endpoint or a feature-flagged path.
+1. Convert `SearchPlan.source_preferences` into
+   `retrieve_papers(..., sources=...)`.
+2. Preserve `RetrievalOutput.source_stats` in pipeline diagnostics.
+3. Keep connector errors as warnings in final output.
+4. Tests inject fake connectors/retrievers and do not access the network.

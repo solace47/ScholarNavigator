@@ -2,13 +2,12 @@
 
 ## Scope
 
-This runbook covers the internal no-LLM `SearchService` pipeline.
+This runbook covers the Real Search only `SearchService` pipeline.
 
 Current boundaries:
 
-- No LLM calls.
-- No FastAPI Mock API replacement.
-- No frontend changes.
+- LLM query understanding and LLM judgement are optional and controlled by
+  backend environment/request options; deterministic rules remain available.
 - No `third_party` changes.
 - RefChain is available as an optional no-LLM stage when
   `enable_refchain=True`.
@@ -67,9 +66,8 @@ Concurrency can be configured at construction time:
 service = SearchService(retriever=fake_retriever, max_workers=4)
 ```
 
-The default `SearchService` constructor still uses `max_workers=4`.
-Internal preview endpoints intentionally use a lower default to reduce pressure
-on live OpenAlex/arXiv calls during manual frontend/backend validation.
+The default `SearchService` constructor still uses `max_workers=4`. Real Search
+API routes can pass their own worker limit through backend runtime settings.
 
 ## Pipeline
 
@@ -161,10 +159,9 @@ Behavior:
 
 API boundary:
 
-- The internal raw preview endpoint can show `synthesis_output`.
-- The `/api/v1/internal/search/preview/api-result` mapper does not expose a
-  synthesis field yet.
-- Existing `/api/v1/search/runs` Mock API behavior is unchanged.
+- Real Search result mapping exposes synthesis through the optional
+  `SearchRunResultResponse.synthesis` field.
+- Batch and debug tooling may also inspect the internal `synthesis_output`.
 
 ## Subquery Concurrency
 
@@ -235,7 +232,8 @@ Current Query Evolution boundaries:
 - No LLM calls.
 - No external access beyond the normal retriever calls for accepted evolved
   queries.
-- No API contract change for the existing Mock API.
+- No standalone API contract; the stage is surfaced through Real Search result
+  diagnostics when enabled.
 
 ## RefChain
 
@@ -274,7 +272,7 @@ Current RefChain boundaries:
 - No recursive citation traversal.
 - No full-text PDF parsing.
 - No external access in tests.
-- Default manual/internal-preview usage may access OpenAlex when RefChain is
+- Default manual or Real Search usage may access OpenAlex when RefChain is
   enabled.
 
 ## Output
@@ -349,7 +347,7 @@ reference fetcher whenever `enable_refchain=True`.
 
 `scripts/run_search_batch.py` runs the same internal `SearchService` pipeline
 over a local JSONL query file and writes one JSON object per input case. It does
-not change the Mock API, Real Search API, or frontend behavior.
+not change the Real Search API or frontend behavior.
 
 Example input:
 
@@ -490,93 +488,34 @@ Failed rows are reported in `failed_cases` and excluded from metric averages.
 Batch rows without gold are reported in `missing_gold_cases`. Gold cases absent
 from the batch output are reported in `missing_result_cases`.
 
-## FastAPI Integration Plan
+## Real Search API Lifecycle
 
-The service has a standalone preview endpoint for manual backend validation:
-
-```text
-POST /api/v1/internal/search/preview
-```
-
-Request fields:
-
-- `query`
-- `top_k`
-- `run_profile`
-- `enable_refchain`
-- `enable_query_evolution`
-- `current_year`
-
-Response fields:
-
-- `query_analysis`
-- `search_plan`
-- `query_evolution_records`
-- `refchain_output`
-- `ranked_papers`
-- `raw_count`
-- `deduplicated_count`
-- `warnings`
-- `source_stats`
-- `latency_seconds`
-
-Debug field behavior:
-
-- `query_evolution_records` is `[]` when `enable_query_evolution=False`.
-- `refchain_output` is `null` when `enable_refchain=False`.
-- When enabled, these fields expose internal SearchService records for manual
-  backend validation. They are not part of the existing Mock API contract.
-
-Important: this preview endpoint constructs `SearchService` with the default
-retriever/reference fetcher and a preview-specific `max_workers` value. Unless
-tests monkeypatch the service, manual requests may access OpenAlex and arXiv
-over the network. If `enable_query_evolution=True`, accepted evolved queries
-may cause additional OpenAlex/arXiv retrieval calls. If `enable_refchain=True`,
-selected seed papers may cause additional OpenAlex reference metadata calls.
-
-Preview concurrency:
-
-- `/api/v1/internal/search/preview` constructs `SearchService` with
-  `max_workers` from `REAL_PREVIEW_MAX_WORKERS`.
-- Default preview `max_workers` is `2`.
-- Invalid env values fall back to `2`.
-- Values below `1` are normalized to `1`.
-- This setting does not change the default `SearchService(max_workers=4)` and
-  does not affect Mock API endpoints.
-
-The service also has an API-contract preview endpoint:
+The product-facing path is Real Search only:
 
 ```text
-POST /api/v1/internal/search/preview/api-result
+POST /api/v1/real/search/runs
+GET /api/v1/real/search/runs/{run_id}
+GET /api/v1/real/search/runs/{run_id}/result
+GET /api/v1/real/search/runs/{run_id}/events
+POST /api/v1/real/search/runs/{run_id}/cancel
 ```
 
-It accepts the same request fields as `/api/v1/internal/search/preview`, then
-maps `SearchServiceOutput` through:
+The create endpoint stores a run, starts background execution, and immediately
+returns a `run_real_...` id. Status polling reports queued/running/succeeded/
+failed/cancelled states. The result endpoint returns mapped
+`SearchRunResultResponse` only after the run succeeds. The events endpoint
+replays Real Search SSE events such as stage transitions, connector stats,
+warnings, cost updates, and completion.
 
-```python
-map_search_service_output_to_api_result(...)
-```
-
-Response model:
-
-```text
-SearchRunResultResponse
-```
-
-This endpoint is for validating that real internal search output can fit the
-existing frontend API result shape before replacing any public Mock API route.
-Like the raw preview endpoint, manual calls may access OpenAlex/arXiv and, when
-RefChain is enabled, OpenAlex reference metadata. Tests monkeypatch
-`SearchService` and do not access external services.
-
-This endpoint uses the same preview concurrency setting:
+Real Search worker settings:
 
 ```bash
-REAL_PREVIEW_MAX_WORKERS=1
+REAL_SEARCH_MAX_WORKERS=2
+REAL_SEARCH_BACKGROUND_WORKERS=2
 ```
 
-Use a lower value when OpenAlex/arXiv rate limits or transient failures are
-frequent during manual validation.
+Manual Real Search calls may access enabled external connectors. Tests
+monkeypatch `SearchService` and do not access external services.
 
 ## Real Search Run Store Cleanup
 
@@ -592,8 +531,8 @@ POST /api/v1/real/search/runs/{run_id}/cancel
 ```
 
 To avoid unbounded growth in long-lived backend processes, the store performs a
-lightweight cleanup on Real Search route entry. Cleanup never touches Mock API
-runs and only deletes terminal Real Search runs:
+lightweight cleanup on Real Search route entry. Cleanup only deletes terminal
+Real Search runs:
 
 - `succeeded`
 - `failed`
@@ -631,25 +570,13 @@ GET/result/events/cancel routes protect the current `run_id` during cleanup, so
 the request does not delete the run it is about to read. Unknown run IDs still
 return `404`.
 
-The existing Mock API remains unchanged:
-
-```text
-POST /api/v1/search/runs
-GET /api/v1/search/runs/{run_id}
-GET /api/v1/search/runs/{run_id}/result
-GET /api/v1/search/runs/{run_id}/events
-```
-
-Do not replace these Mock endpoints yet.
-
 Recommended next steps:
 
-1. Add a backend feature flag before routing frontend traffic to real search.
-2. Persist run state and progress events before exposing it to the frontend.
-3. Keep Mock API as the stable frontend demo path until the service path is
-   tested with real connector latency and failures.
-4. Add SSE events around every pipeline stage before enabling UI integration.
-5. Gate public result endpoint replacement behind an explicit real-search mode.
+1. Replace the in-memory run store with a persistent queue/store before
+   production deployment.
+2. Keep connector errors and missing evidence visible rather than falling back
+   to synthetic data.
+3. Expand stage-level events only when they remain cheap and deterministic.
 
 ## Current Non-goals
 
@@ -659,6 +586,4 @@ Recommended next steps:
 - No LLM Query Evolution.
 - No LLM RefChain.
 - No external search in tests.
-- No replacement of Mock API routes.
-- No frontend changes.
 - No `third_party` changes.

@@ -4,14 +4,14 @@
 
 `QueryEvolutionAgent` is a deterministic, no-LLM query expansion component. It
 generates evolved search queries from already judged and ranked papers.
+It is available as an optional Real Search stage when
+`enable_query_evolution=True`.
 
 Current boundaries:
 
 - No LLM calls.
 - No network access.
 - No RefChain.
-- No SearchService integration yet.
-- No FastAPI Mock API changes.
 - No frontend changes.
 - No `third_party` changes.
 
@@ -51,9 +51,8 @@ sources:
 
 - `openalex`
 - `arxiv`
-
-Semantic Scholar and PubMed are still not returned because their connectors are
-not implemented in the current project.
+- `semantic_scholar`
+- `pubmed`
 
 ## Rule-Based Seed Selection
 
@@ -122,12 +121,12 @@ If all generated candidates are duplicates, the record contains:
 warnings=["no_new_evolved_query"]
 ```
 
-## Future SearchService Integration
+## SearchService Integration
 
 `QueryEvolutionAgent` only generates `EvolvedSubquery` records. It does not call
 `retrieve_papers`.
 
-Future SearchService integration should:
+SearchService integration:
 
 1. Run the existing initial pipeline.
 2. Call `evolve_queries` when `enable_query_evolution=True`.
@@ -137,8 +136,8 @@ Future SearchService integration should:
 6. Re-run `judge_papers`.
 7. Re-run `rerank_papers`.
 
-The existing Mock API should remain stable until the real pipeline is explicitly
-promoted behind a feature flag.
+The stage is surfaced through Real Search diagnostics and final result mapping
+when enabled.
 
 ## Tests
 
@@ -157,4 +156,3 @@ The tests verify:
 - supported source hints only
 - deterministic output
 - no LLM or network dependency
-

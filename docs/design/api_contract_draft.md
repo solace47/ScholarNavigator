@@ -88,7 +88,7 @@
 
 ## 3. Search Run API
 
-### POST `/api/v1/search/runs`
+### POST `/api/v1/real/search/runs`
 
 创建一次论文检索任务。
 
@@ -138,14 +138,14 @@
   "status": "queued",
   "created_at": "2026-07-01T12:00:00+08:00",
   "links": {
-    "self": "/api/v1/search/runs/run_01HXYZ",
-    "events": "/api/v1/search/runs/run_01HXYZ/events",
-    "result": "/api/v1/search/runs/run_01HXYZ/result"
+    "self": "/api/v1/real/search/runs/run_01HXYZ",
+    "events": "/api/v1/real/search/runs/run_01HXYZ/events",
+    "result": "/api/v1/real/search/runs/run_01HXYZ/result"
   }
 }
 ```
 
-### GET `/api/v1/search/runs`
+### GET `/api/v1/real/search/runs`
 
 查询检索任务列表。
 
@@ -177,7 +177,7 @@
 }
 ```
 
-### GET `/api/v1/search/runs/{run_id}`
+### GET `/api/v1/real/search/runs/{run_id}`
 
 查询任务状态和摘要。
 
@@ -210,7 +210,7 @@
 }
 ```
 
-### POST `/api/v1/search/runs/{run_id}/cancel`
+### POST `/api/v1/real/search/runs/{run_id}/cancel`
 
 取消运行中的检索任务。
 
@@ -226,7 +226,7 @@
 
 ## 4. Search Events API
 
-### GET `/api/v1/search/runs/{run_id}/events`
+### GET `/api/v1/real/search/runs/{run_id}/events`
 
 SSE 事件流。事件格式：
 
@@ -269,7 +269,7 @@ data: {"run_id":"run_01HXYZ","stage":"retrieval","timestamp":"2026-07-01T12:00:0
 
 ## 5. Search Result API
 
-### GET `/api/v1/search/runs/{run_id}/result`
+### GET `/api/v1/real/search/runs/{run_id}/result`
 
 获取最终结构化结果。若任务未完成，可返回当前可用部分结果并标记 `partial=true`。
 
@@ -376,7 +376,7 @@ data: {"run_id":"run_01HXYZ","stage":"retrieval","timestamp":"2026-07-01T12:00:0
 }
 ```
 
-### GET `/api/v1/search/runs/{run_id}/export`
+### GET `/api/v1/real/search/runs/{run_id}/export`
 
 导出结果。
 

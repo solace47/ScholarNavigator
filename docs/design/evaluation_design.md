@@ -415,8 +415,8 @@ The MVP evaluation should not include:
 - frontend UX evaluation.
 - answer synthesis or citation attribution scoring.
 
-These can be revisited after the backend search API replaces or augments the
-Mock API path.
+These can be revisited after the Real Search API is stable enough for larger
+offline/online evaluation runs.
 
 ## Risks And Controls
 

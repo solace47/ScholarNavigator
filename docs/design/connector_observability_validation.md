@@ -2,16 +2,12 @@
 
 ## Scope
 
-This document records a manual validation of connector error observability for:
-
-```text
-POST /api/v1/internal/search/preview
-```
+This document records a manual validation of connector error observability for
+the backend search validation path that later became the Real Search lifecycle.
 
 Validation date: 2026-07-01
 
-No frontend files, `third_party` files, or Mock API behavior were changed. No LLM
-calls were made.
+No frontend files or `third_party` files were changed. No LLM calls were made.
 
 ## Backend Command
 
@@ -88,4 +84,3 @@ the retrieval output and internal preview response.
 Warnings are deduplicated at the `SearchService` level, so three repeated
 OpenAlex 503 failures appear once in top-level `warnings`. Per-call detail is
 still visible in `source_stats`.
-

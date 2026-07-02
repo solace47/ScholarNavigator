@@ -8,7 +8,6 @@ Current boundaries:
 
 - No LLM calls.
 - No real retrieval calls from this module.
-- No FastAPI Mock API replacement.
 - No frontend changes.
 - No `third_party` changes.
 
@@ -249,4 +248,3 @@ After collecting retrieval outputs, the service layer should deduplicate across 
 - No Semantic Scholar connector.
 - No FastAPI API contract changes.
 - No frontend changes.
-

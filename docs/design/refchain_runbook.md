@@ -3,16 +3,14 @@
 ## Scope
 
 `RefChainAgent` is a deterministic, no-LLM, single-layer reference expansion
-component. It prepares the future RefChain stage but is not connected to
-`SearchService` yet.
+component. It is available as an optional Real Search stage when
+`enable_refchain=True`.
 
 Current boundaries:
 
 - No LLM calls.
 - No network access inside the agent.
 - No recursive citation traversal.
-- No SearchService integration yet.
-- No FastAPI Mock API changes.
 - No frontend changes.
 - No `third_party` changes.
 
@@ -127,10 +125,10 @@ The agent only expands references for the original seed papers. It never calls
 the fetcher on returned references, so recursive/multi-layer citation expansion
 is out of scope.
 
-## Future SearchService Integration
+## SearchService Integration
 
-Future integration should run after initial retrieval, deduplication, judgement,
-reranking, and optional Query Evolution:
+The stage runs after initial retrieval, deduplication, judgement, reranking, and
+optional Query Evolution:
 
 ```text
 ranked_papers
@@ -141,6 +139,5 @@ ranked_papers
   -> rerank_papers
 ```
 
-The existing Mock API should remain unchanged until the real SearchService path
-is explicitly promoted behind a feature flag.
-
+The stage is surfaced through Real Search diagnostics and final result mapping
+when enabled.

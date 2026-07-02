@@ -9,7 +9,6 @@ Current boundaries:
 - No LLM calls.
 - No network access.
 - No full-text PDF reading.
-- No FastAPI Mock API replacement.
 - No frontend changes.
 - No `third_party` changes.
 

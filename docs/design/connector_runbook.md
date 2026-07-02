@@ -2,12 +2,15 @@
 
 ## Scope
 
-This runbook covers the first real retrieval connector layer for:
+This runbook covers the real retrieval connector layer for:
 
 - OpenAlex Works API
 - arXiv public API
+- Semantic Scholar Graph API
+- PubMed NCBI E-utilities
 
-The current FastAPI Mock API response logic is unchanged. These connectors are standalone backend utilities for the next integration step. They do not call any LLM, do not rank papers, and do not replace the existing mock search result endpoints.
+These connectors feed the Real Search retriever. They do not call any LLM, rank
+papers, or judge relevance.
 
 ## OpenAlex Connector
 
@@ -64,8 +67,8 @@ When set, the connector includes `mailto` in the OpenAlex request parameters and
 
 ### OpenAlex Reference Fetching
 
-`fetch_openalex_references` is a standalone helper for the future RefChain
-stage. It is not connected to `SearchService` yet.
+`fetch_openalex_references` is the default helper used by the optional RefChain
+stage when it is enabled.
 
 Seed resolution:
 
@@ -99,7 +102,6 @@ Current boundaries:
 - No arXiv reference extraction.
 - No recursive/multi-layer citation expansion.
 - No judgement or reranking inside the connector.
-- No SearchService integration yet.
 
 ## arXiv Connector
 
@@ -161,5 +163,4 @@ PYTHONPATH=src python scripts/dev_search_connectors.py "LLM reranking scientific
 - No ranking or judgement.
 - No query evolution.
 - No SearchService-level citation expansion.
-- No replacement of the existing FastAPI Mock API response logic.
 - No frontend changes.

@@ -17,7 +17,6 @@ Current boundaries:
 - No `third_party` changes.
 - No LLM calls.
 - No external network access.
-- No Mock API behavior change.
 
 ## Public Entry Point
 
@@ -61,8 +60,8 @@ The API layer defines separate optional response schemas in:
 src/scholar_agent/core/api_schemas.py
 ```
 
-`SearchRunResultResponse.synthesis` is optional, so old mock responses and old
-frontend code can continue to work when the field is `null`.
+`SearchRunResultResponse.synthesis` is optional, so clients can handle runs
+where synthesis is disabled or unavailable.
 
 ## MVP Rule Logic
 
@@ -128,11 +127,9 @@ cycles between `search_service.py` and `agents/synthesis.py`.
 
 API boundaries:
 
-- The raw internal preview endpoint can expose `synthesis_output`.
-- The API-result preview endpoint maps `synthesis_output` to
+- Real Search result mapping exposes `synthesis_output` as
   `SearchRunResultResponse.synthesis` when present.
-- Mock API result responses do not generate synthesis and return `null`.
-- Existing Mock API endpoints are unchanged.
+- If synthesis is disabled, the API response returns `synthesis=null`.
 
 ## Insufficient Evidence Behavior
 
