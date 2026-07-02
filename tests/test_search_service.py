@@ -362,6 +362,99 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
     )
 
 
+def test_fast_recommended_uses_semantic_scholar_override_for_llm_literature_retrieval() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"LLM Literature Retrieval Paper {len(calls)}",
+                    doi=f"10.123/llm-lit-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "latest LLM reranking methods for scientific literature retrieval",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    assert (
+        output.search_plan.subqueries[0].query,
+        ["arxiv"],
+    ) in calls
+    assert (
+        output.search_plan.subqueries[1].query,
+        ["arxiv"],
+    ) in calls
+    semantic_calls = [
+        call for call in calls if call[1] and "semantic_scholar" in call[1]
+    ]
+    assert semantic_calls == [
+        (
+            "LLM based retrieval augmented generation literature review",
+            ["semantic_scholar"],
+        )
+    ]
+    assert len(semantic_calls) == 1
+    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
+
+
+def test_fast_recommended_does_not_use_llm_literature_override_for_academic_neural_ranking() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Academic Neural Ranking Paper {len(calls)}",
+                    doi=f"10.123/academic-neural-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "neural ranking methods for academic search",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    semantic_calls = [
+        call for call in calls if call[1] and "semantic_scholar" in call[1]
+    ]
+    assert semantic_calls == [
+        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
+    ]
+    assert all(
+        call[0] != "LLM based retrieval augmented generation literature review"
+        for call in calls
+    )
+
+
 def test_fast_semantic_scholar_only_source_skips_later_subqueries() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 

@@ -676,7 +676,7 @@ def _limit_fast_semantic_scholar_initial_subqueries(
 
 
 def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None:
-    query = _normalize_query_text(search_plan.query_analysis.original_query)
+    query = _search_plan_query_text(search_plan)
     has_citation_graph_context = (
         "citation graph" in query or "citation network" in query
     )
@@ -685,7 +685,27 @@ def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None
     )
     if has_citation_graph_context and has_recommendation_context:
         return "graph embedding citation recommendation"
+    has_llm_context = "llm" in query or "large language model" in query
+    has_ranking_context = (
+        "reranking" in query
+        or "rerank" in query
+        or "reranker" in query
+        or "ranking" in query
+    )
+    has_literature_context = (
+        "scientific literature retrieval" in query
+        or "literature retrieval" in query
+        or "literature review" in query
+    )
+    if has_llm_context and has_ranking_context and has_literature_context:
+        return "LLM based retrieval augmented generation literature review"
     return None
+
+
+def _search_plan_query_text(search_plan: SearchPlan) -> str:
+    query_parts = [search_plan.query_analysis.original_query]
+    query_parts.extend(subquery.query for subquery in search_plan.subqueries)
+    return _normalize_query_text(" ".join(query_parts))
 
 
 def _normalize_query_text(value: str) -> str:

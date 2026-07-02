@@ -253,6 +253,35 @@ def test_rag_evaluation_compound_query_prefers_ragas_over_surface_noise() -> Non
     assert "surface acronym benchmark" in noise_result.reasoning
 
 
+def test_citation_graph_query_does_not_boost_generic_s2_citation_recommendation() -> None:
+    query_analysis = make_query_analysis(
+        original_query="citation network methods for citation recommendation",
+        methods=["citation graph", "recommendation"],
+        datasets=[],
+        must_include_terms=["citation", "network", "recommendation"],
+    )
+    graph_embedding = make_paper(
+        "Graph Embedding for Citation Recommendation",
+        abstract="We use citation graph embedding for paper citation recommendation.",
+        sources=["arxiv"],
+    )
+    s2_surface_recommendation = make_paper(
+        "A citation recommendation model employing knowledge graph embedding",
+        abstract="A knowledge graph embedding model for citation recommendation.",
+        sources=["semantic_scholar"],
+    )
+
+    graph_result, s2_surface_result = judge_papers(
+        query_analysis,
+        [graph_embedding, s2_surface_recommendation],
+    )
+
+    assert graph_result.score > s2_surface_result.score
+    assert graph_result.category in {"highly_relevant", "partially_relevant"}
+    assert "compound citation graph recommendation" not in graph_result.reasoning
+    assert "compound citation graph recommendation" not in s2_surface_result.reasoning
+
+
 def test_academic_search_compound_query_downweights_domain_shift_noise() -> None:
     query_analysis = make_query_analysis(
         original_query="neural ranking methods for academic search",
