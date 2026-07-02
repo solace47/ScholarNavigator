@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
+from scholar_agent.agents.retriever import SourceStats  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     QueryAnalysis,
@@ -118,6 +119,7 @@ def test_ranked_candidates_dump_writes_top10_without_changing_results_jsonl(
         "latency_seconds",
     }
     assert "_ranked_candidates_debug" not in rows[0]
+    assert "retrieval_queries" not in rows[0]
     visible_result_count = (
         len(rows[0]["result"]["highly_relevant_papers"])
         + len(rows[0]["result"]["partially_relevant_papers"])
@@ -127,6 +129,10 @@ def test_ranked_candidates_dump_writes_top10_without_changing_results_jsonl(
     assert debug_rows[0]["query"] == "LLM reranking"
     assert debug_rows[0]["expanded_queries"] == ["LLM reranking"]
     assert debug_rows[0]["source_preferences"] == ["openalex", "arxiv"]
+    assert debug_rows[0]["retrieval_queries"] == {
+        "arxiv": ["LLM reranking"],
+        "semantic_scholar": ["LLM reranking semantic scholar"],
+    }
     assert debug_rows[0]["raw_count"] == 12
     assert debug_rows[0]["deduplicated_count"] == 12
     assert len(debug_rows[0]["ranked_candidates"]) == 10
@@ -191,6 +197,7 @@ def test_ranked_candidates_dump_writes_empty_debug_row_for_failed_case(
             "query": "explode",
             "expanded_queries": [],
             "source_preferences": [],
+            "retrieval_queries": {},
             "raw_count": None,
             "deduplicated_count": None,
             "ranked_candidates": [],
@@ -663,6 +670,20 @@ def _fake_service_class(
                 deduplicated_count=12,
                 ranked_papers=ranked_papers[:top_k],
                 all_ranked_papers=ranked_papers,
+                source_stats=[
+                    SourceStats(
+                        source="arxiv",
+                        query=query,
+                        returned_count=6,
+                        latency_seconds=0.01,
+                    ),
+                    SourceStats(
+                        source="semantic_scholar",
+                        query=f"{query} semantic scholar",
+                        returned_count=6,
+                        latency_seconds=0.01,
+                    ),
+                ],
                 latency_seconds=0.01,
             )
             output.synthesis_output = synthesize_answer(output)

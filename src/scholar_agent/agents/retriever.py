@@ -40,6 +40,7 @@ _SOURCE_FAILURE_COOLDOWNS_LOCK = RLock()
 
 class SourceStats(BaseModel):
     source: str
+    query: str | None = None
     returned_count: int = 0
     latency_seconds: float = 0.0
     error_message: str | None = None
@@ -81,6 +82,7 @@ def retrieve_papers(
             source_stats.append(
                 SourceStats(
                     source=source,
+                    query=query,
                     returned_count=0,
                     latency_seconds=0.0,
                     error_message=message,
@@ -94,6 +96,7 @@ def retrieve_papers(
             source_stats.append(
                 SourceStats(
                     source=source,
+                    query=query,
                     returned_count=0,
                     latency_seconds=0.0,
                     error_message=message,
@@ -120,6 +123,7 @@ def retrieve_papers(
             source_stats.append(
                 SourceStats(
                     source=source,
+                    query=query,
                     returned_count=len(result.papers),
                     latency_seconds=time.perf_counter() - source_start,
                     error_message=result.error_message,
@@ -134,6 +138,7 @@ def retrieve_papers(
             source_stats.append(
                 SourceStats(
                     source=source,
+                    query=query,
                     returned_count=0,
                     latency_seconds=time.perf_counter() - source_start,
                     error_message=str(exc),

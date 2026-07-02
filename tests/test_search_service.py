@@ -49,6 +49,7 @@ def make_output(
         source_stats=[
             SourceStats(
                 source="openalex",
+                query=query,
                 returned_count=len(papers),
                 latency_seconds=0.01,
             )
@@ -335,15 +336,28 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
         sources: list[str] | None = None,
     ) -> RetrievalOutput:
         calls.append((query, sources))
-        return make_output(
-            query,
-            [
-                make_paper(
-                    f"Citation Recommendation Paper {len(calls)}",
-                    doi=f"10.123/citation-recommendation-{len(calls)}",
-                    sources=sources or [],
+        paper = make_paper(
+            f"Citation Recommendation Paper {len(calls)}",
+            doi=f"10.123/citation-recommendation-{len(calls)}",
+            sources=sources or [],
+        )
+        return RetrievalOutput(
+            query=query,
+            requested_sources=sources or [],
+            raw_count=1,
+            deduplicated_count=1,
+            papers=[paper],
+            source_stats=[
+                SourceStats(
+                    source=source,
+                    query=query,
+                    returned_count=1,
+                    latency_seconds=0.01,
                 )
+                for source in sources or []
             ],
+            warnings=[],
+            latency_seconds=0.01,
         )
 
     output = SearchService(retriever=fake_retriever).run_search(
@@ -370,6 +384,21 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
     assert semantic_calls == [
         ("graph embedding citation recommendation", ["semantic_scholar"])
     ]
+    assert any(
+        stat.source == "semantic_scholar"
+        and stat.query == "graph embedding citation recommendation"
+        for stat in output.source_stats
+    )
+    assert any(
+        stat.source == "arxiv"
+        and stat.query == output.search_plan.subqueries[0].query
+        for stat in output.source_stats
+    )
+    assert any(
+        stat.source == "arxiv"
+        and stat.query == output.search_plan.subqueries[1].query
+        for stat in output.source_stats
+    )
     assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
     assert not any(
         warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
@@ -463,6 +492,10 @@ def test_fast_recommended_does_not_use_llm_literature_override_for_academic_neur
     ]
     assert all(
         call[0] != "LLM based retrieval augmented generation literature review"
+        for call in calls
+    )
+    assert all(
+        call[0] != "neural ranking methods academic search explicit semantic"
         for call in calls
     )
 
@@ -574,6 +607,127 @@ def test_balanced_semantic_scholar_does_not_limit_subqueries() -> None:
     assert not any(
         warning.startswith("fast_semantic_scholar_subquery_skipped_by_limit:")
         for warning in output.warnings
+    )
+
+
+def test_high_recall_rag_evaluation_adds_targeted_semantic_scholar_query() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"RAG Evaluation Paper {len(calls)}",
+                    doi=f"10.123/rag-eval-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "retrieval augmented generation evaluation benchmark papers",
+        run_profile="high_recall",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    target_call = (
+        "Benchmarking Large Language Models in Retrieval-Augmented Generation",
+        ["semantic_scholar"],
+    )
+    assert target_call in calls
+    assert calls.count(target_call) == 1
+    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
+        output.search_plan.subqueries
+    )
+
+
+def test_high_recall_academic_neural_ranking_adds_targeted_semantic_scholar_query() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Academic Neural Ranking Paper {len(calls)}",
+                    doi=f"10.123/academic-neural-high-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "neural ranking methods for academic search",
+        run_profile="high_recall",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    target_call = (
+        "neural ranking methods academic search explicit semantic",
+        ["semantic_scholar"],
+    )
+    assert target_call in calls
+    assert calls.count(target_call) == 1
+    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
+        output.search_plan.subqueries
+    )
+
+
+def test_high_recall_targeted_semantic_scholar_adds_at_most_one_query() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Mixed Target Paper {len(calls)}",
+                    doi=f"10.123/mixed-target-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "RAG evaluation benchmark for academic search neural ranking information retrieval",
+        run_profile="high_recall",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    semantic_only_calls = [call for call in calls if call[1] == ["semantic_scholar"]]
+    assert semantic_only_calls == [
+        (
+            "Benchmarking Large Language Models in Retrieval-Augmented Generation",
+            ["semantic_scholar"],
+        )
+    ]
+    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
+        output.search_plan.subqueries
     )
 
 

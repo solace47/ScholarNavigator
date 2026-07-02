@@ -270,6 +270,7 @@ def _ranked_candidates_debug_payload(
         "query": query,
         "expanded_queries": expanded_queries,
         "source_preferences": source_preferences,
+        "retrieval_queries": _retrieval_queries_by_source(output),
         "raw_count": getattr(output, "raw_count", None),
         "deduplicated_count": getattr(output, "deduplicated_count", None),
         "ranked_candidates": [
@@ -285,10 +286,24 @@ def _empty_ranked_candidates_debug(case_id: str, query: str) -> dict[str, Any]:
         "query": query,
         "expanded_queries": [],
         "source_preferences": [],
+        "retrieval_queries": {},
         "raw_count": None,
         "deduplicated_count": None,
         "ranked_candidates": [],
     }
+
+
+def _retrieval_queries_by_source(output: Any) -> dict[str, list[str]]:
+    by_source: dict[str, list[str]] = {}
+    for source_stat in getattr(output, "source_stats", []) or []:
+        source = str(getattr(source_stat, "source", "") or "").strip()
+        query = str(getattr(source_stat, "query", "") or "").strip()
+        if not source or not query:
+            continue
+        queries = by_source.setdefault(source, [])
+        if query not in queries:
+            queries.append(query)
+    return by_source
 
 
 def _ranked_candidate_payload(candidate: Any) -> dict[str, Any]:

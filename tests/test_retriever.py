@@ -93,6 +93,10 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
     assert output.papers[0].citation_count == 9
     assert output.papers[0].abstract == "This abstract is longer and should be retained."
     assert [stat.source for stat in output.source_stats] == ["openalex", "arxiv"]
+    assert [stat.query for stat in output.source_stats] == [
+        "llm reranking",
+        "llm reranking",
+    ]
     assert [stat.returned_count for stat in output.source_stats] == [2, 2]
     assert all(stat.error_message is None for stat in output.source_stats)
     assert all(stat.cache_hit is False for stat in output.source_stats)
@@ -122,6 +126,7 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
     assert output.papers[0].title == "arXiv Result"
     assert len(output.source_stats) == 2
     assert output.source_stats[0].source == "openalex"
+    assert output.source_stats[0].query == "llm reranking"
     assert output.source_stats[0].returned_count == 0
     assert output.source_stats[0].cache_hit is False
     assert (
@@ -129,6 +134,7 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
         == "OpenAlex search failed: HTTP Error 503: Service Unavailable"
     )
     assert output.source_stats[1].source == "arxiv"
+    assert output.source_stats[1].query == "llm reranking"
     assert output.source_stats[1].returned_count == 1
     assert output.source_stats[1].cache_hit is False
     assert output.warnings == [
@@ -170,6 +176,7 @@ def test_retrieve_papers_supports_semantic_scholar_source(monkeypatch) -> None:
     assert output.deduplicated_count == 1
     assert output.papers[0].identifiers.semantic_scholar_id == "S2-1"
     assert output.source_stats[0].source == "semantic_scholar"
+    assert output.source_stats[0].query == "llm reranking"
     assert output.source_stats[0].returned_count == 1
     assert output.warnings == []
 
@@ -208,6 +215,7 @@ def test_retrieve_papers_supports_pubmed_source(monkeypatch) -> None:
     assert output.papers[0].identifiers.pubmed_id == "12345"
     assert output.papers[0].sources == ["pubmed"]
     assert output.source_stats[0].source == "pubmed"
+    assert output.source_stats[0].query == "gene therapy"
     assert output.source_stats[0].returned_count == 1
     assert output.warnings == []
 
@@ -226,6 +234,7 @@ def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:
     assert output.raw_count == 1
     assert output.deduplicated_count == 1
     assert output.source_stats[0].source == "unknown"
+    assert output.source_stats[0].query == "llm reranking"
     assert output.source_stats[0].error_message == "unsupported_source:unknown"
     assert output.warnings == ["unsupported_source:unknown"]
 

@@ -162,6 +162,10 @@ class SearchService:
                 initial_subqueries,
             )
         )
+        initial_subqueries = _append_high_recall_targeted_semantic_scholar_subquery(
+            search_plan,
+            initial_subqueries,
+        )
         retrieval_outputs = self._retrieve_subqueries(
             search_plan,
             subqueries=initial_subqueries,
@@ -297,6 +301,7 @@ class SearchService:
             source_stats.append(
                 SourceStats(
                     source="refchain",
+                    query="refchain",
                     returned_count=len(refchain_output.references),
                     latency_seconds=refchain_output.latency_seconds,
                     error_message=";".join(refchain_output.warnings) or None,
@@ -496,6 +501,7 @@ class SearchService:
                 source_stats=[
                     SourceStats(
                         source=failure_source,
+                        query=subquery.query,
                         returned_count=0,
                         latency_seconds=latency_seconds,
                         error_message=message,
@@ -766,6 +772,34 @@ def _limit_fast_semantic_scholar_initial_subqueries(
     return adjusted, warnings
 
 
+def _append_high_recall_targeted_semantic_scholar_subquery(
+    search_plan: SearchPlan,
+    subqueries: list[SearchSubquery],
+) -> list[SearchSubquery]:
+    if not (
+        search_plan.run_profile == "high_recall"
+        and "semantic_scholar" in search_plan.selected_sources
+    ):
+        return subqueries
+
+    targeted_query = _high_recall_targeted_semantic_scholar_query(search_plan)
+    if targeted_query is None:
+        return subqueries
+
+    seen_queries = {_query_key(subquery.query) for subquery in subqueries}
+    if _query_key(targeted_query) in seen_queries:
+        return subqueries
+
+    return [
+        *subqueries,
+        SearchSubquery(
+            query=targeted_query,
+            source_hints=["semantic_scholar"],
+            purpose="targeted_semantic_scholar_high_recall",
+        ),
+    ]
+
+
 def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None:
     query = _search_plan_query_text(search_plan)
     has_citation_graph_context = (
@@ -776,6 +810,34 @@ def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None
     )
     if has_citation_graph_context and has_recommendation_context:
         return "graph embedding citation recommendation"
+    return None
+
+
+def _high_recall_targeted_semantic_scholar_query(
+    search_plan: SearchPlan,
+) -> str | None:
+    query = _search_plan_query_text(search_plan)
+    has_rag_context = "rag" in query or "retrieval augmented generation" in query
+    has_evaluation_context = (
+        "evaluation" in query or "evaluate" in query or "benchmark" in query
+    )
+    if has_rag_context and has_evaluation_context:
+        return "Benchmarking Large Language Models in Retrieval-Augmented Generation"
+
+    has_academic_search_context = (
+        "academic search" in query
+        or "paper search" in query
+        or "scholarly search" in query
+        or "academic paper" in query
+        or "scholarly literature" in query
+    )
+    has_neural_ranking_context = (
+        "neural ranking" in query
+        or ("ranking" in query and "information retrieval" in query)
+    )
+    if has_academic_search_context and has_neural_ranking_context:
+        return "neural ranking methods academic search explicit semantic"
+
     return None
 
 
