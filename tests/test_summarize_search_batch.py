@@ -28,8 +28,14 @@ def test_normal_jsonl_generates_markdown_file(tmp_path: Path) -> None:
     assert "- Total cases: 3" in markdown
     assert "- Succeeded: 2" in markdown
     assert "- Failed: 1" in markdown
-    assert "| case_001 | succeeded | 1.000 | 1 | 1 | succeeded | - |" in markdown
-    assert "| case_003 | failed | 3.000 | 0 | 0 | - | forced failure |" in markdown
+    assert (
+        "| case_001 | succeeded | 1.000 | 1 | 1 | succeeded | query one; query one refined | arxiv,semantic_scholar | 6 | 5 | - |"
+        in markdown
+    )
+    assert (
+        "| case_003 | failed | 3.000 | 0 | 0 | - | - | - | - | - | forced failure |"
+        in markdown
+    )
     assert "## Source Reliability" in markdown
     assert "| arxiv | 2 | 2 | 0 | 0 | 5 | 0.150 | - |" in markdown
     assert "| semantic_scholar | 2 | 0 | 2 | 1 | 0 | 0.550 | HTTP 429 (1); source_cooldown_skip:semantic_scholar (1) |" in markdown
@@ -58,6 +64,14 @@ def test_summary_counts_success_rate_latency_and_costs() -> None:
     assert summary["cost_totals"]["search_api_call_count"] == 5
     assert summary["cost_totals"]["cache_hit_count"] == 1
     assert summary["cost_totals"]["estimated_total_tokens"] == 30
+    assert summary["case_summaries"][0]["expanded_queries"] == (
+        "query one; query one refined"
+    )
+    assert summary["case_summaries"][0]["source_preferences"] == (
+        "arxiv,semantic_scholar"
+    )
+    assert summary["case_summaries"][0]["raw_count"] == "6"
+    assert summary["case_summaries"][0]["deduplicated_count"] == "5"
 
 
 def test_top_papers_missing_evidence_and_source_errors_are_counted() -> None:
@@ -166,7 +180,7 @@ def test_succeeded_with_null_result_does_not_crash(tmp_path: Path) -> None:
 
     markdown = output_path.read_text(encoding="utf-8")
     assert code == 0
-    assert "| case_null | succeeded | 0.500 | 0 | 0 | - | - |" in markdown
+    assert "| case_null | succeeded | 0.500 | 0 | 0 | - | - | - | - | - | - |" in markdown
     assert "succeeded_result_missing" in markdown
 
 
@@ -189,6 +203,10 @@ def _sample_rows() -> list[dict[str, Any]]:
                     "estimated_total_tokens": 15,
                 },
                 synthesis_status="succeeded",
+                expanded_queries=["query one", "query one refined"],
+                source_preferences=["arxiv", "semantic_scholar"],
+                raw_count=6,
+                deduplicated_count=5,
                 source_stats=[
                     {
                         "source": "arxiv",
@@ -229,6 +247,10 @@ def _sample_rows() -> list[dict[str, Any]]:
                     "estimated_total_tokens": 15,
                 },
                 synthesis_status="insufficient_evidence",
+                expanded_queries=["query two"],
+                source_preferences=["openalex", "arxiv"],
+                raw_count=3,
+                deduplicated_count=2,
                 source_stats=[
                     {
                         "source": "arxiv",
@@ -267,6 +289,10 @@ def _result(
     missing_evidence: list[str],
     cost_report: dict[str, int],
     synthesis_status: str,
+    expanded_queries: list[str] | None = None,
+    source_preferences: list[str] | None = None,
+    raw_count: int | None = None,
+    deduplicated_count: int | None = None,
     source_stats: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -275,7 +301,13 @@ def _result(
         "missing_evidence": missing_evidence,
         "cost_report": cost_report,
         "synthesis": {"status": synthesis_status},
+        "search_plan": {
+            "expanded_queries": expanded_queries or [],
+            "source_preferences": source_preferences or [],
+        },
         "retrieval_diagnostics": {
+            "raw_count": raw_count,
+            "deduplicated_count": deduplicated_count,
             "source_stats": source_stats or [],
         },
     }

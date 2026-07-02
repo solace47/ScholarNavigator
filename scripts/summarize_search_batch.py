@@ -105,6 +105,9 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
         high_count = _paper_list_count(result_dict, "highly_relevant_papers")
         partial_count = _paper_list_count(result_dict, "partially_relevant_papers")
         synthesis_status = _synthesis_status(result_dict)
+        expanded_queries = _expanded_queries(result_dict)
+        source_preferences = _source_preferences(result_dict)
+        raw_count, deduplicated_count = _retrieval_counts(result_dict)
         error = str(row.get("error") or "")
 
         case_summaries.append(
@@ -116,6 +119,10 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
                 "highly_relevant_count": high_count,
                 "partially_relevant_count": partial_count,
                 "synthesis_status": synthesis_status,
+                "expanded_queries": expanded_queries,
+                "source_preferences": source_preferences,
+                "raw_count": raw_count,
+                "deduplicated_count": deduplicated_count,
                 "error": error,
             }
         )
@@ -208,18 +215,22 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
         "",
         "## Case Summary",
         "",
-        "| case_id | status | latency_seconds | highly relevant | partially relevant | synthesis status | error |",
-        "| --- | --- | ---: | ---: | ---: | --- | --- |",
+        "| case_id | status | latency_seconds | highly relevant | partially relevant | synthesis status | expanded_queries | source_preferences | raw_count | deduplicated_count | error |",
+        "| --- | --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | --- |",
     ]
     for item in summary["case_summaries"]:
         lines.append(
-            "| {case_id} | {status} | {latency} | {high} | {partial} | {synthesis} | {error} |".format(
+            "| {case_id} | {status} | {latency} | {high} | {partial} | {synthesis} | {expanded_queries} | {source_preferences} | {raw_count} | {deduplicated_count} | {error} |".format(
                 case_id=_escape_md(item["case_id"]),
                 status=_escape_md(item["status"]),
                 latency=_format_float(item["latency_seconds"]),
                 high=item["highly_relevant_count"],
                 partial=item["partially_relevant_count"],
                 synthesis=_escape_md(item["synthesis_status"]),
+                expanded_queries=_escape_md(item["expanded_queries"]),
+                source_preferences=_escape_md(item["source_preferences"]),
+                raw_count=_escape_md(item["raw_count"]),
+                deduplicated_count=_escape_md(item["deduplicated_count"]),
                 error=_escape_md(item["error"] or "-"),
             )
         )
@@ -433,6 +444,52 @@ def _synthesis_status(result: dict[str, Any] | None) -> str:
     if isinstance(synthesis, dict):
         return str(synthesis.get("status") or "-")
     return "-"
+
+
+def _expanded_queries(result: dict[str, Any] | None) -> str:
+    if result is None:
+        return "-"
+    search_plan = result.get("search_plan")
+    if not isinstance(search_plan, dict):
+        return "-"
+    queries = search_plan.get("expanded_queries")
+    if not isinstance(queries, list):
+        return "-"
+    values = [str(query).strip() for query in queries if str(query).strip()]
+    return "; ".join(values) if values else "-"
+
+
+def _source_preferences(result: dict[str, Any] | None) -> str:
+    if result is None:
+        return "-"
+    search_plan = result.get("search_plan")
+    if not isinstance(search_plan, dict):
+        return "-"
+    sources = search_plan.get("source_preferences")
+    if not isinstance(sources, list):
+        return "-"
+    values = [str(source).strip() for source in sources if str(source).strip()]
+    return ",".join(values) if values else "-"
+
+
+def _retrieval_counts(result: dict[str, Any] | None) -> tuple[str, str]:
+    if result is None:
+        return "-", "-"
+    diagnostics = result.get("retrieval_diagnostics")
+    if not isinstance(diagnostics, dict):
+        return "-", "-"
+    raw_count = diagnostics.get("raw_count")
+    deduplicated_count = diagnostics.get("deduplicated_count")
+    return _display_count(raw_count), _display_count(deduplicated_count)
+
+
+def _display_count(value: Any) -> str:
+    if value is None:
+        return "-"
+    try:
+        return str(int(value))
+    except (TypeError, ValueError):
+        return "-"
 
 
 def _cost_report(result: dict[str, Any]) -> dict[str, Any]:
