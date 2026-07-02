@@ -289,8 +289,139 @@ def test_academic_search_compound_query_downweights_domain_shift_noise() -> None
     assert search_result.category in {"highly_relevant", "partially_relevant"}
     assert embedding_result.category in {"weakly_relevant", "irrelevant"}
     assert news_result.category in {"weakly_relevant", "irrelevant"}
-    assert "compound academic search intent satisfied" in search_result.reasoning
+    assert "compound academic neural ranking intent satisfied" in search_result.reasoning
     assert "domain-shift terms detected" in embedding_result.reasoning
+
+
+def test_academic_neural_ranking_query_downweights_generic_ir_noise() -> None:
+    query_analysis = make_query_analysis(
+        original_query="academic paper search neural ranking information retrieval",
+        methods=["neural ranking", "information retrieval"],
+        datasets=[],
+        must_include_terms=[
+            "academic",
+            "paper",
+            "search",
+            "neural",
+            "ranking",
+            "information",
+            "retrieval",
+        ],
+    )
+    academic_retrieval = make_paper(
+        "Neural Ranking for Academic Paper Retrieval",
+        abstract=(
+            "This paper studies neural relevance ranking for academic paper search "
+            "and scholarly literature retrieval."
+        ),
+        sources=["semantic_scholar"],
+    )
+    page_ranking = make_paper(
+        "Comparative Analysis of Page Ranking Algorithms for Efficient Information Retrieval",
+        abstract="A survey of page ranking algorithms for general information retrieval.",
+        sources=["semantic_scholar"],
+    )
+    dark_web = make_paper(
+        "Evaluating Retrieval and Ranking Strategies on the Dark Web",
+        abstract="This paper evaluates ranking strategies for Tor search engines.",
+        sources=["semantic_scholar"],
+    )
+    student_performance = make_paper(
+        "Predicting Student Performance Using Machine Learning Methods",
+        abstract="A systematic review of student performance prediction methods.",
+        sources=["semantic_scholar"],
+    )
+    news_retrieval = make_paper(
+        "Myanmar News Retrieval Using Kernelized Neural Ranking Model",
+        abstract="Neural methods rank news documents in response to a query.",
+        sources=["semantic_scholar"],
+    )
+
+    results = judge_papers(
+        query_analysis,
+        [academic_retrieval, page_ranking, dark_web, student_performance, news_retrieval],
+    )
+    academic_result, page_result, dark_result, student_result, news_result = results
+
+    assert academic_result.score > page_result.score
+    assert academic_result.score > dark_result.score
+    assert academic_result.score > student_result.score
+    assert academic_result.score > news_result.score
+    assert academic_result.category in {"highly_relevant", "partially_relevant"}
+    assert page_result.category in {"weakly_relevant", "irrelevant"}
+    assert dark_result.category in {"weakly_relevant", "irrelevant"}
+    assert student_result.category in {"weakly_relevant", "irrelevant"}
+    assert news_result.category in {"weakly_relevant", "irrelevant"}
+    assert "generic information retrieval noise detected" in page_result.reasoning
+    assert "domain-shift terms detected" in dark_result.reasoning
+    assert "domain-shift terms detected" in student_result.reasoning
+    assert "domain-shift terms detected" in news_result.reasoning
+
+
+def test_academic_neural_ranking_applies_small_penalty_to_generic_title_ir() -> None:
+    query_analysis = make_query_analysis(
+        original_query="academic paper search neural ranking information retrieval",
+        methods=["neural ranking", "information retrieval"],
+        datasets=[],
+        must_include_terms=[
+            "academic",
+            "paper",
+            "search",
+            "neural",
+            "ranking",
+            "information",
+            "retrieval",
+        ],
+    )
+    personalized_search = make_paper(
+        "Personalized Search Via Neural Contextual Semantic Relevance Ranking",
+        abstract="A neural relevance ranking method for personalized search.",
+        year=2023,
+        sources=["arxiv"],
+    )
+    generic_document_retrieval = make_paper(
+        "Neural ranking models for document retrieval",
+        abstract="This paper studies neural ranking models for document retrieval.",
+        year=2021,
+        sources=["arxiv"],
+    )
+    entity_neural_ranking = make_paper(
+        "Entity-Duet Neural Ranking: Understanding the Role of Knowledge Graph Semantics in Neural Information Retrieval",
+        abstract="This paper studies entity-based neural ranking for information retrieval.",
+        year=2018,
+        sources=["semantic_scholar"],
+    )
+
+    personalized_result, generic_result, entity_result = judge_papers(
+        query_analysis,
+        [personalized_search, generic_document_retrieval, entity_neural_ranking],
+    )
+
+    assert personalized_result.score > generic_result.score
+    assert "generic title-level neural IR penalty" in generic_result.reasoning
+    assert "generic title-level neural IR penalty" not in personalized_result.reasoning
+    assert "generic title-level neural IR penalty" not in entity_result.reasoning
+    assert entity_result.score > 0.25
+
+
+def test_academic_neural_ranking_adjustment_does_not_apply_to_plain_ir_query() -> None:
+    query_analysis = make_query_analysis(
+        original_query="neural ranking models for information retrieval",
+        methods=["neural ranking"],
+        datasets=[],
+        must_include_terms=["neural", "ranking", "information", "retrieval"],
+    )
+    paper = make_paper(
+        "A Deep Look into Neural Ranking Models for Information Retrieval",
+        abstract="This paper studies neural ranking models for information retrieval.",
+        sources=["semantic_scholar"],
+    )
+
+    result = judge_papers(query_analysis, [paper])[0]
+
+    assert result.category in {"highly_relevant", "partially_relevant"}
+    assert "compound academic neural ranking" not in result.reasoning
+    assert "generic information retrieval noise detected" not in result.reasoning
 
 
 def test_compound_adjustment_does_not_change_plain_reranking_query_category() -> None:

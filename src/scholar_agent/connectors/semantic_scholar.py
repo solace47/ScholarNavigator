@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -22,10 +23,14 @@ SEMANTIC_SCHOLAR_SEARCH_URL = (
     "https://api.semanticscholar.org/graph/v1/paper/search"
 )
 SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
+SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS_ENV = (
+    "SCHOLAR_AGENT_SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS"
+)
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 2.0
+DEFAULT_MIN_INTERVAL_SECONDS = 1.5
 MAX_SEMANTIC_SCHOLAR_LIMIT = 100
 SEARCH_FIELDS = ",".join(
     [
@@ -41,6 +46,9 @@ SEARCH_FIELDS = ",".join(
     ]
 )
 
+_REQUEST_THROTTLE_LOCK = threading.Lock()
+_LAST_REQUEST_MONOTONIC: float | None = None
+
 
 def search_semantic_scholar(query: str, limit: int = 20) -> list[Paper]:
     """Search papers from Semantic Scholar and return parsed papers only."""
@@ -54,6 +62,8 @@ def search_semantic_scholar_detailed(
     *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
 ) -> ConnectorSearchResult:
     """Search papers from Semantic Scholar with diagnostic details."""
 
@@ -76,6 +86,8 @@ def search_semantic_scholar_detailed(
         request,
         max_retries=max_retries,
         retry_sleep=retry_sleep,
+        throttle_sleep=throttle_sleep,
+        monotonic=monotonic,
     )
     if payload is None:
         return ConnectorSearchResult(
@@ -127,6 +139,8 @@ def _request_json_detailed(
     *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None, list[str]]:
     warnings: list[str] = []
     attempts = max(0, max_retries) + 1
@@ -134,6 +148,10 @@ def _request_json_detailed(
 
     for attempt in range(attempts):
         try:
+            _throttle_semantic_scholar_request(
+                sleep=throttle_sleep,
+                monotonic=monotonic,
+            )
             with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
                 status = getattr(response, "status", getattr(response, "code", 200))
                 if status < 200 or status >= 300:
@@ -184,6 +202,46 @@ def _request_json_detailed(
     message = "Semantic Scholar search failed: retry attempts exhausted"
     logger.warning(message)
     return None, message, warnings + [message]
+
+
+def _semantic_scholar_min_interval_seconds() -> float:
+    raw_value = os.getenv(SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS_ENV)
+    if raw_value is None:
+        return DEFAULT_MIN_INTERVAL_SECONDS
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return DEFAULT_MIN_INTERVAL_SECONDS
+    return value if value > 0 else 0.0
+
+
+def _throttle_semantic_scholar_request(
+    *,
+    sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
+) -> None:
+    min_interval = _semantic_scholar_min_interval_seconds()
+    if min_interval <= 0:
+        return
+
+    sleep_fn = sleep or time.sleep
+    monotonic_fn = monotonic or time.monotonic
+
+    global _LAST_REQUEST_MONOTONIC
+    with _REQUEST_THROTTLE_LOCK:
+        now = monotonic_fn()
+        if _LAST_REQUEST_MONOTONIC is not None:
+            wait_seconds = min_interval - (now - _LAST_REQUEST_MONOTONIC)
+            if wait_seconds > 0:
+                sleep_fn(wait_seconds)
+                now = monotonic_fn()
+        _LAST_REQUEST_MONOTONIC = now
+
+
+def _reset_semantic_scholar_throttle_for_tests() -> None:
+    global _LAST_REQUEST_MONOTONIC
+    with _REQUEST_THROTTLE_LOCK:
+        _LAST_REQUEST_MONOTONIC = None
 
 
 def _record_retry_warning(

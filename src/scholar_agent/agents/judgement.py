@@ -453,7 +453,12 @@ def _composite_query_adjustment(
         score = adjusted
 
     if _is_academic_search_compound_query(query_text):
-        adjusted, compound_reasons = _academic_search_adjustment(score, paper_text)
+        adjusted, compound_reasons = _academic_search_adjustment(
+            score,
+            paper,
+            paper_text,
+            is_neural_ranking_query=_is_academic_neural_ranking_query(query_text),
+        )
         reasons.extend(compound_reasons)
         score = adjusted
 
@@ -491,21 +496,49 @@ def _rag_evaluation_adjustment(score: float, paper_text: str) -> tuple[float, st
 
 def _academic_search_adjustment(
     score: float,
+    paper: Paper,
     paper_text: str,
+    *,
+    is_neural_ranking_query: bool = False,
 ) -> tuple[float, list[str]]:
     reasons: list[str] = []
-    has_search_context = _contains_any_phrase(
+    has_academic_search_context = _contains_any_phrase(
         paper_text,
         (
             "academic search",
             "academic paper",
+            "academic literature",
             "paper search",
+            "paper retrieval",
             "scientific literature",
             "literature search",
+            "literature retrieval",
             "scholarly search",
             "scholarly retrieval",
+            "scholarly literature",
+        ),
+    )
+    has_document_retrieval_context = _contains_any_phrase(
+        paper_text,
+        (
+            "document retrieval",
+            "document ranking",
             "information retrieval",
-            "search",
+            "retrieval model",
+            "retrieval models",
+            "relevance ranking",
+        ),
+    )
+    has_neural_ranking_context = _contains_any_phrase(
+        paper_text,
+        (
+            "neural ranking",
+            "neural ranker",
+            "neural rankers",
+            "neural relevance ranking",
+            "neural contextual semantic relevance",
+            "neural information retrieval",
+            "learning to rank",
         ),
     )
     has_task_context = _contains_any_phrase(
@@ -523,19 +556,76 @@ def _academic_search_adjustment(
         paper_text,
         (
             "academic network embedding",
+            "architecture search",
+            "citation recommendation",
+            "dark web",
+            "dark web retrieval",
             "news retrieval",
+            "page ranking",
             "person re-identification",
             "ranking attack",
             "adversarial neural",
             "mobile neural architecture search",
             "library materials",
+            "student performance",
         ),
     )
+    has_generic_ir_noise = _contains_any_phrase(
+        paper_text,
+        (
+            "page ranking algorithm",
+            "page ranking algorithms",
+            "pagerank",
+        ),
+    ) or (
+        _contains_any_phrase(paper_text, ("information retrieval",))
+        and not has_academic_search_context
+        and not has_document_retrieval_context
+        and not has_neural_ranking_context
+    )
+    if is_neural_ranking_query:
+        has_title_level_generic_neural_ir = _is_title_level_generic_neural_ir(paper)
+        has_preferred_match = (
+            has_academic_search_context and (has_neural_ranking_context or has_task_context)
+        ) or (
+            has_document_retrieval_context
+            and has_neural_ranking_context
+            and not has_title_level_generic_neural_ir
+        )
 
-    if has_search_context and has_task_context:
+        if has_preferred_match:
+            score = min(1.0, score + 0.05)
+            reasons.append("compound academic neural ranking intent satisfied")
+        elif has_academic_search_context or has_document_retrieval_context:
+            score = min(score - 0.06, 0.58)
+            reasons.append(
+                "compound academic neural ranking intent only partially satisfied"
+            )
+        elif has_task_context:
+            score = min(score - 0.14, 0.42)
+            reasons.append("compound academic neural ranking intent weakly satisfied")
+        else:
+            score = min(score - 0.18, 0.32)
+            reasons.append("compound academic neural ranking intent not satisfied")
+
+        if has_generic_ir_noise:
+            score = min(score - 0.1, 0.44)
+            reasons.append("generic information retrieval noise detected")
+
+        if has_title_level_generic_neural_ir:
+            score -= 0.04
+            reasons.append("generic title-level neural IR penalty")
+
+        if has_domain_shift:
+            score = min(score - 0.16, 0.36)
+            reasons.append("domain-shift terms detected for academic search query")
+
+        return score, reasons
+
+    if has_academic_search_context and has_task_context:
         score = min(1.0, score + 0.04)
         reasons.append("compound academic search intent satisfied")
-    elif has_search_context or has_task_context:
+    elif has_academic_search_context or has_task_context:
         score = min(score - 0.1, 0.44)
         reasons.append("compound academic search intent only partially satisfied")
     else:
@@ -547,6 +637,50 @@ def _academic_search_adjustment(
         reasons.append("domain-shift terms detected for academic search query")
 
     return score, reasons
+
+
+def _is_title_level_generic_neural_ir(paper: Paper) -> bool:
+    text = " ".join(part for part in (paper.title, paper.venue or "") if part).casefold()
+    if not _contains_any_phrase(
+        text,
+        (
+            "neural ranking",
+            "neural ranker",
+            "neural rankers",
+            "neural information retrieval",
+        ),
+    ):
+        return False
+    if not _contains_any_phrase(
+        text,
+        (
+            "information retrieval",
+            "document retrieval",
+            "retrieval",
+        ),
+    ):
+        return False
+    if _contains_any_phrase(
+        text,
+        (
+            "academic",
+            "academic search",
+            "academic paper",
+            "paper search",
+            "paper retrieval",
+            "scholarly",
+            "scholarly search",
+            "literature",
+            "personalized",
+            "contextual",
+            "semantic relevance",
+            "entity",
+            "knowledge graph",
+            "semantics",
+        ),
+    ):
+        return False
+    return True
 
 
 def _is_rag_evaluation_query(query_text: str) -> bool:
@@ -578,6 +712,32 @@ def _is_academic_search_compound_query(query_text: str) -> bool:
         ("ranking", "rank", "benchmark", "agent", "recommendation"),
     )
     return has_search_context and has_task_context
+
+
+def _is_academic_neural_ranking_query(query_text: str) -> bool:
+    has_academic_search_context = _contains_any_phrase(
+        query_text,
+        (
+            "academic search",
+            "academic paper search",
+            "academic paper retrieval",
+            "paper search",
+            "paper retrieval",
+            "scholarly search",
+            "scholarly retrieval",
+            "scholarly literature",
+        ),
+    )
+    has_neural_ranking_context = _contains_any_phrase(
+        query_text,
+        (
+            "neural ranking",
+            "ranking methods",
+            "information retrieval",
+            "neural information retrieval",
+        ),
+    )
+    return has_academic_search_context and has_neural_ranking_context
 
 
 def _paper_text(paper: Paper) -> str:

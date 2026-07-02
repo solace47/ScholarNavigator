@@ -634,12 +634,32 @@ def _limit_fast_semantic_scholar_initial_subqueries(
     adjusted: list[SearchSubquery] = []
     warnings: list[str] = []
     semantic_scholar_index = 1 if len(subqueries) > 1 else 0
+    semantic_scholar_override_query = _fast_semantic_scholar_override_query(search_plan)
     for index, subquery in enumerate(subqueries):
         source_hints = subquery.source_hints or search_plan.selected_sources
         if "semantic_scholar" not in source_hints:
             adjusted.append(subquery)
             continue
         if index == semantic_scholar_index:
+            if semantic_scholar_override_query is not None:
+                non_semantic_sources = [
+                    source for source in source_hints if source != "semantic_scholar"
+                ]
+                if non_semantic_sources:
+                    adjusted.append(
+                        subquery.model_copy(
+                            update={"source_hints": non_semantic_sources}
+                        )
+                    )
+                adjusted.append(
+                    subquery.model_copy(
+                        update={
+                            "query": semantic_scholar_override_query,
+                            "source_hints": ["semantic_scholar"],
+                        }
+                    )
+                )
+                continue
             adjusted.append(subquery)
             continue
 
@@ -653,6 +673,23 @@ def _limit_fast_semantic_scholar_initial_subqueries(
         adjusted.append(subquery.model_copy(update={"source_hints": limited_sources}))
 
     return adjusted, warnings
+
+
+def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None:
+    query = _normalize_query_text(search_plan.query_analysis.original_query)
+    has_citation_graph_context = (
+        "citation graph" in query or "citation network" in query
+    )
+    has_recommendation_context = (
+        "paper recommendation" in query or "citation recommendation" in query
+    )
+    if has_citation_graph_context and has_recommendation_context:
+        return "graph embedding citation recommendation"
+    return None
+
+
+def _normalize_query_text(value: str) -> str:
+    return " ".join(value.lower().replace("-", " ").split())
 
 
 def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:

@@ -302,7 +302,59 @@ def test_fast_recommended_uses_arxiv_for_first_two_and_semantic_for_second() -> 
         output.search_plan.subqueries[1].query,
         ["arxiv", "semantic_scholar"],
     )
+    assert sum(1 for _, sources in calls if sources and "semantic_scholar" in sources) == 1
     assert all(call[1] == ["arxiv"] for call in calls[2:])
+    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
+    assert not any(
+        warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
+        for warning in output.warnings
+    )
+
+
+def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommendation() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    f"Citation Recommendation Paper {len(calls)}",
+                    doi=f"10.123/citation-recommendation-{len(calls)}",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "citation graph methods for paper recommendation",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["arxiv", "semantic_scholar"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) > 1
+    assert calls[0] == (
+        output.search_plan.subqueries[0].query,
+        ["arxiv"],
+    )
+    assert calls[1] == (
+        output.search_plan.subqueries[1].query,
+        ["arxiv"],
+    )
+    semantic_calls = [
+        call for call in calls if call[1] and "semantic_scholar" in call[1]
+    ]
+    assert semantic_calls == [
+        ("graph embedding citation recommendation", ["semantic_scholar"])
+    ]
     assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
     assert not any(
         warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
