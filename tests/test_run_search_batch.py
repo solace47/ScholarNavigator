@@ -297,14 +297,14 @@ def test_cli_sources_are_used_as_default(tmp_path: Path, monkeypatch) -> None:
             "--output",
             str(output_path),
             "--sources",
-            "arxiv,semantic_scholar",
+            "arxiv,pubmed",
         ]
     )
 
     rows = _read_jsonl(output_path)
     assert code == 0
     assert rows[0]["status"] == "succeeded"
-    assert captured[0]["sources_override"] == ["arxiv", "semantic_scholar"]
+    assert captured[0]["sources_override"] == ["arxiv", "pubmed"]
 
 
 def test_sleep_between_cases_sleeps_only_between_rows(
@@ -380,7 +380,7 @@ def test_invalid_row_source_outputs_failed_row_by_default(
             {
                 "case_id": "bad_source",
                 "query": "LLM retrieval",
-                "source_preferences": ["arxiv", "pubmed"],
+                "source_preferences": ["arxiv", "unknown"],
             },
             {
                 "case_id": "good",
@@ -405,7 +405,7 @@ def test_invalid_row_source_outputs_failed_row_by_default(
     assert code == 0
     assert rows[0]["status"] == "failed"
     assert rows[0]["result"] is None
-    assert "unsupported source(s): pubmed" in rows[0]["error"]
+    assert "unsupported source(s): unknown" in rows[0]["error"]
     assert rows[1]["status"] == "succeeded"
     assert captured == [
         {
@@ -441,7 +441,7 @@ def test_invalid_cli_sources_returns_nonzero_before_writing_output(
             "--output",
             str(output_path),
             "--sources",
-            "arxiv,pubmed",
+            "arxiv,unknown",
         ]
     )
 

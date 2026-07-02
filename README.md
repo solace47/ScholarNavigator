@@ -10,8 +10,8 @@ ScholarNavigator 是面向“中国研究生人工智能创新大赛”华为企
 
 - Real Search lifecycle：`create/status/result/events/cancel` 独立真实检索路径。
 - Real Search SSE：展示 `connector_completed`、`warning`、`cost_updated` 等事件。
-- OpenAlex / arXiv / Semantic Scholar connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
-- Source selector：前端可选择 `Recommended`、`arXiv`、`Semantic Scholar`、`OpenAlex` 或 `All`；默认 `Recommended` 映射为 `arXiv + Semantic Scholar`，兼顾稳定性和覆盖。
+- OpenAlex / arXiv / Semantic Scholar / PubMed connectors：支持真实检索、timeout、轻量 retry/backoff 和错误诊断。
+- Source selector：前端可选择 `Recommended`、`arXiv`、`Semantic Scholar`、`OpenAlex` 或 `All`；默认 `Recommended` 映射为 `arXiv + Semantic Scholar`，兼顾稳定性和覆盖。PubMed 已接入后端和 batch CLI，但未加入前端 Recommended 默认源。
 - Connector observability：source errors 会进入 source stats、warnings、missing evidence 和前端诊断。
 - Retrieval cache：轻量 in-memory cache，`cache_hit_count` 进入 cost report。
 - Query Understanding：默认规则版解析，可选通过后端环境变量启用 OpenAI-compatible LLM JSON 增强。
@@ -57,7 +57,7 @@ curl http://127.0.0.1:8000/api/v1/runtime/config
 
 - `mode=real_search`
 - 默认 `llm.available=false`；配置真实 provider 后可为 `true`
-- OpenAlex / arXiv / Semantic Scholar connector 可用于 Real Search
+- OpenAlex / arXiv / Semantic Scholar / PubMed connector 可用于 Real Search
 - `real_search`、`real_search_cancel`、`real_search_sse`、`retrieval_cache`、`batch_cli` feature 可见
 - `llm_query_understanding=true` / `llm_judgement=true` 仅在 provider 可用且启用对应开关时出现
 
@@ -177,7 +177,7 @@ cd frontend && npm run build
 src/scholar_agent/        后端核心包
 src/scholar_agent/app/    FastAPI 应用和 API 路由
 src/scholar_agent/agents/ QueryUnderstanding/Judgement/Reranker 等规则版 agents
-src/scholar_agent/connectors/ OpenAlex、arXiv 和 Semantic Scholar connectors
+src/scholar_agent/connectors/ OpenAlex、arXiv、Semantic Scholar 和 PubMed connectors
 src/scholar_agent/services/ SearchService、API mapper
 src/scholar_agent/evaluation/ 离线评测 metrics/evaluator/fixtures
 frontend/                Next.js + TypeScript + Tailwind 前端
@@ -204,7 +204,7 @@ PYTHONPATH=src python scripts/run_search_batch.py \
   --max-workers 2
 ```
 
-`--sources` 支持 `openalex`、`arxiv`、`semantic_scholar` 的逗号分隔组合；
+`--sources` 支持 `openalex`、`arxiv`、`semantic_scholar`、`pubmed` 的逗号分隔组合；
 单条 JSONL 可用 `"source_preferences": ["arxiv", "semantic_scholar"]`
 覆盖 CLI 默认值。非法 source 会让对应行输出 `failed`，启用 `--fail-fast`
 时会立即停止。`--sleep-between-cases-seconds` 默认为 `0`，使用 Semantic
@@ -231,7 +231,7 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
   --include-partial
 ```
 
-说明：批量搜索默认可能真实访问 OpenAlex / arXiv / Semantic Scholar；汇总和评测脚本只读取本地文件。
+说明：批量搜索默认可能真实访问 OpenAlex / arXiv / Semantic Scholar / PubMed；汇总和评测脚本只读取本地文件。
 
 ## 边界与非目标
 
@@ -239,9 +239,9 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 - 当前 LLM 仅可选用于 Query Understanding 和 Judgement；Reranking、Synthesis 仍为规则版。
 - 当前不读取全文 PDF，Synthesis 只基于 metadata 和 evidence rows。
 - 当前未接入完整 LitSearch / AstaBench benchmark，只有本地 fake fixture 和 CLI 评测链路。
-- OpenAlex / arXiv / Semantic Scholar 是真实外部依赖，可能出现 503、429 或 timeout；系统会降级并展示诊断。
+- OpenAlex / arXiv / Semantic Scholar / PubMed 是真实外部依赖，可能出现 503、429 或 timeout；系统会降级并展示诊断。
 - Real Search 当前使用 in-memory run store，不是生产级持久化任务队列。
-- Semantic Scholar connector 已实现，API key 可选；PubMed connector 尚未实现。
+- Semantic Scholar connector 已实现，API key 可选；PubMed connector 已实现最小版本，支持显式源选择，但未加入 Recommended 默认源。
 - 前端不读取、不保存、不展示任何 API Key。
 
 ## 提交前检查

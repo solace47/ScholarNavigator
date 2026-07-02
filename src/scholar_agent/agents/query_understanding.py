@@ -520,8 +520,8 @@ def _select_sources(query: str, domain: ResearchDomain) -> tuple[list[str], list
     warnings: list[str] = []
     lowered = query.casefold()
     if domain == "biomedical" or "pubmed" in lowered:
-        warnings.append("pubmed_not_implemented")
-    return ["openalex", "arxiv"], _dedupe(warnings)
+        return ["pubmed", "openalex"], warnings
+    return ["openalex", "arxiv"], warnings
 
 
 def _profile_settings(run_profile: str, top_k: int) -> tuple[int, int]:
@@ -1098,10 +1098,8 @@ def _filter_llm_sources(
         if not key or key in seen:
             continue
         seen.add(key)
-        if key in {"openalex", "arxiv", "semantic_scholar"}:
+        if key in {"openalex", "arxiv", "semantic_scholar", "pubmed"}:
             allowed.append(key)
-        elif key == "pubmed":
-            warnings.append(f"{warning_prefix}_not_implemented:pubmed")
         else:
             warnings.append(f"{warning_prefix}_unsupported:{key}")
 

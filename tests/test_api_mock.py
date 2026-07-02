@@ -60,8 +60,9 @@ def test_runtime_config_is_real_search_only(monkeypatch) -> None:
     assert connectors["semantic_scholar"]["available"] is True
     assert connectors["semantic_scholar"]["requires_key"] is False
     assert connectors["semantic_scholar"]["reason"].startswith("implemented_for_real_search")
-    assert connectors["pubmed"]["available"] is False
-    assert connectors["pubmed"]["reason"] == "not_implemented"
+    assert connectors["pubmed"]["available"] is True
+    assert connectors["pubmed"]["requires_key"] is False
+    assert connectors["pubmed"]["reason"].startswith("implemented_for_real_search")
 
 
 def test_runtime_config_shows_enabled_llm_without_api_key_leak(monkeypatch) -> None:

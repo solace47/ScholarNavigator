@@ -23,7 +23,7 @@ from scholar_agent.core.env_loader import load_env_file  # noqa: E402
 from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 
-SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar"}
+SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar", "pubmed"}
 
 
 def main(argv: list[str] | None = None) -> int:

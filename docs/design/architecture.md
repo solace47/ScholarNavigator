@@ -325,5 +325,5 @@ MVP 阶段：
 3. Python 后端核心继续建议放在 `src/scholar_agent/`。
 4. 后续新增独立 `frontend/`，不要继续扩展根目录中的一体式 demo 前端。
 5. MVP 不实现 PaSa 风格 SFT/PPO/RL 训练。
-6. MVP 优先实现 OpenAlex、arXiv，并保留 Semantic Scholar、PubMed 扩展接口。
+6. MVP 已实现 OpenAlex、arXiv、Semantic Scholar 和最小 PubMed 真实检索连接器；PubMed 可显式选择，但不加入 Recommended 默认源。
 7. 评测能力必须复用正式检索 pipeline，避免评测与演示两套逻辑。

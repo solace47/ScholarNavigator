@@ -72,15 +72,15 @@ def test_llm_reranking_retrieval_query_selects_openalex_and_arxiv() -> None:
     )
 
 
-def test_biomedical_query_does_not_return_pubmed_but_warns() -> None:
+def test_biomedical_query_selects_pubmed() -> None:
     plan = analyze_query(
         "recent clinical gene therapy studies in PubMed",
         current_year=2026,
     )
 
     assert plan.query_analysis.domain == "biomedical"
-    assert "pubmed" not in plan.selected_sources
-    assert "pubmed_not_implemented" in plan.warnings
+    assert plan.selected_sources == ["pubmed", "openalex"]
+    assert "pubmed_not_implemented" not in plan.warnings
 
 
 def test_fast_and_high_recall_profiles_differ() -> None:
@@ -377,7 +377,7 @@ def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
     )
 
 
-def test_llm_semantic_scholar_source_is_allowed_and_pubmed_is_filtered() -> None:
+def test_llm_semantic_scholar_and_pubmed_sources_are_allowed() -> None:
     client = FakeLLMClient(
         {
             "language": "en",
@@ -401,11 +401,11 @@ def test_llm_semantic_scholar_source_is_allowed_and_pubmed_is_filtered() -> None
         llm_client=client,
     )
 
-    assert plan.selected_sources == ["semantic_scholar", "openalex"]
+    assert plan.selected_sources == ["semantic_scholar", "pubmed", "openalex"]
     assert plan.subqueries[0].source_hints == ["semantic_scholar", "arxiv"]
     assert "semantic_scholar" in plan.selected_sources
-    assert "pubmed" not in plan.selected_sources
-    assert "llm_selected_source_not_implemented:pubmed" in plan.warnings
+    assert "pubmed" in plan.selected_sources
+    assert "llm_selected_source_not_implemented:pubmed" not in plan.warnings
     assert not any(
         warning == "llm_subquery_source_not_implemented:semantic_scholar"
         for warning in plan.warnings

@@ -6,6 +6,7 @@ from .openalex import (
     search_openalex,
     search_openalex_detailed,
 )
+from .pubmed import search_pubmed, search_pubmed_detailed
 from .schemas import ConnectorSearchResult
 from .semantic_scholar import (
     search_semantic_scholar,
@@ -19,6 +20,8 @@ __all__ = [
     "search_arxiv_detailed",
     "search_openalex",
     "search_openalex_detailed",
+    "search_pubmed",
+    "search_pubmed_detailed",
     "search_semantic_scholar",
     "search_semantic_scholar_detailed",
 ]

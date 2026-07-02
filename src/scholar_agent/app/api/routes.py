@@ -54,6 +54,8 @@ REAL_SEARCH_RUN_TTL_SECONDS_ENV = "REAL_SEARCH_RUN_TTL_SECONDS"
 DEFAULT_REAL_SEARCH_MAX_STORED_RUNS = 200
 REAL_SEARCH_MAX_STORED_RUNS_ENV = "REAL_SEARCH_MAX_STORED_RUNS"
 SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
+NCBI_API_KEY_ENV = "NCBI_API_KEY"
+PUBMED_API_KEY_ENV = "PUBMED_API_KEY"
 REAL_SEARCH_TERMINAL_STATUSES = {"succeeded", "failed", "cancelled"}
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
@@ -297,9 +299,9 @@ def runtime_config() -> RuntimeConfigResponse:
             ),
             ConnectorRuntimeConfig(
                 name="pubmed",
-                available=False,
+                available=True,
                 requires_key=False,
-                reason="not_implemented",
+                reason=_pubmed_runtime_reason(),
             ),
         ],
         limits=RuntimeLimits(
@@ -330,6 +332,12 @@ def runtime_config() -> RuntimeConfigResponse:
 
 def _semantic_scholar_runtime_reason() -> str:
     if os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip():
+        return "implemented_for_real_search_with_optional_api_key"
+    return "implemented_for_real_search_without_api_key_rate_limited"
+
+
+def _pubmed_runtime_reason() -> str:
+    if os.getenv(NCBI_API_KEY_ENV, "").strip() or os.getenv(PUBMED_API_KEY_ENV, "").strip():
         return "implemented_for_real_search_with_optional_api_key"
     return "implemented_for_real_search_without_api_key_rate_limited"
 

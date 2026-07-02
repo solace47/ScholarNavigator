@@ -140,15 +140,24 @@ def test_run_search_respects_sources_override_and_filters_unimplemented_sources(
         sources_override=["arxiv", "semantic_scholar", "pubmed", "openalex", "arxiv"],
     )
 
-    assert output.search_plan.selected_sources == ["arxiv", "semantic_scholar", "openalex"]
+    assert output.search_plan.selected_sources == [
+        "arxiv",
+        "semantic_scholar",
+        "pubmed",
+        "openalex",
+    ]
     assert output.search_plan.subqueries
     assert all(
-        subquery.source_hints == ["arxiv", "semantic_scholar", "openalex"]
+        subquery.source_hints
+        == ["arxiv", "semantic_scholar", "pubmed", "openalex"]
         for subquery in output.search_plan.subqueries
     )
     assert calls
-    assert all(call == ["arxiv", "semantic_scholar", "openalex"] for call in calls)
-    assert "source_preference_not_implemented:pubmed" in output.warnings
+    assert all(
+        call == ["arxiv", "semantic_scholar", "pubmed", "openalex"]
+        for call in calls
+    )
+    assert "source_preference_not_implemented:pubmed" not in output.warnings
 
 
 def test_arxiv_only_fast_allows_first_two_subqueries() -> None:
@@ -618,7 +627,7 @@ def test_run_search_aggregates_warnings() -> None:
         current_year=2026,
     )
 
-    assert "pubmed_not_implemented" in output.warnings
+    assert "pubmed_not_implemented" not in output.warnings
     assert "mock_retriever_warning" in output.warnings
     assert output.warnings.count("mock_retriever_warning") == 1
 

@@ -174,6 +174,44 @@ def test_retrieve_papers_supports_semantic_scholar_source(monkeypatch) -> None:
     assert output.warnings == []
 
 
+def test_retrieve_papers_supports_pubmed_source(monkeypatch) -> None:
+    def fake_pubmed(query: str, limit: int) -> ConnectorSearchResult:
+        assert query == "gene therapy"
+        assert limit == 4
+        return ConnectorSearchResult(
+            papers=[
+                Paper(
+                    title="PubMed Result",
+                    authors=["Clinical Author"],
+                    year=2024,
+                    abstract="Clinical retrieval paper.",
+                    identifiers=PaperIdentifiers(pubmed_id="12345"),
+                    sources=["pubmed"],
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_pubmed_detailed",
+        fake_pubmed,
+    )
+
+    output = retrieve_papers(
+        "gene therapy",
+        limit_per_source=4,
+        sources=["pubmed"],
+    )
+
+    assert output.requested_sources == ["pubmed"]
+    assert output.raw_count == 1
+    assert output.deduplicated_count == 1
+    assert output.papers[0].identifiers.pubmed_id == "12345"
+    assert output.papers[0].sources == ["pubmed"]
+    assert output.source_stats[0].source == "pubmed"
+    assert output.source_stats[0].returned_count == 1
+    assert output.warnings == []
+
+
 def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:
     def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
         return ConnectorSearchResult(
