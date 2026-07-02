@@ -132,9 +132,26 @@ def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
-    assert "RAGAS ARES RAG benchmark large language models" in queries
+    assert queries[0] == "retrieval augmented generation evaluation benchmark papers"
+    assert queries[1] == "ARES automated evaluation framework retrieval augmented generation"
+    assert "RAGAS ARES RAG benchmark large language models" not in queries[:2]
+    assert "retrieval augmented generation evaluation ARES RAGAS" in queries
+    assert "RAG evaluation benchmark ARES RAGAS" in queries
     assert "retrieval augmented generation evaluation benchmark" in queries
-    assert "RAG evaluation datasets benchmark" in queries
+
+
+def test_rag_evaluation_fast_profile_uses_ares_query_second() -> None:
+    plan = analyze_query(
+        "RAG evaluation benchmark papers",
+        run_profile="fast",
+        current_year=2026,
+    )
+    queries = [subquery.query for subquery in plan.subqueries]
+
+    assert queries == [
+        "RAG evaluation benchmark papers",
+        "ARES automated evaluation framework retrieval augmented generation",
+    ]
 
 
 def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:

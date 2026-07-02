@@ -604,7 +604,15 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
         candidates.extend(
             [
                 (
-                    "RAGAS ARES RAG benchmark large language models",
+                    "ARES automated evaluation framework retrieval augmented generation",
+                    "rag_evaluation_expansion",
+                ),
+                (
+                    "retrieval augmented generation evaluation ARES RAGAS",
+                    "rag_evaluation_expansion",
+                ),
+                (
+                    "RAG evaluation benchmark ARES RAGAS",
                     "rag_evaluation_expansion",
                 ),
                 (
@@ -613,7 +621,6 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
                 ),
                 ("RAG evaluation datasets benchmark", "rag_evaluation_expansion"),
                 ("RAGAS ARES RAG evaluation", "rag_evaluation_expansion"),
-                ("RAG evaluation benchmark", "rag_evaluation_expansion"),
                 (
                     "RAG benchmark large language models",
                     "rag_evaluation_expansion",
