@@ -262,6 +262,20 @@ export interface CitationGraph {
   }>;
 }
 
+export interface RetrievalSourceStats {
+  source: string;
+  returned_count: number;
+  latency_seconds: number;
+  cache_hit: boolean;
+  error_message?: string | null;
+}
+
+export interface RetrievalDiagnostics {
+  raw_count: number;
+  deduplicated_count: number;
+  source_stats: RetrievalSourceStats[];
+}
+
 export interface SearchRunResultResponse {
   run_id: string;
   status: RunStatus;
@@ -275,6 +289,7 @@ export interface SearchRunResultResponse {
   citation_graph: CitationGraph;
   missing_evidence: string[];
   synthesis?: SynthesisOutput | null;
+  retrieval_diagnostics: RetrievalDiagnostics;
   cost_report: CostReport;
 }
 

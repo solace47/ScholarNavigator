@@ -63,6 +63,7 @@ def map_search_service_output_to_api_result(
         citation_graph=_citation_graph(all_visible, output),
         missing_evidence=_dedupe(missing_evidence),
         synthesis=map_synthesis_output(output.synthesis_output),
+        retrieval_diagnostics=_retrieval_diagnostics(output),
         cost_report=_cost_report(output),
     )
 
@@ -264,6 +265,23 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
         cache_hit_count=cache_hit_count,
         search_rounds=_search_rounds(output, output.search_plan),
         judged_paper_count=len(output.judgements),
+    )
+
+
+def _retrieval_diagnostics(output: SearchServiceOutput) -> api.RetrievalDiagnostics:
+    return api.RetrievalDiagnostics(
+        raw_count=output.raw_count,
+        deduplicated_count=output.deduplicated_count,
+        source_stats=[
+            api.RetrievalSourceStats(
+                source=stats.source,
+                returned_count=stats.returned_count,
+                latency_seconds=stats.latency_seconds,
+                cache_hit=stats.cache_hit,
+                error_message=stats.error_message,
+            )
+            for stats in output.source_stats
+        ],
     )
 
 

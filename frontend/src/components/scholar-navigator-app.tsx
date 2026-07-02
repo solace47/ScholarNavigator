@@ -1138,6 +1138,8 @@ function ResultsPanel({
 
           <StageLatencyPanel result={result} />
 
+          <RetrievalDiagnosticsPanel result={result} />
+
           {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
 
           <CitationGraphPanel result={result} />
@@ -1291,6 +1293,95 @@ function StageLatencyPanel({ result }: { result: SearchRunResultResponse }) {
         })}
       </div>
     </section>
+  );
+}
+
+function RetrievalDiagnosticsPanel({ result }: { result: SearchRunResultResponse }) {
+  const diagnostics = result.retrieval_diagnostics;
+  const sourceStats = diagnostics?.source_stats ?? [];
+  const hasCounts =
+    typeof diagnostics?.raw_count === "number" ||
+    typeof diagnostics?.deduplicated_count === "number";
+
+  if (!hasCounts && sourceStats.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby="retrieval-diagnostics-title"
+      className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm"
+    >
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Database className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+            <h3 id="retrieval-diagnostics-title" className="text-lg font-bold">
+              Retrieval Diagnostics
+            </h3>
+          </div>
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            候选规模与检索源状态来自后端 SearchService 输出，用于观察跨源召回、
+            去重和缓存命中情况。
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:min-w-64">
+          <DiagnosticMetric label="raw" value={formatNumber(diagnostics?.raw_count ?? 0)} />
+          <DiagnosticMetric
+            label="deduped"
+            value={formatNumber(diagnostics?.deduplicated_count ?? 0)}
+          />
+        </div>
+      </div>
+
+      {sourceStats.length ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {sourceStats.map((stat, index) => (
+            <div
+              key={`${stat.source}-${index}`}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-[var(--foreground)]">{stat.source}</p>
+                  <p className="mt-1 font-mono text-xs text-[var(--muted)]">
+                    {formatDetailedSeconds(stat.latency_seconds)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Badge>{formatNumber(stat.returned_count)} returned</Badge>
+                  <Badge>{stat.cache_hit ? "cache hit" : "cache miss"}</Badge>
+                </div>
+              </div>
+              {stat.error_message ? (
+                <div className="mt-3 rounded-md border border-[color-mix(in_srgb,var(--warning)_55%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,var(--surface))] px-3 py-2 text-sm leading-5 text-[var(--muted-strong)]">
+                  {stat.error_message}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-[var(--muted)]">No connector error.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+          No source stats returned.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DiagnosticMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+      <span className="block text-xs font-semibold uppercase text-[var(--muted)]">
+        {label}
+      </span>
+      <span className="mt-1 block font-mono text-lg font-semibold text-[var(--foreground)]">
+        {value}
+      </span>
+    </div>
   );
 }
 

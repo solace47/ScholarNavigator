@@ -281,6 +281,20 @@ class CitationGraph(BaseModel):
     edges: list[CitationGraphEdge] = Field(default_factory=list)
 
 
+class RetrievalSourceStats(BaseModel):
+    source: str
+    returned_count: int = 0
+    latency_seconds: float = 0.0
+    cache_hit: bool = False
+    error_message: str | None = None
+
+
+class RetrievalDiagnostics(BaseModel):
+    raw_count: int = 0
+    deduplicated_count: int = 0
+    source_stats: list[RetrievalSourceStats] = Field(default_factory=list)
+
+
 class SearchRunResultResponse(BaseModel):
     run_id: str
     status: RunStatus
@@ -294,4 +308,7 @@ class SearchRunResultResponse(BaseModel):
     citation_graph: CitationGraph = Field(default_factory=CitationGraph)
     missing_evidence: list[str] = Field(default_factory=list)
     synthesis: SynthesisOutput | None = None
+    retrieval_diagnostics: RetrievalDiagnostics = Field(
+        default_factory=RetrievalDiagnostics
+    )
     cost_report: CostReport

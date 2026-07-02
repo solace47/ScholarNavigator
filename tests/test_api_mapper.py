@@ -62,6 +62,9 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.synthesis is None
     assert response.cost_report.llm_call_count == 0
     assert response.cost_report.cache_hit_count == 0
+    assert response.retrieval_diagnostics.raw_count == 0
+    assert response.retrieval_diagnostics.deduplicated_count == 0
+    assert response.retrieval_diagnostics.source_stats == []
 
 
 def test_paper_fields_identifiers_urls_and_sources_are_preserved() -> None:
@@ -170,6 +173,26 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
     assert response.cost_report.judged_paper_count == 1
     assert response.cost_report.cache_hit_count == 1
     assert response.cost_report.llm_call_count == 0
+    assert response.retrieval_diagnostics.raw_count == 1
+    assert response.retrieval_diagnostics.deduplicated_count == 1
+    assert [
+        stats.model_dump() for stats in response.retrieval_diagnostics.source_stats
+    ] == [
+        {
+            "source": "openalex",
+            "returned_count": 0,
+            "latency_seconds": 0.2,
+            "cache_hit": False,
+            "error_message": "HTTP 503",
+        },
+        {
+            "source": "arxiv",
+            "returned_count": 1,
+            "latency_seconds": 0.1,
+            "cache_hit": True,
+            "error_message": None,
+        },
+    ]
 
 
 def test_llm_call_count_maps_to_cost_report() -> None:
