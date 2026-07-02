@@ -117,6 +117,9 @@ export interface CostReport {
   api_call_count: number;
   search_api_call_count: number;
   llm_call_count: number;
+  llm_prompt_tokens?: number;
+  llm_completion_tokens?: number;
+  llm_total_tokens?: number;
   estimated_input_tokens: number;
   estimated_output_tokens: number;
   estimated_total_tokens: number;

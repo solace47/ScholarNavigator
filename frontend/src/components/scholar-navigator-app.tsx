@@ -455,6 +455,9 @@ function emptyCostReport(): CostReport {
     api_call_count: 0,
     search_api_call_count: 0,
     llm_call_count: 0,
+    llm_prompt_tokens: 0,
+    llm_completion_tokens: 0,
+    llm_total_tokens: 0,
     estimated_input_tokens: 0,
     estimated_output_tokens: 0,
     estimated_total_tokens: 0,
@@ -1138,6 +1141,8 @@ function ResultsPanel({
 
           <StageLatencyPanel result={result} />
 
+          <CostEfficiencyPanel result={result} />
+
           <RetrievalDiagnosticsPanel result={result} />
 
           {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
@@ -1292,6 +1297,105 @@ function StageLatencyPanel({ result }: { result: SearchRunResultResponse }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function CostEfficiencyPanel({ result }: { result: SearchRunResultResponse }) {
+  const costReport = result.cost_report;
+  const metrics = [
+    {
+      label: "total_api_calls",
+      value: formatNumber(costValue(costReport, "api_call_count")),
+      icon: Server,
+    },
+    {
+      label: "search_api_calls",
+      value: formatNumber(costValue(costReport, "search_api_call_count")),
+      icon: Search,
+    },
+    {
+      label: "cache_hits",
+      value: formatNumber(costValue(costReport, "cache_hit_count")),
+      icon: Database,
+    },
+    {
+      label: "llm_call_count",
+      value: formatNumber(costValue(costReport, "llm_call_count")),
+      icon: Brain,
+    },
+    {
+      label: "llm_prompt_tokens",
+      value: formatNumber(costValue(costReport, "llm_prompt_tokens")),
+      icon: Zap,
+    },
+    {
+      label: "llm_completion_tokens",
+      value: formatNumber(costValue(costReport, "llm_completion_tokens")),
+      icon: Zap,
+    },
+    {
+      label: "llm_total_tokens",
+      value: formatNumber(costValue(costReport, "llm_total_tokens")),
+      icon: Zap,
+    },
+    {
+      label: "estimated_input_tokens",
+      value: formatNumber(costValue(costReport, "estimated_input_tokens")),
+      icon: Timer,
+    },
+    {
+      label: "estimated_output_tokens",
+      value: formatNumber(costValue(costReport, "estimated_output_tokens")),
+      icon: Timer,
+    },
+    {
+      label: "estimated_total_tokens",
+      value: formatNumber(costValue(costReport, "estimated_total_tokens")),
+      icon: Timer,
+    },
+  ];
+
+  return (
+    <section
+      aria-labelledby="cost-efficiency-title"
+      className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm"
+    >
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Zap className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+            <h3 id="cost-efficiency-title" className="text-lg font-bold">
+              Cost / Efficiency
+            </h3>
+          </div>
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            来自后端 cost_report 的 API、缓存和 LLM token 统计。默认 no-LLM 配置下
+            LLM calls 与 token 会显示为 0；本面板只展示聚合计数，不包含任何 API key。
+          </p>
+        </div>
+        <Badge>{formatDetailedSeconds(costValue(costReport, "latency_seconds"))} latency</Badge>
+      </div>
+
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <div
+              key={metric.label}
+              className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3"
+            >
+              <dt className="flex min-h-10 items-start justify-between gap-2 text-xs font-semibold uppercase text-[var(--muted)]">
+                <span className="break-words">{metric.label}</span>
+                <Icon className="h-4 w-4 shrink-0 text-[var(--primary)]" aria-hidden="true" />
+              </dt>
+              <dd className="metric-value mt-2 text-lg font-bold text-[var(--foreground)]">
+                {metric.value}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
     </section>
   );
 }
@@ -1897,6 +2001,14 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
 
 function formatBoolean(value: boolean): string {
   return value ? "enabled" : "disabled";
+}
+
+function costValue(
+  costReport: CostReport | null | undefined,
+  key: keyof CostReport,
+): number {
+  const value = costReport?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function EmptyBlock({ lines }: { lines: number }) {
