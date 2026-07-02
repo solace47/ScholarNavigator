@@ -111,6 +111,48 @@ def test_subqueries_are_deduplicated() -> None:
     assert len(queries) == len(set(queries))
 
 
+def test_benchmark_search_agent_query_gets_recall_subqueries() -> None:
+    plan = analyze_query(
+        "benchmark datasets for scientific literature search agents",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    queries = [subquery.query for subquery in plan.subqueries]
+
+    assert "scientific literature search benchmark" in queries
+    assert "academic paper search benchmark" in queries
+    assert "scholarly retrieval benchmark" in queries
+    assert "paper search agent benchmark" in queries
+
+
+def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
+    plan = analyze_query(
+        "retrieval augmented generation evaluation benchmark papers",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    queries = [subquery.query for subquery in plan.subqueries]
+
+    assert "RAG evaluation benchmark" in queries
+    assert "automated RAG evaluation system" in queries
+    assert "retrieval augmented generation benchmark" in queries
+    assert "RAGAS ARES RAGBench" in queries
+
+
+def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
+    plan = analyze_query(
+        "neural ranking methods for academic search",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    queries = [subquery.query for subquery in plan.subqueries]
+
+    assert "neural ranking academic search" in queries
+    assert "semantic ranking academic search" in queries
+    assert "entity-duet neural ranking" in queries
+    assert "scholarly search ranking" in queries
+
+
 def test_llm_json_can_generate_search_plan() -> None:
     client = FakeLLMClient(
         {
