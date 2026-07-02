@@ -206,6 +206,94 @@ def test_llm_call_count_maps_to_cost_report() -> None:
     assert response.cost_report.llm_call_count == 3
 
 
+def test_method_clusters_group_ranked_papers_by_method_keywords() -> None:
+    ranked = [
+        _ranked(
+            _paper(
+                "LLM Reranking for Scientific Retrieval",
+                abstract="A compact reranking method for scientific retrieval systems.",
+            ),
+            rank=1,
+        ),
+        _ranked(
+            _paper(
+                "Citation Graph Agents for Literature Recommendation",
+                abstract=(
+                    "An agent uses a citation graph and recommendation signals "
+                    "to expand literature search."
+                ),
+            ),
+            rank=2,
+        ),
+        _ranked(
+            _paper(
+                "RAG Benchmark for Paper Search",
+                abstract=(
+                    "A benchmark dataset evaluates retrieval augmented generation "
+                    "for paper search."
+                ),
+            ),
+            rank=3,
+        ),
+    ]
+    output = _output_with_ranked(ranked)
+
+    response = map_search_service_output_to_api_result("run_real_clusters", output)
+    clusters = {cluster.name: cluster for cluster in response.method_clusters}
+
+    assert clusters["reranking"].paper_ranks == [1]
+    assert clusters["retrieval"].paper_ranks == [1, 3]
+    assert clusters["RAG"].paper_ranks == [3]
+    assert clusters["citation graph"].paper_ranks == [2]
+    assert clusters["benchmark"].paper_ranks == [3]
+    assert clusters["agent"].paper_ranks == [2]
+    assert clusters["recommendation"].paper_ranks == [2]
+    assert "Ranks R1" in clusters["reranking"].summary
+
+
+def test_method_clusters_return_general_cluster_when_no_keyword_signal() -> None:
+    output = _output_with_ranked(
+        [
+            _ranked(
+                _paper(
+                    "Unclassified Paper",
+                    abstract="A study with metadata but no known method keyword.",
+                ),
+                rank=1,
+            )
+        ]
+    )
+
+    response = map_search_service_output_to_api_result("run_real_general_cluster", output)
+
+    assert [cluster.model_dump() for cluster in response.method_clusters] == [
+        {
+            "name": "general",
+            "paper_ranks": [1],
+            "summary": (
+                "Ranks R1 are grouped as general results because no method-specific "
+                "keyword evidence was available."
+            ),
+        }
+    ]
+
+
+def test_timeline_groups_ranked_papers_by_year_with_rank_summary() -> None:
+    ranked = [
+        _ranked(_paper("First Retrieval Paper", year=2024), rank=1),
+        _ranked(_paper("Second Retrieval Paper", year=2025), rank=2),
+        _ranked(_paper("Third Retrieval Paper", year=2024), rank=3),
+    ]
+    output = _output_with_ranked(ranked)
+
+    response = map_search_service_output_to_api_result("run_real_timeline", output)
+
+    assert [(item.year, item.paper_ranks, item.summary) for item in response.timeline] == [
+        (2024, [1, 3], "Ranks R1, R3 were published in 2024."),
+        (2025, [2], "Ranks R2 were published in 2025."),
+    ]
+
+
 def test_query_evolution_and_refchain_debug_info_do_not_crash_mapper() -> None:
     seed = _ranked(_paper("Seed", doi="10.123/seed", openalex_id="WSEED"), rank=1)
     reference = _paper("Reference", doi="10.123/ref", openalex_id="WREF")
@@ -350,14 +438,16 @@ def _paper(
     semantic_scholar_id: str | None = None,
     pubmed_id: str | None = None,
     sources: list[str] | None = None,
+    abstract: str = "A mapped paper about LLM reranking and scientific retrieval.",
+    year: int = 2025,
 ) -> Paper:
     slug = title.casefold().replace(" ", "-")
     return Paper(
         title=title,
         authors=["Alice", "Bob"],
-        year=2025,
+        year=year,
         venue="ACL",
-        abstract="A mapped paper about LLM reranking and scientific retrieval.",
+        abstract=abstract,
         identifiers=PaperIdentifiers(
             doi=doi,
             arxiv_id=arxiv_id,

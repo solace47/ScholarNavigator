@@ -21,6 +21,28 @@ from scholar_agent.core.synthesis_schemas import (
 from scholar_agent.services.search_service import SearchServiceOutput
 
 
+_METHOD_CLUSTER_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("reranking", ("reranking", "re-ranking", "rerank", "re-rank")),
+    ("retrieval", ("retrieval", "retriever")),
+    (
+        "RAG",
+        (
+            "rag",
+            "retrieval-augmented",
+            "retrieval augmented generation",
+            "retrieval-augmented generation",
+        ),
+    ),
+    (
+        "citation graph",
+        ("citation graph", "citation network", "reference chain", "refchain"),
+    ),
+    ("benchmark", ("benchmark", "evaluation", "dataset", "trec")),
+    ("agent", ("agent", "agents")),
+    ("recommendation", ("recommendation", "recommender", "recommend")),
+)
+
+
 def map_search_service_output_to_api_result(
     run_id: str,
     output: SearchServiceOutput,
@@ -302,22 +324,38 @@ def _method_clusters(
     ranked_papers: list[api.RankedPaper],
 ) -> list[api.MethodCluster]:
     clusters: list[api.MethodCluster] = []
-    for method in query_analysis.constraints.methods:
-        method_key = method.casefold()
-        paper_ranks = [
-            paper.rank
-            for paper in ranked_papers
-            if any(term.casefold() == method_key for term in paper.matched_constraints)
-        ]
+
+    for name, aliases in _method_cluster_candidates(query_analysis):
+        paper_ranks = sorted(
+            paper.rank for paper in ranked_papers if _paper_matches_any_alias(paper, aliases)
+        )
         if paper_ranks:
             clusters.append(
                 api.MethodCluster(
-                    name=method,
+                    name=name,
                     paper_ranks=paper_ranks,
-                    summary=f"Papers matched the query method constraint: {method}.",
+                    summary=(
+                        f"Ranks {_rank_list(paper_ranks)} discuss {name} based on "
+                        "title, abstract, or evidence signals."
+                    ),
                 )
             )
-    return clusters
+
+    clusters = _dedupe_method_clusters(clusters)
+    if clusters or not ranked_papers:
+        return clusters
+
+    ranks = sorted(paper.rank for paper in ranked_papers)
+    return [
+        api.MethodCluster(
+            name="general",
+            paper_ranks=ranks,
+            summary=(
+                f"Ranks {_rank_list(ranks)} are grouped as general results because "
+                "no method-specific keyword evidence was available."
+            ),
+        )
+    ]
 
 
 def _timeline(ranked_papers: list[api.RankedPaper]) -> list[api.TimelineItem]:
@@ -329,10 +367,72 @@ def _timeline(ranked_papers: list[api.RankedPaper]) -> list[api.TimelineItem]:
         api.TimelineItem(
             year=year,
             paper_ranks=sorted(ranks),
-            summary=f"{len(ranks)} mapped paper(s) in {year}.",
+            summary=f"Ranks {_rank_list(sorted(ranks))} were published in {year}.",
         )
         for year, ranks in sorted(ranks_by_year.items())
     ]
+
+
+def _method_cluster_candidates(
+    query_analysis: InternalQueryAnalysis,
+) -> list[tuple[str, tuple[str, ...]]]:
+    candidates: list[tuple[str, tuple[str, ...]]] = []
+    known_names = {name.casefold() for name, _ in _METHOD_CLUSTER_KEYWORDS}
+
+    for name, aliases in _METHOD_CLUSTER_KEYWORDS:
+        candidates.append((name, aliases))
+
+    for method in query_analysis.constraints.methods:
+        method_name = method.strip()
+        if not method_name or method_name.casefold() in known_names:
+            continue
+        candidates.append((method_name, (method_name,)))
+
+    return candidates
+
+
+def _paper_matches_any_alias(
+    ranked_paper: api.RankedPaper,
+    aliases: tuple[str, ...],
+) -> bool:
+    searchable_text = _cluster_search_text(ranked_paper)
+    return any(alias.casefold() in searchable_text for alias in aliases)
+
+
+def _cluster_search_text(ranked_paper: api.RankedPaper) -> str:
+    evidence_text = " ".join(item.text for item in ranked_paper.evidence)
+    return " ".join(
+        [
+            ranked_paper.paper.title,
+            ranked_paper.paper.abstract,
+            evidence_text,
+        ]
+    ).casefold()
+
+
+def _dedupe_method_clusters(
+    clusters: list[api.MethodCluster],
+) -> list[api.MethodCluster]:
+    by_name: dict[str, api.MethodCluster] = {}
+    for cluster in clusters:
+        key = cluster.name.casefold()
+        if key not in by_name:
+            by_name[key] = cluster
+            continue
+        merged_ranks = sorted(set(by_name[key].paper_ranks + cluster.paper_ranks))
+        by_name[key] = api.MethodCluster(
+            name=by_name[key].name,
+            paper_ranks=merged_ranks,
+            summary=(
+                f"Ranks {_rank_list(merged_ranks)} discuss {by_name[key].name} "
+                "based on title, abstract, or evidence signals."
+            ),
+        )
+    return list(by_name.values())
+
+
+def _rank_list(ranks: list[int]) -> str:
+    return ", ".join(f"R{rank}" for rank in ranks)
 
 
 def _citation_graph(
