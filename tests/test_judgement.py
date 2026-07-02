@@ -13,6 +13,9 @@ def make_query_analysis(
     original_query: str = "LLM reranking for scientific literature retrieval",
     venues: list[str] | None = None,
     time_range: TimeRange | None = None,
+    methods: list[str] | None = None,
+    datasets: list[str] | None = None,
+    must_include_terms: list[str] | None = None,
 ) -> QueryAnalysis:
     return QueryAnalysis(
         original_query=original_query,
@@ -22,10 +25,14 @@ def make_query_analysis(
         constraints=QueryConstraint(
             time_range=time_range,
             venues=venues or [],
-            methods=["reranking"],
-            datasets=[],
+            methods=methods if methods is not None else ["reranking"],
+            datasets=datasets if datasets is not None else [],
             domains=["machine_learning"],
-            must_include_terms=["LLM", "reranking", "retrieval"],
+            must_include_terms=(
+                must_include_terms
+                if must_include_terms is not None
+                else ["LLM", "reranking", "retrieval"]
+            ),
         ),
     )
 
@@ -212,6 +219,95 @@ def test_threshold_parameters_affect_category() -> None:
 
     assert default_result.category != "highly_relevant"
     assert lower_high_threshold.category == "highly_relevant"
+
+
+def test_rag_evaluation_compound_query_prefers_ragas_over_surface_noise() -> None:
+    query_analysis = make_query_analysis(
+        original_query="retrieval augmented generation evaluation benchmark papers",
+        methods=["retrieval augmented generation"],
+        datasets=["benchmark"],
+        must_include_terms=["RAG", "evaluation", "benchmark"],
+    )
+    ragas = make_paper(
+        "Ragas: Automated Evaluation of Retrieval Augmented Generation",
+        abstract=(
+            "RAGAS evaluates retrieval augmented generation systems with "
+            "metadata-grounded metrics."
+        ),
+        year=2023,
+        sources=["arxiv"],
+    )
+    surface_noise = make_paper(
+        "RAG Benchmark for Large Language Models",
+        abstract="A benchmark of large language models with broad retrieval examples.",
+        year=2025,
+        sources=["semantic_scholar"],
+    )
+
+    ragas_result, noise_result = judge_papers(query_analysis, [ragas, surface_noise])
+
+    assert ragas_result.score > noise_result.score
+    assert ragas_result.category == "highly_relevant"
+    assert noise_result.category in {"partially_relevant", "weakly_relevant"}
+    assert "composite RAG evaluation acronym matched" in ragas_result.reasoning
+    assert "surface acronym benchmark" in noise_result.reasoning
+
+
+def test_academic_search_compound_query_downweights_domain_shift_noise() -> None:
+    query_analysis = make_query_analysis(
+        original_query="neural ranking methods for academic search",
+        methods=["ranking"],
+        datasets=[],
+        must_include_terms=["neural", "ranking", "academic", "search"],
+    )
+    personalized_search = make_paper(
+        "Personalized Search Via Neural Contextual Semantic Relevance Ranking",
+        abstract="A neural relevance ranking method for personalized academic search.",
+        year=2023,
+        sources=["arxiv"],
+    )
+    network_embedding = make_paper(
+        "Interpretable adversarial neural pairwise ranking for academic network embedding",
+        abstract="This work studies academic network embedding with pairwise ranking.",
+        year=2025,
+        sources=["semantic_scholar"],
+    )
+    news_retrieval = make_paper(
+        "Myanmar News Retrieval Using Kernelized Neural Ranking Model",
+        abstract="Neural methods rank news documents in response to a query.",
+        year=2024,
+        sources=["semantic_scholar"],
+    )
+
+    search_result, embedding_result, news_result = judge_papers(
+        query_analysis,
+        [personalized_search, network_embedding, news_retrieval],
+    )
+
+    assert search_result.score > embedding_result.score
+    assert search_result.score > news_result.score
+    assert search_result.category in {"highly_relevant", "partially_relevant"}
+    assert embedding_result.category in {"weakly_relevant", "irrelevant"}
+    assert news_result.category in {"weakly_relevant", "irrelevant"}
+    assert "compound academic search intent satisfied" in search_result.reasoning
+    assert "domain-shift terms detected" in embedding_result.reasoning
+
+
+def test_compound_adjustment_does_not_change_plain_reranking_query_category() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract=(
+            "This paper studies retrieval and reranking with large language models "
+            "for scientific literature search."
+        ),
+    )
+
+    result = judge_papers(query_analysis, [paper])[0]
+
+    assert result.category == "highly_relevant"
+    assert "compound academic search" not in result.reasoning
+    assert "composite RAG evaluation" not in result.reasoning
 
 
 def test_llm_disabled_falls_back_to_rules_with_warning(
