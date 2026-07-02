@@ -3,18 +3,25 @@ from __future__ import annotations
 import pytest
 
 from scholar_agent.connectors import ConnectorSearchResult
-from scholar_agent.agents.retriever import clear_retrieval_cache, retrieve_papers
+from scholar_agent.agents.retriever import (
+    clear_retrieval_cache,
+    clear_source_cooldowns,
+    retrieve_papers,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 
 
 @pytest.fixture(autouse=True)
 def reset_retrieval_cache(monkeypatch: pytest.MonkeyPatch):
     clear_retrieval_cache()
+    clear_source_cooldowns()
     monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE", raising=False)
     monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS", raising=False)
     monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES", raising=False)
+    monkeypatch.delenv("SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS", raising=False)
     yield
     clear_retrieval_cache()
+    clear_source_cooldowns()
 
 
 def make_paper(
@@ -292,6 +299,7 @@ def test_retrieve_papers_does_not_cache_connector_errors(
             papers=[make_paper("Recovered OpenAlex Result", sources=["openalex"])]
         )
 
+    monkeypatch.setenv("SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS", "0")
     monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", flaky_openalex)
 
     first = retrieve_papers("llm reranking flaky", sources=["openalex"])
@@ -303,3 +311,94 @@ def test_retrieve_papers_does_not_cache_connector_errors(
     assert second.source_stats[0].cache_hit is False
     assert second.source_stats[0].error_message is None
     assert second.papers[0].title == "Recovered OpenAlex Result"
+
+
+def test_retrieve_papers_cooldown_skips_source_after_429(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"semantic_scholar": 0}
+
+    def rate_limited_semantic_scholar(
+        query: str,
+        limit: int,
+    ) -> ConnectorSearchResult:
+        calls["semantic_scholar"] += 1
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar search failed: HTTP Error 429: ",
+            warnings=["Semantic Scholar search failed: HTTP Error 429:"],
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        rate_limited_semantic_scholar,
+    )
+
+    first = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
+    second = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
+
+    assert calls["semantic_scholar"] == 1
+    assert first.source_stats[0].error_message == (
+        "Semantic Scholar search failed: HTTP Error 429: "
+    )
+    assert second.source_stats[0].source == "semantic_scholar"
+    assert second.source_stats[0].returned_count == 0
+    assert second.source_stats[0].error_message == (
+        "source_cooldown_skip:semantic_scholar"
+    )
+    assert second.warnings == ["source_cooldown_skip:semantic_scholar"]
+
+
+def test_retrieve_papers_cooldown_skips_source_after_timeout_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"arxiv": 0}
+
+    def timeout_then_skipped(query: str, limit: int) -> ConnectorSearchResult:
+        calls["arxiv"] += 1
+        return ConnectorSearchResult(
+            error_message="arXiv search failed: request timed out",
+            warnings=["arXiv search failed: request timed out"],
+        )
+
+    monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", timeout_then_skipped)
+
+    first = retrieve_papers("llm reranking timeout", sources=["arxiv"])
+    second = retrieve_papers("llm reranking timeout", sources=["arxiv"])
+
+    assert calls["arxiv"] == 1
+    assert first.source_stats[0].error_message == "arXiv search failed: request timed out"
+    assert second.source_stats[0].error_message == "source_cooldown_skip:arxiv"
+    assert second.warnings == ["source_cooldown_skip:arxiv"]
+
+
+def test_retrieve_papers_source_cooldown_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"semantic_scholar": 0}
+
+    def flaky_semantic_scholar(query: str, limit: int) -> ConnectorSearchResult:
+        calls["semantic_scholar"] += 1
+        if calls["semantic_scholar"] == 1:
+            return ConnectorSearchResult(
+                error_message="Semantic Scholar search failed: HTTP Error 429: ",
+                warnings=["Semantic Scholar search failed: HTTP Error 429:"],
+            )
+        return ConnectorSearchResult(
+            papers=[make_paper("Recovered S2 Result", sources=["semantic_scholar"])]
+        )
+
+    monkeypatch.setenv("SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS", "0")
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        flaky_semantic_scholar,
+    )
+
+    first = retrieve_papers("llm reranking no cooldown", sources=["semantic_scholar"])
+    second = retrieve_papers("llm reranking no cooldown", sources=["semantic_scholar"])
+
+    assert calls["semantic_scholar"] == 2
+    assert first.source_stats[0].error_message == (
+        "Semantic Scholar search failed: HTTP Error 429: "
+    )
+    assert second.source_stats[0].error_message is None
+    assert second.papers[0].title == "Recovered S2 Result"

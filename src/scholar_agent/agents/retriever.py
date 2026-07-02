@@ -23,6 +23,7 @@ from scholar_agent.core.paper_schemas import Paper
 SUPPORTED_SOURCES = ("openalex", "arxiv", "semantic_scholar")
 DEFAULT_CACHE_TTL_SECONDS = 15 * 60
 DEFAULT_CACHE_MAX_ENTRIES = 256
+DEFAULT_SOURCE_COOLDOWN_SECONDS = 60
 CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
 
 
@@ -31,6 +32,8 @@ _RETRIEVAL_CACHE: OrderedDict[_CacheKey, tuple[float, ConnectorSearchResult]] = 
     OrderedDict()
 )
 _RETRIEVAL_CACHE_LOCK = RLock()
+_SOURCE_FAILURE_COOLDOWNS: dict[str, float] = {}
+_SOURCE_FAILURE_COOLDOWNS_LOCK = RLock()
 
 
 class SourceStats(BaseModel):
@@ -83,6 +86,19 @@ def retrieve_papers(
             )
             continue
 
+        if _is_source_in_cooldown(source):
+            message = f"source_cooldown_skip:{source}"
+            warnings.append(message)
+            source_stats.append(
+                SourceStats(
+                    source=source,
+                    returned_count=0,
+                    latency_seconds=0.0,
+                    error_message=message,
+                )
+            )
+            continue
+
         source_start = time.perf_counter()
         try:
             result, cache_hit = _search_with_cache(
@@ -97,6 +113,8 @@ def retrieve_papers(
                 warnings.append(f"retrieval_cache_hit:{source}")
             if result.error_message and result.error_message not in warnings:
                 warnings.append(result.error_message)
+            if _has_cooldown_trigger(result.error_message, result.warnings):
+                _record_source_cooldown(source)
             source_stats.append(
                 SourceStats(
                     source=source,
@@ -109,6 +127,8 @@ def retrieve_papers(
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
             message = f"{source} failed: {exc}"
             warnings.append(message)
+            if _is_cooldown_error_message(message):
+                _record_source_cooldown(source)
             source_stats.append(
                 SourceStats(
                     source=source,
@@ -140,6 +160,13 @@ def clear_retrieval_cache() -> None:
 
     with _RETRIEVAL_CACHE_LOCK:
         _RETRIEVAL_CACHE.clear()
+
+
+def clear_source_cooldowns() -> None:
+    """Clear process-local source cooldown state for tests and local debugging."""
+
+    with _SOURCE_FAILURE_COOLDOWNS_LOCK:
+        _SOURCE_FAILURE_COOLDOWNS.clear()
 
 
 def _normalize_sources(sources: list[str] | None) -> list[str]:
@@ -245,6 +272,60 @@ def _store_cached_result(
         _RETRIEVAL_CACHE.move_to_end(key)
         while len(_RETRIEVAL_CACHE) > max_entries:
             _RETRIEVAL_CACHE.popitem(last=False)
+
+
+def _is_source_in_cooldown(source: str) -> bool:
+    cooldown_seconds = _source_cooldown_seconds()
+    if cooldown_seconds <= 0:
+        return False
+
+    now = time.monotonic()
+    with _SOURCE_FAILURE_COOLDOWNS_LOCK:
+        expires_at = _SOURCE_FAILURE_COOLDOWNS.get(source)
+        if expires_at is None:
+            return False
+        if now >= expires_at:
+            _SOURCE_FAILURE_COOLDOWNS.pop(source, None)
+            return False
+        return True
+
+
+def _record_source_cooldown(source: str) -> None:
+    cooldown_seconds = _source_cooldown_seconds()
+    if cooldown_seconds <= 0:
+        return
+
+    with _SOURCE_FAILURE_COOLDOWNS_LOCK:
+        _SOURCE_FAILURE_COOLDOWNS[source] = time.monotonic() + cooldown_seconds
+
+
+def _source_cooldown_seconds() -> float:
+    value = _float_env(
+        "SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS",
+        DEFAULT_SOURCE_COOLDOWN_SECONDS,
+    )
+    return max(0.0, value)
+
+
+def _has_cooldown_trigger(
+    error_message: str | None,
+    warnings: list[str],
+) -> bool:
+    return any(
+        _is_cooldown_error_message(message)
+        for message in [error_message, *warnings]
+        if message
+    )
+
+
+def _is_cooldown_error_message(message: str) -> bool:
+    normalized = message.casefold()
+    return (
+        "http error 429" in normalized
+        or " 429" in normalized
+        or "timeout" in normalized
+        or "timed out" in normalized
+    )
 
 
 def _float_env(name: str, default: float) -> float:
