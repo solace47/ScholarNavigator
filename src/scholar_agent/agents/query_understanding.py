@@ -603,12 +603,17 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
     if _is_rag_evaluation_query(lowered):
         candidates.extend(
             [
+                ("RAGAS ARES RAG evaluation", "rag_evaluation_expansion"),
                 ("RAG evaluation benchmark", "rag_evaluation_expansion"),
-                ("automated RAG evaluation system", "rag_evaluation_expansion"),
                 (
-                    "retrieval augmented generation benchmark",
+                    "retrieval augmented generation evaluation",
                     "rag_evaluation_expansion",
                 ),
+                (
+                    "RAG benchmark large language models",
+                    "rag_evaluation_expansion",
+                ),
+                ("automated RAG evaluation system", "rag_evaluation_expansion"),
                 ("RAGAS ARES RAGBench", "rag_evaluation_expansion"),
             ]
         )
@@ -629,12 +634,16 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
     if _is_academic_search_ranking_query(lowered):
         candidates.extend(
             [
-                ("neural ranking academic search", "academic_search_ranking_expansion"),
+                ("academic search neural ranking", "academic_search_ranking_expansion"),
                 (
                     "semantic ranking academic search",
                     "academic_search_ranking_expansion",
                 ),
-                ("entity-duet neural ranking", "academic_search_ranking_expansion"),
+                ("entity duet neural ranking", "academic_search_ranking_expansion"),
+                (
+                    "neural information retrieval academic search",
+                    "academic_search_ranking_expansion",
+                ),
                 ("scholarly search ranking", "academic_search_ranking_expansion"),
             ]
         )

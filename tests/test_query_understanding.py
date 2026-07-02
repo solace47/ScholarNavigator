@@ -133,10 +133,10 @@ def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
+    assert "RAGAS ARES RAG evaluation" in queries
     assert "RAG evaluation benchmark" in queries
-    assert "automated RAG evaluation system" in queries
-    assert "retrieval augmented generation benchmark" in queries
-    assert "RAGAS ARES RAGBench" in queries
+    assert "retrieval augmented generation evaluation" in queries
+    assert "RAG benchmark large language models" in queries
 
 
 def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
@@ -147,10 +147,10 @@ def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
-    assert "neural ranking academic search" in queries
+    assert "academic search neural ranking" in queries
     assert "semantic ranking academic search" in queries
-    assert "entity-duet neural ranking" in queries
-    assert "scholarly search ranking" in queries
+    assert "entity duet neural ranking" in queries
+    assert "neural information retrieval academic search" in queries
 
 
 def test_llm_json_can_generate_search_plan() -> None:
