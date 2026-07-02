@@ -440,11 +440,11 @@ retrieve_papers(query: str, limit_per_source: int = 20, sources: list[str] | Non
 
 - `AGENTS.md`
 - `docs/reference_papers/spar.pdf`
-- `pipeline_spar.py`
-- `search_engine.py`
-- `rerank.py`
-- `search_node.py`
-- `instruction.py`
+- `legacy/spar_original/pipeline_spar.py`
+- `legacy/spar_original/search_engine.py`
+- `legacy/spar_original/rerank.py`
+- `legacy/spar_original/search_node.py`
+- `legacy/spar_original/instruction.py`
 - `docs/design/architecture.md`
 - `docs/design/development_plan.md`
 - `docs/design/retriever_runbook.md`

@@ -18,9 +18,9 @@
 .
 ├── AGENTS.md
 ├── README.md
-├── README_ZH.md
-├── api_web.py
-├── base_class.py
+├── legacy/spar_original/README_ZH.md
+├── legacy/spar_original/api_web.py
+├── legacy/spar_original/base_class.py
 ├── benchmark/
 ├── data/
 │   ├── cache/
@@ -28,7 +28,7 @@
 │   └── raw/
 ├── datasets/
 │   └── LitSearch/
-├── demo_app_with_front.py
+├── legacy/spar_original/demo_app_with_front.py
 ├── docs/
 │   ├── contest/
 │   ├── design/
@@ -55,7 +55,7 @@
 观察结果：
 
 - `src/scholar_agent/` 目前是后端包的合理落点，但当前只看到目录骨架，尚未看到包内业务文件。
-- 根目录保留了 SPAR 原始脚本，例如 `pipeline_spar.py`、`search_engine.py`、`rerank.py`、`api_web.py`、`demo_app_with_front.py` 等，后续应逐步迁移或包裹到 `src/scholar_agent/`，但本次不移动文件。
+- SPAR 原始脚本已归档到 `legacy/spar_original/`，例如 `pipeline_spar.py`、`search_engine.py`、`rerank.py`、`api_web.py`、`demo_app_with_front.py` 等；当前主线代码位于 `src/scholar_agent/`。
 - `docs/contest/` 已包含赛题需求与评分规则。
 - `docs/reference_papers/` 已包含 SPAR、PaSa、PaperQA2、LitSearch、AstaBench 等参考 PDF。
 - `third_party/` 已包含参考项目。根据项目要求，不应修改其中源码，除非用户明确要求。

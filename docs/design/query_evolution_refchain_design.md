@@ -95,7 +95,7 @@ cost 和深度限制。
 
 ### 2.1 query_fusion
 
-SPAR 原项目的 `pipeline_spar.py` 中，`query_fusion` 会调用 search engine 的
+SPAR 原项目归档文件 `legacy/spar_original/pipeline_spar.py` 中，`query_fusion` 会调用 search engine 的
 query expansion，保留原始 query，并为每个 query 创建 `SearchNode`。
 
 当前项目已有 `QueryUnderstandingAgent` 生成第一批 `SearchSubquery`，可直接承担
@@ -588,9 +588,9 @@ estimated cost。MVP 规则版不产生 token 成本。
 - `third_party/pasa/utils.py`
 - `third_party/pasa/agent_prompt.json`
 - `third_party/pasa/metrics.py`
-- `pipeline_spar.py`
-- `search_engine.py`
-- `search_node.py`
+- `legacy/spar_original/pipeline_spar.py`
+- `legacy/spar_original/search_engine.py`
+- `legacy/spar_original/search_node.py`
 - `src/scholar_agent/services/search_service.py`
 - `src/scholar_agent/core/search_schemas.py`
 - `src/scholar_agent/agents/retriever.py`
