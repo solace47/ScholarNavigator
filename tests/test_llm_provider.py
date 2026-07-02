@@ -110,6 +110,55 @@ def test_chat_json_parses_openai_compatible_json(
     }
 
 
+def test_chat_json_records_token_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = provider.OpenAICompatibleLLMClient(
+        base_url="https://api.example.test/v1",
+        api_key="sk-test-secret",
+        model="gpt-test",
+    )
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        return FakeResponse(
+            {
+                "choices": [{"message": {"content": json.dumps({"ok": True})}}],
+                "usage": {
+                    "prompt_tokens": 17,
+                    "completion_tokens": 5,
+                    "total_tokens": 22,
+                },
+            }
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    assert client.chat_json([{"role": "user", "content": "query"}]) == {"ok": True}
+    assert client.token_usage.prompt_tokens == 17
+    assert client.token_usage.completion_tokens == 5
+    assert client.token_usage.total_tokens == 22
+
+
+def test_chat_json_missing_usage_keeps_zero_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = provider.OpenAICompatibleLLMClient(
+        base_url="https://api.example.test/v1",
+        api_key="sk-test-secret",
+        model="gpt-test",
+    )
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        return FakeResponse(
+            {"choices": [{"message": {"content": json.dumps({"ok": True})}}]},
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    assert client.chat_json([{"role": "user", "content": "query"}]) == {"ok": True}
+    assert client.token_usage.prompt_tokens == 0
+    assert client.token_usage.completion_tokens == 0
+    assert client.token_usage.total_tokens == 0
+
+
 def test_chat_json_uses_configured_max_tokens_and_thinking_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

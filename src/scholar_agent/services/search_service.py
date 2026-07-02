@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
@@ -39,6 +40,11 @@ from scholar_agent.core.search_schemas import (
     SUPPORTED_SEARCH_SOURCES,
 )
 from scholar_agent.core.synthesis_schemas import SynthesisOutput
+from scholar_agent.llm.provider import (
+    LLMProviderError,
+    OpenAICompatibleLLMClient,
+    is_llm_enabled,
+)
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
 ENABLE_LLM_JUDGEMENT_ENV = "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT"
@@ -75,6 +81,9 @@ class SearchServiceOutput(BaseModel):
     latency_seconds: float = 0.0
     stage_latencies: dict[str, float] = Field(default_factory=dict)
     llm_call_count: int = 0
+    llm_prompt_tokens: int = 0
+    llm_completion_tokens: int = 0
+    llm_total_tokens: int = 0
 
 
 class SearchService:
@@ -117,6 +126,10 @@ class SearchService:
             if enable_llm_judgement is None
             else enable_llm_judgement
         )
+        llm_client = self._resolve_llm_client(
+            use_llm_query_understanding or use_llm_judgement
+        )
+        llm_usage_start = _llm_token_usage_snapshot(llm_client)
         stage_start = time.perf_counter()
         search_plan = analyze_query(
             query,
@@ -126,7 +139,7 @@ class SearchService:
             enable_query_evolution=enable_query_evolution,
             current_year=current_year,
             use_llm=use_llm_query_understanding,
-            llm_client=self._llm_client,
+            llm_client=llm_client,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)
         llm_call_count = _query_understanding_llm_call_count(
@@ -174,6 +187,7 @@ class SearchService:
             search_plan,
             deduplicated,
             use_llm=use_llm_judgement,
+            llm_client=llm_client,
         )
         _add_stage_latency(
             stage_latencies,
@@ -245,6 +259,7 @@ class SearchService:
                     search_plan,
                     deduplicated,
                     use_llm=use_llm_judgement,
+                    llm_client=llm_client,
                 )
                 _add_stage_latency(
                     stage_latencies,
@@ -299,6 +314,7 @@ class SearchService:
                     search_plan,
                     deduplicated,
                     use_llm=use_llm_judgement,
+                    llm_client=llm_client,
                 )
                 _add_stage_latency(
                     stage_latencies,
@@ -324,6 +340,10 @@ class SearchService:
             if refchain_output is not None
             else 0
         )
+        llm_usage_delta = _llm_token_usage_delta(
+            llm_usage_start,
+            _llm_token_usage_snapshot(llm_client),
+        )
 
         output = SearchServiceOutput(
             search_plan=search_plan,
@@ -341,6 +361,9 @@ class SearchService:
             latency_seconds=0.0,
             stage_latencies=stage_latencies,
             llm_call_count=llm_call_count,
+            llm_prompt_tokens=llm_usage_delta.prompt_tokens,
+            llm_completion_tokens=llm_usage_delta.completion_tokens,
+            llm_total_tokens=llm_usage_delta.total_tokens,
         )
         if enable_synthesis:
             from scholar_agent.agents.synthesis import synthesize_answer
@@ -375,8 +398,9 @@ class SearchService:
         papers: list[Paper],
         *,
         use_llm: bool,
+        llm_client: Any | None,
     ) -> tuple[list[JudgementResult], int]:
-        agent = JudgementAgent(llm_client=self._llm_client)
+        agent = JudgementAgent(llm_client=llm_client)
         judgements = agent.judge(
             search_plan.query_analysis,
             papers,
@@ -482,6 +506,16 @@ class SearchService:
             )
         return _RetrievalTaskResult(index=index, output=output)
 
+    def _resolve_llm_client(self, enabled: bool) -> Any | None:
+        if self._llm_client is not None:
+            return self._llm_client
+        if not enabled or not is_llm_enabled():
+            return None
+        try:
+            return OpenAICompatibleLLMClient.from_env()
+        except LLMProviderError:
+            return None
+
 
 def run_search(
     query: str,
@@ -531,6 +565,47 @@ def _env_flag(env_name: str, *, default: bool) -> bool:
     if raw_value is None:
         return default
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass(frozen=True)
+class _LLMTokenUsageSnapshot:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+def _llm_token_usage_snapshot(llm_client: Any | None) -> _LLMTokenUsageSnapshot:
+    usage = getattr(llm_client, "token_usage", None)
+    if usage is None:
+        return _LLMTokenUsageSnapshot()
+    return _LLMTokenUsageSnapshot(
+        prompt_tokens=_usage_count(usage, "prompt_tokens"),
+        completion_tokens=_usage_count(usage, "completion_tokens"),
+        total_tokens=_usage_count(usage, "total_tokens"),
+    )
+
+
+def _llm_token_usage_delta(
+    start: _LLMTokenUsageSnapshot,
+    end: _LLMTokenUsageSnapshot,
+) -> _LLMTokenUsageSnapshot:
+    return _LLMTokenUsageSnapshot(
+        prompt_tokens=max(0, end.prompt_tokens - start.prompt_tokens),
+        completion_tokens=max(0, end.completion_tokens - start.completion_tokens),
+        total_tokens=max(0, end.total_tokens - start.total_tokens),
+    )
+
+
+def _usage_count(usage: Any, key: str) -> int:
+    if isinstance(usage, dict):
+        raw_value = usage.get(key)
+    else:
+        raw_value = getattr(usage, key, 0)
+    try:
+        count = int(raw_value)
+    except (TypeError, ValueError):
+        return 0
+    return count if count > 0 else 0
 
 
 def _add_stage_latency(

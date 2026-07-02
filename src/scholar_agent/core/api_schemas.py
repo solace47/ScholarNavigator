@@ -136,6 +136,9 @@ class CostReport(BaseModel):
     api_call_count: int = 0
     search_api_call_count: int = 0
     llm_call_count: int = 0
+    llm_prompt_tokens: int = 0
+    llm_completion_tokens: int = 0
+    llm_total_tokens: int = 0
     estimated_input_tokens: int = 0
     estimated_output_tokens: int = 0
     estimated_total_tokens: int = 0

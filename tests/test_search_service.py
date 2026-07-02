@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -302,7 +303,12 @@ def test_fast_recommended_uses_arxiv_for_first_two_and_semantic_for_second() -> 
         output.search_plan.subqueries[1].query,
         ["arxiv", "semantic_scholar"],
     )
-    assert sum(1 for _, sources in calls if sources and "semantic_scholar" in sources) == 1
+    semantic_calls = [
+        call for call in calls if call[1] and "semantic_scholar" in call[1]
+    ]
+    assert semantic_calls == [
+        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
+    ]
     assert all(call[1] == ["arxiv"] for call in calls[2:])
     assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
     assert not any(
@@ -1200,6 +1206,10 @@ def test_run_search_can_use_llm_query_understanding_with_injected_client() -> No
     )
 
     assert llm_client.calls == 1
+    assert output.llm_call_count == 1
+    assert output.llm_prompt_tokens == 11
+    assert output.llm_completion_tokens == 7
+    assert output.llm_total_tokens == 18
     assert output.search_plan.subqueries[0].query == "LLM reranking scientific retrieval"
     assert calls == ["LLM reranking scientific retrieval"]
     assert "llm_query_understanding_used" in output.warnings
@@ -1235,6 +1245,9 @@ def test_run_search_can_use_llm_judgement_with_injected_client() -> None:
 
     assert llm_client.calls == 1
     assert output.llm_call_count == 1
+    assert output.llm_prompt_tokens == 23
+    assert output.llm_completion_tokens == 9
+    assert output.llm_total_tokens == 32
     assert output.judgements[0].score == 0.94
     assert output.judgements[0].category == "highly_relevant"
     assert "llm_judgement_used" in output.warnings
@@ -1323,6 +1336,9 @@ def test_run_search_uses_injected_retriever_without_network(monkeypatch) -> None
     )
 
     assert called["value"] is True
+    assert output.llm_prompt_tokens == 0
+    assert output.llm_completion_tokens == 0
+    assert output.llm_total_tokens == 0
     assert output.ranked_papers
 
 
@@ -1413,9 +1429,17 @@ def test_run_search_subquery_failure_keeps_other_results_and_warnings() -> None:
 class FakeLLMClient:
     def __init__(self) -> None:
         self.calls = 0
+        self.token_usage = SimpleNamespace(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+        )
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
+        self.token_usage.prompt_tokens += 11
+        self.token_usage.completion_tokens += 7
+        self.token_usage.total_tokens += 18
         return {
             "language": "en",
             "intent": "recent_progress",
@@ -1435,9 +1459,17 @@ class FakeLLMClient:
 class FakeJudgementLLMClient:
     def __init__(self) -> None:
         self.calls = 0
+        self.token_usage = SimpleNamespace(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+        )
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
+        self.token_usage.prompt_tokens += 23
+        self.token_usage.completion_tokens += 9
+        self.token_usage.total_tokens += 32
         return {
             "judgements": [
                 {

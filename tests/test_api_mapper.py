@@ -61,6 +61,9 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.partially_relevant_papers == []
     assert response.synthesis is None
     assert response.cost_report.llm_call_count == 0
+    assert response.cost_report.llm_prompt_tokens == 0
+    assert response.cost_report.llm_completion_tokens == 0
+    assert response.cost_report.llm_total_tokens == 0
     assert response.cost_report.cache_hit_count == 0
     assert response.retrieval_diagnostics.raw_count == 0
     assert response.retrieval_diagnostics.deduplicated_count == 0
@@ -216,11 +219,20 @@ def test_llm_call_count_maps_to_cost_report() -> None:
     output = _output_with_ranked(
         [_ranked(_paper("Highly", doi="10.123/high"), rank=1)],
         llm_call_count=3,
+        llm_prompt_tokens=120,
+        llm_completion_tokens=45,
+        llm_total_tokens=165,
     )
 
     response = map_search_service_output_to_api_result("run_real_llm_cost", output)
 
     assert response.cost_report.llm_call_count == 3
+    assert response.cost_report.llm_prompt_tokens == 120
+    assert response.cost_report.llm_completion_tokens == 45
+    assert response.cost_report.llm_total_tokens == 165
+    assert response.cost_report.estimated_input_tokens == 120
+    assert response.cost_report.estimated_output_tokens == 45
+    assert response.cost_report.estimated_total_tokens == 165
 
 
 def test_method_clusters_group_ranked_papers_by_method_keywords() -> None:
@@ -521,6 +533,9 @@ def _output_with_ranked(
     query_evolution_records: list[QueryEvolutionRecord] | None = None,
     refchain_output: RefChainOutput | None = None,
     llm_call_count: int = 0,
+    llm_prompt_tokens: int = 0,
+    llm_completion_tokens: int = 0,
+    llm_total_tokens: int = 0,
 ) -> SearchServiceOutput:
     retrieval_outputs = [
         RetrievalOutput(
@@ -565,4 +580,7 @@ def _output_with_ranked(
         ],
         latency_seconds=0.25,
         llm_call_count=llm_call_count,
+        llm_prompt_tokens=llm_prompt_tokens,
+        llm_completion_tokens=llm_completion_tokens,
+        llm_total_tokens=llm_total_tokens,
     )

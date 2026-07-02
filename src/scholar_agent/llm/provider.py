@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -40,6 +40,25 @@ class LLMTimeoutError(LLMProviderError):
 
 class LLMResponseError(LLMProviderError):
     """Raised when an LLM response cannot be parsed as a JSON object."""
+
+
+@dataclass
+class LLMTokenUsage:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    def add(self, usage: "LLMTokenUsage") -> None:
+        self.prompt_tokens += usage.prompt_tokens
+        self.completion_tokens += usage.completion_tokens
+        self.total_tokens += usage.total_tokens
+
+    def model_dump(self) -> dict[str, int]:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
 
 
 @dataclass(frozen=True)
@@ -130,6 +149,7 @@ class OpenAICompatibleLLMClient:
     api_key: str
     model: str
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    token_usage: LLMTokenUsage = field(default_factory=LLMTokenUsage)
 
     @classmethod
     def from_env(cls) -> "OpenAICompatibleLLMClient":
@@ -198,8 +218,14 @@ class OpenAICompatibleLLMClient:
 
         try:
             parsed_response = json.loads(response_body)
+        except json.JSONDecodeError as exc:
+            raise LLMResponseError("llm_malformed_chat_response") from exc
+
+        self.token_usage.add(_parse_token_usage(parsed_response.get("usage")))
+
+        try:
             content = parsed_response["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        except (KeyError, IndexError, TypeError) as exc:
             raise LLMResponseError("llm_malformed_chat_response") from exc
 
         try:
@@ -245,6 +271,24 @@ def _nvidia_thinking_from_env() -> bool:
     if raw_value is None:
         return False
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_token_usage(raw_usage: object) -> LLMTokenUsage:
+    if not isinstance(raw_usage, dict):
+        return LLMTokenUsage()
+    return LLMTokenUsage(
+        prompt_tokens=_token_count(raw_usage.get("prompt_tokens")),
+        completion_tokens=_token_count(raw_usage.get("completion_tokens")),
+        total_tokens=_token_count(raw_usage.get("total_tokens")),
+    )
+
+
+def _token_count(value: object) -> int:
+    try:
+        count = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
+    return count if count > 0 else 0
 
 
 def _chat_completions_url(base_url: str) -> str:
