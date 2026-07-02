@@ -138,8 +138,14 @@ class SearchService:
         )
 
         stage_start = time.perf_counter()
-        initial_subqueries, fast_arxiv_warnings = (
+        initial_subqueries, fast_source_warnings = (
             _limit_fast_arxiv_initial_subqueries(search_plan)
+        )
+        initial_subqueries, fast_semantic_scholar_warnings = (
+            _limit_fast_semantic_scholar_initial_subqueries(
+                search_plan,
+                initial_subqueries,
+            )
         )
         retrieval_outputs = self._retrieve_subqueries(
             search_plan,
@@ -151,7 +157,8 @@ class SearchService:
             time.perf_counter() - stage_start,
         )
         warnings: list[str] = list(search_plan.warnings)
-        warnings.extend(fast_arxiv_warnings)
+        warnings.extend(fast_source_warnings)
+        warnings.extend(fast_semantic_scholar_warnings)
         query_evolution_records: list[QueryEvolutionRecord] = []
         refchain_output: RefChainOutput | None = None
 
@@ -609,6 +616,38 @@ def _limit_fast_arxiv_initial_subqueries(
         for index in range(1, len(search_plan.subqueries))
     ]
     return search_plan.subqueries[:1], warnings
+
+
+def _limit_fast_semantic_scholar_initial_subqueries(
+    search_plan: SearchPlan,
+    subqueries: list[SearchSubquery],
+) -> tuple[list[SearchSubquery], list[str]]:
+    if not (
+        search_plan.run_profile == "fast"
+        and "semantic_scholar" in search_plan.selected_sources
+        and not search_plan.enable_query_evolution
+        and not search_plan.enable_refchain
+    ):
+        return subqueries, []
+
+    adjusted: list[SearchSubquery] = []
+    warnings: list[str] = []
+    for index, subquery in enumerate(subqueries):
+        source_hints = subquery.source_hints or search_plan.selected_sources
+        if index == 0 or "semantic_scholar" not in source_hints:
+            adjusted.append(subquery)
+            continue
+
+        limited_sources = [
+            source for source in source_hints if source != "semantic_scholar"
+        ]
+        warnings.append(f"fast_semantic_scholar_subquery_skipped_by_limit:{index}")
+        if not limited_sources:
+            continue
+
+        adjusted.append(subquery.model_copy(update={"source_hints": limited_sources}))
+
+    return adjusted, warnings
 
 
 def _judgement_warnings(judgements: list[JudgementResult]) -> list[str]:
