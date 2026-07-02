@@ -4,8 +4,6 @@
 
 ScholarNavigator 是面向华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的参赛项目入口。
 
-当前系统是 Real Search only runtime：产品路径只调用真实检索链路，不提供 Mock Demo 或静默 mock fallback。
-
 ## 核心能力
 
 - 查询理解与子查询扩展。
