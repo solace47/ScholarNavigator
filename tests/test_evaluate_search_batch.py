@@ -100,6 +100,77 @@ def test_doi_arxiv_without_version_and_title_year_fallback_match() -> None:
     assert result["aggregate"]["recall_at_k"]["3"] == pytest.approx(1.0)
 
 
+def test_arxiv_doi_matches_result_arxiv_id() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[
+                _ranked("RAGAS", year=2023, arxiv_id="2309.15217"),
+                _ranked("Ordinary DOI Paper", year=2025, doi="10.1000/ABC"),
+            ],
+        )
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {
+                    "title": "RAGAS",
+                    "year": 2023,
+                    "doi": "10.48550/arXiv.2309.15217",
+                },
+                {
+                    "title": "Ordinary DOI Paper",
+                    "year": 2025,
+                    "doi": "https://doi.org/10.1000/abc",
+                },
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[2],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == [
+        "arxiv:2309.15217",
+        "doi:10.1000/abc",
+    ]
+    assert result["aggregate"]["recall_at_k"]["2"] == pytest.approx(1.0)
+
+
+def test_gold_arxiv_id_version_matches_result_without_version() -> None:
+    batch_rows = [
+        _batch_row(
+            "case_001",
+            high=[_ranked("Versioned arXiv Paper", year=2024, arxiv_id="2501.00001")],
+        )
+    ]
+    gold_rows = [
+        {
+            "case_id": "case_001",
+            "relevant_papers": [
+                {
+                    "title": "Versioned arXiv Paper",
+                    "year": 2024,
+                    "arxiv_id": "2501.00001v2",
+                }
+            ],
+        }
+    ]
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        batch_rows,
+        evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
+        k_values=[1],
+    )
+
+    assert result["per_case"][0]["matched_ids"] == ["arxiv:2501.00001"]
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+
+
 def test_failed_missing_gold_and_missing_result_cases_are_tracked() -> None:
     batch_rows = [
         _batch_row("case_ok", high=[_ranked("Paper A", doi="10.1/a")]),

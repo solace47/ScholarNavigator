@@ -28,7 +28,11 @@ def canonical_paper_id(
     paper = _unwrap_ranked_paper(paper)
     doi_value = doi or _extract_identifier(paper, "doi")
     if doi_value:
-        return f"doi:{_normalize_doi(doi_value)}"
+        normalized_doi = _normalize_doi(doi_value)
+        arxiv_doi_id = _arxiv_id_from_doi(normalized_doi)
+        if arxiv_doi_id:
+            return f"arxiv:{arxiv_doi_id}"
+        return f"doi:{normalized_doi}"
 
     arxiv_value = arxiv_id or _extract_identifier(paper, "arxiv_id")
     if arxiv_value:
@@ -284,6 +288,14 @@ def _normalize_doi(value: str) -> str:
             normalized = normalized[len(prefix) :]
             break
     return normalized.strip()
+
+
+def _arxiv_id_from_doi(normalized_doi: str) -> str | None:
+    match = re.fullmatch(r"10\.48550/arxiv\.(.+)", normalized_doi.strip())
+    if not match:
+        return None
+    arxiv_id = _normalize_arxiv_id(match.group(1))
+    return arxiv_id or None
 
 
 def _normalize_arxiv_id(value: str) -> str:
