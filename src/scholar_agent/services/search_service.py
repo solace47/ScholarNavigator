@@ -685,20 +685,6 @@ def _fast_semantic_scholar_override_query(search_plan: SearchPlan) -> str | None
     )
     if has_citation_graph_context and has_recommendation_context:
         return "graph embedding citation recommendation"
-    has_llm_context = "llm" in query or "large language model" in query
-    has_ranking_context = (
-        "reranking" in query
-        or "rerank" in query
-        or "reranker" in query
-        or "ranking" in query
-    )
-    has_literature_context = (
-        "scientific literature retrieval" in query
-        or "literature retrieval" in query
-        or "literature review" in query
-    )
-    if has_llm_context and has_ranking_context and has_literature_context:
-        return "LLM based retrieval augmented generation literature review"
     return None
 
 

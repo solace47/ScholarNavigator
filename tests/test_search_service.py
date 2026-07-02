@@ -362,7 +362,7 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
     )
 
 
-def test_fast_recommended_uses_semantic_scholar_override_for_llm_literature_retrieval() -> None:
+def test_fast_recommended_uses_second_query_for_llm_literature_retrieval() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -398,16 +398,13 @@ def test_fast_recommended_uses_semantic_scholar_override_for_llm_literature_retr
     ) in calls
     assert (
         output.search_plan.subqueries[1].query,
-        ["arxiv"],
+        ["arxiv", "semantic_scholar"],
     ) in calls
     semantic_calls = [
         call for call in calls if call[1] and "semantic_scholar" in call[1]
     ]
     assert semantic_calls == [
-        (
-            "LLM based retrieval augmented generation literature review",
-            ["semantic_scholar"],
-        )
+        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
     ]
     assert len(semantic_calls) == 1
     assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
