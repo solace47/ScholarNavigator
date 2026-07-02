@@ -28,6 +28,14 @@ def test_normal_jsonl_generates_markdown_file(tmp_path: Path) -> None:
     assert "- Total cases: 3" in markdown
     assert "- Succeeded: 2" in markdown
     assert "- Failed: 1" in markdown
+    assert "## Cost / Efficiency" in markdown
+    assert "- Succeeded cases: 2" in markdown
+    assert "- Failed cases: 1" in markdown
+    assert "- Average latency seconds: 2.000" in markdown
+    assert "- Total LLM calls: 1" in markdown
+    assert "- Total LLM prompt tokens: 100" in markdown
+    assert "- Total LLM completion tokens: 20" in markdown
+    assert "- Total LLM tokens: 120" in markdown
     assert (
         "| case_001 | succeeded | 1.000 | 1 | 1 | succeeded | query one; query one refined | arxiv,semantic_scholar | 6 | 5 | - |"
         in markdown
@@ -63,6 +71,10 @@ def test_summary_counts_success_rate_latency_and_costs() -> None:
     assert summary["cost_totals"]["api_call_count"] == 5
     assert summary["cost_totals"]["search_api_call_count"] == 5
     assert summary["cost_totals"]["cache_hit_count"] == 1
+    assert summary["cost_totals"]["llm_call_count"] == 1
+    assert summary["cost_totals"]["llm_prompt_tokens"] == 100
+    assert summary["cost_totals"]["llm_completion_tokens"] == 20
+    assert summary["cost_totals"]["llm_total_tokens"] == 120
     assert summary["cost_totals"]["estimated_total_tokens"] == 30
     assert summary["case_summaries"][0]["expanded_queries"] == (
         "query one; query one refined"
@@ -130,6 +142,10 @@ def test_source_reliability_handles_legacy_results_without_diagnostics() -> None
     )
 
     assert summary["source_reliability"] == []
+    assert summary["cost_totals"]["llm_call_count"] == 0
+    assert summary["cost_totals"]["llm_prompt_tokens"] == 0
+    assert summary["cost_totals"]["llm_completion_tokens"] == 0
+    assert summary["cost_totals"]["llm_total_tokens"] == 0
 
 
 def test_missing_input_file_returns_nonzero(tmp_path: Path) -> None:
@@ -198,6 +214,10 @@ def _sample_rows() -> list[dict[str, Any]]:
                     "api_call_count": 2,
                     "search_api_call_count": 2,
                     "cache_hit_count": 1,
+                    "llm_call_count": 1,
+                    "llm_prompt_tokens": 100,
+                    "llm_completion_tokens": 20,
+                    "llm_total_tokens": 120,
                     "estimated_input_tokens": 10,
                     "estimated_output_tokens": 5,
                     "estimated_total_tokens": 15,
