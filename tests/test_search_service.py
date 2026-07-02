@@ -762,6 +762,48 @@ def test_run_search_top_k_is_applied() -> None:
     assert [paper.rank for paper in output.ranked_papers] == [1, 2]
 
 
+def test_run_search_preserves_pre_top_k_ranked_candidates() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper(
+                    title,
+                    doi=f"10.123/pretop-{index}",
+                    citation_count=index,
+                )
+                for index, title in enumerate(
+                    [
+                        "LLM Reranking for Scientific Literature Retrieval",
+                        "Neural Ranking Methods for Academic Search",
+                        "Transformer Retrieval Models for Papers",
+                        "Scientific Search Benchmark for Literature Agents",
+                        "Citation Graph Retrieval for Scholarly Papers",
+                        "RAG Evaluation for Scientific Literature",
+                        "Machine Learning Paper Recommendation",
+                        "Semantic Search for Academic Documents",
+                    ]
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "LLM reranking retrieval papers",
+        top_k=5,
+        current_year=2026,
+        enable_synthesis=False,
+    )
+
+    assert len(output.ranked_papers) == 5
+    assert len(output.all_ranked_papers) == 8
+    assert [paper.rank for paper in output.ranked_papers] == [1, 2, 3, 4, 5]
+    assert [paper.rank for paper in output.all_ranked_papers] == list(range(1, 9))
+
+
 def test_run_search_with_query_evolution_retrieves_evolved_queries() -> None:
     query = "latest LLM reranking retrieval papers"
     expected_plan = analyze_query(query, current_year=2026)

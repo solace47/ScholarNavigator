@@ -29,6 +29,7 @@ from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     EvolvedSubquery,
     JudgementResult,
+    QueryAnalysis,
     QueryEvolutionRecord,
     RankedPaper,
     RefChainOutput,
@@ -68,6 +69,7 @@ class SearchServiceOutput(BaseModel):
     deduplicated_count: int = 0
     judgements: list[JudgementResult] = Field(default_factory=list)
     ranked_papers: list[RankedPaper] = Field(default_factory=list)
+    all_ranked_papers: list[RankedPaper] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     source_stats: list[SourceStats] = Field(default_factory=list)
     latency_seconds: float = 0.0
@@ -180,10 +182,10 @@ class SearchService:
         )
         llm_call_count += judgement_llm_calls
         stage_start = time.perf_counter()
-        ranked_papers = rerank_papers(
+        all_ranked_papers, ranked_papers = _rerank_all_and_top(
             search_plan.query_analysis,
             judgements,
-            top_k=top_k,
+            top_k,
         )
         _add_stage_latency(
             stage_latencies,
@@ -251,10 +253,10 @@ class SearchService:
                 )
                 llm_call_count += judgement_llm_calls
                 stage_start = time.perf_counter()
-                ranked_papers = rerank_papers(
+                all_ranked_papers, ranked_papers = _rerank_all_and_top(
                     search_plan.query_analysis,
                     judgements,
-                    top_k=top_k,
+                    top_k,
                 )
                 _add_stage_latency(
                     stage_latencies,
@@ -305,10 +307,10 @@ class SearchService:
                 )
                 llm_call_count += judgement_llm_calls
                 stage_start = time.perf_counter()
-                ranked_papers = rerank_papers(
+                all_ranked_papers, ranked_papers = _rerank_all_and_top(
                     search_plan.query_analysis,
                     judgements,
-                    top_k=top_k,
+                    top_k,
                 )
                 _add_stage_latency(
                     stage_latencies,
@@ -333,6 +335,7 @@ class SearchService:
             deduplicated_count=len(deduplicated),
             judgements=judgements,
             ranked_papers=ranked_papers,
+            all_ranked_papers=all_ranked_papers,
             warnings=_dedupe_warnings(warnings),
             source_stats=source_stats,
             latency_seconds=0.0,
@@ -506,6 +509,21 @@ def run_search(
         enable_llm_judgement=enable_llm_judgement,
         sources_override=sources_override,
     )
+
+
+def _rerank_all_and_top(
+    query_analysis: QueryAnalysis,
+    judgements: list[JudgementResult],
+    top_k: int,
+) -> tuple[list[RankedPaper], list[RankedPaper]]:
+    all_ranked_papers = rerank_papers(
+        query_analysis,
+        judgements,
+        top_k=len(judgements),
+    )
+    if top_k <= 0:
+        return all_ranked_papers, []
+    return all_ranked_papers, all_ranked_papers[:top_k]
 
 
 def _env_flag(env_name: str, *, default: bool) -> bool:

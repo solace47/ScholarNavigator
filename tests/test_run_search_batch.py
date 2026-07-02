@@ -15,9 +15,12 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
+from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     QueryAnalysis,
     QueryConstraint,
+    RankedPaper,
+    RerankScoreBreakdown,
     SearchPlan,
     SearchSubquery,
 )
@@ -55,6 +58,136 @@ def test_batch_runs_two_queries_and_writes_succeeded_jsonl(
     assert [row["case_id"] for row in rows] == ["case_001", "case_002"]
     assert rows[0]["result"]["run_id"] == "batch_case_001"
     assert rows[0]["result"]["synthesis"] is not None
+
+
+def test_ranked_candidates_dump_disabled_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "case_001", "query": "LLM reranking"}],
+    )
+    output_path = tmp_path / "out" / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        ["--input", str(input_path), "--output", str(output_path)]
+    )
+
+    rows = _read_jsonl(output_path)
+    assert code == 0
+    assert rows[0]["status"] == "succeeded"
+    assert not (output_path.parent / "ranked_candidates.jsonl").exists()
+
+
+def test_ranked_candidates_dump_writes_top10_without_changing_results_jsonl(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "case_001", "query": "LLM reranking"}],
+    )
+    output_path = tmp_path / "out" / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--top-k",
+            "5",
+            "--dump-ranked-candidates",
+        ]
+    )
+
+    rows = _read_jsonl(output_path)
+    debug_rows = _read_jsonl(output_path.parent / "ranked_candidates.jsonl")
+    assert code == 0
+    assert set(rows[0]) == {
+        "case_id",
+        "query",
+        "status",
+        "result",
+        "error",
+        "latency_seconds",
+    }
+    assert "_ranked_candidates_debug" not in rows[0]
+    visible_result_count = (
+        len(rows[0]["result"]["highly_relevant_papers"])
+        + len(rows[0]["result"]["partially_relevant_papers"])
+    )
+    assert visible_result_count == 5
+    assert debug_rows[0]["case_id"] == "case_001"
+    assert debug_rows[0]["query"] == "LLM reranking"
+    assert debug_rows[0]["expanded_queries"] == ["LLM reranking"]
+    assert debug_rows[0]["source_preferences"] == ["openalex", "arxiv"]
+    assert debug_rows[0]["raw_count"] == 12
+    assert debug_rows[0]["deduplicated_count"] == 12
+    assert len(debug_rows[0]["ranked_candidates"]) == 10
+    first_candidate = debug_rows[0]["ranked_candidates"][0]
+    assert first_candidate == {
+        "rank": 1,
+        "title": "Debug Paper 1 for LLM reranking",
+        "source": "arxiv,semantic_scholar",
+        "sources": ["arxiv", "semantic_scholar"],
+        "arxiv_id": "2501.00001",
+        "semantic_scholar_id": "S2-1",
+        "doi": "10.0000/debug.1",
+        "year": 2025,
+        "category": "highly_relevant",
+        "judgement_score": 0.72,
+        "final_score": 0.76,
+        "ranking_reason": "debug ranking reason 1",
+    }
+
+
+def test_ranked_candidates_dump_writes_empty_debug_row_for_failed_case(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "bad", "query": "explode"}],
+    )
+    output_path = tmp_path / "out" / "results.jsonl"
+
+    monkeypatch.setattr(
+        run_search_batch,
+        "SearchService",
+        _fake_service_class(fail_queries={"explode"}),
+    )
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--dump-ranked-candidates",
+        ]
+    )
+
+    rows = _read_jsonl(output_path)
+    debug_rows = _read_jsonl(output_path.parent / "ranked_candidates.jsonl")
+    assert code == 0
+    assert rows[0]["status"] == "failed"
+    assert debug_rows == [
+        {
+            "case_id": "bad",
+            "query": "explode",
+            "expanded_queries": [],
+            "source_preferences": [],
+            "raw_count": None,
+            "deduplicated_count": None,
+            "ranked_candidates": [],
+        }
+    ]
 
 
 def test_batch_cli_loads_repo_env_file(tmp_path: Path, monkeypatch) -> None:
@@ -515,10 +648,13 @@ def _fake_service_class(
             )
             if query in fail_queries:
                 raise RuntimeError("forced failure")
+            ranked_papers = _ranked_papers(query)
             output = SearchServiceOutput(
                 search_plan=_search_plan(query, top_k=top_k),
-                raw_count=0,
-                deduplicated_count=0,
+                raw_count=12,
+                deduplicated_count=12,
+                ranked_papers=ranked_papers[:top_k],
+                all_ranked_papers=ranked_papers,
                 latency_seconds=0.01,
             )
             output.synthesis_output = synthesize_answer(output)
@@ -549,6 +685,45 @@ def _search_plan(query: str, top_k: int = 20) -> SearchPlan:
         top_k=top_k,
         run_profile="balanced",
     )
+
+
+def _ranked_papers(query: str) -> list[RankedPaper]:
+    ranked_papers: list[RankedPaper] = []
+    for index in range(1, 13):
+        ranked_papers.append(
+            RankedPaper(
+                rank=index,
+                paper=Paper(
+                    title=f"Debug Paper {index} for {query}",
+                    authors=["Debug Author"],
+                    year=2026 - index,
+                    venue="arXiv",
+                    abstract="Debug paper for batch candidate dump tests.",
+                    identifiers=PaperIdentifiers(
+                        doi=f"10.0000/debug.{index}",
+                        arxiv_id=f"2501.{index:05d}",
+                        semantic_scholar_id=f"S2-{index}",
+                    ),
+                    sources=["arxiv", "semantic_scholar"],
+                    citation_count=10,
+                ),
+                final_score=0.76,
+                category="highly_relevant" if index == 1 else "partially_relevant",
+                score_breakdown=RerankScoreBreakdown(
+                    relevance_score=0.72,
+                    authority_score=0.5,
+                    timeliness_score=0.6,
+                    metadata_score=0.8,
+                    final_score=0.76,
+                    relevance_weight=0.7,
+                    authority_weight=0.1,
+                    timeliness_weight=0.1,
+                    metadata_weight=0.1,
+                ),
+                ranking_reason=f"debug ranking reason {index}",
+            )
+        )
+    return ranked_papers
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> Path:

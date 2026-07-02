@@ -82,6 +82,14 @@ def main(argv: list[str] | None = None) -> int:
         default=0.0,
         help="Sleep this many seconds between cases. Defaults to 0.",
     )
+    parser.add_argument(
+        "--dump-ranked-candidates",
+        action="store_true",
+        help=(
+            "Write ranked_candidates.jsonl next to the output JSONL with top10 "
+            "internal ranked-paper diagnostics. Defaults to disabled."
+        ),
+    )
     args = parser.parse_args(argv)
 
     input_path = Path(args.input)
@@ -107,27 +115,51 @@ def main(argv: list[str] | None = None) -> int:
     service = SearchService(max_workers=args.max_workers)
     had_failure = False
 
-    with output_path.open("w", encoding="utf-8") as handle:
-        for index, case in enumerate(cases):
-            result = _run_case(
-                case,
-                service=service,
-                default_top_k=args.top_k,
-                default_run_profile=args.run_profile,
-                default_current_year=args.current_year,
-                default_enable_query_evolution=args.enable_query_evolution,
-                default_enable_refchain=args.enable_refchain,
-                default_sources=default_sources,
-            )
-            if result["status"] == "failed":
-                had_failure = True
-            handle.write(json.dumps(result, ensure_ascii=False))
-            handle.write("\n")
-            handle.flush()
-            if had_failure and args.fail_fast:
-                return 1
-            if sleep_between_cases_seconds > 0 and index < len(cases) - 1:
-                time.sleep(sleep_between_cases_seconds)
+    ranked_candidates_path = output_path.parent / "ranked_candidates.jsonl"
+    ranked_candidates_handle = (
+        ranked_candidates_path.open("w", encoding="utf-8")
+        if args.dump_ranked_candidates
+        else None
+    )
+    try:
+        with output_path.open("w", encoding="utf-8") as handle:
+            for index, case in enumerate(cases):
+                result = _run_case(
+                    case,
+                    service=service,
+                    default_top_k=args.top_k,
+                    default_run_profile=args.run_profile,
+                    default_current_year=args.current_year,
+                    default_enable_query_evolution=args.enable_query_evolution,
+                    default_enable_refchain=args.enable_refchain,
+                    default_sources=default_sources,
+                )
+                if result["status"] == "failed":
+                    had_failure = True
+                debug_payload = result.pop("_ranked_candidates_debug", None)
+                handle.write(json.dumps(result, ensure_ascii=False))
+                handle.write("\n")
+                handle.flush()
+                if ranked_candidates_handle is not None:
+                    ranked_candidates_handle.write(
+                        json.dumps(
+                            debug_payload
+                            or _empty_ranked_candidates_debug(
+                                result["case_id"],
+                                result["query"],
+                            ),
+                            ensure_ascii=False,
+                        )
+                    )
+                    ranked_candidates_handle.write("\n")
+                    ranked_candidates_handle.flush()
+                if had_failure and args.fail_fast:
+                    return 1
+                if sleep_between_cases_seconds > 0 and index < len(cases) - 1:
+                    time.sleep(sleep_between_cases_seconds)
+    finally:
+        if ranked_candidates_handle is not None:
+            ranked_candidates_handle.close()
 
     return 0
 
@@ -205,6 +237,11 @@ def _run_case(
             "result": api_result.model_dump(mode="json"),
             "error": None,
             "latency_seconds": time.perf_counter() - start,
+            "_ranked_candidates_debug": _ranked_candidates_debug_payload(
+                case_id,
+                query,
+                output,
+            ),
         }
     except Exception as exc:  # noqa: BLE001 - isolate per-row batch failure
         return {
@@ -215,6 +252,70 @@ def _run_case(
             "error": str(exc),
             "latency_seconds": time.perf_counter() - start,
         }
+
+
+def _ranked_candidates_debug_payload(
+    case_id: str,
+    query: str,
+    output: Any,
+) -> dict[str, Any]:
+    search_plan = getattr(output, "search_plan", None)
+    expanded_queries = [
+        getattr(subquery, "query", None)
+        for subquery in getattr(search_plan, "subqueries", []) or []
+    ]
+    source_preferences = list(getattr(search_plan, "selected_sources", []) or [])
+    return {
+        "case_id": case_id,
+        "query": query,
+        "expanded_queries": expanded_queries,
+        "source_preferences": source_preferences,
+        "raw_count": getattr(output, "raw_count", None),
+        "deduplicated_count": getattr(output, "deduplicated_count", None),
+        "ranked_candidates": [
+            _ranked_candidate_payload(candidate)
+            for candidate in _ranked_candidates_for_debug(output)[:10]
+        ],
+    }
+
+
+def _empty_ranked_candidates_debug(case_id: str, query: str) -> dict[str, Any]:
+    return {
+        "case_id": case_id,
+        "query": query,
+        "expanded_queries": [],
+        "source_preferences": [],
+        "raw_count": None,
+        "deduplicated_count": None,
+        "ranked_candidates": [],
+    }
+
+
+def _ranked_candidate_payload(candidate: Any) -> dict[str, Any]:
+    paper = getattr(candidate, "paper", None)
+    identifiers = getattr(paper, "identifiers", None)
+    score_breakdown = getattr(candidate, "score_breakdown", None)
+    return {
+        "rank": getattr(candidate, "rank", None),
+        "title": getattr(paper, "title", None),
+        "source": ",".join(getattr(paper, "sources", []) or []) or None,
+        "sources": list(getattr(paper, "sources", []) or []),
+        "arxiv_id": getattr(identifiers, "arxiv_id", None),
+        "semantic_scholar_id": getattr(identifiers, "semantic_scholar_id", None),
+        "doi": getattr(identifiers, "doi", None),
+        "year": getattr(paper, "year", None),
+        "category": getattr(candidate, "category", None),
+        "judgement_score": getattr(score_breakdown, "relevance_score", None),
+        "final_score": getattr(candidate, "final_score", None),
+        "ranking_reason": getattr(candidate, "ranking_reason", None) or "-",
+    }
+
+
+def _ranked_candidates_for_debug(output: Any) -> list[Any]:
+    all_ranked = list(getattr(output, "all_ranked_papers", []) or [])
+    if all_ranked:
+        return all_ranked
+    return list(getattr(output, "ranked_papers", []) or [])
 
 
 def _case_sources(
