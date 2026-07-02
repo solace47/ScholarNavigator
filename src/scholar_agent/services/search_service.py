@@ -600,6 +600,7 @@ def _query_understanding_llm_call_count(
 def _limit_fast_arxiv_initial_subqueries(
     search_plan: SearchPlan,
 ) -> tuple[list[SearchSubquery], list[str]]:
+    max_fast_arxiv_subqueries = 2
     if not (
         search_plan.run_profile == "fast"
         and search_plan.selected_sources == ["arxiv"]
@@ -608,14 +609,14 @@ def _limit_fast_arxiv_initial_subqueries(
     ):
         return search_plan.subqueries, []
 
-    if len(search_plan.subqueries) <= 1:
+    if len(search_plan.subqueries) <= max_fast_arxiv_subqueries:
         return search_plan.subqueries, []
 
     warnings = [
         f"fast_arxiv_subquery_skipped_by_limit:{index}"
-        for index in range(1, len(search_plan.subqueries))
+        for index in range(max_fast_arxiv_subqueries, len(search_plan.subqueries))
     ]
-    return search_plan.subqueries[:1], warnings
+    return search_plan.subqueries[:max_fast_arxiv_subqueries], warnings
 
 
 def _limit_fast_semantic_scholar_initial_subqueries(
@@ -632,9 +633,13 @@ def _limit_fast_semantic_scholar_initial_subqueries(
 
     adjusted: list[SearchSubquery] = []
     warnings: list[str] = []
+    semantic_scholar_index = 1 if len(subqueries) > 1 else 0
     for index, subquery in enumerate(subqueries):
         source_hints = subquery.source_hints or search_plan.selected_sources
-        if index == 0 or "semantic_scholar" not in source_hints:
+        if "semantic_scholar" not in source_hints:
+            adjusted.append(subquery)
+            continue
+        if index == semantic_scholar_index:
             adjusted.append(subquery)
             continue
 

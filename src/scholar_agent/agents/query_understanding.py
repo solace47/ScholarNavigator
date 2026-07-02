@@ -643,7 +643,18 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
     if _is_academic_search_ranking_query(lowered):
         candidates.extend(
             [
-                ("academic search neural ranking", "academic_search_ranking_expansion"),
+                (
+                    "academic paper search neural ranking information retrieval",
+                    "academic_search_ranking_expansion",
+                ),
+                (
+                    "scholarly literature search neural ranking",
+                    "academic_search_ranking_expansion",
+                ),
+                (
+                    "neural ranking for academic paper retrieval",
+                    "academic_search_ranking_expansion",
+                ),
                 (
                     "semantic ranking academic search",
                     "academic_search_ranking_expansion",

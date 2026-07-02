@@ -145,10 +145,12 @@ def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
-    assert "academic search neural ranking" in queries
+    assert queries[0] == "neural ranking methods for academic search"
+    assert queries[1] == "academic paper search neural ranking information retrieval"
+    assert "academic search neural ranking" not in queries
+    assert "scholarly literature search neural ranking" in queries
+    assert "neural ranking for academic paper retrieval" in queries
     assert "semantic ranking academic search" in queries
-    assert "entity duet neural ranking" in queries
-    assert "neural information retrieval academic search" in queries
 
 
 def test_llm_json_can_generate_search_plan() -> None:

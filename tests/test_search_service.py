@@ -150,7 +150,7 @@ def test_run_search_respects_sources_override_and_filters_unimplemented_sources(
     assert "source_preference_not_implemented:pubmed" in output.warnings
 
 
-def test_arxiv_only_fast_limits_initial_retrieval_to_first_subquery() -> None:
+def test_arxiv_only_fast_allows_first_two_subqueries() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -180,10 +180,11 @@ def test_arxiv_only_fast_limits_initial_retrieval_to_first_subquery() -> None:
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert calls[0] == (output.search_plan.subqueries[0].query, ["arxiv"])
-    assert len(output.retrieval_outputs) == 1
-    assert "fast_arxiv_subquery_skipped_by_limit:1" in output.warnings
+    assert calls[1] == (output.search_plan.subqueries[1].query, ["arxiv"])
+    assert len(output.retrieval_outputs) == 2
+    assert "fast_arxiv_subquery_skipped_by_limit:1" not in output.warnings
 
 
 def test_arxiv_only_balanced_does_not_limit_initial_retrieval() -> None:
@@ -262,7 +263,7 @@ def test_fast_both_sources_does_not_limit_initial_retrieval() -> None:
     )
 
 
-def test_fast_semantic_scholar_only_used_for_first_subquery() -> None:
+def test_fast_recommended_uses_arxiv_for_first_two_and_semantic_for_second() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -295,10 +296,14 @@ def test_fast_semantic_scholar_only_used_for_first_subquery() -> None:
     assert len(calls) == len(output.search_plan.subqueries)
     assert calls[0] == (
         output.search_plan.subqueries[0].query,
+        ["arxiv"],
+    )
+    assert calls[1] == (
+        output.search_plan.subqueries[1].query,
         ["arxiv", "semantic_scholar"],
     )
-    assert all(call[1] == ["arxiv"] for call in calls[1:])
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:1" in output.warnings
+    assert all(call[1] == ["arxiv"] for call in calls[2:])
+    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
     assert not any(
         warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
         for warning in output.warnings
@@ -335,9 +340,46 @@ def test_fast_semantic_scholar_only_source_skips_later_subqueries() -> None:
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert calls == [(output.search_plan.subqueries[0].query, ["semantic_scholar"])]
+    assert calls == [(output.search_plan.subqueries[1].query, ["semantic_scholar"])]
     assert len(output.retrieval_outputs) == 1
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:1" in output.warnings
+    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
+
+
+def test_fast_semantic_scholar_single_subquery_uses_first_subquery() -> None:
+    calls: list[tuple[str, list[str] | None]] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append((query, sources))
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Single Query Semantic Scholar Paper",
+                    doi="10.123/single-semantic",
+                    sources=sources or [],
+                )
+            ],
+        )
+
+    output = SearchService(retriever=fake_retriever).run_search(
+        "hello",
+        run_profile="fast",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        sources_override=["semantic_scholar"],
+        current_year=2026,
+    )
+
+    assert len(output.search_plan.subqueries) == 1
+    assert calls == [(output.search_plan.subqueries[0].query, ["semantic_scholar"])]
+    assert not any(
+        warning.startswith("fast_semantic_scholar_subquery_skipped_by_limit:")
+        for warning in output.warnings
+    )
 
 
 def test_balanced_semantic_scholar_does_not_limit_subqueries() -> None:
