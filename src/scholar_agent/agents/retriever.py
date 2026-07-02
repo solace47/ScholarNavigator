@@ -319,11 +319,11 @@ def _has_cooldown_trigger(
     error_message: str | None,
     warnings: list[str],
 ) -> bool:
-    return any(
-        _is_cooldown_error_message(message)
-        for message in [error_message, *warnings]
-        if message
-    )
+    # Connector warnings may include recovered transient failures, for example
+    # "HTTP Error 429; retried" followed by a successful response. Cooldown must
+    # only be recorded for final connector failures, which are surfaced through
+    # error_message.
+    return bool(error_message and _is_cooldown_error_message(error_message))
 
 
 def _is_cooldown_error_message(message: str) -> bool:
@@ -331,8 +331,17 @@ def _is_cooldown_error_message(message: str) -> bool:
     return (
         "http error 429" in normalized
         or " 429" in normalized
+        or _has_5xx_status(normalized)
         or "timeout" in normalized
         or "timed out" in normalized
+    )
+
+
+def _has_5xx_status(normalized_message: str) -> bool:
+    return any(
+        f"http error {status}" in normalized_message
+        or f"status: {status}" in normalized_message
+        for status in range(500, 600)
     )
 
 

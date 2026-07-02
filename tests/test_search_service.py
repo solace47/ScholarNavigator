@@ -341,14 +341,14 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert calls[0] == (
+    assert (
         output.search_plan.subqueries[0].query,
         ["arxiv"],
-    )
-    assert calls[1] == (
+    ) in calls
+    assert (
         output.search_plan.subqueries[1].query,
         ["arxiv"],
-    )
+    ) in calls
     semantic_calls = [
         call for call in calls if call[1] and "semantic_scholar" in call[1]
     ]

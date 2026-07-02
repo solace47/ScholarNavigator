@@ -19,6 +19,7 @@ def reset_retrieval_cache(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_TTL_SECONDS", raising=False)
     monkeypatch.delenv("SCHOLAR_AGENT_RETRIEVAL_CACHE_MAX_ENTRIES", raising=False)
     monkeypatch.delenv("SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS", raising=False)
+    monkeypatch.delenv("SCHOLAR_AGENT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS", raising=False)
     yield
     clear_retrieval_cache()
     clear_source_cooldowns()
@@ -358,6 +359,79 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
     assert second.warnings == ["source_cooldown_skip:semantic_scholar"]
     assert third.source_stats[0].error_message is None
     assert third.papers[0].title == "Recovered S2 Result"
+
+
+def test_retrieve_papers_recovered_429_warning_does_not_trigger_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"semantic_scholar": 0}
+
+    def recovered_semantic_scholar(
+        query: str,
+        limit: int,
+    ) -> ConnectorSearchResult:
+        calls["semantic_scholar"] += 1
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    f"Recovered S2 Result {calls['semantic_scholar']}",
+                    sources=["semantic_scholar"],
+                )
+            ],
+            warnings=[
+                "Semantic Scholar search transient error on attempt 1/2: "
+                "HTTP Error 429: ; retried"
+            ],
+        )
+
+    monkeypatch.setenv("SCHOLAR_AGENT_RETRIEVAL_CACHE", "0")
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        recovered_semantic_scholar,
+    )
+
+    first = retrieve_papers("llm reranking recovered", sources=["semantic_scholar"])
+    second = retrieve_papers("llm reranking recovered", sources=["semantic_scholar"])
+
+    assert calls["semantic_scholar"] == 2
+    assert first.source_stats[0].error_message is None
+    assert second.source_stats[0].error_message is None
+    assert "HTTP Error 429" in first.warnings[0]
+    assert not any("source_cooldown_skip" in warning for warning in second.warnings)
+    assert second.papers[0].title == "Recovered S2 Result 2"
+
+
+def test_retrieve_papers_cooldown_skips_source_after_5xx_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"semantic_scholar": 0}
+
+    def failed_semantic_scholar(
+        query: str,
+        limit: int,
+    ) -> ConnectorSearchResult:
+        calls["semantic_scholar"] += 1
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar search failed: HTTP Error 503: ",
+            warnings=["Semantic Scholar search failed: HTTP Error 503:"],
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        failed_semantic_scholar,
+    )
+
+    first = retrieve_papers("llm reranking 5xx", sources=["semantic_scholar"])
+    second = retrieve_papers("llm reranking 5xx", sources=["semantic_scholar"])
+
+    assert calls["semantic_scholar"] == 1
+    assert first.source_stats[0].error_message == (
+        "Semantic Scholar search failed: HTTP Error 503: "
+    )
+    assert second.source_stats[0].error_message == (
+        "source_cooldown_skip:semantic_scholar"
+    )
+    assert second.warnings == ["source_cooldown_skip:semantic_scholar"]
 
 
 def test_retrieve_papers_cooldown_skips_source_after_timeout_warning(
