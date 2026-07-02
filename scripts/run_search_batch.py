@@ -22,6 +22,9 @@ from scholar_agent.services.api_mapper import (  # noqa: E402
 from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 
+SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar"}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run SearchService over a JSONL query file and write JSONL results."
@@ -58,6 +61,14 @@ def main(argv: list[str] | None = None) -> int:
         help="SearchService(max_workers=...).",
     )
     parser.add_argument(
+        "--sources",
+        default=None,
+        help=(
+            "Comma-separated default retrieval sources, for example "
+            "arxiv,semantic_scholar. JSONL source_preferences overrides this."
+        ),
+    )
+    parser.add_argument(
         "--fail-fast",
         action="store_true",
         help="Stop and return non-zero after the first per-row failure.",
@@ -75,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         cases = _load_cases(input_path)
+        default_sources = _parse_sources(args.sources, field_name="--sources")
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -93,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
                 default_current_year=args.current_year,
                 default_enable_query_evolution=args.enable_query_evolution,
                 default_enable_refchain=args.enable_refchain,
+                default_sources=default_sources,
             )
             if result["status"] == "failed":
                 had_failure = True
@@ -136,6 +149,7 @@ def _run_case(
     default_current_year: int | None,
     default_enable_query_evolution: bool,
     default_enable_refchain: bool,
+    default_sources: list[str] | None,
 ) -> dict[str, Any]:
     start = time.perf_counter()
     case_id = str(case["case_id"])
@@ -152,6 +166,7 @@ def _run_case(
             case.get("enable_query_evolution", default_enable_query_evolution)
         )
         enable_refchain = bool(case.get("enable_refchain", default_enable_refchain))
+        sources_override = _case_sources(case, default_sources)
 
         output = service.run_search(
             query,
@@ -161,6 +176,7 @@ def _run_case(
             enable_refchain=enable_refchain,
             enable_synthesis=True,
             current_year=current_year,
+            sources_override=sources_override,
         )
         api_result = map_search_service_output_to_api_result(
             run_id=f"batch_{case_id}",
@@ -185,6 +201,49 @@ def _run_case(
             "error": str(exc),
             "latency_seconds": time.perf_counter() - start,
         }
+
+
+def _case_sources(
+    case: dict[str, Any],
+    default_sources: list[str] | None,
+) -> list[str] | None:
+    if "source_preferences" not in case:
+        return default_sources
+    return _parse_sources(case.get("source_preferences"), field_name="source_preferences")
+
+
+def _parse_sources(value: Any, *, field_name: str) -> list[str] | None:
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        raw_sources = value.split(",")
+    elif isinstance(value, list):
+        raw_sources = value
+    else:
+        raise ValueError(f"{field_name} must be a comma-separated string or list")
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    invalid: list[str] = []
+    for item in raw_sources:
+        source = str(item).strip().lower()
+        if not source:
+            continue
+        if source not in SUPPORTED_SOURCES:
+            invalid.append(source)
+            continue
+        if source not in seen:
+            normalized.append(source)
+            seen.add(source)
+
+    if invalid:
+        allowed = ", ".join(sorted(SUPPORTED_SOURCES))
+        raise ValueError(
+            f"{field_name} contains unsupported source(s): {', '.join(invalid)}; "
+            f"allowed sources: {allowed}"
+        )
+    return normalized or None
 
 
 if __name__ == "__main__":

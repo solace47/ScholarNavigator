@@ -198,9 +198,15 @@ PYTHONPATH=src python scripts/run_search_batch.py \
   --top-k 10 \
   --run-profile balanced \
   --current-year 2026 \
+  --sources arxiv,semantic_scholar \
   --enable-query-evolution \
   --max-workers 2
 ```
+
+`--sources` 支持 `openalex`、`arxiv`、`semantic_scholar` 的逗号分隔组合；
+单条 JSONL 可用 `"source_preferences": ["arxiv", "semantic_scholar"]`
+覆盖 CLI 默认值。非法 source 会让对应行输出 `failed`，启用 `--fail-fast`
+时会立即停止。
 
 生成 Markdown 汇总：
 

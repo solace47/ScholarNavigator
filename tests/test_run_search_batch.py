@@ -63,6 +63,7 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
                 "current_year": 2026,
                 "enable_query_evolution": False,
                 "enable_refchain": True,
+                "source_preferences": ["semantic_scholar"],
             }
         ],
     )
@@ -87,6 +88,8 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
             "--current-year",
             "2024",
             "--enable-query-evolution",
+            "--sources",
+            "arxiv,openalex",
             "--max-workers",
             "2",
         ]
@@ -99,6 +102,154 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
     assert captured[0]["current_year"] == 2026
     assert captured[0]["enable_query_evolution"] is False
     assert captured[0]["enable_refchain"] is True
+    assert captured[0]["sources_override"] == ["semantic_scholar"]
+
+
+def test_cli_sources_are_used_as_default(tmp_path: Path, monkeypatch) -> None:
+    captured: list[dict[str, Any]] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "default_sources", "query": "LLM retrieval"}],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(
+        run_search_batch,
+        "SearchService",
+        _fake_service_class(captured=captured),
+    )
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--sources",
+            "arxiv,semantic_scholar",
+        ]
+    )
+
+    rows = _read_jsonl(output_path)
+    assert code == 0
+    assert rows[0]["status"] == "succeeded"
+    assert captured[0]["sources_override"] == ["arxiv", "semantic_scholar"]
+
+
+def test_invalid_row_source_outputs_failed_row_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: list[dict[str, Any]] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [
+            {
+                "case_id": "bad_source",
+                "query": "LLM retrieval",
+                "source_preferences": ["arxiv", "pubmed"],
+            },
+            {
+                "case_id": "good",
+                "query": "scientific search",
+                "source_preferences": ["arxiv"],
+            },
+        ],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(
+        run_search_batch,
+        "SearchService",
+        _fake_service_class(captured=captured),
+    )
+
+    code = run_search_batch.main(
+        ["--input", str(input_path), "--output", str(output_path)]
+    )
+
+    rows = _read_jsonl(output_path)
+    assert code == 0
+    assert rows[0]["status"] == "failed"
+    assert rows[0]["result"] is None
+    assert "unsupported source(s): pubmed" in rows[0]["error"]
+    assert rows[1]["status"] == "succeeded"
+    assert captured == [
+        {
+            "max_workers": 4,
+            "query": "scientific search",
+            "top_k": 20,
+            "run_profile": "balanced",
+            "enable_refchain": False,
+            "enable_query_evolution": False,
+            "enable_synthesis": True,
+            "current_year": None,
+            "sources_override": ["arxiv"],
+        }
+    ]
+
+
+def test_invalid_cli_sources_returns_nonzero_before_writing_output(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "case", "query": "LLM retrieval"}],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--sources",
+            "arxiv,pubmed",
+        ]
+    )
+
+    assert code == 1
+    assert not output_path.exists()
+
+
+def test_invalid_row_source_with_fail_fast_returns_nonzero(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [
+            {
+                "case_id": "bad_source",
+                "query": "LLM retrieval",
+                "source_preferences": ["unknown"],
+            },
+            {"case_id": "skipped", "query": "scientific search"},
+        ],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--fail-fast",
+        ]
+    )
+
+    rows = _read_jsonl(output_path)
+    assert code == 1
+    assert len(rows) == 1
+    assert rows[0]["case_id"] == "bad_source"
+    assert rows[0]["status"] == "failed"
 
 
 def test_missing_case_id_generates_row_ids(tmp_path: Path, monkeypatch) -> None:
@@ -255,6 +406,7 @@ def _fake_service_class(
             enable_query_evolution: bool = False,
             enable_synthesis: bool = True,
             current_year: int | None = None,
+            sources_override: list[str] | None = None,
         ) -> SearchServiceOutput:
             captured.append(
                 {
@@ -266,6 +418,7 @@ def _fake_service_class(
                     "enable_query_evolution": enable_query_evolution,
                     "enable_synthesis": enable_synthesis,
                     "current_year": current_year,
+                    "sources_override": sources_override,
                 }
             )
             if query in fail_queries:
