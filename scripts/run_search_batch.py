@@ -73,6 +73,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Stop and return non-zero after the first per-row failure.",
     )
+    parser.add_argument(
+        "--sleep-between-cases-seconds",
+        type=float,
+        default=0.0,
+        help="Sleep this many seconds between cases. Defaults to 0.",
+    )
     args = parser.parse_args(argv)
 
     input_path = Path(args.input)
@@ -87,6 +93,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cases = _load_cases(input_path)
         default_sources = _parse_sources(args.sources, field_name="--sources")
+        sleep_between_cases_seconds = _parse_sleep_between_cases_seconds(
+            args.sleep_between_cases_seconds
+        )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -96,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     had_failure = False
 
     with output_path.open("w", encoding="utf-8") as handle:
-        for case in cases:
+        for index, case in enumerate(cases):
             result = _run_case(
                 case,
                 service=service,
@@ -114,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             handle.flush()
             if had_failure and args.fail_fast:
                 return 1
+            if sleep_between_cases_seconds > 0 and index < len(cases) - 1:
+                time.sleep(sleep_between_cases_seconds)
 
     return 0
 
@@ -244,6 +255,16 @@ def _parse_sources(value: Any, *, field_name: str) -> list[str] | None:
             f"allowed sources: {allowed}"
         )
     return normalized or None
+
+
+def _parse_sleep_between_cases_seconds(value: float) -> float:
+    try:
+        sleep_seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("--sleep-between-cases-seconds must be a number") from exc
+    if sleep_seconds < 0:
+        raise ValueError("--sleep-between-cases-seconds must be >= 0")
+    return sleep_seconds
 
 
 if __name__ == "__main__":

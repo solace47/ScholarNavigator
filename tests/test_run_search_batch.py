@@ -136,6 +136,68 @@ def test_cli_sources_are_used_as_default(tmp_path: Path, monkeypatch) -> None:
     assert captured[0]["sources_override"] == ["arxiv", "semantic_scholar"]
 
 
+def test_sleep_between_cases_sleeps_only_between_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sleep_calls: list[float] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [
+            {"case_id": "case_001", "query": "LLM reranking"},
+            {"case_id": "case_002", "query": "scientific retrieval"},
+            {"case_id": "case_003", "query": "academic search"},
+        ],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+    monkeypatch.setattr(run_search_batch.time, "sleep", sleep_calls.append)
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--sleep-between-cases-seconds",
+            "1.5",
+        ]
+    )
+
+    rows = _read_jsonl(output_path)
+    assert code == 0
+    assert [row["status"] for row in rows] == ["succeeded", "succeeded", "succeeded"]
+    assert sleep_calls == [1.5, 1.5]
+
+
+def test_negative_sleep_between_cases_returns_nonzero(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "case_001", "query": "LLM reranking"}],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--sleep-between-cases-seconds",
+            "-1",
+        ]
+    )
+
+    assert code == 1
+    assert not output_path.exists()
+
+
 def test_invalid_row_source_outputs_failed_row_by_default(
     tmp_path: Path,
     monkeypatch,

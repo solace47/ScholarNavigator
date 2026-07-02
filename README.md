@@ -199,6 +199,7 @@ PYTHONPATH=src python scripts/run_search_batch.py \
   --run-profile balanced \
   --current-year 2026 \
   --sources arxiv,semantic_scholar \
+  --sleep-between-cases-seconds 2 \
   --enable-query-evolution \
   --max-workers 2
 ```
@@ -206,7 +207,9 @@ PYTHONPATH=src python scripts/run_search_batch.py \
 `--sources` 支持 `openalex`、`arxiv`、`semantic_scholar` 的逗号分隔组合；
 单条 JSONL 可用 `"source_preferences": ["arxiv", "semantic_scholar"]`
 覆盖 CLI 默认值。非法 source 会让对应行输出 `failed`，启用 `--fail-fast`
-时会立即停止。
+时会立即停止。`--sleep-between-cases-seconds` 默认为 `0`，使用 Semantic
+Scholar 批量检索时建议设置为 `1` 到 `3` 秒，以降低连续请求触发 `429`
+的概率。
 
 生成 Markdown 汇总：
 

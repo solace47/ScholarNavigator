@@ -63,9 +63,12 @@ def map_search_service_output_to_api_result(
         elif ranked.category in {"partially_relevant", "weakly_relevant"}:
             partially_relevant.append(mapped)
         elif ranked.category in {"irrelevant", "insufficient_evidence"}:
-            missing_evidence.append(
-                f"filtered_paper:{ranked.rank}:{ranked.category}:{ranked.paper.title}"
-            )
+            missing_evidence.append(_filtered_paper_diagnostic(ranked))
+            identifier = _filtered_paper_identifier(ranked.paper)
+            if identifier:
+                missing_evidence.append(
+                    f"filtered_paper_identifier:{ranked.rank}:{identifier}"
+                )
             missing_evidence.extend(
                 f"filtered_paper_warning:{ranked.rank}:{warning}"
                 for warning in ranked.warnings
@@ -515,6 +518,24 @@ def _missing_evidence(output: SearchServiceOutput) -> list[str]:
         )
 
     return missing
+
+
+def _filtered_paper_diagnostic(ranked: InternalRankedPaper) -> str:
+    return (
+        f"filtered_paper:{ranked.rank}:{ranked.category}:"
+        f"{ranked.final_score:.4f}:{ranked.paper.title}"
+    )
+
+
+def _filtered_paper_identifier(paper: InternalPaper) -> str | None:
+    identifiers = paper.identifiers
+    if identifiers.doi:
+        return f"doi:{identifiers.doi}"
+    if identifiers.arxiv_id:
+        return f"arxiv:{identifiers.arxiv_id}"
+    if identifiers.semantic_scholar_id:
+        return f"semantic_scholar:{identifiers.semantic_scholar_id}"
+    return None
 
 
 def _paper_node_id(paper: api.Paper) -> str | None:

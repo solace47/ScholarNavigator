@@ -110,11 +110,17 @@ def test_highly_partial_and_filtered_categories_are_mapped_correctly() -> None:
             _paper("Irrelevant", doi="10.123/irrelevant"),
             rank=4,
             category="irrelevant",
+            final_score=0.12345,
         ),
         _ranked(
-            _paper("Insufficient", doi="10.123/insufficient"),
+            _paper(
+                "Insufficient",
+                arxiv_id="2501.00001",
+                semantic_scholar_id="S2-INSUFFICIENT",
+            ),
             rank=5,
             category="insufficient_evidence",
+            final_score=0.0,
             warnings=["missing_title"],
         ),
     ]
@@ -127,10 +133,21 @@ def test_highly_partial_and_filtered_categories_are_mapped_correctly() -> None:
         "Partial",
         "Weak",
     ]
-    assert any("filtered_paper:4:irrelevant:Irrelevant" == item for item in response.missing_evidence)
+    assert (
+        "filtered_paper:4:irrelevant:0.1235:Irrelevant"
+        in response.missing_evidence
+    )
+    assert (
+        "filtered_paper_identifier:4:doi:10.123/irrelevant"
+        in response.missing_evidence
+    )
     assert any(
-        "filtered_paper:5:insufficient_evidence:Insufficient" == item
+        "filtered_paper:5:insufficient_evidence:0.0000:Insufficient" == item
         for item in response.missing_evidence
+    )
+    assert (
+        "filtered_paper_identifier:5:arxiv:2501.00001"
+        in response.missing_evidence
     )
     assert "filtered_paper_warning:5:missing_title" in response.missing_evidence
 
