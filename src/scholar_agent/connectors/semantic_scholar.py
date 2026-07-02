@@ -25,6 +25,7 @@ SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
+DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 2.0
 MAX_SEMANTIC_SCHOLAR_LIMIT = 100
 SEARCH_FIELDS = ",".join(
     [
@@ -144,7 +145,7 @@ def _request_json_detailed(
                             attempts=attempts,
                             reason=message,
                         )
-                        sleep(_retry_backoff_seconds(attempt))
+                        sleep(_retry_backoff_seconds(attempt, response))
                         continue
                     logger.warning(message)
                     return None, message, warnings + [message]
@@ -157,7 +158,7 @@ def _request_json_detailed(
                     attempts=attempts,
                     reason=str(exc),
                 )
-                sleep(_retry_backoff_seconds(attempt))
+                sleep(_retry_backoff_seconds(attempt, exc))
                 continue
             message = f"Semantic Scholar search failed: {exc}"
             logger.warning(message)
@@ -200,8 +201,40 @@ def _record_retry_warning(
     warnings.append(message)
 
 
-def _retry_backoff_seconds(attempt: int) -> float:
+def _retry_backoff_seconds(attempt: int, response_or_error: Any | None = None) -> float:
+    retry_after = _retry_after_seconds(response_or_error)
+    if retry_after is not None:
+        return retry_after
+    if _status_code(response_or_error) == 429:
+        return DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
     return DEFAULT_RETRY_BACKOFF_SECONDS * (attempt + 1)
+
+
+def _retry_after_seconds(response_or_error: Any | None) -> float | None:
+    headers = getattr(response_or_error, "headers", None)
+    if headers is None:
+        return None
+    try:
+        raw_value = headers.get("Retry-After")
+    except AttributeError:
+        return None
+    if raw_value is None:
+        return None
+    try:
+        value = float(str(raw_value).strip())
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _status_code(response_or_error: Any | None) -> int | None:
+    status = getattr(response_or_error, "status", None)
+    if status is None:
+        status = getattr(response_or_error, "code", None)
+    try:
+        return int(status)
+    except (TypeError, ValueError):
+        return None
 
 
 def _should_retry_status(status: int | None) -> bool:

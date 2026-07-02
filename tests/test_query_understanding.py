@@ -119,9 +119,8 @@ def test_benchmark_search_agent_query_gets_recall_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
+    assert "LitSearch AstaBench SPAR academic search benchmark" in queries
     assert "scientific literature search benchmark" in queries
-    assert "academic paper search benchmark" in queries
-    assert "scholarly retrieval benchmark" in queries
     assert "paper search agent benchmark" in queries
 
 
@@ -133,10 +132,9 @@ def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
-    assert "RAGAS ARES RAG evaluation" in queries
-    assert "RAG evaluation benchmark" in queries
-    assert "retrieval augmented generation evaluation" in queries
-    assert "RAG benchmark large language models" in queries
+    assert "RAGAS ARES RAG benchmark large language models" in queries
+    assert "retrieval augmented generation evaluation benchmark" in queries
+    assert "RAG evaluation datasets benchmark" in queries
 
 
 def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:

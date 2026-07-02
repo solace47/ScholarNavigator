@@ -19,6 +19,7 @@ if str(SRC_ROOT) not in sys.path:
 from scholar_agent.services.api_mapper import (  # noqa: E402
     map_search_service_output_to_api_result,
 )
+from scholar_agent.core.env_loader import load_env_file  # noqa: E402
 from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 
@@ -26,6 +27,8 @@ SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar"}
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_env_file(REPO_ROOT / ".env")
+
     parser = argparse.ArgumentParser(
         description="Run SearchService over a JSONL query file and write JSONL results."
     )

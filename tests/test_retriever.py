@@ -317,26 +317,36 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = {"semantic_scholar": 0}
+    monotonic_values = iter([0.0, 0.1, 0.2, 1.0, 3.0, 3.1, 3.2])
 
-    def rate_limited_semantic_scholar(
+    def fake_monotonic() -> float:
+        return next(monotonic_values, 10.0)
+
+    def rate_limited_then_recovered_semantic_scholar(
         query: str,
         limit: int,
     ) -> ConnectorSearchResult:
         calls["semantic_scholar"] += 1
+        if calls["semantic_scholar"] > 1:
+            return ConnectorSearchResult(
+                papers=[make_paper("Recovered S2 Result", sources=["semantic_scholar"])]
+            )
         return ConnectorSearchResult(
             error_message="Semantic Scholar search failed: HTTP Error 429: ",
             warnings=["Semantic Scholar search failed: HTTP Error 429:"],
         )
 
+    monkeypatch.setattr("scholar_agent.agents.retriever.time.monotonic", fake_monotonic)
     monkeypatch.setattr(
         "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
-        rate_limited_semantic_scholar,
+        rate_limited_then_recovered_semantic_scholar,
     )
 
     first = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
     second = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
+    third = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
 
-    assert calls["semantic_scholar"] == 1
+    assert calls["semantic_scholar"] == 2
     assert first.source_stats[0].error_message == (
         "Semantic Scholar search failed: HTTP Error 429: "
     )
@@ -346,6 +356,8 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
         "source_cooldown_skip:semantic_scholar"
     )
     assert second.warnings == ["source_cooldown_skip:semantic_scholar"]
+    assert third.source_stats[0].error_message is None
+    assert third.papers[0].title == "Recovered S2 Result"
 
 
 def test_retrieve_papers_cooldown_skips_source_after_timeout_warning(
@@ -387,7 +399,7 @@ def test_retrieve_papers_source_cooldown_can_be_disabled(
             papers=[make_paper("Recovered S2 Result", sources=["semantic_scholar"])]
         )
 
-    monkeypatch.setenv("SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS", "0")
+    monkeypatch.setenv("SCHOLAR_AGENT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS", "0")
     monkeypatch.setattr(
         "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
         flaky_semantic_scholar,

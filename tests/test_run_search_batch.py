@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(ROOT) not in sys.path:
@@ -21,6 +23,11 @@ from scholar_agent.core.search_schemas import (  # noqa: E402
 )
 from scholar_agent.services.search_service import SearchServiceOutput  # noqa: E402
 from scripts import run_search_batch  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def no_real_env_file_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(run_search_batch, "load_env_file", lambda path: False)
 
 
 def test_batch_runs_two_queries_and_writes_succeeded_jsonl(
@@ -48,6 +55,29 @@ def test_batch_runs_two_queries_and_writes_succeeded_jsonl(
     assert [row["case_id"] for row in rows] == ["case_001", "case_002"]
     assert rows[0]["result"]["run_id"] == "batch_case_001"
     assert rows[0]["result"]["synthesis"] is not None
+
+
+def test_batch_cli_loads_repo_env_file(tmp_path: Path, monkeypatch) -> None:
+    loaded_paths: list[Path] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [{"case_id": "case_001", "query": "LLM reranking"}],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    def fake_load_env_file(path) -> bool:  # noqa: ANN001
+        loaded_paths.append(Path(path))
+        return True
+
+    monkeypatch.setattr(run_search_batch, "load_env_file", fake_load_env_file)
+    monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
+
+    code = run_search_batch.main(
+        ["--input", str(input_path), "--output", str(output_path)]
+    )
+
+    assert code == 0
+    assert loaded_paths == [run_search_batch.REPO_ROOT / ".env"]
 
 
 def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> None:

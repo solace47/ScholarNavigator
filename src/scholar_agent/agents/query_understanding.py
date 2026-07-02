@@ -603,12 +603,17 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
     if _is_rag_evaluation_query(lowered):
         candidates.extend(
             [
-                ("RAGAS ARES RAG evaluation", "rag_evaluation_expansion"),
-                ("RAG evaluation benchmark", "rag_evaluation_expansion"),
                 (
-                    "retrieval augmented generation evaluation",
+                    "RAGAS ARES RAG benchmark large language models",
                     "rag_evaluation_expansion",
                 ),
+                (
+                    "retrieval augmented generation evaluation benchmark",
+                    "rag_evaluation_expansion",
+                ),
+                ("RAG evaluation datasets benchmark", "rag_evaluation_expansion"),
+                ("RAGAS ARES RAG evaluation", "rag_evaluation_expansion"),
+                ("RAG evaluation benchmark", "rag_evaluation_expansion"),
                 (
                     "RAG benchmark large language models",
                     "rag_evaluation_expansion",
@@ -622,12 +627,16 @@ def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
         candidates.extend(
             [
                 (
+                    "LitSearch AstaBench SPAR academic search benchmark",
+                    "benchmark_search_agent_expansion",
+                ),
+                (
                     "scientific literature search benchmark",
                     "benchmark_search_agent_expansion",
                 ),
+                ("paper search agent benchmark", "benchmark_search_agent_expansion"),
                 ("academic paper search benchmark", "benchmark_search_agent_expansion"),
                 ("scholarly retrieval benchmark", "benchmark_search_agent_expansion"),
-                ("paper search agent benchmark", "benchmark_search_agent_expansion"),
             ]
         )
 

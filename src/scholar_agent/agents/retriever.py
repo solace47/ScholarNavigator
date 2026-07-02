@@ -24,6 +24,7 @@ SUPPORTED_SOURCES = ("openalex", "arxiv", "semantic_scholar")
 DEFAULT_CACHE_TTL_SECONDS = 15 * 60
 DEFAULT_CACHE_MAX_ENTRIES = 256
 DEFAULT_SOURCE_COOLDOWN_SECONDS = 60
+DEFAULT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS = 2
 CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
 
 
@@ -275,7 +276,7 @@ def _store_cached_result(
 
 
 def _is_source_in_cooldown(source: str) -> bool:
-    cooldown_seconds = _source_cooldown_seconds()
+    cooldown_seconds = _source_cooldown_seconds(source)
     if cooldown_seconds <= 0:
         return False
 
@@ -291,7 +292,7 @@ def _is_source_in_cooldown(source: str) -> bool:
 
 
 def _record_source_cooldown(source: str) -> None:
-    cooldown_seconds = _source_cooldown_seconds()
+    cooldown_seconds = _source_cooldown_seconds(source)
     if cooldown_seconds <= 0:
         return
 
@@ -299,7 +300,14 @@ def _record_source_cooldown(source: str) -> None:
         _SOURCE_FAILURE_COOLDOWNS[source] = time.monotonic() + cooldown_seconds
 
 
-def _source_cooldown_seconds() -> float:
+def _source_cooldown_seconds(source: str | None = None) -> float:
+    if source == "semantic_scholar":
+        value = _float_env(
+            "SCHOLAR_AGENT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS",
+            DEFAULT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS,
+        )
+        return max(0.0, value)
+
     value = _float_env(
         "SCHOLAR_AGENT_SOURCE_COOLDOWN_SECONDS",
         DEFAULT_SOURCE_COOLDOWN_SECONDS,

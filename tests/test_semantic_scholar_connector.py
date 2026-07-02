@@ -13,9 +13,10 @@ from scholar_agent.connectors.semantic_scholar import (
 
 
 class MockResponse:
-    def __init__(self, payload: dict, status: int = 200):
+    def __init__(self, payload: dict, status: int = 200, headers: dict | None = None):
         self.payload = payload
         self.status = status
+        self.headers = headers or {}
 
     def __enter__(self):
         return self
@@ -149,11 +150,37 @@ def test_search_semantic_scholar_detailed_retries_429_then_succeeds(
     )
 
     assert calls == 2
-    assert sleeps == [0.5]
+    assert sleeps == [2.0]
     assert result.error_message is None
     assert [paper.title for paper in result.papers] == ["Recovered Semantic Scholar Paper"]
     assert any("retried" in warning for warning in result.warnings)
     assert any("HTTP Error 429" in warning for warning in result.warnings)
+
+
+def test_search_semantic_scholar_detailed_429_respects_retry_after(
+    monkeypatch,
+) -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return MockResponse({}, status=429, headers={"Retry-After": "3.5"})
+        return MockResponse({"data": [{"paperId": "S2RETRYAFTER"}]})
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = search_semantic_scholar_detailed(
+        "llm reranking",
+        retry_sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert calls == 2
+    assert sleeps == [3.5]
+    assert result.error_message is None
+    assert result.papers[0].identifiers.semantic_scholar_id == "S2RETRYAFTER"
 
 
 def test_search_semantic_scholar_detailed_retry_failure_keeps_diagnostics(
