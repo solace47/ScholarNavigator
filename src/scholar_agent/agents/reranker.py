@@ -50,6 +50,7 @@ class RerankerAgent:
             for original_index, judgement in enumerate(judged_papers)
         ]
         scored.sort(key=_sort_key)
+        _apply_source_aware_tie_breaker(scored)
         return [
             _to_ranked_paper(rank=index + 1, scored=scored_item)
             for index, scored_item in enumerate(scored[:top_k])
@@ -239,6 +240,35 @@ def _sort_key(scored: _ScoredJudgement) -> tuple[object, ...]:
     )
 
 
+def _apply_source_aware_tie_breaker(scored: list[_ScoredJudgement]) -> None:
+    index = 0
+    while index < len(scored) - 1:
+        current = scored[index]
+        next_item = scored[index + 1]
+        if _should_promote_next_arxiv_candidate(current, next_item):
+            scored[index], scored[index + 1] = next_item, current
+            index += 2
+            continue
+        index += 1
+
+
+def _should_promote_next_arxiv_candidate(
+    current: _ScoredJudgement,
+    next_item: _ScoredJudgement,
+) -> bool:
+    if current.judgement.category == "highly_relevant":
+        return False
+    current_sources = set(current.judgement.paper.sources)
+    if current_sources != {"semantic_scholar"}:
+        return False
+    if "arxiv" not in set(next_item.judgement.paper.sources):
+        return False
+    score_gap = (
+        current.score_breakdown.final_score - next_item.score_breakdown.final_score
+    )
+    return 0 <= score_gap <= 0.02
+
+
 def _to_ranked_paper(rank: int, scored: _ScoredJudgement) -> RankedPaper:
     judgement = scored.judgement
     return RankedPaper(
@@ -283,4 +313,3 @@ def _ranking_reason(
 
 def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
-

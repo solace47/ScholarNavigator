@@ -212,3 +212,159 @@ def test_top_k_rank_score_range_and_tie_breaker_are_stable() -> None:
     assert [item.paper.title for item in second_run] == ["Alpha Paper", "Beta Paper"]
     assert all(0 <= item.final_score <= 1 for item in first_run)
     assert all(item.ranking_reason for item in first_run)
+
+
+def test_source_aware_tie_breaker_promotes_adjacent_arxiv_over_close_single_source_s2() -> None:
+    query_analysis = make_query_analysis()
+    single_source_s2 = make_judgement(
+        make_paper(
+            "Single Source Semantic Scholar Partial",
+            sources=["semantic_scholar"],
+            identifiers=PaperIdentifiers(semantic_scholar_id="S2-CLOSE"),
+        ),
+        score=0.56,
+        category="partially_relevant",
+    )
+    arxiv_candidate = make_judgement(
+        make_paper(
+            "ArXiv Partial",
+            sources=["arxiv"],
+            identifiers=PaperIdentifiers(arxiv_id="2401.00001"),
+        ),
+        score=0.55,
+        category="partially_relevant",
+    )
+
+    ranked = rerank_papers(query_analysis, [single_source_s2, arxiv_candidate])
+
+    assert ranked[0].paper.title == "ArXiv Partial"
+    assert ranked[1].paper.title == "Single Source Semantic Scholar Partial"
+    assert ranked[1].final_score > ranked[0].final_score
+    assert ranked[1].final_score - ranked[0].final_score <= 0.02
+
+
+def test_source_aware_tie_breaker_does_not_swap_when_score_gap_is_large() -> None:
+    query_analysis = make_query_analysis()
+    single_source_s2 = make_judgement(
+        make_paper(
+            "Clearly Higher Semantic Scholar Partial",
+            sources=["semantic_scholar"],
+            identifiers=PaperIdentifiers(semantic_scholar_id="S2-LARGE"),
+        ),
+        score=0.66,
+        category="partially_relevant",
+    )
+    arxiv_candidate = make_judgement(
+        make_paper(
+            "Lower ArXiv Partial",
+            sources=["arxiv"],
+            identifiers=PaperIdentifiers(arxiv_id="2401.00002"),
+        ),
+        score=0.55,
+        category="partially_relevant",
+    )
+
+    ranked = rerank_papers(query_analysis, [single_source_s2, arxiv_candidate])
+
+    assert ranked[0].paper.title == "Clearly Higher Semantic Scholar Partial"
+    assert ranked[1].paper.title == "Lower ArXiv Partial"
+    assert ranked[0].final_score - ranked[1].final_score > 0.02
+
+
+def test_source_aware_tie_breaker_does_not_swap_multi_source_s2_arxiv_candidate() -> None:
+    query_analysis = make_query_analysis()
+    multi_source = make_judgement(
+        make_paper(
+            "Multi Source Semantic Scholar ArXiv Partial",
+            sources=["semantic_scholar", "arxiv"],
+            identifiers=PaperIdentifiers(
+                semantic_scholar_id="S2-MULTI",
+                arxiv_id="2401.00003",
+            ),
+        ),
+        score=0.56,
+        category="partially_relevant",
+    )
+    arxiv_candidate = make_judgement(
+        make_paper(
+            "ArXiv Partial Behind Multi Source",
+            sources=["arxiv"],
+            identifiers=PaperIdentifiers(arxiv_id="2401.00004"),
+        ),
+        score=0.55,
+        category="partially_relevant",
+    )
+
+    ranked = rerank_papers(query_analysis, [multi_source, arxiv_candidate])
+
+    assert ranked[0].paper.title == "Multi Source Semantic Scholar ArXiv Partial"
+    assert ranked[1].paper.title == "ArXiv Partial Behind Multi Source"
+
+
+def test_source_aware_tie_breaker_does_not_swap_highly_relevant_s2_candidate() -> None:
+    query_analysis = make_query_analysis()
+    highly_relevant_s2 = make_judgement(
+        make_paper(
+            "Highly Relevant Semantic Scholar",
+            sources=["semantic_scholar"],
+            identifiers=PaperIdentifiers(semantic_scholar_id="S2-HIGH"),
+        ),
+        score=0.76,
+        category="highly_relevant",
+    )
+    arxiv_candidate = make_judgement(
+        make_paper(
+            "ArXiv Highly Relevant Behind S2",
+            sources=["arxiv"],
+            identifiers=PaperIdentifiers(arxiv_id="2401.00005"),
+        ),
+        score=0.75,
+        category="highly_relevant",
+    )
+
+    ranked = rerank_papers(query_analysis, [highly_relevant_s2, arxiv_candidate])
+
+    assert ranked[0].paper.title == "Highly Relevant Semantic Scholar"
+    assert ranked[1].paper.title == "ArXiv Highly Relevant Behind S2"
+
+
+def test_source_aware_tie_breaker_does_not_move_non_adjacent_arxiv_candidate() -> None:
+    query_analysis = make_query_analysis()
+    single_source_s2 = make_judgement(
+        make_paper(
+            "Single Source Semantic Scholar Partial",
+            sources=["semantic_scholar"],
+            identifiers=PaperIdentifiers(semantic_scholar_id="S2-NONADJACENT"),
+        ),
+        score=0.57,
+        category="partially_relevant",
+    )
+    middle_openalex = make_judgement(
+        make_paper(
+            "Middle OpenAlex Partial",
+            sources=["openalex"],
+            identifiers=PaperIdentifiers(openalex_id="W-NONADJACENT"),
+        ),
+        score=0.565,
+        category="partially_relevant",
+    )
+    arxiv_candidate = make_judgement(
+        make_paper(
+            "Non Adjacent ArXiv Partial",
+            sources=["arxiv"],
+            identifiers=PaperIdentifiers(arxiv_id="2401.00006"),
+        ),
+        score=0.56,
+        category="partially_relevant",
+    )
+
+    ranked = rerank_papers(
+        query_analysis,
+        [single_source_s2, middle_openalex, arxiv_candidate],
+    )
+
+    assert [item.paper.title for item in ranked] == [
+        "Single Source Semantic Scholar Partial",
+        "Middle OpenAlex Partial",
+        "Non Adjacent ArXiv Partial",
+    ]
