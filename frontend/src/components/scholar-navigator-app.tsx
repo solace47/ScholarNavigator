@@ -1471,13 +1471,11 @@ function ResultsPanel({
 
           <PaperSection
             title="高度相关论文"
-            description="直接匹配查询意图和关键约束的候选论文"
             papers={result.highly_relevant_papers}
           />
 
           <PaperSection
             title="部分相关论文"
-            description="对方法、评测或证据组织有参考价值的论文"
             papers={result.partially_relevant_papers}
           />
 
@@ -1542,7 +1540,7 @@ function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse })
     >
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--warning)]" aria-hidden="true" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-[var(--foreground)]">检索源失败/无候选</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">
             返回结构有效，但当前没有可展示论文。原始错误、限流、超时和检索源诊断已放入下方“技术诊断 / 调试信息”折叠区。
@@ -2150,14 +2148,14 @@ function PaperSection({
   papers,
 }: {
   title: string;
-  description: string;
+  description?: string;
   papers: RankedPaper[];
 }) {
   return (
     <section aria-label={title}>
       <div className="mb-3">
         <h3 className="text-lg font-bold">{title}</h3>
-        <p className="text-sm text-[var(--muted)]">{description}</p>
+        {description ? <p className="text-sm text-[var(--muted)]">{description}</p> : null}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {papers.map((paper) => (
@@ -2173,17 +2171,22 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
 
   return (
     <article className="card paper-card result-paper-card">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge>第 {paper.rank} 名</Badge>
-            <Badge>{paper.paper.year || "年份未知"}</Badge>
-            {paper.paper.venue ? <Badge>{paper.paper.venue}</Badge> : null}
-            <Badge>相关性 {formatScore(paper.relevance_score)}</Badge>
-            <Badge>{categoryLabel(paper.category)}</Badge>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>第 {paper.rank} 名</Badge>
+              <Badge>{paper.paper.year || "年份未知"}</Badge>
+              {paper.paper.venue ? <Badge>{paper.paper.venue}</Badge> : null}
+              <Badge>相关性 {formatScore(paper.relevance_score)}</Badge>
+              <Badge>{categoryLabel(paper.category)}</Badge>
+            </div>
+            <PaperActionLinks urls={paper.paper.urls} />
           </div>
-          <h4 className="card__title">{paper.paper.title}</h4>
-          <p className="card__content mt-2">
+          <h4 className="card__title">
+            <span className="card__title-text">{paper.paper.title}</span>
+          </h4>
+          <p className="card__content mt-1">
             {paper.paper.authors.length ? paper.paper.authors.join(", ") : "作者信息暂缺"}
           </p>
         </div>
@@ -2197,11 +2200,6 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
           {paper.paper.abstract || "当前结果未返回摘要。"}
         </p>
       </details>
-
-      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-        <p className="text-sm font-semibold">相关性说明</p>
-        <p className="mt-1 text-sm text-[var(--muted)]">{paper.ranking_reason}</p>
-      </div>
 
       {paper.evidence.length ? (
         <div className="mt-4 space-y-2">
@@ -2218,12 +2216,6 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {paper.paper.sources.map((source) => (
-          <Badge key={source}>来源：{source}</Badge>
-        ))}
-      </div>
-
       {identifiers.length ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {identifiers.map(([label, value]) => (
@@ -2234,32 +2226,40 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
           ))}
         </div>
       ) : null}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {paper.paper.urls.landing_page ? (
-          <a
-            href={paper.paper.urls.landing_page}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border)] px-4 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            打开论文页
-          </a>
-        ) : null}
-        {paper.paper.urls.pdf ? (
-          <a
-            href={paper.paper.urls.pdf}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border)] px-4 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
-          >
-            <FileText className="h-4 w-4" aria-hidden="true" />
-            PDF
-          </a>
-        ) : null}
-      </div>
     </article>
+  );
+}
+
+function PaperActionLinks({ urls }: { urls: RankedPaper["paper"]["urls"] }) {
+  if (!urls.landing_page && !urls.pdf) {
+    return null;
+  }
+
+  return (
+    <div className="paper-action-row">
+      {urls.landing_page ? (
+        <a
+          href={urls.landing_page}
+          target="_blank"
+          rel="noreferrer"
+          className="paper-action-link"
+        >
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          打开论文页
+        </a>
+      ) : null}
+      {urls.pdf ? (
+        <a
+          href={urls.pdf}
+          target="_blank"
+          rel="noreferrer"
+          className="paper-action-link"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          PDF
+        </a>
+      ) : null}
+    </div>
   );
 }
 
