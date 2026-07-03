@@ -123,34 +123,32 @@ button:disabled {
 
 .panel {
   position: relative;
-  border: 2px solid color-mix(in srgb, var(--foreground) 72%, var(--border-strong));
+  border: 4px solid color-mix(in srgb, var(--foreground) 78%, var(--border-strong));
+  border-radius: 0 !important;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow:
-    inset 0 0 0 6px color-mix(in srgb, var(--surface) 96%, white),
-    inset 0 0 0 8px color-mix(in srgb, var(--foreground) 52%, var(--border)),
-    var(--shadow);
+  box-shadow: none;
   backdrop-filter: blur(18px);
 }
 
 .panel-soft {
   border: 1px solid var(--border);
+  border-radius: 0 !important;
   background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
 }
 
 .hero-panel {
   position: relative;
-  border: 2px solid color-mix(in srgb, var(--foreground) 72%, var(--border-strong));
+  border: 4px solid color-mix(in srgb, var(--foreground) 78%, var(--border-strong));
+  border-radius: 0 !important;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-soft) 76%, transparent));
-  box-shadow:
-    inset 0 0 0 6px color-mix(in srgb, var(--surface) 96%, white),
-    inset 0 0 0 8px color-mix(in srgb, var(--foreground) 52%, var(--border)),
-    var(--shadow);
+  box-shadow: none;
   backdrop-filter: blur(18px);
 }
 
 .details-card,
 .paper-card {
+  border-radius: 0 !important;
   box-shadow: var(--shadow-soft);
 }
 
@@ -453,7 +451,8 @@ button:disabled {
 .card {
   padding: 20px;
   background: #fff;
-  border: 6px solid #000;
+  border: 4px solid #000;
+  border-radius: 0 !important;
   box-shadow: 12px 12px 0 #000;
   transition:
     transform 0.3s,

@@ -516,7 +516,7 @@ function Header({
   onThemeChange: () => void;
 }) {
   return (
-    <header className="hero-panel overflow-hidden rounded-lg px-5 py-6 md:px-8 lg:px-10">
+    <header className="hero-panel overflow-hidden px-5 py-6 md:px-8 lg:px-10">
       <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-4xl font-black leading-tight md:text-6xl">ScholarNavigator</h1>
@@ -607,7 +607,7 @@ function SearchWorkbench({
   onSearch: () => void;
 }) {
   return (
-    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit rounded-lg">
+    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit">
       <div className="space-y-6">
         <div className="ow-search">
           <label id="search-workbench-title" className="ow-search__label" htmlFor="query">
@@ -645,7 +645,6 @@ function SearchWorkbench({
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h3 className="font-bold">简洁配置</h3>
-              <p className="mt-1 text-sm text-[var(--muted)]">数据源、返回数量与运行模式</p>
             </div>
           </div>
           <div role="radiogroup" aria-label="选择检索数据源" className="radio-inputs">
@@ -840,7 +839,7 @@ function RunProgress({
     Boolean(status && ["queued", "running"].includes(status.status));
 
   return (
-    <SectionPanel aria-labelledby="run-progress-title" className="rounded-lg">
+    <SectionPanel aria-labelledby="run-progress-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="mb-2 text-sm font-semibold text-[var(--primary)]">任务进度</p>
@@ -1128,7 +1127,7 @@ function ResultsPanel({
     Boolean(result) && visiblePaperCount === 0 && Boolean(result?.missing_evidence.length);
 
   return (
-    <SectionPanel aria-labelledby="results-title" className="rounded-lg">
+    <SectionPanel aria-labelledby="results-title">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="mb-2 text-sm font-semibold text-[var(--primary)]">检索结果</p>

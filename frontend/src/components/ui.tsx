@@ -32,7 +32,7 @@ export function SectionPanel({
 }: HTMLAttributes<HTMLElement>) {
   return (
     <section
-      className={`panel rounded-lg p-5 md:p-6 ${className}`}
+      className={`panel p-5 md:p-6 ${className}`}
       {...props}
     />
   );
