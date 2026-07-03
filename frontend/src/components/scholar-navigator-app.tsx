@@ -126,11 +126,11 @@ const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
 
 const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   recommended: "arXiv + Semantic Scholar，兼顾稳定性和覆盖",
-  arxiv: "更稳定更快",
-  semantic_scholar: "提升召回，可能限流",
-  pubmed: "生物医学文献，适合临床/医疗查询",
-  openalex: "覆盖更广，外部服务波动较多",
-  all: "覆盖最大，但 OpenAlex 可能不稳定",
+  arxiv: "开放预印本与学术论文库",
+  semantic_scholar: "跨学科论文与引用索引",
+  pubmed: "生物医学文献数据库",
+  openalex: "开放学术实体与文献索引",
+  all: "覆盖最大",
 };
 
 const STAGE_LATENCY_LABELS: Record<string, string> = {
