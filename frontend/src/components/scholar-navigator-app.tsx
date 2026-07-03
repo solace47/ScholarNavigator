@@ -656,11 +656,11 @@ function Header({
               aria-hidden="true"
             >
               <Image
-                src="/assets/scholarnavigator-compass-logo.png"
+                src="/assets/scholarnavigator-compass-logo-black.png"
                 alt=""
                 width={124}
                 height={124}
-                className="h-[124px] w-[124px] object-contain dark:invert"
+                className="h-[124px] w-[124px] object-contain"
               />
             </div>
             <div className="min-w-0">
@@ -1334,7 +1334,7 @@ function CompactRunConfig({ runConfig }: { runConfig: RunConfigSnapshot }) {
       <div className="flex flex-wrap gap-2">
         {chips.map((chip) => (
           <Badge key={chip} className="run-config-chip">
-            {chip}
+            <span>{chip}</span>
           </Badge>
         ))}
       </div>

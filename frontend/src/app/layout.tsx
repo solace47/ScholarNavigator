@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: "ScholarNavigator",
   description: "复杂学术查询的智能论文搜索与推荐系统",
   icons: {
-    icon: [{ url: "/assets/scholarnavigator-compass-logo.png", type: "image/png" }],
-    apple: [{ url: "/assets/scholarnavigator-compass-logo.png", type: "image/png" }],
+    icon: [{ url: "/assets/scholarnavigator-compass-logo-black.png", type: "image/png" }],
+    apple: [{ url: "/assets/scholarnavigator-compass-logo-black.png", type: "image/png" }],
   },
 };
 

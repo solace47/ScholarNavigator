@@ -475,10 +475,11 @@ button:disabled {
 }
 
 .run-config-strip {
+  --run-config-mask: color-mix(in srgb, var(--surface) 92%, var(--surface-soft));
   margin-top: 20px;
   padding: 16px;
   border: 2px solid color-mix(in srgb, var(--foreground) 54%, var(--border-strong));
-  background: color-mix(in srgb, var(--surface) 92%, var(--surface-soft));
+  background: var(--run-config-mask);
   box-shadow: 3px 3px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
@@ -489,11 +490,64 @@ button:disabled {
   stroke-width: 2.4;
 }
 
-.run-config-chip {
-  border: 1px solid color-mix(in srgb, var(--foreground) 56%, var(--border));
+.chip.run-config-chip {
+  position: relative;
+  display: inline-block;
+  min-height: 0;
+  overflow: visible;
+  box-sizing: border-box;
+  border: 2px solid #000;
   border-radius: 0 !important;
-  background: var(--surface);
-  color: var(--foreground);
+  background: transparent;
+  color: #000;
+  padding: 0.48rem 1rem;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: none;
+  user-select: none;
+}
+
+.chip.run-config-chip::before {
+  position: absolute;
+  top: 6px;
+  left: -2px;
+  z-index: 1;
+  width: calc(100% + 4px);
+  height: calc(100% - 12px);
+  content: "";
+  background-color: var(--run-config-mask);
+  transform: scaleY(1);
+  transition: 0.3s ease-in-out;
+}
+
+.chip.run-config-chip::after {
+  position: absolute;
+  top: -2px;
+  left: 6px;
+  z-index: 1;
+  width: calc(100% - 12px);
+  height: calc(100% + 4px);
+  content: "";
+  background-color: var(--run-config-mask);
+  transform: scaleX(1);
+  transition: 0.3s ease-in-out;
+  transition-delay: 0.5s;
+}
+
+.chip.run-config-chip:hover::before {
+  transform: scaleY(0);
+}
+
+.chip.run-config-chip:hover::after {
+  transform: scaleX(0);
+}
+
+.chip.run-config-chip span {
+  position: relative;
+  z-index: 3;
+  color: #000;
+  font-weight: 800;
 }
 
 .run-diagnostics {
