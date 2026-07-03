@@ -394,7 +394,7 @@ export function ScholarNavigatorApp() {
 
         {backendError ? <BackendWarning message={backendError} /> : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.4fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(520px,1.2fr)_minmax(0,0.8fr)]">
           <SearchWorkbench
             query={query}
             topK={topK}
@@ -607,7 +607,7 @@ function SearchWorkbench({
   onSearch: () => void;
 }) {
   return (
-    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit">
+    <SectionPanel aria-labelledby="search-workbench-title" className="search-workbench-panel h-fit">
       <div className="space-y-6">
         <div className="ow-search">
           <label id="search-workbench-title" className="ow-search__label" htmlFor="query">
@@ -839,16 +839,15 @@ function RunProgress({
     Boolean(status && ["queued", "running"].includes(status.status));
 
   return (
-    <SectionPanel aria-labelledby="run-progress-title">
+    <SectionPanel aria-labelledby="run-progress-title" className="run-progress-panel">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--primary)]">任务进度</p>
           <h2 id="run-progress-title" className="text-2xl font-black">
-            真实检索运行状态
+            检索运行状态
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {runId ? `任务编号：${runId}` : "等待创建检索任务"}
-          </p>
+          {runId ? (
+            <p className="mt-1 text-sm text-[var(--muted)]">任务编号：{runId}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canCancelRealSearch ? (
