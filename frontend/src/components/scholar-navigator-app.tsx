@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   BookOpenCheck,
   Brain,
-  CheckCircle2,
   Clock3,
   Database,
   Download,
@@ -82,6 +81,23 @@ const STAGES = [
     icon: Sparkles,
   },
 ];
+
+const STAGE_FRAME_PARTS = [
+  "top-left-h",
+  "top-left-v",
+  "top-mid-left",
+  "top-mid-right",
+  "top-right-h",
+  "top-right-v",
+  "right-mid",
+  "bottom-right-h",
+  "bottom-right-v",
+  "bottom-mid-right",
+  "bottom-mid-left",
+  "bottom-left-h",
+  "bottom-left-v",
+  "left-mid",
+] as const;
 
 const PROFILE_LABELS: Record<RunProfile, string> = {
   fast: "快速",
@@ -191,6 +207,19 @@ export function ScholarNavigatorApp() {
   const [activeRunConfig, setActiveRunConfig] = useState<RunConfigSnapshot | null>(null);
   const eventSourceCleanup = useRef<(() => void) | null>(null);
   const searchSequence = useRef(0);
+
+  function resetRunUiState() {
+    searchSequence.current += 1;
+    eventSourceCleanup.current?.();
+    eventSourceCleanup.current = null;
+    setRunId(null);
+    setStatus(null);
+    setEvents([]);
+    setResult(null);
+    setActiveRunConfig(null);
+    setIsSubmitting(false);
+    setIsCancelling(false);
+  }
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -378,21 +407,18 @@ export function ScholarNavigatorApp() {
       return;
     }
 
+    const cancellingRunId = runId;
     setIsCancelling(true);
     setBackendError(null);
     try {
-      const cancelledStatus = await cancelRealSearchRun(runId);
-      searchSequence.current += 1;
-      eventSourceCleanup.current?.();
-      setStatus(cancelledStatus);
-      setIsSubmitting(false);
+      await cancelRealSearchRun(cancellingRunId);
+      resetRunUiState();
     } catch (error) {
       setBackendError(
         error instanceof Error
           ? error.message
           : "取消真实检索失败，请稍后重试。",
       );
-    } finally {
       setIsCancelling(false);
     }
   }
@@ -409,7 +435,7 @@ export function ScholarNavigatorApp() {
 
         {backendError ? <BackendWarning message={backendError} /> : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(520px,1.2fr)_minmax(0,0.8fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(500px,1.1fr)_minmax(0,0.9fr)]">
           <SearchWorkbench
             query={query}
             topK={topK}
@@ -1145,6 +1171,7 @@ function RunProgress({
   if (status?.status === "succeeded") {
     completedStages.add("synthesis");
   }
+  const statusClass = `run-status-badge--${status?.status ?? (isSubmitting ? "running" : "idle")}`;
   const canCancelRealSearch =
     Boolean(runId) &&
     Boolean(status && ["queued", "running"].includes(status.status));
@@ -1162,6 +1189,7 @@ function RunProgress({
             <Button
               type="button"
               variant="secondary"
+              className="run-cancel-button"
               onClick={onCancelRealSearch}
               disabled={isCancelling}
             >
@@ -1173,40 +1201,41 @@ function RunProgress({
               取消检索
             </Button>
           ) : null}
-          <Badge className={isSubmitting ? "text-[var(--warning)]" : "text-[var(--accent)]"}>
+          <Badge className={`run-status-badge ${statusClass}`}>
             {status ? statusLabel(status.status) : isSubmitting ? "运行中" : "待启动"}
           </Badge>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
-        {STAGES.map((stage) => {
+      <div className="run-stage-grid">
+        {STAGES.map((stage, index) => {
           const Icon = stage.icon;
           const done = completedStages.has(stage.key);
           const active = events.some(
             (event) => event.event === "stage_started" && event.payload.stage === stage.key,
           );
+          const state = done ? "done" : active ? "active" : "pending";
+          const connected = done && index < STAGES.length - 1;
           return (
             <div
               key={stage.key}
-              className={`rounded-md border p-3 transition duration-200 ${
-                done
-                  ? "border-[color-mix(in_srgb,var(--accent)_58%,var(--border))] bg-[var(--accent-soft)]"
-                  : active
-                    ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))]"
-                    : "border-[var(--border)] bg-[var(--surface-raised)]"
+              className={`run-stage-card run-stage-card--${state} ${
+                connected ? "run-stage-card--connected" : ""
               }`}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-                {done ? (
-                  <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
-                ) : null}
+              <span className="run-stage-card__orbit" aria-hidden="true" />
+              <span className="run-stage-card__shine" aria-hidden="true" />
+              {STAGE_FRAME_PARTS.map((part) => (
+                <span
+                  key={part}
+                  className={`run-stage-card__frame run-stage-card__frame--${part}`}
+                  aria-hidden="true"
+                />
+              ))}
+              <div className="run-stage-card__content">
+                <Icon className="run-stage-card__icon" aria-hidden="true" />
+                <p className="run-stage-card__title">{stage.title}</p>
               </div>
-              <p className="text-sm font-semibold">{stage.title}</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {done ? "已完成" : active ? "进行中" : "等待中"}
-              </p>
             </div>
           );
         })}
@@ -1214,17 +1243,16 @@ function RunProgress({
 
       {runConfig ? <CompactRunConfig runConfig={runConfig} /> : null}
 
-      <details className="details-card mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
-        <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+      <details className="details-card run-diagnostics mt-5">
+        <summary className="run-diagnostics__summary">
           运行诊断 / 调试信息
         </summary>
         <div className="mt-4 space-y-5">
           <CostMetrics costReport={costReport} />
-          <RunConfigSummary runConfig={runConfig} />
           <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-            <div className="panel-soft rounded-lg p-4">
+            <div className="run-diagnostic-panel">
               <div className="mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                <Activity className="run-diagnostic-panel__icon" aria-hidden="true" />
                 <h3 className="font-semibold">状态摘要</h3>
               </div>
               {status ? (
@@ -1239,9 +1267,9 @@ function RunProgress({
               )}
             </div>
 
-            <div className="panel-soft rounded-lg p-4">
+            <div className="run-diagnostic-panel">
               <div className="mb-3 flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                <Clock3 className="run-diagnostic-panel__icon" aria-hidden="true" />
                 <h3 className="font-semibold">真实检索事件</h3>
               </div>
               {events.length ? (
@@ -1249,7 +1277,7 @@ function RunProgress({
                   {events.map((event, index) => (
                     <div
                       key={`${event.event}-${index}`}
-                      className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3"
+                      className="run-event-card"
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge>{eventNameLabel(event.event)}</Badge>
@@ -1277,81 +1305,6 @@ function RunProgress({
   );
 }
 
-function RunConfigSummary({ runConfig }: { runConfig: RunConfigSnapshot | null }) {
-  if (!runConfig) {
-    return null;
-  }
-
-  const items = [
-    {
-      label: "数据源",
-      value: runConfig.sourcePreferences.join(" / "),
-    },
-    {
-      label: "运行模式",
-      value: PROFILE_LABELS[runConfig.runProfile],
-    },
-    {
-      label: "返回数量",
-      value: formatNumber(runConfig.topK),
-    },
-    {
-      label: "查询演化",
-      value: formatBoolean(runConfig.enableQueryEvolution),
-    },
-    {
-      label: "RefChain",
-      value: formatBoolean(runConfig.enableRefchain),
-    },
-    {
-      label: "LLM 查询理解",
-      value: formatBoolean(runConfig.enableLlmQueryUnderstanding),
-    },
-    {
-      label: "LLM 相关性判断",
-      value: formatBoolean(runConfig.enableLlmJudgement),
-    },
-  ];
-
-  return (
-    <section
-      aria-labelledby="run-config-summary-title"
-      className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
-    >
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h3 id="run-config-summary-title" className="font-semibold">
-              运行配置
-            </h3>
-          </div>
-          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-            本区域固定展示当前 run 创建时的配置；后续修改左侧表单不会改变该摘要。
-          </p>
-        </div>
-        <Badge>快照</Badge>
-      </div>
-
-      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
-          >
-            <dt className="break-words text-xs font-semibold uppercase text-[var(--muted)]">
-              {item.label}
-            </dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-[var(--foreground)]">
-              {item.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
 function CompactRunConfig({ runConfig }: { runConfig: RunConfigSnapshot }) {
   const chips = [
     `数据源：${runConfig.sourcePreferences.join(" / ")}`,
@@ -1364,14 +1317,16 @@ function CompactRunConfig({ runConfig }: { runConfig: RunConfigSnapshot }) {
   ];
 
   return (
-    <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-glass)] p-4">
+    <div className="run-config-strip">
       <div className="mb-3 flex items-center gap-2">
-        <SlidersHorizontal className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+        <SlidersHorizontal className="run-config-strip__icon" aria-hidden="true" />
         <h3 className="font-semibold">本次运行配置</h3>
       </div>
       <div className="flex flex-wrap gap-2">
         {chips.map((chip) => (
-          <Badge key={chip}>{chip}</Badge>
+          <Badge key={chip} className="run-config-chip">
+            {chip}
+          </Badge>
         ))}
       </div>
     </div>
@@ -1403,14 +1358,14 @@ function CostMetrics({ costReport }: { costReport: CostReport | null }) {
   ];
 
   return (
-    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="run-cost-grid">
       {metrics.map((metric) => {
         const Icon = metric.icon;
         return (
-          <div key={metric.label} className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+          <div key={metric.label} className="run-cost-card">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase text-[var(--muted)]">{metric.label}</span>
-              <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+              <Icon className="run-cost-card__icon" aria-hidden="true" />
             </div>
             <p className="metric-value text-2xl font-bold">{metric.value}</p>
           </div>
