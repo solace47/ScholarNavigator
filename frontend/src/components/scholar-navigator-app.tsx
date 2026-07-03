@@ -52,43 +52,43 @@ import { Badge, Button, FieldLabel, SectionPanel, SkeletonLine, TextInput } from
 
 const EXAMPLES = [
   "请帮我搜索 2020 年以来关于 LLM reranking 在学术论文检索中的代表性论文，重点关注 ACL、EMNLP、SIGIR。",
-  "Find benchmark papers for scientific literature search agents that evaluate recall, precision, F1, and end-to-end latency.",
+  "查找评测科研文献搜索智能体的 benchmark 论文，重点关注召回率、准确率、F1 和端到端延迟。",
   "搜索使用 citation graph 或 reference chain 扩展来提升论文推荐召回率的研究，并说明代表性方法路线。",
 ];
 
 const STAGES = [
   {
     key: "query_understanding",
-    title: "Query Understanding",
+    title: "理解查询",
     icon: Brain,
   },
   {
     key: "retrieval",
-    title: "Retrieval",
+    title: "检索候选",
     icon: Database,
   },
   {
     key: "judgement",
-    title: "Judgement",
+    title: "相关性判断",
     icon: BookOpenCheck,
   },
   {
     key: "reranking",
-    title: "Reranking",
+    title: "重排序",
     icon: GitBranch,
   },
   {
     key: "synthesis",
-    title: "Synthesis",
+    title: "证据归纳",
     icon: Sparkles,
   },
 ];
 
 const PROFILE_LABELS: Record<RunProfile, string> = {
-  fast: "fast",
-  balanced: "balanced",
-  high_recall: "high_recall",
-  evaluation: "evaluation",
+  fast: "快速",
+  balanced: "均衡",
+  high_recall: "高召回",
+  evaluation: "评测",
 };
 
 type SourceMode =
@@ -115,12 +115,12 @@ type RunConfigSnapshot = {
 };
 
 const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
-  recommended: "Recommended",
+  recommended: "推荐",
   arxiv: "arXiv",
   semantic_scholar: "Semantic Scholar",
   pubmed: "PubMed",
   openalex: "OpenAlex",
-  all: "All",
+  all: "全部",
 };
 
 const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
@@ -128,18 +128,18 @@ const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   arxiv: "更稳定更快",
   semantic_scholar: "提升召回，可能限流",
   pubmed: "生物医学文献，适合临床/医疗查询",
-  openalex: "覆盖更广，可能 503",
+  openalex: "覆盖更广，外部服务波动较多",
   all: "覆盖最大，但 OpenAlex 可能不稳定",
 };
 
 const STAGE_LATENCY_LABELS: Record<string, string> = {
-  query_understanding: "Query Understanding",
-  retrieval: "Retrieval",
-  judgement: "Judgement",
-  reranking: "Reranking",
-  query_evolution: "Query Evolution",
+  query_understanding: "查询理解",
+  retrieval: "候选检索",
+  judgement: "相关性判断",
+  reranking: "重排序",
+  query_evolution: "查询演化",
   refchain: "RefChain",
-  synthesis: "Synthesis",
+  synthesis: "证据归纳",
 };
 
 const STAGE_LATENCY_ORDER = [
@@ -193,7 +193,7 @@ export function ScholarNavigatorApp() {
         }
       } catch (error) {
         if (!cancelled) {
-          setBackendError("后端服务不可用，请先启动 FastAPI Real Search API");
+          setBackendError("后端服务不可用，请先启动后端真实检索服务。");
         }
       }
     }
@@ -295,7 +295,7 @@ export function ScholarNavigatorApp() {
         setBackendError(
           error instanceof Error
             ? error.message
-            : "后端服务不可用，请先启动 FastAPI Real Search API",
+            : "后端服务不可用，请先启动后端真实检索服务。",
         );
         setIsSubmitting(false);
       }
@@ -313,7 +313,7 @@ export function ScholarNavigatorApp() {
         setStatus(runStatus);
 
         if (runStatus.status === "failed") {
-          let message = "Real Search failed";
+          let message = "真实检索失败";
           try {
             await getRealSearchRunResult(runId);
           } catch (error) {
@@ -374,7 +374,7 @@ export function ScholarNavigatorApp() {
       setBackendError(
         error instanceof Error
           ? error.message
-          : "取消 Real Search 失败，请稍后重试。",
+          : "取消真实检索失败，请稍后重试。",
       );
     } finally {
       setIsCancelling(false);
@@ -389,8 +389,6 @@ export function ScholarNavigatorApp() {
         <Header
           theme={theme}
           onThemeChange={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-          runtimeConfig={runtimeConfig}
-          backendError={backendError}
         />
 
         {backendError ? <BackendWarning message={backendError} /> : null}
@@ -509,64 +507,36 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function runtimeModeLabel(runtimeConfig: RuntimeConfigResponse | null): string {
-  if (!runtimeConfig) {
-    return "runtime loading";
-  }
-  if (runtimeConfig.features.real_search) {
-    return "Real Search Runtime";
-  }
-  return runtimeConfig.mode;
-}
-
 function Header({
   theme,
   onThemeChange,
-  runtimeConfig,
-  backendError,
 }: {
   theme: ThemeMode;
   onThemeChange: () => void;
-  runtimeConfig: RuntimeConfigResponse | null;
-  backendError: string | null;
 }) {
   return (
-    <header className="panel flex flex-col gap-4 rounded-lg px-5 py-5 md:px-6 lg:flex-row lg:items-center lg:justify-between">
-      <div className="min-w-0">
-        <div className="mb-2 flex flex-wrap items-center gap-3">
-          <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 text-sm font-semibold text-[var(--muted-strong)]">
-            <Network className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
-            Agent Workbench
-          </span>
-          <Badge>{runtimeModeLabel(runtimeConfig)}</Badge>
-          {runtimeConfig?.features.real_search ? <Badge>Real Search</Badge> : null}
-          {runtimeConfig?.features.llm_query_understanding ? (
-            <Badge>LLM Query Understanding</Badge>
-          ) : null}
-          {runtimeConfig?.features.llm_judgement ? <Badge>LLM Judgement</Badge> : null}
-          {runtimeConfig?.llm.available === false ? <Badge>rules QA / no-LLM</Badge> : null}
-          <Badge className={backendError ? "text-[var(--danger)]" : "text-[var(--accent)]"}>
-            {backendError ? "backend offline" : "backend ready"}
-          </Badge>
+    <header className="hero-panel overflow-hidden rounded-lg px-5 py-6 md:px-8 lg:px-10">
+      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-4xl font-black leading-tight md:text-6xl">ScholarNavigator</h1>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--muted-strong)] md:text-xl">
+            面向科研场景下复杂学术查询的智能论文搜索与推荐。
+          </p>
         </div>
-        <h1 className="text-3xl font-bold leading-tight md:text-5xl">ScholarNavigator</h1>
-        <p className="mt-2 max-w-3xl text-base text-[var(--muted)] md:text-lg">
-          复杂学术查询的智能论文搜索与推荐系统
-        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onThemeChange}
+          aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+        >
+          {theme === "dark" ? (
+            <Sun className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Moon className="h-4 w-4" aria-hidden="true" />
+          )}
+          {theme === "dark" ? "浅色" : "深色"}
+        </Button>
       </div>
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={onThemeChange}
-        aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
-      >
-        {theme === "dark" ? (
-          <Sun className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <Moon className="h-4 w-4" aria-hidden="true" />
-        )}
-        {theme === "dark" ? "Light" : "Dark"}
-      </Button>
     </header>
   );
 }
@@ -636,33 +606,107 @@ function SearchWorkbench({
   onSearch: () => void;
 }) {
   return (
-    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit">
-      <div className="mb-5 flex items-center justify-between gap-4">
+    <SectionPanel aria-labelledby="search-workbench-title" className="h-fit rounded-lg">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h2 id="search-workbench-title" className="text-xl font-bold">
-            Search Workbench
+          <p className="mb-2 text-sm font-semibold text-[var(--primary)]">真实检索入口</p>
+          <h2 id="search-workbench-title" className="text-2xl font-black">
+            输入一个复杂学术问题
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">真实检索、预算与 Agent 策略配置</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            默认配置优先稳定和低延迟；需要高召回时再开启查询演化、RefChain 或全部数据源。
+          </p>
         </div>
-        <Search className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] shadow-lg shadow-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
+          <Search className="h-5 w-5" aria-hidden="true" />
+        </span>
       </div>
 
-      <div className="space-y-5">
-        <div>
-          <FieldLabel htmlFor="query">学术查询</FieldLabel>
-          <textarea
-            id="query"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            className="control min-h-44 w-full resize-y rounded-md px-4 py-3 text-base"
-            placeholder="输入中文或英文复杂学术查询"
-          />
-          {formError ? <p className="mt-2 text-sm text-[var(--danger)]">{formError}</p> : null}
+      <div className="space-y-6">
+        <div className="ow-search">
+          <label className="ow-search__label" htmlFor="query">
+            学术检索
+          </label>
+          <div className="ow-search__field">
+            <svg className="ow-search__icon" viewBox="0 0 256 256" aria-hidden="true">
+              <path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" />
+            </svg>
+            <textarea
+              id="query"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !isSubmitting) {
+                  event.preventDefault();
+                  onSearch();
+                }
+              }}
+              className="ow-search__input"
+              placeholder="输入复杂学术查询..."
+            />
+            <kbd className="ow-search__kbd">Enter</kbd>
+          </div>
+          <p className="ow-search__help">
+            按 <span>Enter</span> 创建检索任务；Shift + Enter 可换行。
+          </p>
+          {formError ? <p className="mt-2 px-2 text-sm text-[var(--danger)]">{formError}</p> : null}
+          <div className="mt-3 flex flex-col gap-3 md:flex-row">
+            <Button
+              type="button"
+              variant="primary"
+              className="btn-shine min-h-14 flex-1"
+              onClick={onSearch}
+              disabled={isSubmitting}
+            >
+              <span>{isSubmitting ? "正在检索" : "一键搜索"}</span>
+            </Button>
+            <div className="rounded-md border border-[var(--border)] bg-[var(--surface-glass)] px-4 py-3 text-sm leading-6 text-[var(--muted)] md:max-w-72">
+              推荐源为 arXiv + Semantic Scholar；OpenAlex 覆盖更广但可能不稳定。
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h3 className="font-bold">简洁配置</h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">数据源、返回数量与运行模式</p>
+            </div>
+          </div>
+          <div role="radiogroup" aria-label="选择检索数据源" className="radio-inputs">
+            {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
+              const selected = sourceMode === mode;
+              return (
+                <label
+                  key={mode}
+                  className="radio"
+                >
+                  <input
+                    type="radio"
+                    name="source-mode"
+                    value={mode}
+                    checked={selected}
+                    onChange={() => onSourceModeChange(mode)}
+                  />
+                  <span className="name">
+                    <span>
+                      <span className="block text-sm font-bold text-[var(--foreground)]">
+                        {SOURCE_MODE_LABELS[mode]}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
+                        {SOURCE_MODE_DESCRIPTIONS[mode]}
+                      </span>
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel htmlFor="top-k">top_k</FieldLabel>
+            <FieldLabel htmlFor="top-k">返回数量</FieldLabel>
             <TextInput
               id="top-k"
               type="number"
@@ -670,26 +714,16 @@ function SearchWorkbench({
               max={100}
               value={topK}
               onChange={(event) => onTopKChange(Number(event.target.value))}
+              className="rounded-lg"
             />
           </div>
           <div>
-            <FieldLabel htmlFor="current-year">current_year</FieldLabel>
-            <TextInput
-              id="current-year"
-              type="number"
-              min={1900}
-              max={2100}
-              value={currentYear}
-              onChange={(event) => onCurrentYearChange(Number(event.target.value))}
-            />
-          </div>
-          <div>
-            <FieldLabel htmlFor="run-profile">run_profile</FieldLabel>
+            <FieldLabel htmlFor="run-profile">运行模式</FieldLabel>
             <select
               id="run-profile"
               value={runProfile}
               onChange={(event) => onRunProfileChange(event.target.value as RunProfile)}
-              className="control w-full rounded-md px-3 py-2 text-sm"
+              className="control w-full rounded-lg px-4 py-2 text-sm"
             >
               {(Object.keys(PROFILE_LABELS) as RunProfile[]).map((profile) => (
                 <option key={profile} value={profile}>
@@ -700,77 +734,51 @@ function SearchWorkbench({
           </div>
         </div>
 
-        <div>
-          <div className="mb-2 flex items-end justify-between gap-3">
-            <p className="text-sm font-semibold text-[var(--muted-strong)]">source_preferences</p>
-            <p className="text-xs text-[var(--muted)]">
-              arXiv 更稳定更快；Semantic Scholar 提升召回；OpenAlex 可能 503
-            </p>
+        <details className="details-card rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+          <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+            高级选项
+          </summary>
+          <div className="mt-4 space-y-4">
+            <div>
+              <FieldLabel htmlFor="current-year">当前年份</FieldLabel>
+              <TextInput
+                id="current-year"
+                type="number"
+                min={1900}
+                max={2100}
+                value={currentYear}
+                onChange={(event) => onCurrentYearChange(Number(event.target.value))}
+                className="rounded-lg"
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ToggleControl
+                label="RefChain 引用扩展"
+                description="沿高相关论文做单层引用扩展"
+                checked={enableRefchain}
+                onChange={onRefchainChange}
+              />
+              <ToggleControl
+                label="查询演化"
+                description="基于初始结果生成补充检索式"
+                checked={enableQueryEvolution}
+                onChange={onQueryEvolutionChange}
+              />
+              <ToggleControl
+                label="LLM 查询理解"
+                description="增强查询解析，但会增加延迟"
+                checked={enableLlmQueryUnderstanding}
+                onChange={onLlmQueryUnderstandingChange}
+              />
+              <ToggleControl
+                label="LLM 相关性判断"
+                description="判断更强，但成本和延迟更高"
+                checked={enableLlmJudgement}
+                onChange={onLlmJudgementChange}
+              />
+            </div>
           </div>
-          <div
-            role="radiogroup"
-            aria-label="Real Search source preference"
-            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6"
-          >
-            {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
-              const selected = sourceMode === mode;
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => onSourceModeChange(mode)}
-                  className={`min-h-16 rounded-md border px-3 py-2 text-left transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${
-                    selected
-                      ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_14%,var(--surface))]"
-                      : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--primary)]"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold text-[var(--foreground)]">
-                    {SOURCE_MODE_LABELS[mode]}
-                  </span>
-                  <span className="mt-1 block text-xs text-[var(--muted)]">
-                    {SOURCE_MODE_DESCRIPTIONS[mode]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-          默认配置优先稳定和覆盖平衡：Recommended sources、fast、top_k=5、关闭 Query Evolution / RefChain、
-          关闭 LLM Query Understanding / LLM Judgement。需要高召回时，可手动开启 Query Evolution、
-          RefChain 或 All sources。
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ToggleControl
-            label="enable_refchain"
-            description="单层引用扩展"
-            checked={enableRefchain}
-            onChange={onRefchainChange}
-          />
-          <ToggleControl
-            label="enable_query_evolution"
-            description="查询演化"
-            checked={enableQueryEvolution}
-            onChange={onQueryEvolutionChange}
-          />
-          <ToggleControl
-            label="enable_llm_query_understanding"
-            description="增强查询解析，但会增加延迟"
-            checked={enableLlmQueryUnderstanding}
-            onChange={onLlmQueryUnderstandingChange}
-          />
-          <ToggleControl
-            label="enable_llm_judgement"
-            description="相关性判断更强，但会增加延迟"
-            checked={enableLlmJudgement}
-            onChange={onLlmJudgementChange}
-          />
-        </div>
+        </details>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-[var(--muted-strong)]">示例查询</p>
@@ -780,23 +788,14 @@ function SearchWorkbench({
                 key={example}
                 type="button"
                 onClick={() => onQueryChange(example)}
-                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-left text-sm text-[var(--muted-strong)] transition duration-200 hover:border-[var(--primary)] hover:text-[var(--foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+                className="min-h-12 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left text-sm leading-6 text-[var(--muted-strong)] transition duration-200 hover:border-[var(--primary)] hover:text-[var(--foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
               >
-                <span className="mr-2 font-semibold text-[var(--primary)]">0{index + 1}</span>
+                <span className="mr-2 font-bold text-[var(--primary)]">0{index + 1}</span>
                 {example}
               </button>
             ))}
           </div>
         </div>
-
-        <Button type="button" variant="primary" className="w-full" onClick={onSearch} disabled={isSubmitting}>
-          {isSubmitting ? (
-            <RefreshCw className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" />
-          ) : (
-            <Search className="h-4 w-4" aria-hidden="true" />
-          )}
-          {isSubmitting ? "Real Search running" : "启动 Real Search"}
-        </Button>
       </div>
     </SectionPanel>
   );
@@ -814,30 +813,22 @@ function ToggleControl({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={checked}
-      onClick={() => onChange(!checked)}
-      className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-left transition duration-200 hover:border-[var(--primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-    >
+    <label className="toggle-card flex min-h-20 cursor-pointer items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-left transition duration-200 hover:border-[var(--primary)]">
       <span>
         <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
         <span className="mt-1 block text-xs text-[var(--muted)]">{description}</span>
       </span>
-      <span
-        className={`relative h-6 w-11 shrink-0 rounded-full border transition duration-200 ${
-          checked
-            ? "border-[var(--accent)] bg-[var(--accent)]"
-            : "border-[var(--border-strong)] bg-[var(--surface-soft)]"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition duration-200 ${
-            checked ? "left-5" : "left-0.5"
-          }`}
+      <span className="switch">
+        <input
+          className="toggle"
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
         />
+        <span className="slider" />
+        <span className="card-side" />
       </span>
-    </button>
+    </label>
   );
 }
 
@@ -874,14 +865,15 @@ function RunProgress({
     Boolean(status && ["queued", "running"].includes(status.status));
 
   return (
-    <SectionPanel aria-labelledby="run-progress-title">
+    <SectionPanel aria-labelledby="run-progress-title" className="rounded-lg">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 id="run-progress-title" className="text-xl font-bold">
-            Run Progress
+          <p className="mb-2 text-sm font-semibold text-[var(--primary)]">任务进度</p>
+          <h2 id="run-progress-title" className="text-2xl font-black">
+            真实检索运行状态
           </h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {runId ? `run_id: ${runId}` : "等待创建检索任务"}
+            {runId ? `任务编号：${runId}` : "等待创建检索任务"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -897,11 +889,11 @@ function RunProgress({
               ) : (
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               )}
-              取消 Real Search
+              取消检索
             </Button>
           ) : null}
           <Badge className={isSubmitting ? "text-[var(--warning)]" : "text-[var(--accent)]"}>
-            {isSubmitting ? status?.status ?? "running" : status?.status ?? "idle"}
+            {status ? statusLabel(status.status) : isSubmitting ? "运行中" : "待启动"}
           </Badge>
         </div>
       </div>
@@ -931,64 +923,75 @@ function RunProgress({
                 ) : null}
               </div>
               <p className="text-sm font-semibold">{stage.title}</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{stage.key}</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {done ? "已完成" : active ? "进行中" : "等待中"}
+              </p>
             </div>
           );
         })}
       </div>
 
-      <CostMetrics costReport={costReport} />
+      {runConfig ? <CompactRunConfig runConfig={runConfig} /> : null}
 
-      <RunConfigSummary runConfig={runConfig} />
-
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-        <div className="panel-soft rounded-lg p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h3 className="font-semibold">状态摘要</h3>
-          </div>
-          {status ? (
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <MetricRow label="current_stage" value={status.current_stage} />
-              <MetricRow label="candidate_paper_count" value={status.progress.candidate_paper_count} />
-              <MetricRow label="judged_paper_count" value={status.progress.judged_paper_count} />
-              <MetricRow label="completed_stages" value={status.progress.completed_stages.length} />
-            </dl>
-          ) : (
-            <EmptyBlock lines={3} />
-          )}
-        </div>
-
-        <div className="panel-soft rounded-lg p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h3 className="font-semibold">Real Search Events</h3>
-          </div>
-          {events.length ? (
-            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-              {events.map((event, index) => (
-                <div
-                  key={`${event.event}-${index}`}
-                  className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{event.event}</Badge>
-                    {typeof event.payload.stage === "string" ? <Badge>{event.payload.stage}</Badge> : null}
-                    {typeof event.payload.connector === "string" ? (
-                      <Badge>{event.payload.connector}</Badge>
-                    ) : null}
-                  </div>
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-[var(--muted)]">
-                    {JSON.stringify(event.payload, null, 2)}
-                  </pre>
-                </div>
-              ))}
+      <details className="details-card mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+        <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+          运行诊断 / 调试信息
+        </summary>
+        <div className="mt-4 space-y-5">
+          <CostMetrics costReport={costReport} />
+          <RunConfigSummary runConfig={runConfig} />
+          <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+            <div className="panel-soft rounded-lg p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Activity className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                <h3 className="font-semibold">状态摘要</h3>
+              </div>
+              {status ? (
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  <MetricRow label="当前阶段" value={status.current_stage} />
+                  <MetricRow label="候选数" value={status.progress.candidate_paper_count} />
+                  <MetricRow label="已判断论文" value={status.progress.judged_paper_count} />
+                  <MetricRow label="完成阶段数" value={status.progress.completed_stages.length} />
+                </dl>
+              ) : (
+                <EmptyBlock lines={3} />
+              )}
             </div>
-          ) : (
-            <EmptyBlock lines={4} />
-          )}
+
+            <div className="panel-soft rounded-lg p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Clock3 className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+                <h3 className="font-semibold">真实检索事件</h3>
+              </div>
+              {events.length ? (
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {events.map((event, index) => (
+                    <div
+                      key={`${event.event}-${index}`}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge>{eventNameLabel(event.event)}</Badge>
+                        {typeof event.payload.stage === "string" ? (
+                          <Badge>{String(event.payload.stage)}</Badge>
+                        ) : null}
+                        {typeof event.payload.connector === "string" ? (
+                          <Badge>{String(event.payload.connector)}</Badge>
+                        ) : null}
+                      </div>
+                      <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-[var(--muted)]">
+                        {JSON.stringify(event.payload, null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyBlock lines={4} />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
     </SectionPanel>
   );
 }
@@ -1000,31 +1003,31 @@ function RunConfigSummary({ runConfig }: { runConfig: RunConfigSnapshot | null }
 
   const items = [
     {
-      label: "source_preferences",
+      label: "数据源",
       value: runConfig.sourcePreferences.join(" / "),
     },
     {
-      label: "run_profile",
-      value: runConfig.runProfile,
+      label: "运行模式",
+      value: PROFILE_LABELS[runConfig.runProfile],
     },
     {
-      label: "top_k",
+      label: "返回数量",
       value: formatNumber(runConfig.topK),
     },
     {
-      label: "enable_query_evolution",
+      label: "查询演化",
       value: formatBoolean(runConfig.enableQueryEvolution),
     },
     {
-      label: "enable_refchain",
+      label: "RefChain",
       value: formatBoolean(runConfig.enableRefchain),
     },
     {
-      label: "enable_llm_query_understanding",
+      label: "LLM 查询理解",
       value: formatBoolean(runConfig.enableLlmQueryUnderstanding),
     },
     {
-      label: "enable_llm_judgement",
+      label: "LLM 相关性判断",
       value: formatBoolean(runConfig.enableLlmJudgement),
     },
   ];
@@ -1039,14 +1042,14 @@ function RunConfigSummary({ runConfig }: { runConfig: RunConfigSnapshot | null }
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
             <h3 id="run-config-summary-title" className="font-semibold">
-              Run Configuration
+              运行配置
             </h3>
           </div>
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             本区域固定展示当前 run 创建时的配置；后续修改左侧表单不会改变该摘要。
           </p>
         </div>
-        <Badge>snapshot</Badge>
+        <Badge>快照</Badge>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1068,25 +1071,51 @@ function RunConfigSummary({ runConfig }: { runConfig: RunConfigSnapshot | null }
   );
 }
 
+function CompactRunConfig({ runConfig }: { runConfig: RunConfigSnapshot }) {
+  const chips = [
+    `数据源：${runConfig.sourcePreferences.join(" / ")}`,
+    `模式：${PROFILE_LABELS[runConfig.runProfile]}`,
+    `top_k：${formatNumber(runConfig.topK)}`,
+    `查询演化：${formatBoolean(runConfig.enableQueryEvolution)}`,
+    `RefChain：${formatBoolean(runConfig.enableRefchain)}`,
+    `LLM 查询理解：${formatBoolean(runConfig.enableLlmQueryUnderstanding)}`,
+    `LLM 判断：${formatBoolean(runConfig.enableLlmJudgement)}`,
+  ];
+
+  return (
+    <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--surface-glass)] p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <SlidersHorizontal className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+        <h3 className="font-semibold">本次运行配置</h3>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <Badge key={chip}>{chip}</Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CostMetrics({ costReport }: { costReport: CostReport | null }) {
   const metrics = [
     {
-      label: "API calls",
+      label: "API 调用",
       value: costReport ? formatNumber(costReport.api_call_count) : "--",
       icon: Server,
     },
     {
-      label: "Tokens",
+      label: "估算 Token",
       value: costReport ? formatNumber(costReport.estimated_total_tokens) : "--",
       icon: Zap,
     },
     {
-      label: "Latency",
+      label: "延迟",
       value: costReport ? formatSeconds(costReport.latency_seconds) : "--",
       icon: Timer,
     },
     {
-      label: "Cache hits",
+      label: "缓存命中",
       value: costReport ? formatNumber(costReport.cache_hit_count) : "--",
       icon: Database,
     },
@@ -1124,19 +1153,22 @@ function ResultsPanel({
     Boolean(result) && visiblePaperCount === 0 && Boolean(result?.missing_evidence.length);
 
   return (
-    <SectionPanel aria-labelledby="results-title">
+    <SectionPanel aria-labelledby="results-title" className="rounded-lg">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 id="results-title" className="text-xl font-bold">
-            Results
+          <p className="mb-2 text-sm font-semibold text-[var(--primary)]">检索结果</p>
+          <h2 id="results-title" className="text-2xl font-black">
+            论文与证据
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">结构化论文列表、方法聚类、时间线与证据缺口</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            优先展示可读论文卡片；运行耗时、成本、检索源错误和原始 warning 已收进诊断折叠区。
+          </p>
         </div>
         {result ? (
           <div className="flex flex-col gap-3 md:items-end">
             <div className="flex flex-wrap gap-2 md:justify-end">
-              <Badge>{result.highly_relevant_papers.length} highly relevant</Badge>
-              <Badge>{result.partially_relevant_papers.length} partially relevant</Badge>
+              <Badge>{result.highly_relevant_papers.length} 篇高度相关</Badge>
+              <Badge>{result.partially_relevant_papers.length} 篇部分相关</Badge>
               <Badge>{result.search_plan.source_preferences.join(" / ")}</Badge>
             </div>
             <ResultExportActions result={result} />
@@ -1149,12 +1181,6 @@ function ResultsPanel({
       {result ? (
         <div className="space-y-6">
           {hasDiagnosticsWithoutCandidates ? <SourceDiagnosticNotice result={result} /> : null}
-
-          <StageLatencyPanel result={result} />
-
-          <CostEfficiencyPanel result={result} />
-
-          <RetrievalDiagnosticsPanel result={result} />
 
           {result.synthesis ? <SynthesisPanel synthesis={result.synthesis} /> : null}
 
@@ -1177,8 +1203,19 @@ function ResultsPanel({
           <div className="grid gap-4 lg:grid-cols-3">
             <MethodClusters result={result} />
             <Timeline result={result} />
-            <MissingEvidence result={result} />
           </div>
+
+          <details className="details-card rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+            <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+              技术诊断 / 调试信息
+            </summary>
+            <div className="mt-4 space-y-5">
+              <StageLatencyPanel result={result} />
+              <CostEfficiencyPanel result={result} />
+              <RetrievalDiagnosticsPanel result={result} />
+              <MissingEvidence result={result} />
+            </div>
+          </details>
         </div>
       ) : null}
     </SectionPanel>
@@ -1193,19 +1230,19 @@ function ResultExportActions({ result }: { result: SearchRunResultResponse }) {
           type="button"
           variant="secondary"
           onClick={() => exportSearchResultAsJson(result)}
-          aria-label="Export current result as JSON"
+          aria-label="导出当前结果为 JSON"
         >
           <Download className="h-4 w-4" aria-hidden="true" />
-          Export JSON
+          导出 JSON
         </Button>
         <Button
           type="button"
           variant="secondary"
           onClick={() => exportSearchResultAsMarkdown(result)}
-          aria-label="Export current result as Markdown"
+          aria-label="导出当前结果为 Markdown"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
-          Export Markdown
+          导出 Markdown
         </Button>
       </div>
       <p className="mt-2 max-w-sm text-xs leading-5 text-[var(--muted)]">
@@ -1216,6 +1253,7 @@ function ResultExportActions({ result }: { result: SearchRunResultResponse }) {
 }
 
 function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse }) {
+  const sourceCount = result.retrieval_diagnostics?.source_stats?.length ?? 0;
   return (
     <div
       role="status"
@@ -1226,17 +1264,11 @@ function SourceDiagnosticNotice({ result }: { result: SearchRunResultResponse })
         <div className="min-w-0">
           <h3 className="font-semibold text-[var(--foreground)]">检索源失败/无候选</h3>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            返回结构有效，但当前没有可展示论文。以下诊断来自 missing_evidence。
+            返回结构有效，但当前没有可展示论文。原始错误、限流、超时和检索源诊断已放入下方“技术诊断 / 调试信息”折叠区。
           </p>
-          <div className="mt-3 grid gap-2">
-            {result.missing_evidence.slice(0, 6).map((item) => (
-              <div
-                key={item}
-                className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted-strong)]"
-              >
-                {item}
-              </div>
-            ))}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge>{formatNumber(sourceCount)} 个检索源记录</Badge>
+            <Badge>{formatNumber(result.missing_evidence.length)} 条诊断</Badge>
           </div>
         </div>
       </div>
@@ -1262,16 +1294,15 @@ function StageLatencyPanel({ result }: { result: SearchRunResultResponse }) {
         <div>
           <div className="mb-2 flex items-center gap-2">
             <Timer className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
-            <h3 id="stage-latency-title" className="text-lg font-bold">
-              Stage Latency
+              <h3 id="stage-latency-title" className="text-lg font-bold">
+              阶段耗时
             </h3>
           </div>
           <p className="text-sm leading-6 text-[var(--muted)]">
-            来自后端 `missing_evidence` 的 stage_latency diagnostics，用于定位 Real Search
-            pipeline 中耗时较高的阶段。
+            用于定位真实检索 pipeline 中耗时较高的阶段。
           </p>
         </div>
-        <Badge>{formatDetailedSeconds(totalSeconds)} total</Badge>
+        <Badge>总计 {formatDetailedSeconds(totalSeconds)}</Badge>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1316,52 +1347,52 @@ function CostEfficiencyPanel({ result }: { result: SearchRunResultResponse }) {
   const costReport = result.cost_report;
   const metrics = [
     {
-      label: "total_api_calls",
+      label: "总 API 调用",
       value: formatNumber(costValue(costReport, "api_call_count")),
       icon: Server,
     },
     {
-      label: "search_api_calls",
+      label: "检索 API 调用",
       value: formatNumber(costValue(costReport, "search_api_call_count")),
       icon: Search,
     },
     {
-      label: "cache_hits",
+      label: "缓存命中",
       value: formatNumber(costValue(costReport, "cache_hit_count")),
       icon: Database,
     },
     {
-      label: "llm_call_count",
+      label: "LLM 调用",
       value: formatNumber(costValue(costReport, "llm_call_count")),
       icon: Brain,
     },
     {
-      label: "llm_prompt_tokens",
+      label: "LLM 输入 Token",
       value: formatNumber(costValue(costReport, "llm_prompt_tokens")),
       icon: Zap,
     },
     {
-      label: "llm_completion_tokens",
+      label: "LLM 输出 Token",
       value: formatNumber(costValue(costReport, "llm_completion_tokens")),
       icon: Zap,
     },
     {
-      label: "llm_total_tokens",
+      label: "LLM 总 Token",
       value: formatNumber(costValue(costReport, "llm_total_tokens")),
       icon: Zap,
     },
     {
-      label: "estimated_input_tokens",
+      label: "估算输入 Token",
       value: formatNumber(costValue(costReport, "estimated_input_tokens")),
       icon: Timer,
     },
     {
-      label: "estimated_output_tokens",
+      label: "估算输出 Token",
       value: formatNumber(costValue(costReport, "estimated_output_tokens")),
       icon: Timer,
     },
     {
-      label: "estimated_total_tokens",
+      label: "估算总 Token",
       value: formatNumber(costValue(costReport, "estimated_total_tokens")),
       icon: Timer,
     },
@@ -1377,15 +1408,14 @@ function CostEfficiencyPanel({ result }: { result: SearchRunResultResponse }) {
           <div className="mb-2 flex items-center gap-2">
             <Zap className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
             <h3 id="cost-efficiency-title" className="text-lg font-bold">
-              Cost / Efficiency
+              成本与效率
             </h3>
           </div>
           <p className="text-sm leading-6 text-[var(--muted)]">
-            来自后端 cost_report 的 API、缓存和 LLM token 统计。默认 no-LLM 配置下
-            LLM calls 与 token 会显示为 0；本面板只展示聚合计数，不包含任何 API key。
+            展示 API 调用、缓存命中与 LLM token 统计；不包含任何 API key。
           </p>
         </div>
-        <Badge>{formatDetailedSeconds(costValue(costReport, "latency_seconds"))} latency</Badge>
+        <Badge>延迟 {formatDetailedSeconds(costValue(costReport, "latency_seconds"))}</Badge>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -1432,18 +1462,17 @@ function RetrievalDiagnosticsPanel({ result }: { result: SearchRunResultResponse
           <div className="mb-2 flex items-center gap-2">
             <Database className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
             <h3 id="retrieval-diagnostics-title" className="text-lg font-bold">
-              Retrieval Diagnostics
+              检索诊断
             </h3>
           </div>
           <p className="text-sm leading-6 text-[var(--muted)]">
-            候选规模与检索源状态来自后端 SearchService 输出，用于观察跨源召回、
-            去重和缓存命中情况。
+            候选规模与检索源状态来自后端输出，用于观察跨源召回、去重和缓存命中情况。
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:min-w-64">
-          <DiagnosticMetric label="raw" value={formatNumber(diagnostics?.raw_count ?? 0)} />
+          <DiagnosticMetric label="原始候选" value={formatNumber(diagnostics?.raw_count ?? 0)} />
           <DiagnosticMetric
-            label="deduped"
+            label="去重后"
             value={formatNumber(diagnostics?.deduplicated_count ?? 0)}
           />
         </div>
@@ -1464,8 +1493,8 @@ function RetrievalDiagnosticsPanel({ result }: { result: SearchRunResultResponse
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Badge>{formatNumber(stat.returned_count)} returned</Badge>
-                  <Badge>{stat.cache_hit ? "cache hit" : "cache miss"}</Badge>
+                  <Badge>{formatNumber(stat.returned_count)} 条返回</Badge>
+                  <Badge>{stat.cache_hit ? "缓存命中" : "未命中缓存"}</Badge>
                 </div>
               </div>
               {stat.error_message ? (
@@ -1473,14 +1502,14 @@ function RetrievalDiagnosticsPanel({ result }: { result: SearchRunResultResponse
                   {stat.error_message}
                 </div>
               ) : (
-                <p className="mt-3 text-sm text-[var(--muted)]">No connector error.</p>
+                <p className="mt-3 text-sm text-[var(--muted)]">无连接器错误。</p>
               )}
             </div>
           ))}
         </div>
       ) : (
         <p className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
-          No source stats returned.
+          后端未返回检索源统计。
         </p>
       )}
     </section>
@@ -1506,23 +1535,23 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
   const limitationItems = [...synthesis.limitations, ...synthesis.warnings];
   const coverageMetrics = [
     {
-      label: "Ranked",
+      label: "排序论文",
       value: formatNumber(coverage.ranked_paper_count),
     },
     {
-      label: "Cited",
+      label: "引用论文",
       value: formatNumber(coverage.cited_paper_count),
     },
     {
-      label: "Evidence",
+      label: "证据行",
       value: formatNumber(coverage.evidence_row_count),
     },
     {
-      label: "Coverage",
+      label: "覆盖率",
       value: formatScore(coverage.coverage_ratio),
     },
     {
-      label: "Source errors",
+      label: "源错误",
       value: formatNumber(coverage.source_error_count),
     },
   ];
@@ -1537,7 +1566,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Sparkles className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
             <h3 id="synthesis-title" className="text-lg font-bold">
-              Citation-backed Synthesis
+              引文支撑归纳
             </h3>
             <Badge>{synthesis.status}</Badge>
           </div>
@@ -1545,7 +1574,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
             {synthesis.answer_summary}
           </p>
           <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
-            规则版 metadata/evidence-row synthesis；当前 MVP 不代表系统已读取全文 PDF。
+            规则版元数据与证据行归纳；当前 MVP 不代表系统已读取全文 PDF。
           </p>
         </div>
       </div>
@@ -1570,7 +1599,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <BookOpenCheck className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-            <h4 className="font-semibold">Key Findings</h4>
+            <h4 className="font-semibold">关键发现</h4>
           </div>
           {synthesis.key_findings.length ? (
             <div className="space-y-3">
@@ -1597,7 +1626,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-3 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-[var(--warning)]" aria-hidden="true" />
-            <h4 className="font-semibold">Limitations / Warnings</h4>
+            <h4 className="font-semibold">限制与提示</h4>
           </div>
           {limitationItems.length ? (
             <div className="space-y-2">
@@ -1611,7 +1640,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-[var(--muted)]">当前 synthesis 未返回额外限制。</p>
+            <p className="text-sm text-[var(--muted)]">当前归纳未返回额外限制。</p>
           )}
         </div>
       </div>
@@ -1619,10 +1648,10 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
       <div className="mt-5 rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h4 className="font-semibold">Evidence Table</h4>
+            <h4 className="font-semibold">证据表</h4>
             <p className="text-sm text-[var(--muted)]">展示前 {evidenceRows.length} 条证据行。</p>
           </div>
-          <Badge>{formatNumber(synthesis.evidence_table.length)} rows</Badge>
+          <Badge>{formatNumber(synthesis.evidence_table.length)} 行</Badge>
         </div>
         {evidenceRows.length ? (
           <div className="grid gap-3">
@@ -1633,7 +1662,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
               >
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge>{row.citation_key}</Badge>
-                  <Badge>rank {row.rank}</Badge>
+                  <Badge>第 {row.rank} 名</Badge>
                   {row.year ? <Badge>{row.year}</Badge> : null}
                   <Badge>{row.evidence_source}</Badge>
                 </div>
@@ -1647,7 +1676,7 @@ function SynthesisPanel({ synthesis }: { synthesis: SynthesisOutput }) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-[var(--muted)]">暂无 evidence row。</p>
+        <p className="text-sm text-[var(--muted)]">暂无证据行。</p>
         )}
       </div>
     </section>
@@ -1672,10 +1701,10 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Network className="h-5 w-5 text-[var(--primary)]" aria-hidden="true" />
             <h3 id="citation-graph-title" className="text-lg font-bold">
-              Citation Graph
+              引用图谱
             </h3>
-            <Badge>{formatNumber(nodes.length)} nodes</Badge>
-            <Badge>{formatNumber(edges.length)} edges</Badge>
+            <Badge>{formatNumber(nodes.length)} 个节点</Badge>
+            <Badge>{formatNumber(edges.length)} 条边</Badge>
           </div>
           <p className="max-w-4xl text-sm leading-6 text-[var(--muted)]">
             当前图谱只展示后端返回的 citation_graph / RefChain metadata；前端不推断未返回的引用关系。
@@ -1686,7 +1715,7 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h4 className="font-semibold">Nodes</h4>
+            <h4 className="font-semibold">节点</h4>
             <Badge>{formatNumber(nodes.length)}</Badge>
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
@@ -1696,8 +1725,8 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
                 className="rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3"
               >
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  {node.rank ? <Badge>rank {node.rank}</Badge> : <Badge>unranked</Badge>}
-                  <Badge>node</Badge>
+                  {node.rank ? <Badge>第 {node.rank} 名</Badge> : <Badge>未排序</Badge>}
+                  <Badge>节点</Badge>
                 </div>
                 <p className="break-words text-sm font-semibold leading-5 text-[var(--foreground)]">
                   {node.label}
@@ -1712,7 +1741,7 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
 
         <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h4 className="font-semibold">Edges</h4>
+            <h4 className="font-semibold">关系边</h4>
             <Badge>{formatNumber(edges.length)}</Badge>
           </div>
           {edges.length ? (
@@ -1724,11 +1753,11 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
                 >
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <Badge>{edge.relation}</Badge>
-                    <Badge>edge {index + 1}</Badge>
+                    <Badge>第 {index + 1} 条边</Badge>
                   </div>
                   <div className="grid gap-2 text-xs">
-                    <GraphEndpoint label="source" value={edge.source} />
-                    <GraphEndpoint label="target" value={edge.target} />
+                    <GraphEndpoint label="来源节点" value={edge.source} />
+                    <GraphEndpoint label="目标节点" value={edge.target} />
                   </div>
                 </div>
               ))}
@@ -1739,7 +1768,7 @@ function CitationGraphPanel({ result }: { result: SearchRunResultResponse }) {
                 当前无引用边/关系边
               </p>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                后端返回了 graph nodes，但未返回 citation_graph.edges。Real Search 在未启用
+                后端返回了图谱节点，但未返回引用关系边。真实检索在未启用
                 RefChain 或没有可用引用元数据时可能出现这种状态。
               </p>
             </div>
@@ -1810,7 +1839,7 @@ function QuerySummary({ result }: { result: SearchRunResultResponse }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
       <div className="panel-soft rounded-lg p-4">
-        <h3 className="mb-3 font-semibold">Query Analysis</h3>
+        <h3 className="mb-3 font-semibold">查询理解</h3>
         <div className="flex flex-wrap gap-2">
           <Badge>{result.query_analysis.intent_type}</Badge>
           <Badge>{result.query_analysis.domain}</Badge>
@@ -1820,7 +1849,7 @@ function QuerySummary({ result }: { result: SearchRunResultResponse }) {
         </div>
       </div>
       <div className="panel-soft rounded-lg p-4">
-        <h3 className="mb-3 font-semibold">Search Plan</h3>
+        <h3 className="mb-3 font-semibold">扩展检索式</h3>
         <div className="space-y-2">
           {result.search_plan.expanded_queries.map((expandedQuery, index) => (
             <div key={`${expandedQuery}-${index}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
@@ -1862,36 +1891,45 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
   const identifiers = identifierEntries(paper.paper.identifiers);
 
   return (
-    <article className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-sm transition duration-200 hover:border-[var(--primary)]">
+    <article className="card paper-card result-paper-card">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge>rank {paper.rank}</Badge>
-            <Badge>{paper.paper.year}</Badge>
+            <Badge>第 {paper.rank} 名</Badge>
+            <Badge>{paper.paper.year || "年份未知"}</Badge>
             {paper.paper.venue ? <Badge>{paper.paper.venue}</Badge> : null}
-            <Badge>{formatScore(paper.relevance_score)}</Badge>
-            <Badge>{paper.category}</Badge>
+            <Badge>相关性 {formatScore(paper.relevance_score)}</Badge>
+            <Badge>{categoryLabel(paper.category)}</Badge>
           </div>
-          <h4 className="text-lg font-bold leading-snug">{paper.paper.title}</h4>
-          <p className="mt-2 text-sm text-[var(--muted)]">{paper.paper.authors.join(", ")}</p>
+          <h4 className="card__title">{paper.paper.title}</h4>
+          <p className="card__content mt-2">
+            {paper.paper.authors.length ? paper.paper.authors.join(", ") : "作者信息暂缺"}
+          </p>
         </div>
       </div>
 
-      <p className="text-sm leading-6 text-[var(--muted-strong)]">{paper.paper.abstract}</p>
+      <details className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+        <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+          摘要
+        </summary>
+        <p className="mt-3 text-sm leading-6 text-[var(--muted-strong)]">
+          {paper.paper.abstract || "当前结果未返回摘要。"}
+        </p>
+      </details>
 
-      <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
-        <p className="text-sm font-semibold">Ranking reason</p>
+      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+        <p className="text-sm font-semibold">相关性说明</p>
         <p className="mt-1 text-sm text-[var(--muted)]">{paper.ranking_reason}</p>
       </div>
 
       {paper.evidence.length ? (
         <div className="mt-4 space-y-2">
-          <p className="text-sm font-semibold">Evidence</p>
+          <p className="text-sm font-semibold">证据</p>
           {paper.evidence.map((item) => (
-            <div key={`${item.source}-${item.text}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+            <div key={`${item.source}-${item.text}`} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <Badge>{item.source}</Badge>
-                <Badge>{formatScore(item.confidence)}</Badge>
+                <Badge>置信度 {formatScore(item.confidence)}</Badge>
               </div>
               <p className="text-[var(--muted)]">{item.text}</p>
             </div>
@@ -1901,14 +1939,14 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {paper.paper.sources.map((source) => (
-          <Badge key={source}>{source}</Badge>
+          <Badge key={source}>来源：{source}</Badge>
         ))}
       </div>
 
       {identifiers.length ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {identifiers.map(([label, value]) => (
-            <div key={`${label}-${value}`} className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
+            <div key={`${label}-${value}`} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs">
               <span className="block font-semibold text-[var(--muted)]">{label}</span>
               <span className="mt-1 block break-words text-[var(--foreground)]">{value}</span>
             </div>
@@ -1922,10 +1960,10 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
             href={paper.paper.urls.landing_page}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border)] px-4 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
           >
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            Landing page
+            打开论文页
           </a>
         ) : null}
         {paper.paper.urls.pdf ? (
@@ -1933,7 +1971,7 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
             href={paper.paper.urls.pdf}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] px-3 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--border)] px-4 text-sm font-semibold text-[var(--primary)] transition duration-200 hover:border-[var(--primary)]"
           >
             <FileText className="h-4 w-4" aria-hidden="true" />
             PDF
@@ -1947,7 +1985,7 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
 function MethodClusters({ result }: { result: SearchRunResultResponse }) {
   return (
     <div className="panel-soft rounded-lg p-4">
-      <h3 className="mb-3 font-semibold">Method Clusters</h3>
+      <h3 className="mb-3 font-semibold">方法聚类</h3>
       <div className="space-y-3">
         {result.method_clusters.map((cluster) => (
           <div key={cluster.name} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -1955,7 +1993,7 @@ function MethodClusters({ result }: { result: SearchRunResultResponse }) {
             <p className="mt-1 text-sm text-[var(--muted)]">{cluster.summary}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {cluster.paper_ranks.map((rank) => (
-                <Badge key={rank}>rank {rank}</Badge>
+                <Badge key={rank}>第 {rank} 名</Badge>
               ))}
             </div>
           </div>
@@ -1968,7 +2006,7 @@ function MethodClusters({ result }: { result: SearchRunResultResponse }) {
 function Timeline({ result }: { result: SearchRunResultResponse }) {
   return (
     <div className="panel-soft rounded-lg p-4">
-      <h3 className="mb-3 font-semibold">Timeline</h3>
+      <h3 className="mb-3 font-semibold">时间线</h3>
       <div className="space-y-3">
         {result.timeline.map((item) => (
           <div key={item.year} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -1976,7 +2014,7 @@ function Timeline({ result }: { result: SearchRunResultResponse }) {
             <p className="mt-1 text-sm text-[var(--muted)]">{item.summary}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {item.paper_ranks.map((rank) => (
-                <Badge key={rank}>rank {rank}</Badge>
+                <Badge key={rank}>第 {rank} 名</Badge>
               ))}
             </div>
           </div>
@@ -1989,7 +2027,10 @@ function Timeline({ result }: { result: SearchRunResultResponse }) {
 function MissingEvidence({ result }: { result: SearchRunResultResponse }) {
   return (
     <div className="panel-soft rounded-lg p-4">
-      <h3 className="mb-3 font-semibold">Missing Evidence</h3>
+      <h3 className="mb-3 font-semibold">原始提示与证据缺口</h3>
+      <p className="mb-3 text-sm leading-6 text-[var(--muted)]">
+        这里集中展示 503、429、timeout、cooldown、source_error 等后端原始诊断，默认折叠以避免干扰主要阅读。
+      </p>
       <div className="space-y-2">
         {result.missing_evidence.map((item) => (
           <div key={item} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
@@ -2011,7 +2052,44 @@ function MetricRow({ label, value }: { label: string; value: string | number }) 
 }
 
 function formatBoolean(value: boolean): string {
-  return value ? "enabled" : "disabled";
+  return value ? "开启" : "关闭";
+}
+
+function statusLabel(status: SearchRunStatusResponse["status"]): string {
+  const labels: Record<SearchRunStatusResponse["status"], string> = {
+    queued: "排队中",
+    running: "运行中",
+    succeeded: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+  };
+  return labels[status] ?? status;
+}
+
+function eventNameLabel(eventName: string): string {
+  const labels: Record<string, string> = {
+    run_started: "任务开始",
+    stage_started: "阶段开始",
+    stage_completed: "阶段完成",
+    connector_completed: "检索源完成",
+    warning: "提示",
+    cost_updated: "成本更新",
+    error: "错误",
+    run_completed: "任务结束",
+    sse_error: "事件连接异常",
+  };
+  return labels[eventName] ?? eventName;
+}
+
+function categoryLabel(category: RankedPaper["category"]): string {
+  const labels: Record<RankedPaper["category"], string> = {
+    highly_relevant: "高度相关",
+    partially_relevant: "部分相关",
+    weakly_relevant: "弱相关",
+    irrelevant: "不相关",
+    insufficient_evidence: "证据不足",
+  };
+  return labels[category] ?? category;
 }
 
 function costValue(
@@ -2038,7 +2116,7 @@ function EmptyResults() {
       <FileText className="mx-auto mb-3 h-8 w-8 text-[var(--primary)]" aria-hidden="true" />
       <h3 className="text-lg font-bold">暂无检索结果</h3>
       <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--muted)]">
-        创建 search run 后，这里会展示高度相关论文、部分相关论文、方法聚类、时间线和证据缺口。
+        创建真实检索任务后，这里会展示高度相关论文、部分相关论文、方法聚类、时间线和证据缺口。
       </p>
     </div>
   );
