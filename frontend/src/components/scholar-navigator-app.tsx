@@ -14,6 +14,7 @@ import {
   GitBranch,
   Moon,
   Network,
+  Send,
   RefreshCw,
   Search,
   Server,
@@ -607,24 +608,9 @@ function SearchWorkbench({
 }) {
   return (
     <SectionPanel aria-labelledby="search-workbench-title" className="h-fit rounded-lg">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--primary)]">真实检索入口</p>
-          <h2 id="search-workbench-title" className="text-2xl font-black">
-            输入一个复杂学术问题
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            默认配置优先稳定和低延迟；需要高召回时再开启查询演化、RefChain 或全部数据源。
-          </p>
-        </div>
-        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] shadow-lg shadow-[color-mix(in_srgb,var(--primary)_25%,transparent)]">
-          <Search className="h-5 w-5" aria-hidden="true" />
-        </span>
-      </div>
-
       <div className="space-y-6">
         <div className="ow-search">
-          <label className="ow-search__label" htmlFor="query">
+          <label id="search-workbench-title" className="ow-search__label" htmlFor="query">
             学术检索
           </label>
           <div className="ow-search__field">
@@ -635,35 +621,24 @@ function SearchWorkbench({
               id="query"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !isSubmitting) {
-                  event.preventDefault();
-                  onSearch();
-                }
-              }}
               className="ow-search__input"
               placeholder="输入复杂学术查询..."
             />
-            <kbd className="ow-search__kbd">Enter</kbd>
-          </div>
-          <p className="ow-search__help">
-            按 <span>Enter</span> 创建检索任务；Shift + Enter 可换行。
-          </p>
-          {formError ? <p className="mt-2 px-2 text-sm text-[var(--danger)]">{formError}</p> : null}
-          <div className="mt-3 flex flex-col gap-3 md:flex-row">
-            <Button
+            <button
               type="button"
-              variant="primary"
-              className="btn-shine min-h-14 flex-1"
+              className="ow-search__send"
               onClick={onSearch}
               disabled={isSubmitting}
+              aria-label="发送检索请求"
             >
-              <span>{isSubmitting ? "正在检索" : "一键搜索"}</span>
-            </Button>
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface-glass)] px-4 py-3 text-sm leading-6 text-[var(--muted)] md:max-w-72">
-              推荐源为 arXiv + Semantic Scholar；OpenAlex 覆盖更广但可能不稳定。
-            </div>
+              {isSubmitting ? (
+                <RefreshCw className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />
+              ) : (
+                <Send className="h-6 w-6" aria-hidden="true" />
+              )}
+            </button>
           </div>
+          {formError ? <p className="mt-2 px-2 text-sm text-[var(--danger)]">{formError}</p> : null}
         </div>
 
         <div>
