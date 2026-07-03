@@ -52,11 +52,8 @@ import type {
 } from "@/types/api";
 import { Badge, Button, FieldLabel, SectionPanel, SkeletonLine, TextInput } from "./ui";
 
-const EXAMPLES = [
-  "请帮我搜索 2020 年以来关于 LLM reranking 在学术论文检索中的代表性论文，重点关注 ACL、EMNLP、SIGIR。",
-  "查找评测科研文献搜索智能体的 benchmark 论文，重点关注召回率、准确率、F1 和端到端延迟。",
-  "搜索使用 citation graph 或 reference chain 扩展来提升论文推荐召回率的研究，并说明代表性方法路线。",
-];
+const DEFAULT_QUERY =
+  "请帮我搜索 2020 年以来关于 LLM reranking 在学术论文检索中的代表性论文，重点关注 ACL、EMNLP、SIGIR。";
 
 const STAGES = [
   {
@@ -156,7 +153,7 @@ const STAGE_LATENCY_ORDER = [
 
 export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
-  const [query, setQuery] = useState(EXAMPLES[0]);
+  const [query, setQuery] = useState(DEFAULT_QUERY);
   const [topK, setTopK] = useState(5);
   const [currentYear, setCurrentYear] = useState(2026);
   const [runProfile, setRunProfile] = useState<RunProfile>("fast");
@@ -509,52 +506,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function ArxivSourceIcon() {
-  return (
-    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 4.5L19 19.5" stroke="#c8102e" strokeWidth="2.1" strokeLinecap="round" />
-      <path d="M18.5 4.5L5.5 19.5" stroke="#c8102e" strokeWidth="2.1" strokeLinecap="round" />
-      <path d="M12 3.5V7M12 17V20.5" stroke="#111827" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SemanticScholarSourceIcon() {
-  return (
-    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 6.5L11.5 4L20 7.5L12.4 10.2L4 6.5Z" fill="#f5c451" stroke="#2563eb" strokeWidth="1.2" />
-      <path d="M4 6.5V15.5L12.4 19.2V10.2L4 6.5Z" fill="#ffffff" stroke="#2563eb" strokeWidth="1.2" />
-      <path d="M12.4 10.2L20 7.5V16.2L12.4 19.2V10.2Z" fill="#eef5ff" stroke="#2563eb" strokeWidth="1.2" />
-      <path d="M6.2 9.6L10.3 11.4M6.2 12.2L10.3 14" stroke="#2563eb" strokeWidth="1" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function OpenAlexSourceIcon() {
-  return (
-    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 3.2L19.6 7.6V16.4L12 20.8L4.4 16.4V7.6L12 3.2Z"
-        stroke="#4f46e5"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M8.2 9.2L12 7L15.8 9.2V13.6L12 15.8L8.2 13.6V9.2Z" stroke="#4f46e5" strokeWidth="1.5" />
-      <circle cx="12" cy="11.5" r="1.5" fill="#4f46e5" />
-    </svg>
-  );
-}
-
-function PubMedSourceIcon() {
-  return (
-    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 4.5H18.5L16.7 12L18.5 19.5H5V4.5Z" fill="#1f5fa8" />
-      <path d="M8 8H12.8C14.7 8 15.9 9.05 15.9 10.65C15.9 12.3 14.7 13.35 12.8 13.35H10.4V16H8V8Z" fill="#ffffff" />
-      <path d="M10.4 10V11.45H12.4C13.1 11.45 13.45 11.18 13.45 10.72C13.45 10.25 13.1 10 12.4 10H10.4Z" fill="#1f5fa8" />
-    </svg>
-  );
-}
-
 function Header({
   theme,
   onThemeChange,
@@ -677,22 +628,46 @@ function Header({
                 aria-label="支持的数据源"
               >
                 <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
-                  <ArxivSourceIcon />
+                  <Image
+                    src="/assets/source-icons/arxiv-logomark-cropped.png"
+                    alt=""
+                    width={22}
+                    height={24}
+                    className="h-6 w-5 shrink-0 object-contain"
+                  />
                   arXiv
                 </span>
                 <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
                 <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
-                  <SemanticScholarSourceIcon />
+                  <Image
+                    src="/assets/source-icons/semantic-scholar-mark.svg"
+                    alt=""
+                    width={28}
+                    height={20}
+                    className="h-5 w-7 shrink-0 object-contain"
+                  />
                   Semantic Scholar
                 </span>
                 <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
                 <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
-                  <OpenAlexSourceIcon />
+                  <Image
+                    src="/assets/source-icons/openalex-icon.svg"
+                    alt=""
+                    width={22}
+                    height={22}
+                    className="h-[22px] w-[22px] shrink-0 object-contain dark:invert"
+                  />
                   OpenAlex
                 </span>
                 <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
                 <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
-                  <PubMedSourceIcon />
+                  <Image
+                    src="/assets/source-icons/pubmed-favicon.png"
+                    alt=""
+                    width={22}
+                    height={22}
+                    className="h-[22px] w-[22px] shrink-0 object-contain"
+                  />
                   PubMed
                 </span>
               </div>
@@ -945,23 +920,6 @@ function SearchWorkbench({
             </div>
           </div>
         </details>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-[var(--muted-strong)]">示例查询</p>
-          <div className="grid gap-2">
-            {EXAMPLES.map((example, index) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => onQueryChange(example)}
-                className="min-h-12 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left text-sm leading-6 text-[var(--muted-strong)] transition duration-200 hover:border-[var(--primary)] hover:text-[var(--foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-              >
-                <span className="mr-2 font-bold text-[var(--primary)]">0{index + 1}</span>
-                {example}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </SectionPanel>
   );
