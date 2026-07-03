@@ -842,7 +842,7 @@ function SearchWorkbench({
             <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-[var(--foreground)]">
               检索源
             </h3>
-            <div role="radiogroup" aria-label="选择检索数据源" className="flex flex-wrap gap-2">
+            <div role="radiogroup" aria-label="选择检索数据源" className="source-fancy-row">
               {SOURCE_MODE_ORDER.map((mode) => {
                 const selected = sourceMode === mode;
                 return (
@@ -853,13 +853,15 @@ function SearchWorkbench({
                     aria-checked={selected}
                     onClick={() => onSourceModeChange(mode)}
                     title={SOURCE_MODE_DESCRIPTIONS[mode]}
-                    className={`min-h-10 border-2 px-3 text-sm font-black transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${
-                      selected
-                        ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--surface)] shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_30%,transparent)]"
-                        : "border-[color-mix(in_srgb,var(--foreground)_72%,var(--border))] bg-[var(--surface)] text-[var(--foreground)] shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[var(--surface-soft)]"
-                    }`}
+                    data-tooltip={SOURCE_MODE_DESCRIPTIONS[mode]}
+                    className={`source-fancy ${selected ? "source-fancy--selected" : ""}`}
                   >
-                    {mode === "recommended" ? "推荐组合" : SOURCE_MODE_LABELS[mode]}
+                    <span className="source-fancy__top-key" aria-hidden="true" />
+                    <span className="source-fancy__text">
+                      {mode === "recommended" ? "推荐组合" : SOURCE_MODE_LABELS[mode]}
+                    </span>
+                    <span className="source-fancy__bottom-key-1" aria-hidden="true" />
+                    <span className="source-fancy__bottom-key-2" aria-hidden="true" />
                   </button>
                 );
               })}
@@ -1096,9 +1098,6 @@ function RunProgress({
           <h2 id="run-progress-title" className="text-2xl font-black">
             检索运行状态
           </h2>
-          {runId ? (
-            <p className="mt-1 text-sm text-[var(--muted)]">任务编号：{runId}</p>
-          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canCancelRealSearch ? (
