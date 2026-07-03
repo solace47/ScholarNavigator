@@ -58,26 +58,31 @@ const STAGES = [
   {
     key: "query_understanding",
     title: "理解查询",
+    titleLines: ["理解", "查询"],
     icon: Brain,
   },
   {
     key: "retrieval",
     title: "检索候选",
+    titleLines: ["检索", "候选"],
     icon: Database,
   },
   {
     key: "judgement",
     title: "相关性判断",
+    titleLines: ["相关性", "判断"],
     icon: BookOpenCheck,
   },
   {
     key: "reranking",
     title: "重排序",
+    titleLines: ["重排序"],
     icon: GitBranch,
   },
   {
     key: "synthesis",
     title: "证据归纳",
+    titleLines: ["证据", "归纳"],
     icon: Sparkles,
   },
 ];
@@ -435,7 +440,7 @@ export function ScholarNavigatorApp() {
 
         {backendError ? <BackendWarning message={backendError} /> : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(500px,1.1fr)_minmax(0,0.9fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(500px,5.5fr)_minmax(0,4.5fr)]">
           <SearchWorkbench
             query={query}
             topK={topK}
@@ -1234,7 +1239,11 @@ function RunProgress({
               ))}
               <div className="run-stage-card__content">
                 <Icon className="run-stage-card__icon" aria-hidden="true" />
-                <p className="run-stage-card__title">{stage.title}</p>
+                <p className="run-stage-card__title" aria-label={stage.title}>
+                  {stage.titleLines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </p>
               </div>
             </div>
           );

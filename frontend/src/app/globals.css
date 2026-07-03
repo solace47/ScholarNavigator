@@ -207,9 +207,9 @@ button:disabled {
   --stage-frame-mid-top-y: 39%;
   position: relative;
   display: flex;
-  min-height: 66px;
+  min-height: 86px;
   align-items: center;
-  padding: 11px 14px;
+  padding: 14px 10px;
   overflow: visible;
   border: 0;
   background: var(--surface);
@@ -425,15 +425,16 @@ button:disabled {
   z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 9px;
   width: 100%;
   min-width: 0;
+  padding: 0 3px;
 }
 
 .run-stage-card__icon {
-  width: 21px;
-  height: 21px;
+  width: 29px;
+  height: 29px;
   flex: 0 0 auto;
   color: var(--foreground);
   stroke-width: 2.4;
@@ -442,13 +443,23 @@ button:disabled {
 .run-stage-card__title {
   position: relative;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   margin: 0;
-  overflow: hidden;
-  font-size: 15px;
+  max-width: none;
+  overflow: visible;
+  font-size: clamp(13px, 0.95vw, 15px);
   font-weight: 900;
-  line-height: 1;
-  text-overflow: ellipsis;
+  line-height: 1.16;
+  text-align: center;
+  text-overflow: clip;
   white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.run-stage-card__title span {
+  display: block;
 }
 
 @keyframes run-stage-segment-flow {
