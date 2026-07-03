@@ -24,6 +24,7 @@ import {
   Timer,
   Zap,
 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -508,6 +509,52 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function ArxivSourceIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 4.5L19 19.5" stroke="#c8102e" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M18.5 4.5L5.5 19.5" stroke="#c8102e" strokeWidth="2.1" strokeLinecap="round" />
+      <path d="M12 3.5V7M12 17V20.5" stroke="#111827" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SemanticScholarSourceIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 6.5L11.5 4L20 7.5L12.4 10.2L4 6.5Z" fill="#f5c451" stroke="#2563eb" strokeWidth="1.2" />
+      <path d="M4 6.5V15.5L12.4 19.2V10.2L4 6.5Z" fill="#ffffff" stroke="#2563eb" strokeWidth="1.2" />
+      <path d="M12.4 10.2L20 7.5V16.2L12.4 19.2V10.2Z" fill="#eef5ff" stroke="#2563eb" strokeWidth="1.2" />
+      <path d="M6.2 9.6L10.3 11.4M6.2 12.2L10.3 14" stroke="#2563eb" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function OpenAlexSourceIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3.2L19.6 7.6V16.4L12 20.8L4.4 16.4V7.6L12 3.2Z"
+        stroke="#4f46e5"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M8.2 9.2L12 7L15.8 9.2V13.6L12 15.8L8.2 13.6V9.2Z" stroke="#4f46e5" strokeWidth="1.5" />
+      <circle cx="12" cy="11.5" r="1.5" fill="#4f46e5" />
+    </svg>
+  );
+}
+
+function PubMedSourceIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 4.5H18.5L16.7 12L18.5 19.5H5V4.5Z" fill="#1f5fa8" />
+      <path d="M8 8H12.8C14.7 8 15.9 9.05 15.9 10.65C15.9 12.3 14.7 13.35 12.8 13.35H10.4V16H8V8Z" fill="#ffffff" />
+      <path d="M10.4 10V11.45H12.4C13.1 11.45 13.45 11.18 13.45 10.72C13.45 10.25 13.1 10 12.4 10H10.4Z" fill="#1f5fa8" />
+    </svg>
+  );
+}
+
 function Header({
   theme,
   onThemeChange,
@@ -515,28 +562,173 @@ function Header({
   theme: ThemeMode;
   onThemeChange: () => void;
 }) {
+  const switchToLight = () => {
+    if (theme !== "light") {
+      onThemeChange();
+    }
+  };
+  const switchToDark = () => {
+    if (theme !== "dark") {
+      onThemeChange();
+    }
+  };
+
   return (
     <header className="hero-panel overflow-hidden px-5 py-6 md:px-8 lg:px-10">
-      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-4xl font-black leading-tight md:text-6xl">ScholarNavigator</h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--muted-strong)] md:text-xl">
-            面向科研场景下复杂学术查询的智能论文搜索与推荐。
-          </p>
+      <svg
+        className="pointer-events-none absolute inset-0 hidden h-full w-full text-[var(--border-strong)] lg:block"
+        viewBox="0 0 1440 230"
+        fill="none"
+        aria-hidden="true"
+      >
+        <g opacity="0.12">
+          <path d="M0 22H1440M0 54H1440M0 86H1440M0 118H1440M0 150H1440M0 182H1440M0 214H1440" stroke="currentColor" strokeWidth="0.8" strokeDasharray="5 8" />
+          <path d="M24 0V230M64 0V230M104 0V230M144 0V230M184 0V230M224 0V230M264 0V230M304 0V230M344 0V230M384 0V230M424 0V230M464 0V230M504 0V230M544 0V230M584 0V230M624 0V230M664 0V230M704 0V230M744 0V230M784 0V230M824 0V230M864 0V230M904 0V230M944 0V230M984 0V230M1024 0V230M1064 0V230M1104 0V230M1144 0V230M1184 0V230M1224 0V230M1264 0V230M1304 0V230M1344 0V230M1384 0V230" stroke="currentColor" strokeWidth="0.8" strokeDasharray="5 8" />
+        </g>
+        <g opacity="0.15">
+          <path d="M54 78L122 42L214 82L308 54L404 102L512 70" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M92 176L180 128L294 164L418 116L560 166" stroke="currentColor" strokeWidth="1.2" strokeDasharray="7 8" />
+          <path d="M38 132L118 188L228 144L346 190L498 146" stroke="currentColor" strokeWidth="1.1" />
+          <circle cx="54" cy="78" r="4" fill="currentColor" />
+          <circle cx="122" cy="42" r="4" fill="currentColor" />
+          <circle cx="214" cy="82" r="4" fill="currentColor" />
+          <circle cx="308" cy="54" r="4" fill="currentColor" />
+          <circle cx="404" cy="102" r="4" fill="currentColor" />
+          <circle cx="512" cy="70" r="4" fill="currentColor" />
+          <circle cx="92" cy="176" r="3.5" fill="currentColor" />
+          <circle cx="180" cy="128" r="3.5" fill="currentColor" />
+          <circle cx="294" cy="164" r="3.5" fill="currentColor" />
+          <circle cx="418" cy="116" r="3.5" fill="currentColor" />
+          <circle cx="560" cy="166" r="3.5" fill="currentColor" />
+          <circle cx="38" cy="132" r="3" fill="currentColor" />
+          <circle cx="228" cy="144" r="3" fill="currentColor" />
+          <circle cx="346" cy="190" r="3" fill="currentColor" />
+          <circle cx="498" cy="146" r="3" fill="currentColor" />
+          <rect x="26" y="38" width="78" height="48" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M42 55H84M42 70H76" stroke="currentColor" strokeWidth="1.1" />
+          <rect x="260" y="22" width="112" height="58" stroke="currentColor" strokeWidth="1" />
+          <path d="M280 42H348M280 58H330" stroke="currentColor" strokeWidth="1" />
+          <rect x="456" y="34" width="92" height="46" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M474 52H528M474 66H514" stroke="currentColor" strokeWidth="1.2" />
+        </g>
+        <g opacity="0.18">
+          <path d="M584 42L656 82L656 162L584 202L512 162L512 82L584 42Z" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M584 42V202M512 82L656 162M656 82L512 162" stroke="currentColor" strokeWidth="1" />
+          <path d="M586 118L664 92L744 130L804 98" stroke="currentColor" strokeWidth="1.3" strokeDasharray="6 7" />
+          <circle cx="586" cy="118" r="4" fill="currentColor" />
+          <circle cx="664" cy="92" r="4" fill="currentColor" />
+          <circle cx="744" cy="130" r="4" fill="currentColor" />
+          <circle cx="804" cy="98" r="4" fill="currentColor" />
+          <rect x="690" y="154" width="96" height="42" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M708 171H764M708 184H750" stroke="currentColor" strokeWidth="1.1" />
+        </g>
+        <g opacity="0.3">
+          <path d="M828 52L912 24L1000 68L1000 154L912 198L828 154V52Z" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M912 24V112M828 52L912 112L1000 68M828 154L912 112L1000 154M912 198V112" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M680 68L763 116L868 82L970 134L1100 78L1244 126L1374 68" stroke="currentColor" strokeWidth="2" />
+          <path d="M734 172L822 134L944 178L1072 126L1190 164L1318 118" stroke="currentColor" strokeWidth="1.5" strokeDasharray="8 8" />
+          <path d="M1078 44L1164 88L1164 176L1078 218L992 176L992 88L1078 44Z" stroke="currentColor" strokeWidth="1" />
+          <path d="M1078 44V218M992 88L1164 176M1164 88L992 176" stroke="currentColor" strokeWidth="0.9" />
+          <circle cx="680" cy="68" r="5" fill="currentColor" />
+          <circle cx="763" cy="116" r="5" fill="currentColor" />
+          <circle cx="868" cy="82" r="5" fill="currentColor" />
+          <circle cx="970" cy="134" r="5" fill="currentColor" />
+          <circle cx="1100" cy="78" r="5" fill="currentColor" />
+          <circle cx="1244" cy="126" r="5" fill="currentColor" />
+          <circle cx="1374" cy="68" r="5" fill="currentColor" />
+          <circle cx="734" cy="172" r="4" fill="currentColor" />
+          <circle cx="822" cy="134" r="4" fill="currentColor" />
+          <circle cx="944" cy="178" r="4" fill="currentColor" />
+          <circle cx="1072" cy="126" r="4" fill="currentColor" />
+          <circle cx="1190" cy="164" r="4" fill="currentColor" />
+          <circle cx="1318" cy="118" r="4" fill="currentColor" />
+          <rect x="1200" y="40" width="142" height="72" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M1222 62H1298M1222 84H1320M1222 96H1282" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="1360" y="142" width="54" height="42" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M1372 156H1402M1372 170H1392" stroke="currentColor" strokeWidth="1.5" />
+        </g>
+      </svg>
+
+      <div className="relative z-10 flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-center gap-7">
+            <div
+              className="inline-flex h-[124px] w-[124px] shrink-0 items-center justify-center text-[var(--foreground)]"
+              aria-hidden="true"
+            >
+              <Image
+                src="/assets/scholarnavigator-compass-logo.png"
+                alt=""
+                width={124}
+                height={124}
+                className="h-[124px] w-[124px] object-contain dark:invert"
+              />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-4xl font-black leading-none md:text-6xl">ScholarNavigator</h1>
+              <p className="mt-3 text-sm font-bold text-[var(--muted-strong)] md:text-base">
+                AI-powered Academic Search & Reranking
+              </p>
+              <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--muted)] md:text-xl">
+                面向科研场景下复杂学术查询的智能论文搜索与推荐。
+              </p>
+              <div
+                className="mt-5 inline-flex max-w-full flex-wrap items-center overflow-hidden rounded-lg border border-[color-mix(in_srgb,var(--border)_72%,var(--foreground)_18%)] bg-[color-mix(in_srgb,var(--surface)_96%,white)] shadow-[0_4px_16px_color-mix(in_srgb,var(--foreground)_8%,transparent)] dark:bg-[color-mix(in_srgb,var(--surface)_92%,white_5%)]"
+                aria-label="支持的数据源"
+              >
+                <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
+                  <ArxivSourceIcon />
+                  arXiv
+                </span>
+                <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
+                <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
+                  <SemanticScholarSourceIcon />
+                  Semantic Scholar
+                </span>
+                <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
+                <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
+                  <OpenAlexSourceIcon />
+                  OpenAlex
+                </span>
+                <span className="h-6 w-px bg-[color-mix(in_srgb,var(--border)_74%,var(--foreground)_12%)]" aria-hidden="true" />
+                <span className="inline-flex min-h-10 items-center gap-2 px-4 text-sm font-extrabold text-[var(--foreground)]">
+                  <PubMedSourceIcon />
+                  PubMed
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="inline-flex w-fit shrink-0 border-2 border-[color-mix(in_srgb,var(--foreground)_76%,var(--border-strong))] bg-[color-mix(in_srgb,var(--surface-soft)_84%,transparent)]"
+            role="group"
+            aria-label="主题切换"
+          >
+            <button
+              type="button"
+              className={`inline-flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-extrabold text-[var(--muted-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${
+                theme === "light" ? "bg-[var(--surface)] text-[var(--foreground)]" : ""
+              }`}
+              onClick={switchToLight}
+              aria-pressed={theme === "light"}
+            >
+              <Sun className="h-4 w-4" aria-hidden="true" />
+              Light
+            </button>
+            <button
+              type="button"
+              className={`inline-flex min-h-11 items-center justify-center gap-2 border-l-2 border-[color-mix(in_srgb,var(--foreground)_52%,var(--border))] px-4 text-sm font-extrabold text-[var(--muted-strong)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${
+                theme === "dark" ? "bg-[var(--surface)] text-[var(--foreground)]" : ""
+              }`}
+              onClick={switchToDark}
+              aria-pressed={theme === "dark"}
+            >
+              <Moon className="h-4 w-4" aria-hidden="true" />
+              Dark
+            </button>
+          </div>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onThemeChange}
-          aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
-        >
-          {theme === "dark" ? (
-            <Sun className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Moon className="h-4 w-4" aria-hidden="true" />
-          )}
-          {theme === "dark" ? "浅色" : "深色"}
-        </Button>
+
       </div>
     </header>
   );
