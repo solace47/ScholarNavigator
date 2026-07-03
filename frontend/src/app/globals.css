@@ -394,6 +394,163 @@ button:disabled {
   font-weight: 600;
 }
 
+.run-profile-radio-inputs {
+  --run-profile-label-width: 112px;
+  --run-profile-round: 10px;
+  --run-profile-track: #ffffff;
+  --run-profile-ink: #212121;
+  --run-profile-muted: #b8b8b8;
+  --run-profile-selected-bg: #e8e8e8;
+  --run-profile-selected-text: #000000;
+  --run-profile-border: #b8b8b8;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 54px;
+  overflow-x: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--run-profile-border);
+  border-radius: var(--run-profile-round);
+  background-color: var(--run-profile-track);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--run-profile-muted) 28%, transparent),
+    2px 2px 0 color-mix(in srgb, var(--run-profile-ink) 10%, transparent);
+  box-sizing: border-box;
+  font-size: 14px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dark .run-profile-radio-inputs {
+  --run-profile-track: #ffffff;
+  --run-profile-ink: #212121;
+  --run-profile-muted: #b8b8b8;
+  --run-profile-selected-bg: #e8e8e8;
+  --run-profile-selected-text: #000000;
+  --run-profile-border: #b8b8b8;
+}
+
+.run-profile-radio-inputs::-webkit-scrollbar {
+  display: none;
+}
+
+.run-profile-bar,
+.run-profile-slidebar {
+  position: absolute;
+  left: 8px;
+  width: var(--run-profile-label-width);
+  transform-origin: 0 0;
+  transition:
+    transform 0.42s cubic-bezier(0.33, 0.83, 0.99, 0.98),
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.run-profile-bar {
+  top: 0;
+  z-index: 1;
+  height: 100%;
+  pointer-events: none;
+}
+
+.run-profile-bar::before,
+.run-profile-bar::after {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--run-profile-ink);
+  content: "";
+}
+
+.run-profile-bar::before {
+  top: 0;
+  border-radius: 0 0 9999px 9999px;
+}
+
+.run-profile-bar::after {
+  bottom: 0;
+  border-radius: 9999px 9999px 0 0;
+}
+
+.run-profile-slidebar {
+  top: 8px;
+  bottom: 8px;
+  z-index: 0;
+  border: 1px solid color-mix(in srgb, var(--run-profile-ink) 10%, var(--run-profile-border));
+  border-radius: calc(var(--run-profile-round) - 4px);
+  background: var(--run-profile-selected-bg);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--run-profile-ink) 10%, transparent),
+    0 8px 18px color-mix(in srgb, var(--run-profile-ink) 10%, transparent);
+  pointer-events: none;
+}
+
+.run-profile-radio-inputs .run-profile-radio {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 var(--run-profile-label-width);
+  text-align: center;
+}
+
+.run-profile-radio-inputs .run-profile-radio input {
+  display: none;
+}
+
+.run-profile-radio-inputs .run-profile-name {
+  position: relative;
+  display: flex;
+  min-height: 44px;
+  width: var(--run-profile-label-width);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--run-profile-round) - 4px);
+  padding: 0.55rem 0.75rem;
+  color: var(--run-profile-ink);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    color 0.2s ease,
+    transform 0.14s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.run-profile-radio-inputs .run-profile-radio:hover .run-profile-name {
+  color: var(--run-profile-selected-text);
+}
+
+.run-profile-radio-inputs .run-profile-name--previewed {
+  color: var(--run-profile-selected-text);
+  font-weight: 900;
+}
+
+.run-profile-radio-inputs .run-profile-radio:active .run-profile-name {
+  transform: translateY(1px) scale(0.98);
+}
+
+.run-profile-radio-inputs:has(.run-profile-radio:active) .run-profile-slidebar {
+  background-color: color-mix(in srgb, var(--run-profile-selected-bg) 86%, var(--run-profile-muted));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--run-profile-ink) 12%, transparent),
+    0 2px 8px color-mix(in srgb, var(--run-profile-ink) 12%, transparent);
+}
+
+.run-profile-radio-inputs .run-profile-radio input:focus-visible + .run-profile-name {
+  outline: 2px solid var(--run-profile-ink);
+  outline-offset: -6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-profile-bar,
+  .run-profile-slidebar,
+  .run-profile-radio-inputs .run-profile-name {
+    transition: none;
+  }
+}
+
 .toggle-card {
   box-shadow: 3px 3px 0 color-mix(in srgb, var(--border) 72%, transparent);
 }

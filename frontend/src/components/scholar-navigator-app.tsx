@@ -50,7 +50,7 @@ import type {
   StreamEvent,
   SynthesisOutput,
 } from "@/types/api";
-import { Badge, Button, FieldLabel, SectionPanel, SkeletonLine, TextInput } from "./ui";
+import { Badge, Button, SectionPanel, SkeletonLine } from "./ui";
 
 const DEFAULT_QUERY =
   "请帮我搜索 2020 年以来关于 LLM reranking 在学术论文检索中的代表性论文，重点关注 ACL、EMNLP、SIGIR。";
@@ -130,6 +130,17 @@ const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
   openalex: "开放学术实体与文献索引",
   all: "覆盖最大",
 };
+
+const SOURCE_MODE_ORDER: SourceMode[] = [
+  "recommended",
+  "arxiv",
+  "semantic_scholar",
+  "openalex",
+  "pubmed",
+  "all",
+];
+
+const RUN_PROFILE_ORDER: RunProfile[] = ["fast", "balanced", "high_recall", "evaluation"];
 
 const STAGE_LATENCY_LABELS: Record<string, string> = {
   query_understanding: "查询理解",
@@ -773,6 +784,24 @@ function SearchWorkbench({
   onLlmJudgementChange: (value: boolean) => void;
   onSearch: () => void;
 }) {
+  const [hoveredRunProfileIndex, setHoveredRunProfileIndex] = useState<number | null>(null);
+
+  const enabledAdvancedCount = [
+    enableRefchain,
+    enableQueryEvolution,
+    enableLlmQueryUnderstanding,
+    enableLlmJudgement,
+  ].filter(Boolean).length;
+
+  const handleTopKStep = (delta: number) => {
+    onTopKChange(Math.min(100, Math.max(1, topK + delta)));
+  };
+
+  const runProfileIndex = Math.max(0, RUN_PROFILE_ORDER.indexOf(runProfile));
+  const previewRunProfileIndex = hoveredRunProfileIndex ?? runProfileIndex;
+  const runProfileSelectedTransform = `translateX(${runProfileIndex * 100}%)`;
+  const runProfilePreviewTransform = `translateX(${previewRunProfileIndex * 100}%)`;
+
   return (
     <SectionPanel aria-labelledby="search-workbench-title" className="search-workbench-panel h-fit">
       <div className="space-y-6">
@@ -808,118 +837,178 @@ function SearchWorkbench({
           {formError ? <p className="mt-2 px-2 text-sm text-[var(--danger)]">{formError}</p> : null}
         </div>
 
-        <div>
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <h3 className="font-bold">简洁配置</h3>
+        <div className="space-y-5">
+          <div>
+            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-[var(--foreground)]">
+              检索源
+            </h3>
+            <div role="radiogroup" aria-label="选择检索数据源" className="flex flex-wrap gap-2">
+              {SOURCE_MODE_ORDER.map((mode) => {
+                const selected = sourceMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => onSourceModeChange(mode)}
+                    title={SOURCE_MODE_DESCRIPTIONS[mode]}
+                    className={`min-h-10 border-2 px-3 text-sm font-black transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--foreground)] ${
+                      selected
+                        ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--surface)] shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_30%,transparent)]"
+                        : "border-[color-mix(in_srgb,var(--foreground)_72%,var(--border))] bg-[var(--surface)] text-[var(--foreground)] shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:bg-[var(--surface-soft)]"
+                    }`}
+                  >
+                    {mode === "recommended" ? "推荐组合" : SOURCE_MODE_LABELS[mode]}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div role="radiogroup" aria-label="选择检索数据源" className="radio-inputs">
-            {(Object.keys(SOURCE_MODE_LABELS) as SourceMode[]).map((mode) => {
-              const selected = sourceMode === mode;
-              return (
-                <label
-                  key={mode}
-                  className="radio"
-                >
+
+          <div>
+            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-[var(--foreground)]">
+              检索参数
+            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-[var(--muted-strong)]">返回数量</span>
+                <div className="inline-flex min-h-10 overflow-hidden border-2 border-[color-mix(in_srgb,var(--foreground)_72%,var(--border))] bg-[var(--surface)]">
+                  <button
+                    type="button"
+                    onClick={() => handleTopKStep(-1)}
+                    disabled={topK <= 1}
+                    className="w-10 border-r-2 border-[color-mix(in_srgb,var(--foreground)_46%,var(--border))] text-lg font-black text-[var(--foreground)] transition hover:bg-[var(--surface-soft)] disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="减少返回数量"
+                  >
+                    -
+                  </button>
                   <input
-                    type="radio"
-                    name="source-mode"
-                    value={mode}
-                    checked={selected}
-                    onChange={() => onSourceModeChange(mode)}
+                    aria-label="返回数量"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={topK}
+                    onChange={(event) => onTopKChange(Number(event.target.value))}
+                    className="h-10 w-14 border-0 bg-[var(--surface)] p-0 text-center text-sm font-black tabular-nums text-[var(--foreground)] outline-none [appearance:textfield] focus:bg-[var(--surface-soft)] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
-                  <span className="name">
-                    <span>
-                      <span className="block text-sm font-bold text-[var(--foreground)]">
-                        {SOURCE_MODE_LABELS[mode]}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
-                        {SOURCE_MODE_DESCRIPTIONS[mode]}
-                      </span>
-                    </span>
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleTopKStep(1)}
+                    disabled={topK >= 100}
+                    className="w-10 border-l-2 border-[color-mix(in_srgb,var(--foreground)_46%,var(--border))] text-lg font-black text-[var(--foreground)] transition hover:bg-[var(--surface-soft)] disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="增加返回数量"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
+                <span className="text-sm font-black text-[var(--muted-strong)]">运行模式</span>
+                <div
+                  role="radiogroup"
+                  aria-label="选择运行模式"
+                  className="run-profile-radio-inputs"
+                  onMouseLeave={() => setHoveredRunProfileIndex(null)}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                      setHoveredRunProfileIndex(null);
+                    }
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="run-profile-bar"
+                    style={{ transform: runProfileSelectedTransform }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="run-profile-slidebar"
+                    style={{ transform: runProfilePreviewTransform }}
+                  />
+                  {RUN_PROFILE_ORDER.map((profile, index) => {
+                    const previewed = previewRunProfileIndex === index;
+                    return (
+                      <label
+                        key={profile}
+                        className="run-profile-radio"
+                        onMouseEnter={() => setHoveredRunProfileIndex(index)}
+                        onFocus={() => setHoveredRunProfileIndex(index)}
+                      >
+                        <input
+                          type="radio"
+                          name="run-profile"
+                          value={profile}
+                          checked={runProfile === profile}
+                          onChange={() => onRunProfileChange(profile)}
+                        />
+                        <span
+                          className={`run-profile-name ${
+                            previewed ? "run-profile-name--previewed" : ""
+                          }`}
+                        >
+                          {PROFILE_LABELS[profile]}模式
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <details className="details-card border-2 border-[color-mix(in_srgb,var(--foreground)_68%,var(--border))] bg-[var(--surface-raised)] p-0 shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_14%,transparent)]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
+              <span>▾ 高级能力配置</span>
+              <span className="border border-[color-mix(in_srgb,var(--foreground)_58%,var(--border))] bg-[var(--surface)] px-2 py-1 text-xs font-black text-[var(--muted-strong)]">
+                已启用 {enabledAdvancedCount} / 4
+              </span>
+            </summary>
+            <div className="space-y-4 border-t-2 border-[color-mix(in_srgb,var(--foreground)_36%,var(--border))] p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <label htmlFor="current-year" className="text-sm font-black text-[var(--muted-strong)]">
+                  当前年份
                 </label>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <FieldLabel htmlFor="top-k">返回数量</FieldLabel>
-            <TextInput
-              id="top-k"
-              type="number"
-              min={1}
-              max={100}
-              value={topK}
-              onChange={(event) => onTopKChange(Number(event.target.value))}
-              className="rounded-lg"
-            />
-          </div>
-          <div>
-            <FieldLabel htmlFor="run-profile">运行模式</FieldLabel>
-            <select
-              id="run-profile"
-              value={runProfile}
-              onChange={(event) => onRunProfileChange(event.target.value as RunProfile)}
-              className="control w-full rounded-lg px-4 py-2 text-sm"
-            >
-              {(Object.keys(PROFILE_LABELS) as RunProfile[]).map((profile) => (
-                <option key={profile} value={profile}>
-                  {PROFILE_LABELS[profile]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <details className="details-card rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4">
-          <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
-            高级选项
-          </summary>
-          <div className="mt-4 space-y-4">
-            <div>
-              <FieldLabel htmlFor="current-year">当前年份</FieldLabel>
-              <TextInput
-                id="current-year"
-                type="number"
-                min={1900}
-                max={2100}
-                value={currentYear}
-                onChange={(event) => onCurrentYearChange(Number(event.target.value))}
-                className="rounded-lg"
-              />
+                <input
+                  id="current-year"
+                  type="number"
+                  min={1900}
+                  max={2100}
+                  value={currentYear}
+                  onChange={(event) => onCurrentYearChange(Number(event.target.value))}
+                  className="control w-28 border-2 border-[color-mix(in_srgb,var(--foreground)_68%,var(--border))] bg-[var(--surface)] px-3 py-2 text-sm font-black tabular-nums text-[var(--foreground)]"
+                />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <ToggleControl
+                  label="RefChain 引用扩展"
+                  description="沿高相关论文做单层引用扩展"
+                  checked={enableRefchain}
+                  onChange={onRefchainChange}
+                />
+                <ToggleControl
+                  label="查询演化"
+                  description="基于初始结果生成补充检索式"
+                  checked={enableQueryEvolution}
+                  onChange={onQueryEvolutionChange}
+                />
+                <ToggleControl
+                  label="LLM 查询理解"
+                  description="增强查询解析"
+                  checked={enableLlmQueryUnderstanding}
+                  onChange={onLlmQueryUnderstandingChange}
+                />
+                <ToggleControl
+                  label="LLM 相关性判断"
+                  description="判断更强"
+                  checked={enableLlmJudgement}
+                  onChange={onLlmJudgementChange}
+                />
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ToggleControl
-                label="RefChain 引用扩展"
-                description="沿高相关论文做单层引用扩展"
-                checked={enableRefchain}
-                onChange={onRefchainChange}
-              />
-              <ToggleControl
-                label="查询演化"
-                description="基于初始结果生成补充检索式"
-                checked={enableQueryEvolution}
-                onChange={onQueryEvolutionChange}
-              />
-              <ToggleControl
-                label="LLM 查询理解"
-                description="增强查询解析，但会增加延迟"
-                checked={enableLlmQueryUnderstanding}
-                onChange={onLlmQueryUnderstandingChange}
-              />
-              <ToggleControl
-                label="LLM 相关性判断"
-                description="判断更强，但成本和延迟更高"
-                checked={enableLlmJudgement}
-                onChange={onLlmJudgementChange}
-              />
-            </div>
-          </div>
-        </details>
+          </details>
+        </div>
       </div>
     </SectionPanel>
   );
@@ -937,20 +1026,32 @@ function ToggleControl({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="toggle-card flex min-h-20 cursor-pointer items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-left transition duration-200 hover:border-[var(--primary)]">
-      <span>
-        <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
-        <span className="mt-1 block text-xs text-[var(--muted)]">{description}</span>
+    <label
+      className={`flex min-h-24 cursor-pointer items-start gap-3 border-2 p-3 text-left shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_10%,transparent)] transition duration-150 ${
+        checked
+          ? "border-[var(--foreground)] bg-[color-mix(in_srgb,var(--foreground)_8%,var(--surface))]"
+          : "border-[color-mix(in_srgb,var(--foreground)_58%,var(--border))] bg-[var(--surface)] hover:bg-[var(--surface-soft)]"
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        aria-hidden="true"
+        className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center border-2 ${
+          checked
+            ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--surface)]"
+            : "border-[var(--foreground)] bg-[var(--surface)]"
+        }`}
+      >
+        {checked ? <span className="text-xs font-black leading-none">✓</span> : null}
       </span>
-      <span className="switch">
-        <input
-          className="toggle"
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span className="slider" />
-        <span className="card-side" />
+      <span className="min-w-0">
+        <span className="block text-sm font-black text-[var(--foreground)]">{label}</span>
+        <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">{description}</span>
       </span>
     </label>
   );
