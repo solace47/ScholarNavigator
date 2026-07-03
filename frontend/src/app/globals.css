@@ -122,9 +122,13 @@ button:disabled {
 }
 
 .panel {
-  border: 1px solid var(--border);
+  position: relative;
+  border: 2px solid color-mix(in srgb, var(--foreground) 72%, var(--border-strong));
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: var(--shadow);
+  box-shadow:
+    inset 0 0 0 6px color-mix(in srgb, var(--surface) 96%, white),
+    inset 0 0 0 8px color-mix(in srgb, var(--foreground) 52%, var(--border)),
+    var(--shadow);
   backdrop-filter: blur(18px);
 }
 
@@ -135,10 +139,13 @@ button:disabled {
 
 .hero-panel {
   position: relative;
-  border: 1px solid var(--border);
+  border: 2px solid color-mix(in srgb, var(--foreground) 72%, var(--border-strong));
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-soft) 76%, transparent));
-  box-shadow: var(--shadow);
+  box-shadow:
+    inset 0 0 0 6px color-mix(in srgb, var(--surface) 96%, white),
+    inset 0 0 0 8px color-mix(in srgb, var(--foreground) 52%, var(--border)),
+    var(--shadow);
   backdrop-filter: blur(18px);
 }
 
