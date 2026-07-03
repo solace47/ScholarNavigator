@@ -1258,19 +1258,10 @@ function RunProgress({
         </summary>
         <div className="mt-4 space-y-5">
           <CostMetrics costReport={costReport} />
-          <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
             <div className="run-diagnostic-panel">
-              <div className="mb-3 flex items-center gap-2">
-                <Activity className="run-diagnostic-panel__icon" aria-hidden="true" />
-                <h3 className="font-semibold">状态摘要</h3>
-              </div>
               {status ? (
-                <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                  <MetricRow label="当前阶段" value={status.current_stage} />
-                  <MetricRow label="候选数" value={status.progress.candidate_paper_count} />
-                  <MetricRow label="已判断论文" value={status.progress.judged_paper_count} />
-                  <MetricRow label="完成阶段数" value={status.progress.completed_stages.length} />
-                </dl>
+                <StatusSummaryPanel status={status} />
               ) : (
                 <EmptyBlock lines={3} />
               )}
@@ -1284,23 +1275,7 @@ function RunProgress({
               {events.length ? (
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                   {events.map((event, index) => (
-                    <div
-                      key={`${event.event}-${index}`}
-                      className="run-event-card"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge>{eventNameLabel(event.event)}</Badge>
-                        {typeof event.payload.stage === "string" ? (
-                          <Badge>{String(event.payload.stage)}</Badge>
-                        ) : null}
-                        {typeof event.payload.connector === "string" ? (
-                          <Badge>{String(event.payload.connector)}</Badge>
-                        ) : null}
-                      </div>
-                      <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-[var(--muted)]">
-                        {JSON.stringify(event.payload, null, 2)}
-                      </pre>
-                    </div>
+                    <RunEventCard key={`${event.event}-${index}`} event={event} />
                   ))}
                 </div>
               ) : (
@@ -1372,11 +1347,11 @@ function CostMetrics({ costReport }: { costReport: CostReport | null }) {
         const Icon = metric.icon;
         return (
           <div key={metric.label} className="run-cost-card">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase text-[var(--muted)]">{metric.label}</span>
+            <div className="run-cost-card__header">
+              <span className="run-cost-card__label">{metric.label}</span>
               <Icon className="run-cost-card__icon" aria-hidden="true" />
             </div>
-            <p className="metric-value text-2xl font-bold">{metric.value}</p>
+            <p className="run-cost-card__value metric-value">{metric.value}</p>
           </div>
         );
       })}
@@ -2283,6 +2258,344 @@ function MissingEvidence({ result }: { result: SearchRunResultResponse }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+type RunEventSummary = {
+  title: string;
+  description: string;
+  chips: string[];
+};
+
+function RunEventCard({ event }: { event: StreamEvent }) {
+  const summary = describeRunEvent(event);
+
+  return (
+    <div className="run-event-card">
+      <div className="run-event-card__header">
+        <div className="run-event-card__copy">
+          <p className="run-event-card__title">{summary.title}</p>
+          <p className="run-event-card__description">{summary.description}</p>
+        </div>
+        <div className="run-event-card__chips" aria-label="事件标签">
+          {summary.chips.map((chip) => (
+            <Badge key={chip}>{chip}</Badge>
+          ))}
+        </div>
+      </div>
+      <details className="run-event-card__raw">
+        <summary>原始数据</summary>
+        <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+      </details>
+    </div>
+  );
+}
+
+function describeRunEvent(event: StreamEvent): RunEventSummary {
+  const payload = event.payload;
+  const stage = readString(payload.stage);
+  const source = readString(payload.source) ?? readString(payload.connector);
+
+  if (event.event === "run_started") {
+    const query = readString(payload.query);
+    return {
+      title: "检索任务已创建",
+      description: query ? `已提交查询：${truncateText(query, 72)}` : "已提交真实检索任务，等待后端执行。",
+      chips: ["排队中"],
+    };
+  }
+
+  if (event.event === "stage_started") {
+    const stageName = stageDisplayLabel(stage);
+    return {
+      title: `${stageName}开始`,
+      description: `系统正在执行“${stageName}”阶段。`,
+      chips: ["阶段开始", stageName],
+    };
+  }
+
+  if (event.event === "stage_completed") {
+    return describeStageCompletedEvent(payload, stage);
+  }
+
+  if (event.event === "connector_completed") {
+    const sourceName = sourceDisplayLabel(source);
+    const returnedCount = readNumber(payload.returned_count);
+    const latency = readNumber(payload.latency_seconds);
+    const cacheHit = readBoolean(payload.cache_hit);
+    const hasError = Boolean(readString(payload.error_message));
+    const parts = [
+      returnedCount !== null ? `返回 ${formatNumber(returnedCount)} 篇候选` : "检索源已返回",
+      latency !== null ? `耗时 ${formatDetailedSeconds(latency)}` : null,
+      cacheHit === true ? "命中缓存" : cacheHit === false ? "未命中缓存" : null,
+    ].filter(Boolean);
+
+    return {
+      title: `${sourceName} 检索完成`,
+      description: hasError
+        ? `${sourceName} 返回了诊断信息，本次结果可能不完整；详情可展开原始数据查看。`
+        : parts.join("，") || `${sourceName} 已完成候选检索。`,
+      chips: [
+        sourceName,
+        returnedCount !== null ? `${formatNumber(returnedCount)} 篇` : "已返回",
+        ...(cacheHit ? ["缓存命中"] : []),
+        ...(hasError ? ["有诊断"] : []),
+      ],
+    };
+  }
+
+  if (event.event === "warning") {
+    const message = readString(payload.message);
+    return {
+      title: "运行提示",
+      description: warningDescription(message),
+      chips: ["提示"],
+    };
+  }
+
+  if (event.event === "cost_updated") {
+    const costReport = readRecord(payload.cost_report);
+    const apiCalls = readNumber(costReport?.api_call_count);
+    const cacheHits = readNumber(costReport?.cache_hit_count);
+    const totalTokens = readNumber(costReport?.llm_total_tokens) ?? readNumber(costReport?.estimated_total_tokens);
+    const parts = [
+      apiCalls !== null ? `API 调用 ${formatNumber(apiCalls)} 次` : null,
+      cacheHits !== null ? `缓存命中 ${formatNumber(cacheHits)} 次` : null,
+      totalTokens !== null ? `Token ${formatNumber(totalTokens)}` : null,
+    ].filter(Boolean);
+
+    return {
+      title: "成本统计已更新",
+      description: parts.join("，") || "本次运行的调用次数和成本统计已更新。",
+      chips: ["成本"],
+    };
+  }
+
+  if (event.event === "run_completed") {
+    const status = readString(payload.status);
+    const statusText = status ? runStatusText(status) : "已结束";
+    return {
+      title: `检索任务${statusText}`,
+      description: status === "failed"
+        ? "任务执行失败，后端错误详情可展开原始数据查看。"
+        : status === "cancelled"
+          ? "任务已取消，前端会回到可重新检索的状态。"
+          : "真实检索流程已结束，可以查看结果与诊断信息。",
+      chips: [statusText],
+    };
+  }
+
+  if (event.event === "error") {
+    return {
+      title: "运行出错",
+      description: "后端返回错误，详情可展开原始数据查看。",
+      chips: ["错误"],
+    };
+  }
+
+  if (event.event === "sse_error") {
+    return {
+      title: "事件连接异常",
+      description: "前端事件流连接出现异常，检索任务本身可能仍在后端运行。",
+      chips: ["连接"],
+    };
+  }
+
+  return {
+    title: eventNameLabel(event.event),
+    description: "收到一条运行事件，详情可展开原始数据查看。",
+    chips: [eventNameLabel(event.event)],
+  };
+}
+
+function describeStageCompletedEvent(
+  payload: Record<string, unknown>,
+  stage: string | null,
+): RunEventSummary {
+  const stageName = stageDisplayLabel(stage);
+  const chips = ["阶段完成", stageName];
+
+  if (stage === "retrieval") {
+    const candidateCount = readNumber(payload.candidate_paper_count);
+    const searchApiCalls = readNumber(payload.search_api_call_count);
+    const parts = [
+      candidateCount !== null ? `保留 ${formatNumber(candidateCount)} 篇候选论文` : "候选检索已完成",
+      searchApiCalls !== null ? `检索 API 调用 ${formatNumber(searchApiCalls)} 次` : null,
+    ].filter(Boolean);
+    return {
+      title: "候选检索完成",
+      description: parts.join("，") || "候选检索阶段已完成。",
+      chips,
+    };
+  }
+
+  if (stage === "judgement") {
+    const judgedCount = readNumber(payload.judged_paper_count);
+    return {
+      title: "相关性判断完成",
+      description: judgedCount !== null
+        ? `系统已完成 ${formatNumber(judgedCount)} 篇论文的相关性判断。`
+        : "系统已完成候选论文的相关性判断。",
+      chips,
+    };
+  }
+
+  if (stage === "reranking") {
+    const topK = readNumber(payload.top_k);
+    return {
+      title: "重排序完成",
+      description: topK !== null ? `系统已完成排序，并按 top_k=${formatNumber(topK)} 输出结果。` : "系统已完成候选论文重排序。",
+      chips,
+    };
+  }
+
+  if (stage === "synthesis") {
+    return {
+      title: "证据归纳完成",
+      description: "系统已完成结构化证据归纳和结果整理。",
+      chips,
+    };
+  }
+
+  if (stage === "query_understanding") {
+    return {
+      title: "查询理解完成",
+      description: "系统已完成查询解析，准备进入候选检索。",
+      chips,
+    };
+  }
+
+  return {
+    title: `${stageName}完成`,
+    description: `“${stageName}”阶段已完成。`,
+    chips,
+  };
+}
+
+function stageDisplayLabel(stage: string | null): string {
+  if (!stage) {
+    return "未知阶段";
+  }
+  return STAGE_LATENCY_LABELS[stage] ?? stage;
+}
+
+function sourceDisplayLabel(source: string | null): string {
+  const labels: Record<string, string> = {
+    arxiv: "arXiv",
+    semantic_scholar: "Semantic Scholar",
+    openalex: "OpenAlex",
+    pubmed: "PubMed",
+  };
+  return source ? labels[source] ?? source : "检索源";
+}
+
+function warningDescription(message: string | null): string {
+  if (!message) {
+    return "后端返回一条运行提示，详情可展开原始数据查看。";
+  }
+  if (message.includes("llm_query_understanding_used")) {
+    return "本次运行使用了 LLM 查询理解。";
+  }
+  if (message.includes("llm_judgement_used")) {
+    return "本次运行使用了 LLM 相关性判断。";
+  }
+  if (message.includes("llm_query_understanding_disabled")) {
+    return "LLM 查询理解未启用，系统使用规则版查询解析。";
+  }
+  if (message.includes("llm_judgement_disabled")) {
+    return "LLM 相关性判断未启用，系统使用规则版相关性判断。";
+  }
+  if (message.includes("llm_query_understanding_failed")) {
+    return "LLM 查询理解失败，系统已回退到规则版查询解析。";
+  }
+  if (message.includes("llm_judgement_failed")) {
+    return "LLM 相关性判断失败，系统已回退到规则版相关性判断。";
+  }
+  if (message.includes("source_cooldown_skip")) {
+    return "某个检索源处于短暂冷却期，本次已跳过该源。";
+  }
+  if (message.includes("subquery_skipped_by_limit")) {
+    return "快速模式下跳过了部分扩展查询，以控制请求次数和延迟。";
+  }
+  if (message.includes("stage_latency")) {
+    return "后端记录了一条阶段耗时诊断。";
+  }
+  return "后端返回一条运行提示，详情可展开原始数据查看。";
+}
+
+function runStatusText(status: string): string {
+  const labels: Record<string, string> = {
+    queued: "排队中",
+    running: "运行中",
+    succeeded: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+  };
+  return labels[status] ?? status;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
+}
+
+function StatusSummaryPanel({ status }: { status: SearchRunStatusResponse }) {
+  const items = [
+    {
+      label: "当前阶段",
+      value: status.current_stage,
+    },
+    {
+      label: "候选数",
+      value: formatNumber(status.progress.candidate_paper_count),
+    },
+    {
+      label: "已判断论文",
+      value: formatNumber(status.progress.judged_paper_count),
+    },
+    {
+      label: "完成阶段数",
+      value: formatNumber(status.progress.completed_stages.length),
+    },
+  ];
+
+  return (
+    <div className="status-summary-card">
+      <div className="status-summary-card__header">
+        <Activity className="status-summary-card__header-icon" aria-hidden="true" />
+        <h3>状态摘要</h3>
+      </div>
+      <dl className="status-summary-card__grid">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className={`status-summary-card__metric${
+              item.label === "当前阶段" ? " status-summary-card__metric--stage" : ""
+            }`}
+          >
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
