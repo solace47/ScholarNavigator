@@ -90,6 +90,12 @@ const PROFILE_LABELS: Record<RunProfile, string> = {
   evaluation: "评测",
 };
 
+const DEFAULT_CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from(
+  { length: DEFAULT_CURRENT_YEAR - 1900 + 1 },
+  (_, index) => DEFAULT_CURRENT_YEAR - index,
+);
+
 type SourceMode =
   | "recommended"
   | "arxiv"
@@ -166,7 +172,7 @@ export function ScholarNavigatorApp() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [query, setQuery] = useState(DEFAULT_QUERY);
   const [topK, setTopK] = useState(5);
-  const [currentYear, setCurrentYear] = useState(2026);
+  const [currentYear, setCurrentYear] = useState(DEFAULT_CURRENT_YEAR);
   const [runProfile, setRunProfile] = useState<RunProfile>("fast");
   const [sourceMode, setSourceMode] = useState<SourceMode>("recommended");
   const [enableRefchain, setEnableRefchain] = useState(false);
@@ -962,7 +968,10 @@ function SearchWorkbench({
 
           <details className="details-card border-2 border-[color-mix(in_srgb,var(--foreground)_68%,var(--border))] bg-[var(--surface-raised)] p-0 shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_14%,transparent)]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
-              <span>▾ 高级能力配置</span>
+              <span className="inline-flex items-center gap-2">
+                <span className="advanced-details-arrow" aria-hidden="true" />
+                高级能力配置
+              </span>
               <span className="border border-[color-mix(in_srgb,var(--foreground)_58%,var(--border))] bg-[var(--surface)] px-2 py-1 text-xs font-black text-[var(--muted-strong)]">
                 已启用 {enabledAdvancedCount} / 4
               </span>
@@ -970,19 +979,11 @@ function SearchWorkbench({
             <div className="space-y-4 border-t-2 border-[color-mix(in_srgb,var(--foreground)_36%,var(--border))] p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <label htmlFor="current-year" className="text-sm font-black text-[var(--muted-strong)]">
-                  当前年份
+                  年份
                 </label>
-                <input
-                  id="current-year"
-                  type="number"
-                  min={1900}
-                  max={2100}
-                  value={currentYear}
-                  onChange={(event) => onCurrentYearChange(Number(event.target.value))}
-                  className="control w-28 border-2 border-[color-mix(in_srgb,var(--foreground)_68%,var(--border))] bg-[var(--surface)] px-3 py-2 text-sm font-black tabular-nums text-[var(--foreground)]"
-                />
+                <YearPicker value={currentYear} onChange={onCurrentYearChange} />
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="advanced-toggle-grid">
                 <ToggleControl
                   label="RefChain 引用扩展"
                   description="沿高相关论文做单层引用扩展"
@@ -1029,33 +1030,90 @@ function ToggleControl({
 }) {
   return (
     <label
-      className={`flex min-h-24 cursor-pointer items-start gap-3 border-2 p-3 text-left shadow-[2px_2px_0_color-mix(in_srgb,var(--foreground)_10%,transparent)] transition duration-150 ${
-        checked
-          ? "border-[var(--foreground)] bg-[color-mix(in_srgb,var(--foreground)_8%,var(--surface))]"
-          : "border-[color-mix(in_srgb,var(--foreground)_58%,var(--border))] bg-[var(--surface)] hover:bg-[var(--surface-soft)]"
-      }`}
+      className={`advanced-toggle-card ${checked ? "advanced-toggle-card--checked" : ""}`}
+      data-tooltip={description}
     >
+      <span className="advanced-toggle-card__content">
+        <span className="advanced-toggle-card__label">{label}</span>
+      </span>
       <input
         type="checkbox"
-        className="sr-only"
+        className="advanced-toggle-card__input"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
+        aria-label={label}
       />
-      <span
-        aria-hidden="true"
-        className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center border-2 ${
-          checked
-            ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--surface)]"
-            : "border-[var(--foreground)] bg-[var(--surface)]"
-        }`}
-      >
-        {checked ? <span className="text-xs font-black leading-none">✓</span> : null}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-black text-[var(--foreground)]">{label}</span>
-        <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">{description}</span>
-      </span>
     </label>
+  );
+}
+
+function YearPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="year-picker">
+      <button
+        id="current-year"
+        type="button"
+        className="year-select"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {value}
+      </button>
+      {open ? (
+        <div className="year-picker__menu" role="listbox" aria-label="选择当前年份">
+          {YEAR_OPTIONS.map((year) => (
+            <button
+              key={year}
+              type="button"
+              role="option"
+              aria-selected={year === value}
+              className={`year-picker__option ${year === value ? "year-picker__option--selected" : ""}`}
+              onClick={() => {
+                onChange(year);
+                setOpen(false);
+              }}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

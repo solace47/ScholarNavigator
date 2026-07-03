@@ -160,6 +160,20 @@ button:disabled {
   box-shadow: var(--shadow-soft);
 }
 
+.advanced-details-arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid var(--foreground);
+  transition: transform 0.18s ease;
+}
+
+.details-card[open] .advanced-details-arrow {
+  transform: rotate(90deg);
+}
+
 .ow-search {
   display: flex;
   flex-direction: column;
@@ -584,7 +598,8 @@ button:disabled {
 
 .run-profile-radio-inputs {
   --run-profile-label-width: 112px;
-  --run-profile-round: 10px;
+  --run-profile-round: 0;
+  --run-profile-inner-round: 10px;
   --run-profile-track: #ffffff;
   --run-profile-ink: #212121;
   --run-profile-muted: #b8b8b8;
@@ -667,7 +682,7 @@ button:disabled {
   bottom: 8px;
   z-index: 0;
   border: 1px solid color-mix(in srgb, var(--run-profile-ink) 10%, var(--run-profile-border));
-  border-radius: calc(var(--run-profile-round) - 4px);
+  border-radius: calc(var(--run-profile-inner-round) - 4px);
   background: var(--run-profile-selected-bg);
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--run-profile-ink) 10%, transparent),
@@ -694,7 +709,7 @@ button:disabled {
   cursor: pointer;
   align-items: center;
   justify-content: center;
-  border-radius: calc(var(--run-profile-round) - 4px);
+  border-radius: calc(var(--run-profile-inner-round) - 4px);
   padding: 0.55rem 0.75rem;
   color: var(--run-profile-ink);
   font-weight: 800;
@@ -736,6 +751,158 @@ button:disabled {
   .run-profile-slidebar,
   .run-profile-radio-inputs .run-profile-name {
     transition: none;
+  }
+}
+
+.advanced-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.advanced-toggle-card {
+  position: relative;
+  display: flex;
+  min-height: 52px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 2px solid color-mix(in srgb, var(--foreground) 64%, var(--border));
+  background: color-mix(in srgb, var(--surface) 94%, var(--surface-soft));
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--foreground) 14%, transparent);
+  padding: 10px 12px;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.advanced-toggle-card:hover {
+  border-color: var(--foreground);
+  background: color-mix(in srgb, var(--surface) 82%, var(--surface-soft));
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+.advanced-toggle-card--checked {
+  border-color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 7%, var(--surface));
+  box-shadow:
+    3px 3px 0 color-mix(in srgb, var(--foreground) 22%, transparent),
+    inset 0 0 0 2px color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.advanced-toggle-card:active {
+  transform: translate(1px, 1px);
+}
+
+.advanced-toggle-card::after {
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 48px));
+  padding: 8px 10px;
+  border: 2px solid var(--foreground);
+  background: var(--surface);
+  box-shadow: 3px 3px 0 var(--foreground);
+  color: var(--foreground);
+  content: attr(data-tooltip);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.advanced-toggle-card:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.advanced-toggle-card__content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.advanced-toggle-card__label {
+  display: block;
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.advanced-toggle-card__input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin: 0;
+  appearance: none;
+  border: 2px solid var(--foreground);
+  border-radius: 0;
+  background: var(--surface);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.advanced-toggle-card__input::after {
+  width: 7px;
+  height: 12px;
+  border-right: 3px solid var(--surface);
+  border-bottom: 3px solid var(--surface);
+  background: transparent;
+  content: "";
+  opacity: 0;
+  transform: translateY(-1px) rotate(45deg) scale(0.72);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.advanced-toggle-card__input:checked {
+  background: var(--foreground);
+  box-shadow: inset 0 0 0 3px var(--surface);
+}
+
+.advanced-toggle-card__input:checked::after {
+  opacity: 1;
+  transform: translateY(-1px) rotate(45deg) scale(1);
+}
+
+.advanced-toggle-card__input:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}
+
+@media (max-width: 860px) {
+  .advanced-toggle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .advanced-toggle-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -880,6 +1047,91 @@ button:disabled {
 
 .control:hover {
   border-color: var(--border-strong);
+}
+
+.year-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.year-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 76px;
+  min-height: 34px;
+  height: 34px;
+  border: 2px solid #000;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0 20px 0 10px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.year-select::after {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 5px solid #000;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  content: "";
+  transform: translateY(-35%);
+}
+
+.year-select:hover {
+  background: color-mix(in srgb, var(--surface) 86%, var(--surface-soft));
+}
+
+.year-select:focus {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+.year-picker__menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  width: 96px;
+  max-height: 192px;
+  overflow-y: auto;
+  border: 2px solid #000;
+  background: var(--surface);
+  box-shadow: 4px 4px 0 #000;
+  padding: 4px;
+}
+
+.year-picker__option {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.year-picker__option:hover,
+.year-picker__option--selected {
+  background: var(--foreground);
+  color: var(--surface);
 }
 
 .chip {
