@@ -4,6 +4,9 @@ log/
 
 # === Python 编译输出 ===
 __pycache__/
+**/__pycache__/
+**pycache**/
+*.pyc
 *.py[cod]
 *.pyo
 *.pyd

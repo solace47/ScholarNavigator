@@ -1,52 +1,36 @@
 # ScholarNavigator
 
-## 项目定位
+面向复杂学术查询的论文搜索、排序与结构化归纳系统。
 
-ScholarNavigator 是面向华为企业赛题三“科研场景下复杂学术查询的智能论文搜索与推荐”的参赛项目入口。
+## 环境要求
 
-## 核心能力
+- Python 3.11 或以上
+- Node.js 20 或以上
 
-- 查询理解与子查询扩展。
-- 默认使用 arXiv / Semantic Scholar 进行真实论文检索。
-- PubMed / OpenAlex 可作为可选检索源。
-- 相关性判断、重排序和结构化结果输出。
-- Source Reliability、Cost / Efficiency 诊断，以及 batch / summary / evaluation 脚本。
+## 安装依赖
 
-## 快速启动
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-启动后端：
+cd frontend
+npm install
+```
+
+## 配置环境变量
+
+根据 [`.env.example`](.env.example) 在项目根目录创建本地 `.env`；变量含义和默认值以该模板为准。
+
+## 启动后端
 
 ```bash
 PYTHONPATH=src uvicorn scholar_agent.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-启动前端：
+## 启动前端
 
 ```bash
 cd frontend
-npm install
 npm run dev
-```
-
-运行 batch / eval smoke：
-
-```bash
-PYTHONPATH=src python scripts/run_search_batch.py \
-  --input datasets/eval_fixtures/manual_smoke/queries.jsonl \
-  --output /tmp/scholarnav_smoke/results.jsonl \
-  --sources arxiv,semantic_scholar \
-  --top-k 5 \
-  --run-profile fast \
-  --dump-ranked-candidates
-
-PYTHONPATH=src python scripts/summarize_search_batch.py \
-  --input /tmp/scholarnav_smoke/results.jsonl \
-  --output /tmp/scholarnav_smoke/summary.md
-
-PYTHONPATH=src python scripts/evaluate_search_batch.py \
-  --batch-results /tmp/scholarnav_smoke/results.jsonl \
-  --gold datasets/eval_fixtures/manual_smoke/qrels.filled.jsonl \
-  --output /tmp/scholarnav_smoke/eval.json \
-  --k 5 \
-  --include-partial
 ```
