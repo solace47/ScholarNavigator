@@ -6,6 +6,7 @@ from scholar_agent.agents import judgement as judgement_module
 from scholar_agent.agents.judgement import judge_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import QueryAnalysis, QueryConstraint, TimeRange
+from scholar_agent.prompts.loader import PromptLoadError, load_prompt
 
 
 def make_query_analysis(
@@ -474,6 +475,11 @@ def test_llm_disabled_falls_back_to_rules_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SCHOLAR_AGENT_LLM_PROVIDER", raising=False)
+    monkeypatch.setattr(
+        judgement_module,
+        "render_messages",
+        lambda *_args, **_kwargs: pytest.fail("disabled path loaded a prompt"),
+    )
     query_analysis = make_query_analysis()
     paper = make_paper(
         "LLM Reranking for Retrieval",
@@ -532,6 +538,44 @@ def test_valid_llm_json_generates_judgement_result() -> None:
     assert result.evidence[0].source == "title"
     assert "llm_judgement_used" in result.warnings
     assert "batch_note" in result.warnings
+
+
+def test_llm_messages_use_packaged_markdown_prompt() -> None:
+    query_analysis = make_query_analysis()
+    paper = make_paper(
+        "LLM Reranking for Scientific Literature Retrieval",
+        abstract="This paper studies LLM reranking for retrieval.",
+    )
+    client = FakeLLMClient(
+        [
+            {
+                "judgements": [
+                    {
+                        "paper_index": 0,
+                        "score": 0.9,
+                        "category": "highly_relevant",
+                        "reasoning": "Relevant based on supplied metadata.",
+                        "evidence": [],
+                        "matched_terms": ["LLM"],
+                        "warnings": [],
+                    }
+                ],
+                "warnings": [],
+            }
+        ]
+    )
+
+    judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )
+
+    loaded = load_prompt("relevance_judgement")
+    assert client.messages[0][0]["content"] == loaded.system_text
+    assert '"paper_index": 0' in client.messages[0][1]["content"]
+    assert '"papers": [' in client.messages[0][1]["content"]
 
 
 def test_llm_judgement_timeout_is_passed_to_client(
@@ -744,6 +788,29 @@ def test_llm_exception_falls_back_to_rules_with_warning() -> None:
     )
 
 
+def test_prompt_load_failure_falls_back_to_rules_with_stable_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_load(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        raise PromptLoadError("sensitive details must not escape")
+
+    monkeypatch.setattr(judgement_module, "render_messages", fail_load)
+    query_analysis = make_query_analysis()
+    paper = make_paper("LLM Reranking", abstract="LLM retrieval reranking.")
+    client = FakeLLMClient([])
+
+    result = judge_papers(
+        query_analysis,
+        [paper],
+        use_llm=True,
+        llm_client=client,
+    )[0]
+
+    assert client.calls == 0
+    assert "llm_judgement_prompt_load_failed" in result.warnings
+    assert "sensitive details" not in " ".join(result.warnings)
+
+
 def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
     query_analysis = make_query_analysis()
     paper = make_paper("LLM Reranking", abstract="LLM retrieval reranking.")
@@ -898,10 +965,12 @@ class FakeLLMClient:
         self.responses = responses
         self.calls = 0
         self.timeouts: list[float | None] = []
+        self.messages: list[list[dict[str, str]]] = []
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
         self.timeouts.append(timeout)
+        self.messages.append(messages)
         assert messages
         assert temperature == 0
         return self.responses[self.calls - 1]

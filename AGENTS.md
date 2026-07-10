@@ -20,7 +20,8 @@
 2. 修改 API 时必须同步 Pydantic Schema、API mapper、前端类型和相关测试。
 3. 修改架构后必须更新 `docs/architecture.md`。
 4. 修改评测口径、指标或匹配规则后必须更新 `docs/evaluation.md`。
-5. 不得删除、跳过或弱化测试来使测试通过。
+5. 修改运行时 Prompt 时必须同步 `src/scholar_agent/prompts/manifest.json` 版本号和 Prompt 测试。
+6. 不得删除、跳过或弱化测试来使测试通过。
 
 ## 完成检查
 

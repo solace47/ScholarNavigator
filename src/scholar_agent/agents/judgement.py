@@ -17,6 +17,7 @@ from scholar_agent.core.search_schemas import (
 )
 from scholar_agent.llm.provider import chat_json as provider_chat_json
 from scholar_agent.llm.provider import is_llm_enabled
+from scholar_agent.prompts.loader import PromptLoadError, render_messages
 
 
 STOPWORDS = {
@@ -201,14 +202,22 @@ class JudgementAgent:
             batch_papers = papers[start:end]
             batch_rule_results = rule_results[start:end]
             try:
+                messages = _build_llm_judgement_messages(
+                    query_analysis,
+                    batch_papers,
+                    start_index=start,
+                )
+            except PromptLoadError:
+                results[start:end] = _with_warning(
+                    batch_rule_results,
+                    "llm_judgement_prompt_load_failed",
+                )
+                continue
+            try:
                 self.llm_call_count += 1
                 raw_response = _chat_json(
                     self._llm_client,
-                    _build_llm_judgement_messages(
-                        query_analysis,
-                        batch_papers,
-                        start_index=start,
-                    ),
+                    messages,
                     timeout=llm_timeout,
                 )
                 batch_results = _judgement_results_from_llm_json(
@@ -1063,27 +1072,7 @@ def _build_llm_judgement_messages(
             for index, paper in enumerate(papers)
         ],
     }
-    return [
-        {
-            "role": "system",
-            "content": (
-                "You are ScholarNavigator's relevance judgement agent. Return only "
-                "one JSON object. Judge only the provided candidate papers. Do not "
-                "invent papers, citations, full-text evidence, API keys, or external "
-                "facts. Evidence must come from title, abstract, venue, or metadata."
-            ),
-        },
-        {
-            "role": "user",
-            "content": (
-                "For each paper, return JSON with key 'judgements'. Each judgement "
-                "must include paper_index, score from 0 to 1, category "
-                "(highly_relevant, partially_relevant, weakly_relevant, irrelevant, "
-                "insufficient_evidence), reasoning, evidence, matched_terms, and "
-                f"warnings. Input:\n{payload}"
-            ),
-        },
-    ]
+    return render_messages("relevance_judgement", payload)
 
 
 def _judgement_results_from_llm_json(

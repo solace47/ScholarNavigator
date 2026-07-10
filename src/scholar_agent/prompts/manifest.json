@@ -1,0 +1,29 @@
+{
+  "query_understanding": {
+    "version": "1.0.0",
+    "runtime_enabled": true,
+    "system": "query_understanding/system.md",
+    "user": "query_understanding/user.md"
+  },
+  "relevance_judgement": {
+    "version": "1.0.0",
+    "runtime_enabled": true,
+    "system": "relevance_judgement/system.md",
+    "user": "relevance_judgement/user.md"
+  },
+  "query_evolution": {
+    "version": "0.1.0",
+    "runtime_enabled": false,
+    "prompt": "query_evolution/prompt.md"
+  },
+  "reranking": {
+    "version": "0.1.0",
+    "runtime_enabled": false,
+    "prompt": "reranking/prompt.md"
+  },
+  "synthesis": {
+    "version": "0.1.0",
+    "runtime_enabled": false,
+    "prompt": "synthesis/prompt.md"
+  }
+}

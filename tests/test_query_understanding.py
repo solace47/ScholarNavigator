@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from scholar_agent.agents import query_understanding as query_understanding_module
 from scholar_agent.agents.query_understanding import analyze_query
+from scholar_agent.prompts.loader import PromptLoadError, load_prompt
 
 
 def test_chinese_long_query_generates_search_plan() -> None:
@@ -216,6 +218,25 @@ def test_llm_json_can_generate_search_plan() -> None:
     assert "llm_note" in plan.warnings
 
 
+def test_llm_messages_use_packaged_markdown_prompt() -> None:
+    query = "latest LLM reranking methods"
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "recent_progress",
+            "domain": "machine_learning",
+            "selected_sources": ["arxiv"],
+            "subqueries": ["LLM reranking retrieval"],
+        }
+    )
+
+    analyze_query(query, current_year=2026, use_llm=True, llm_client=client)
+
+    loaded = load_prompt("query_understanding")
+    assert client.messages[0][0]["content"] == loaded.system_text
+    assert '"query": "latest LLM reranking methods"' in client.messages[0][1]["content"]
+
+
 @pytest.mark.parametrize(
     ("env_value", "expected_timeout"),
     [
@@ -334,6 +355,11 @@ def test_llm_disabled_falls_back_to_rules_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SCHOLAR_AGENT_LLM_PROVIDER", raising=False)
+    monkeypatch.setattr(
+        query_understanding_module,
+        "render_messages",
+        lambda *_args, **_kwargs: pytest.fail("disabled path loaded a prompt"),
+    )
 
     plan = analyze_query(
         "latest LLM reranking methods",
@@ -343,6 +369,28 @@ def test_llm_disabled_falls_back_to_rules_with_warning(
 
     assert plan.query_analysis.intent == "recent_progress"
     assert "llm_query_understanding_disabled" in plan.warnings
+
+
+def test_prompt_load_failure_falls_back_to_rules_with_stable_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_load(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        raise PromptLoadError("sensitive details must not escape")
+
+    monkeypatch.setattr(query_understanding_module, "render_messages", fail_load)
+    client = FakeLLMClient({})
+
+    plan = analyze_query(
+        "latest LLM reranking methods",
+        current_year=2026,
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert client.calls == 0
+    assert plan.query_analysis.intent == "recent_progress"
+    assert "llm_query_understanding_prompt_load_failed" in plan.warnings
+    assert "sensitive details" not in " ".join(plan.warnings)
 
 
 def test_llm_exception_falls_back_to_rules_with_warning() -> None:
@@ -417,10 +465,12 @@ class FakeLLMClient:
         self.response = response
         self.calls = 0
         self.timeouts: list[float | None] = []
+        self.messages: list[list[dict[str, str]]] = []
 
     def chat_json(self, messages, *, temperature=0, timeout=None):  # noqa: ANN001
         self.calls += 1
         self.timeouts.append(timeout)
+        self.messages.append(messages)
         assert temperature == 0
         assert messages
         return self.response

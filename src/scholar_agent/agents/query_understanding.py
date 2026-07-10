@@ -19,6 +19,7 @@ from scholar_agent.core.search_schemas import (
 )
 from scholar_agent.llm.provider import chat_json as provider_chat_json
 from scholar_agent.llm.provider import is_llm_enabled
+from scholar_agent.prompts.loader import PromptLoadError, render_messages
 
 
 RECENT_WINDOW_YEARS = 3
@@ -335,6 +336,14 @@ class QueryUnderstandingAgent:
                 options,
                 rule_plan,
             )
+        except PromptLoadError:
+            rule_plan.warnings = _dedupe(
+                [
+                    *rule_plan.warnings,
+                    "llm_query_understanding_prompt_load_failed",
+                ]
+            )
+            return rule_plan
         except Exception as exc:  # noqa: BLE001 - LLM is optional; keep rules path alive
             rule_plan.warnings = _dedupe(
                 [
@@ -802,26 +811,7 @@ def _dedupe(values: list[str]) -> list[str]:
 
 
 def _build_llm_messages(query: str) -> list[dict[str, str]]:
-    return [
-        {
-            "role": "system",
-            "content": (
-                "You are ScholarNavigator's query understanding planner. "
-                "Return only one JSON object. Do not include API keys, secrets, "
-                "or unsupported sources. Allowed selected_sources/source_hints are "
-                "openalex, arxiv, and semantic_scholar only. Do not fabricate "
-                "citations or retrieval results; only analyze the user query."
-            ),
-        },
-        {
-            "role": "user",
-            "content": (
-                "Analyze this academic paper search query and return JSON with "
-                "language, intent, domain, constraints, subqueries, selected_sources, "
-                f"and warnings.\nQuery: {query}"
-            ),
-        },
-    ]
+    return render_messages("query_understanding", {"query": query})
 
 
 def _chat_json(
