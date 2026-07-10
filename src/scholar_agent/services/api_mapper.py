@@ -242,6 +242,7 @@ def map_query_analysis(query_analysis: InternalQueryAnalysis) -> api.QueryAnalys
         "domains": list(constraints.domains),
         "must_have_terms": list(constraints.must_include_terms),
         "excluded_terms": list(constraints.exclude_terms),
+        "paper_types": list(constraints.paper_types),
         "language": query_analysis.language,
         "needs_expansion": query_analysis.needs_expansion,
     }
@@ -250,6 +251,7 @@ def map_query_analysis(query_analysis: InternalQueryAnalysis) -> api.QueryAnalys
         + constraints.datasets
         + constraints.domains
         + constraints.must_include_terms
+        + list(constraints.paper_types)
     )
     return api.QueryAnalysis(
         intent_type=query_analysis.intent,

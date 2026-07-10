@@ -31,6 +31,7 @@ from scholar_agent.core.search_schemas import (
     EvolvedSubquery,
     JudgementResult,
     QueryAnalysis,
+    QueryConstraint,
     QueryEvolutionRecord,
     RankedPaper,
     RefChainOutput,
@@ -38,6 +39,7 @@ from scholar_agent.core.search_schemas import (
     SearchPlan,
     SearchSubquery,
     SUPPORTED_SEARCH_SOURCES,
+    normalize_search_sources,
 )
 from scholar_agent.core.synthesis_schemas import SynthesisOutput
 from scholar_agent.llm.provider import (
@@ -113,6 +115,7 @@ class SearchService:
         enable_llm_query_understanding: bool | None = None,
         enable_llm_judgement: bool | None = None,
         sources_override: list[str] | None = None,
+        explicit_constraints: QueryConstraint | None = None,
     ) -> SearchServiceOutput:
         start = time.perf_counter()
         stage_latencies: dict[str, float] = {}
@@ -140,6 +143,7 @@ class SearchService:
             current_year=current_year,
             use_llm=use_llm_query_understanding,
             llm_client=llm_client,
+            explicit_constraints=explicit_constraints,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)
         llm_call_count = _query_understanding_llm_call_count(
@@ -534,6 +538,7 @@ def run_search(
     enable_llm_query_understanding: bool | None = None,
     enable_llm_judgement: bool | None = None,
     sources_override: list[str] | None = None,
+    explicit_constraints: QueryConstraint | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -548,6 +553,7 @@ def run_search(
         enable_llm_query_understanding=enable_llm_query_understanding,
         enable_llm_judgement=enable_llm_judgement,
         sources_override=sources_override,
+        explicit_constraints=explicit_constraints,
     )
 
 
@@ -632,7 +638,7 @@ def _apply_sources_override(
     if sources_override is None:
         return search_plan
 
-    selected_sources, warnings = _normalize_sources_override(sources_override)
+    selected_sources = _normalize_sources_override(sources_override)
     subqueries = [
         subquery.model_copy(update={"source_hints": list(selected_sources)})
         for subquery in search_plan.subqueries
@@ -641,31 +647,15 @@ def _apply_sources_override(
         update={
             "selected_sources": selected_sources,
             "subqueries": subqueries,
-            "warnings": _dedupe_warnings([*search_plan.warnings, *warnings]),
         }
     )
 
 
-def _normalize_sources_override(raw_sources: list[str]) -> tuple[list[str], list[str]]:
-    selected_sources: list[str] = []
-    warnings: list[str] = []
-    seen: set[str] = set()
-    for source in raw_sources:
-        normalized = str(source).strip().lower().replace("-", "_").replace(" ", "_")
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        if normalized in SUPPORTED_SEARCH_SOURCES:
-            selected_sources.append(normalized)
-        elif normalized in {"semanticscholar"}:
-            if "semantic_scholar" not in seen:
-                selected_sources.append("semantic_scholar")
-                seen.add("semantic_scholar")
-        else:
-            warnings.append(f"source_preference_unsupported:{normalized}")
+def _normalize_sources_override(raw_sources: list[str]) -> list[str]:
+    selected_sources = normalize_search_sources(raw_sources)
     if not selected_sources:
-        warnings.append("source_preferences_no_supported_sources")
-    return selected_sources, warnings
+        raise ValueError("source_preferences must contain at least one supported source")
+    return selected_sources
 
 
 def _limit_sources_to_selected(

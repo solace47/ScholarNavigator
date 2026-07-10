@@ -64,6 +64,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
             sources_override: list[str] | None = None,
+            explicit_constraints: QueryConstraint | None = None,
         ) -> SearchServiceOutput:
             captured.update(
                 {
@@ -77,6 +78,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                     "enable_llm_query_understanding": enable_llm_query_understanding,
                     "enable_llm_judgement": enable_llm_judgement,
                     "sources_override": sources_override,
+                    "explicit_constraints": explicit_constraints,
                 }
             )
             assert release.wait(timeout=2)
@@ -92,8 +94,18 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             "run_profile": "high_recall",
             "constraints": {
                 "time_range": {"start_year": 2023, "end_year": 2026},
+                "venues": ["SIGIR"],
+                "must_have_terms": ["reranking"],
+                "excluded_terms": ["vision"],
+                "datasets": ["LitSearch"],
+                "paper_types": ["Systematic Review"],
             },
-            "source_preferences": ["arxiv", "semantic_scholar", "openalex"],
+            "source_preferences": [
+                "arxiv",
+                "semantic_scholar",
+                "openalex",
+                "arxiv",
+            ],
             "options": {
                 "enable_query_evolution": True,
                 "enable_refchain": False,
@@ -132,10 +144,22 @@ def test_real_search_run_is_created_before_background_result_is_ready(
         "enable_refchain": False,
         "enable_query_evolution": True,
         "enable_synthesis": True,
-        "current_year": 2026,
+        "current_year": None,
         "enable_llm_query_understanding": True,
         "enable_llm_judgement": True,
         "sources_override": ["arxiv", "semantic_scholar", "openalex"],
+        "explicit_constraints": QueryConstraint(
+            time_range=TimeRange(
+                start_year=2023,
+                end_year=2026,
+                label="explicit",
+            ),
+            venues=["SIGIR"],
+            must_include_terms=["reranking"],
+            exclude_terms=["vision"],
+            datasets=["LitSearch"],
+            paper_types=["review"],
+        ),
     }
 
     result_response = client.get(f"/api/v1/real/search/runs/{run_id}/result")

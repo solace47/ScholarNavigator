@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import date
 
 from scholar_agent.core.paper_schemas import Paper
@@ -165,23 +166,23 @@ def _authority_score(query_analysis: QueryAnalysis, paper: Paper) -> float:
 
 
 def _timeliness_score(query_analysis: QueryAnalysis, paper: Paper) -> float:
-    if paper.year is None:
-        return 0.25
-
     time_range = query_analysis.constraints.time_range
     if time_range is not None:
+        if paper.year is None:
+            return 0.0
         start_year = time_range.start_year
         end_year = time_range.end_year
         if start_year is not None and paper.year < start_year:
-            distance = start_year - paper.year
-            return _clamp(0.35 - min(distance, 10) * 0.03)
+            return 0.0
         if end_year is not None and paper.year > end_year:
-            distance = paper.year - end_year
-            return _clamp(0.65 - min(distance, 10) * 0.04)
+            return 0.0
         if start_year is not None and end_year is not None and end_year > start_year:
             position = (paper.year - start_year) / (end_year - start_year)
             return _clamp(0.7 + position * 0.3)
         return 0.85
+
+    if paper.year is None:
+        return 0.25
 
     current_year = date.today().year
     age = max(0, current_year - paper.year)
@@ -209,9 +210,16 @@ def _venue_component(query_analysis: QueryAnalysis, paper: Paper) -> float:
     if not venue:
         return 0.0
     requested = query_analysis.constraints.venues
-    if requested and any(item.casefold() in venue.casefold() for item in requested):
-        return 0.12
+    if requested:
+        venue_key = _normalize_venue(venue)
+        if any(_normalize_venue(item) in venue_key for item in requested):
+            return 0.12
+        return 0.0
     return 0.08
+
+
+def _normalize_venue(value: str) -> str:
+    return re.sub(r"[\s_-]+", "", value.casefold())
 
 
 def _identifier_count(paper: Paper) -> int:

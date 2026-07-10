@@ -16,6 +16,7 @@ from scholar_agent.core.search_schemas import (
     SearchPlan,
     SearchSubquery,
     TimeRange,
+    normalize_paper_types,
 )
 from scholar_agent.llm.provider import chat_json as provider_chat_json
 from scholar_agent.llm.provider import is_llm_enabled
@@ -257,14 +258,18 @@ class QueryUnderstandingAgent:
             options.run_profile, options.top_k
         )
 
-        constraints = QueryConstraint(
-            time_range=time_range,
-            venues=venues,
-            methods=methods,
-            datasets=datasets,
-            domains=[domain],
-            must_include_terms=keyword_terms,
-            exclude_terms=[],
+        constraints = merge_query_constraints(
+            QueryConstraint(
+                time_range=time_range,
+                venues=venues,
+                methods=methods,
+                datasets=datasets,
+                domains=[domain],
+                must_include_terms=keyword_terms,
+                exclude_terms=[],
+                paper_types=[],
+            ),
+            options.explicit_constraints,
         )
         reasoning = [
             f"language={language}",
@@ -364,6 +369,7 @@ def analyze_query(
     current_year: int | None = None,
     use_llm: bool | None = None,
     llm_client: "LLMJsonClient | None" = None,
+    explicit_constraints: QueryConstraint | None = None,
 ) -> SearchPlan:
     """Analyze a user query into a SearchPlan."""
 
@@ -374,6 +380,7 @@ def analyze_query(
         enable_query_evolution=enable_query_evolution,
         current_year=current_year,
         use_llm=use_llm,
+        explicit_constraints=explicit_constraints,
     )
     return QueryUnderstandingAgent(llm_client=llm_client).analyze(query, options)
 
@@ -566,6 +573,14 @@ def _build_subqueries(
         (original_query, "original_query"),
     ]
 
+    explicit_constraint_query = (
+        _constraint_subquery(base_query, constraints)
+        if constraints.explicit_fields
+        else None
+    )
+    if explicit_constraint_query:
+        candidates.append(explicit_constraint_query)
+
     candidates.extend(_recall_subquery_candidates(original_query))
 
     if base_query.casefold() != original_query.casefold():
@@ -580,7 +595,7 @@ def _build_subqueries(
         candidates.append(domain_query)
 
     constraint_query = _constraint_subquery(base_query, constraints)
-    if constraint_query:
+    if constraint_query and not explicit_constraint_query:
         candidates.append(constraint_query)
 
     subqueries: list[SearchSubquery] = []
@@ -773,6 +788,12 @@ def _constraint_subquery(
     constraints: QueryConstraint,
 ) -> tuple[str, str] | None:
     fragments: list[str] = []
+    if "must_include_terms" in constraints.explicit_fields:
+        fragments.extend(constraints.must_include_terms)
+    if "datasets" in constraints.explicit_fields:
+        fragments.extend(constraints.datasets)
+    if "paper_types" in constraints.explicit_fields:
+        fragments.extend(constraints.paper_types)
     if constraints.venues:
         fragments.extend(constraints.venues)
     time_suffix = _format_time_suffix(constraints.time_range).strip()
@@ -780,6 +801,7 @@ def _constraint_subquery(
         fragments.append(time_suffix)
     if not fragments:
         return None
+    fragments = _dedupe(fragments)
     return f"{base_query} {' '.join(fragments)}", "constraint_expansion"
 
 
@@ -790,6 +812,8 @@ def _format_time_suffix(time_range: TimeRange | None) -> str:
         return f" {time_range.start_year}-{time_range.end_year}"
     if time_range.start_year is not None:
         return f" since {time_range.start_year}"
+    if time_range.end_year is not None:
+        return f" through {time_range.end_year}"
     return ""
 
 
@@ -808,6 +832,75 @@ def _dedupe(values: list[str]) -> list[str]:
         deduped.append(item)
         seen.add(key)
     return deduped
+
+
+def merge_query_constraints(
+    base: QueryConstraint,
+    explicit: QueryConstraint | None,
+) -> QueryConstraint:
+    """Overlay non-empty explicit constraints on inferred constraints."""
+
+    if explicit is None:
+        return base
+
+    list_fields = (
+        "venues",
+        "methods",
+        "datasets",
+        "domains",
+        "must_include_terms",
+        "exclude_terms",
+        "paper_types",
+    )
+    values: dict[str, Any] = {
+        "time_range": explicit.time_range or base.time_range,
+    }
+    explicit_fields = list(base.explicit_fields)
+    if explicit.time_range is not None:
+        explicit_fields.append("time_range")
+    for field_name in list_fields:
+        explicit_values = list(getattr(explicit, field_name))
+        values[field_name] = (
+            explicit_values if explicit_values else list(getattr(base, field_name))
+        )
+        if explicit_values:
+            explicit_fields.append(field_name)
+    values["explicit_fields"] = _dedupe(explicit_fields)
+    return QueryConstraint(**values)
+
+
+def _ensure_explicit_constraint_subquery(
+    subqueries: list[SearchSubquery],
+    *,
+    original_query: str,
+    constraints: QueryConstraint,
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> list[SearchSubquery]:
+    if not constraints.explicit_fields:
+        return subqueries
+    candidate = _constraint_subquery(original_query, constraints)
+    if candidate is None:
+        return subqueries
+    query, purpose = candidate
+    candidate_key = _normalize_query(query).casefold()
+    if any(item.query.casefold() == candidate_key for item in subqueries):
+        return subqueries
+
+    merged = [
+        *subqueries[:1],
+        SearchSubquery(
+            query=query,
+            source_hints=selected_sources,
+            priority=2,
+            purpose=purpose,
+        ),
+        *subqueries[1:],
+    ][: min(max_subqueries, 5)]
+    return [
+        item.model_copy(update={"priority": min(index + 1, 5)})
+        for index, item in enumerate(merged)
+    ]
 
 
 def _build_llm_messages(query: str) -> list[dict[str, str]]:
@@ -892,6 +985,7 @@ def _search_plan_from_llm_json(
         rule_constraints=rule_plan.query_analysis.constraints,
         warnings=warnings,
     )
+    constraints = merge_query_constraints(constraints, options.explicit_constraints)
     selected_sources = _filter_llm_sources(
         raw_plan.get("selected_sources"),
         fallback=rule_plan.selected_sources,
@@ -923,6 +1017,13 @@ def _search_plan_from_llm_json(
         fallback=rule_plan.subqueries,
         max_subqueries=max_subqueries,
         warnings=warnings,
+    )
+    subqueries = _ensure_explicit_constraint_subquery(
+        subqueries,
+        original_query=query,
+        constraints=constraints,
+        selected_sources=selected_sources,
+        max_subqueries=max_subqueries,
     )
 
     return SearchPlan(
@@ -974,7 +1075,28 @@ def _constraints_from_llm_json(
             or _coerce_string_list(raw_constraints.get("excluded_terms"))
             or list(rule_constraints.exclude_terms)
         ),
+        paper_types=_paper_types_from_llm_json(
+            raw_constraints.get("paper_types"),
+            fallback=list(rule_constraints.paper_types),
+            warnings=warnings,
+        ),
     )
+
+
+def _paper_types_from_llm_json(
+    value: Any,
+    *,
+    fallback: list[str],
+    warnings: list[str],
+) -> list[str]:
+    if value is None:
+        return fallback
+    try:
+        normalized = normalize_paper_types(value)
+    except (TypeError, ValueError):
+        warnings.append("llm_invalid_paper_types")
+        return fallback
+    return normalized or fallback
 
 
 def _time_range_from_llm_json(

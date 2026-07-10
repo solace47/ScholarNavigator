@@ -5,7 +5,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from scholar_agent.core.search_schemas import (
+    PaperType,
+    SourceName,
+    TimeRange,
+    normalize_paper_types,
+    normalize_search_sources,
+)
 
 
 RunStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -73,9 +81,7 @@ class RuntimeConfigResponse(BaseModel):
     features: RuntimeFeatures
 
 
-class TimeRangeConstraint(BaseModel):
-    start_year: int | None = None
-    end_year: int | None = None
+TimeRangeConstraint = TimeRange
 
 
 class SearchConstraints(BaseModel):
@@ -84,7 +90,12 @@ class SearchConstraints(BaseModel):
     must_have_terms: list[str] = Field(default_factory=list)
     excluded_terms: list[str] = Field(default_factory=list)
     datasets: list[str] = Field(default_factory=list)
-    paper_types: list[str] = Field(default_factory=list)
+    paper_types: list[PaperType] = Field(default_factory=list)
+
+    @field_validator("paper_types", mode="before")
+    @classmethod
+    def normalize_requested_paper_types(cls, value: object) -> list[str]:
+        return normalize_paper_types(value)
 
 
 class SearchBudgets(BaseModel):
@@ -110,13 +121,23 @@ class SearchRunCreateRequest(BaseModel):
     query: str = Field(..., min_length=1)
     locale: str = "zh-CN"
     constraints: SearchConstraints = Field(default_factory=SearchConstraints)
-    source_preferences: list[str] = Field(
+    source_preferences: list[SourceName] = Field(
         default_factory=lambda: ["openalex", "arxiv", "semantic_scholar"]
     )
     run_profile: RunProfile = "balanced"
     top_k: int = Field(default=20, ge=1, le=100)
     budgets: SearchBudgets = Field(default_factory=SearchBudgets)
     options: SearchOptions = Field(default_factory=SearchOptions)
+
+    @field_validator("source_preferences", mode="before")
+    @classmethod
+    def validate_source_preferences(cls, value: object) -> list[str]:
+        if value is None:
+            raise ValueError("source_preferences must be a non-empty list")
+        normalized = normalize_search_sources(value)
+        if not normalized:
+            raise ValueError("source_preferences must be a non-empty list")
+        return normalized
 
 
 class SearchRunCreateResponse(BaseModel):

@@ -25,13 +25,14 @@ from ...core.api_schemas import (
     RuntimeConfigResponse,
     RuntimeFeatures,
     RuntimeLimits,
+    SearchConstraints,
     SearchPlan,
     SearchRunCreateRequest,
     SearchRunCreateResponse,
     SearchRunResultResponse,
     SearchRunStatusResponse,
 )
-from ...core.search_schemas import RunProfile
+from ...core.search_schemas import QueryConstraint, RunProfile, TimeRange
 from ...llm.provider import get_llm_runtime_config
 from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import (
@@ -342,6 +343,26 @@ def _pubmed_runtime_reason() -> str:
     return "implemented_for_real_search_without_api_key_rate_limited"
 
 
+def _to_internal_constraints(constraints: SearchConstraints) -> QueryConstraint:
+    raw_time_range = constraints.time_range
+    time_range: TimeRange | None = None
+    if raw_time_range is not None and (
+        raw_time_range.start_year is not None
+        or raw_time_range.end_year is not None
+    ):
+        time_range = raw_time_range.model_copy(
+            update={"label": raw_time_range.label or "explicit"}
+        )
+    return QueryConstraint(
+        time_range=time_range,
+        venues=constraints.venues,
+        datasets=constraints.datasets,
+        must_include_terms=constraints.must_have_terms,
+        exclude_terms=constraints.excluded_terms,
+        paper_types=constraints.paper_types,
+    )
+
+
 @router.post(
     "/real/search/runs",
     response_model=SearchRunCreateResponse,
@@ -574,12 +595,6 @@ def _execute_real_search_run(run_id: str) -> None:
             return
         request = run.request
 
-    current_year = (
-        request.constraints.time_range.end_year
-        if request.constraints.time_range is not None
-        else None
-    )
-
     try:
         _start_real_stage(run_id, "query_understanding")
         _complete_real_stage(run_id, "query_understanding")
@@ -591,12 +606,13 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_refchain=request.options.enable_refchain,
             enable_query_evolution=request.options.enable_query_evolution,
             enable_synthesis=True,
-            current_year=current_year,
+            current_year=None,
             enable_llm_query_understanding=(
                 request.options.enable_llm_query_understanding
             ),
             enable_llm_judgement=request.options.enable_llm_judgement,
             sources_override=request.source_preferences,
+            explicit_constraints=_to_internal_constraints(request.constraints),
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,

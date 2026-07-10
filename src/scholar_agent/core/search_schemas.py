@@ -10,6 +10,25 @@ from scholar_agent.core.paper_schemas import Paper
 
 
 SourceName = Literal["openalex", "arxiv", "semantic_scholar", "pubmed"]
+PaperType = Literal[
+    "survey",
+    "review",
+    "method",
+    "benchmark",
+    "dataset",
+    "application",
+    "comparison",
+]
+ConstraintField = Literal[
+    "time_range",
+    "venues",
+    "methods",
+    "datasets",
+    "domains",
+    "must_include_terms",
+    "exclude_terms",
+    "paper_types",
+]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryLanguage = Literal["zh", "en", "mixed", "unknown"]
 QueryIntent = Literal[
@@ -42,6 +61,32 @@ SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = (
     "semantic_scholar",
     "pubmed",
 )
+SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
+    "survey",
+    "review",
+    "method",
+    "benchmark",
+    "dataset",
+    "application",
+    "comparison",
+)
+PAPER_TYPE_ALIASES: dict[str, str] = {
+    "survey": "survey",
+    "review": "review",
+    "literature_review": "review",
+    "systematic_review": "review",
+    "method": "method",
+    "methods": "method",
+    "methodology": "method",
+    "benchmark": "benchmark",
+    "benchmarking": "benchmark",
+    "dataset": "dataset",
+    "data_set": "dataset",
+    "application": "application",
+    "applied": "application",
+    "comparison": "comparison",
+    "comparative": "comparison",
+}
 
 
 class TimeRange(BaseModel):
@@ -68,6 +113,34 @@ class QueryConstraint(BaseModel):
     domains: list[str] = Field(default_factory=list)
     must_include_terms: list[str] = Field(default_factory=list)
     exclude_terms: list[str] = Field(default_factory=list)
+    paper_types: list[PaperType] = Field(default_factory=list)
+    explicit_fields: list[ConstraintField] = Field(
+        default_factory=list,
+        exclude=True,
+    )
+
+    @field_validator(
+        "venues",
+        "methods",
+        "datasets",
+        "domains",
+        "must_include_terms",
+        "exclude_terms",
+        mode="before",
+    )
+    @classmethod
+    def normalize_string_constraints(cls, value: object) -> list[str]:
+        return normalize_constraint_values(value)
+
+    @field_validator("paper_types", mode="before")
+    @classmethod
+    def normalize_paper_type_constraints(cls, value: object) -> list[str]:
+        return normalize_paper_types(value)
+
+    @field_validator("explicit_fields", mode="before")
+    @classmethod
+    def normalize_explicit_fields(cls, value: object) -> list[str]:
+        return normalize_constraint_values(value)
 
 
 class QueryAnalysis(BaseModel):
@@ -120,6 +193,7 @@ class QueryUnderstandingOptions(BaseModel):
     enable_query_evolution: bool = False
     current_year: int | None = Field(default=None, ge=1900, le=2200)
     use_llm: bool | None = None
+    explicit_constraints: QueryConstraint | None = None
 
 
 class EvidenceItem(BaseModel):
@@ -235,6 +309,12 @@ class RefChainOutput(BaseModel):
 
 
 def _normalize_sources(value: object) -> list[str]:
+    return normalize_search_sources(value)
+
+
+def normalize_search_sources(value: object) -> list[str]:
+    """Normalize supported search sources with stable de-duplication."""
+
     if value is None:
         return list(SUPPORTED_SEARCH_SOURCES)
     if isinstance(value, str):
@@ -245,7 +325,15 @@ def _normalize_sources(value: object) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
     for source in raw_sources:
-        key = str(source).strip().lower()
+        key = (
+            str(source)
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+        if key == "semanticscholar":
+            key = "semantic_scholar"
         if not key or key in seen:
             continue
         if key not in SUPPORTED_SEARCH_SOURCES:
@@ -253,3 +341,42 @@ def _normalize_sources(value: object) -> list[str]:
         normalized.append(key)
         seen.add(key)
     return normalized
+
+
+def normalize_constraint_values(value: object) -> list[str]:
+    """Trim and case-insensitively de-duplicate constraint strings."""
+
+    if value is None:
+        return []
+    raw_values = [value] if isinstance(value, str) else list(value)  # type: ignore[arg-type]
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        item = str(raw_value).strip()
+        key = item.casefold()
+        if not item or key in seen:
+            continue
+        normalized.append(item)
+        seen.add(key)
+    return normalized
+
+
+def normalize_paper_types(value: object) -> list[str]:
+    """Normalize supported paper types or reject unknown values."""
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in normalize_constraint_values(value):
+        key = reformat_enum_value(raw_value)
+        paper_type = PAPER_TYPE_ALIASES.get(key)
+        if paper_type is None:
+            raise ValueError(f"unsupported paper type: {raw_value}")
+        if paper_type in seen:
+            continue
+        normalized.append(paper_type)
+        seen.add(paper_type)
+    return normalized
+
+
+def reformat_enum_value(value: str) -> str:
+    return "_".join(value.strip().casefold().replace("-", " ").split())

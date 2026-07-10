@@ -69,6 +69,10 @@ LLM 默认关闭，当前只可选用于两个位置：
 
 重排序、查询演化、RefChain 和证据归纳当前均为规则实现。系统不让 LLM 生成候选论文，也不读取论文全文。
 
+## 显式查询约束
+
+Real Search API 将 `time_range`、`venues`、`must_have_terms`、`excluded_terms`、`datasets` 和 `paper_types` 映射到统一的 `QueryConstraint`，再传入 SearchService 和 Query Understanding。字段合并优先级为“用户显式非空约束 > LLM 解析 > 规则解析”，未显式填写的字段保留推断结果；`current_year` 只解释相对时间表达，不代替显式时间范围。合并结果参与子查询、相关性判断和重排，并由 API 原样返回。`source_preferences` 在请求校验阶段完成白名单校验、稳定去重和非空检查。
+
 ## API 运行生命周期
 
 1. `POST /api/v1/real/search/runs` 创建进程内任务并返回 `queued`。
@@ -89,7 +93,6 @@ LLM 默认关闭，当前只可选用于两个位置：
 
 - 只使用论文元数据和摘要，不读取全文 PDF，也没有段落级证据检索。
 - API 请求中的多数 `budgets` 字段尚未约束 SearchService 执行；部分返回格式开关也未形成独立输出路径。
-- 请求约束主要由查询文本解析；显式约束对象目前只将结束年份传入时间解析。
 - SSE 阶段事件是生命周期级进度，不等同于 SearchService 内部逐步骤实时流。
 - 任务队列、缓存和运行结果未持久化；取消是协作式状态取消。
 - 外部检索质量与可用性受上游服务限流和故障影响。

@@ -93,6 +93,22 @@ DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
         "science",
     ),
 }
+PAPER_TYPE_TERMS: dict[str, tuple[str, ...]] = {
+    "survey": ("survey",),
+    "review": ("review", "literature review", "systematic review"),
+    "method": ("method", "methodology", "approach", "framework"),
+    "benchmark": ("benchmark", "evaluation"),
+    "dataset": ("dataset", "data set", "corpus"),
+    "application": ("application", "applied", "deployment"),
+    "comparison": ("comparison", "comparative", "versus"),
+}
+JUDGEMENT_CATEGORY_ORDER = {
+    "highly_relevant": 0,
+    "partially_relevant": 1,
+    "weakly_relevant": 2,
+    "irrelevant": 3,
+    "insufficient_evidence": 4,
+}
 
 LLM_JUDGEMENT_BATCH_SIZE_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE"
 LLM_JUDGEMENT_MAX_PAPERS_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS"
@@ -151,20 +167,31 @@ class JudgementAgent:
     ) -> list[JudgementResult]:
         _validate_thresholds(threshold_high, threshold_partial, threshold_weak)
         if use_llm:
-            return self._judge_with_optional_llm(
+            results = self._judge_with_optional_llm(
                 query_analysis,
                 papers,
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
             )
-        return _judge_papers_rules(
-            query_analysis,
-            papers,
-            threshold_high=threshold_high,
-            threshold_partial=threshold_partial,
-            threshold_weak=threshold_weak,
-        )
+        else:
+            results = _judge_papers_rules(
+                query_analysis,
+                papers,
+                threshold_high=threshold_high,
+                threshold_partial=threshold_partial,
+                threshold_weak=threshold_weak,
+            )
+        return [
+            _enforce_constraint_outcomes(
+                query_analysis,
+                result,
+                threshold_high=threshold_high,
+                threshold_partial=threshold_partial,
+                threshold_weak=threshold_weak,
+            )
+            for result in results
+        ]
 
     def _judge_with_optional_llm(
         self,
@@ -374,6 +401,7 @@ def _judge_one_paper(
         max_score=0.12,
         reason_label="dataset terms",
     )
+    paper_type_signal = _paper_type_signal(constraints, paper)
     domain_signal = _term_signal(
         terms=list(DOMAIN_TERMS.get(query_analysis.domain, ())),
         paper=paper,
@@ -390,17 +418,20 @@ def _judge_one_paper(
         + must_signal.score
         + method_signal.score
         + dataset_signal.score
+        + paper_type_signal.score
         + domain_signal.score
         + venue_signal.score
         + time_signal.score
         - venue_signal.penalty
         - time_signal.penalty
+        - paper_type_signal.penalty
     )
     evidence = _dedupe_evidence(
         keyword_signal.evidence
         + must_signal.evidence
         + method_signal.evidence
         + dataset_signal.evidence
+        + paper_type_signal.evidence
         + domain_signal.evidence
         + venue_signal.evidence
         + time_signal.evidence
@@ -410,6 +441,7 @@ def _judge_one_paper(
         + must_signal.matched_terms
         + method_signal.matched_terms
         + dataset_signal.matched_terms
+        + paper_type_signal.matched_terms
         + domain_signal.matched_terms
     )
     reasons = (
@@ -417,6 +449,7 @@ def _judge_one_paper(
         + must_signal.reasons
         + method_signal.reasons
         + dataset_signal.reasons
+        + paper_type_signal.reasons
         + domain_signal.reasons
         + venue_signal.reasons
         + time_signal.reasons
@@ -829,6 +862,29 @@ def _term_signal(
     )
 
 
+def _paper_type_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
+    if not constraints.paper_types:
+        return _Signal(score=0.0, matched_terms=[], evidence=[], reasons=[])
+    matched_types, evidence = _matched_paper_types(constraints.paper_types, paper)
+    if not matched_types:
+        return _Signal(
+            score=0.0,
+            matched_terms=[],
+            evidence=[],
+            reasons=[
+                "paper type does not match requested types: "
+                + ", ".join(constraints.paper_types)
+            ],
+            penalty=0.08,
+        )
+    return _Signal(
+        score=min(0.08 * len(matched_types), 0.16),
+        matched_terms=matched_types,
+        evidence=evidence,
+        reasons=["matched paper types: " + ", ".join(matched_types)],
+    )
+
+
 def _venue_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
     if not constraints.venues:
         return _Signal(score=0.0, matched_terms=[], evidence=[], reasons=[])
@@ -843,9 +899,9 @@ def _venue_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
             penalty=0.03,
         )
 
-    venue_key = venue.casefold()
+    venue_key = _normalize_venue(venue)
     for expected in constraints.venues:
-        if expected.casefold() in venue_key:
+        if _normalize_venue(expected) in venue_key:
             return _Signal(
                 score=0.1,
                 matched_terms=[],
@@ -899,6 +955,220 @@ def _time_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
         evidence=[EvidenceItem(source="metadata", text=f"year={paper.year}", confidence=0.88)],
         reasons=[f"paper year {paper.year} satisfies time constraint"],
     )
+
+
+def _enforce_constraint_outcomes(
+    query_analysis: QueryAnalysis,
+    result: JudgementResult,
+    *,
+    threshold_high: float,
+    threshold_partial: float,
+    threshold_weak: float,
+) -> JudgementResult:
+    constraints = query_analysis.constraints
+    score = result.score
+    category = result.category
+    warnings = list(result.warnings)
+    evidence = list(result.evidence)
+    matched_terms = list(result.matched_terms)
+    reasoning_additions: list[str] = []
+
+    excluded_matches, excluded_evidence = _matching_constraint_terms(
+        constraints.exclude_terms,
+        result.paper,
+    )
+    if excluded_matches:
+        warning = "excluded_terms_matched:" + ",".join(excluded_matches)
+        warnings.append(warning)
+        reasoning_additions.append(
+            "excluded terms matched: " + ", ".join(excluded_matches)
+        )
+        return result.model_copy(
+            update={
+                "score": 0.0,
+                "category": "irrelevant",
+                "reasoning": _append_reasoning(
+                    result.reasoning,
+                    reasoning_additions,
+                ),
+                "evidence": _dedupe_evidence([*evidence, *excluded_evidence]),
+                "matched_terms": _dedupe_terms(
+                    [*matched_terms, *excluded_matches]
+                ),
+                "warnings": _dedupe_terms(warnings),
+            }
+        )
+
+    if "must_include_terms" in constraints.explicit_fields:
+        matched_required, required_evidence = _matching_constraint_terms(
+            constraints.must_include_terms,
+            result.paper,
+        )
+        matched_keys = {item.casefold() for item in matched_required}
+        missing_required = [
+            term
+            for term in constraints.must_include_terms
+            if term.casefold() not in matched_keys
+        ]
+        evidence.extend(required_evidence)
+        matched_terms.extend(matched_required)
+        if missing_required:
+            warnings.append(
+                "missing_must_have_terms:" + ",".join(missing_required)
+            )
+            reasoning_additions.append(
+                "missing required terms: " + ", ".join(missing_required)
+            )
+            score = min(score, max(0.0, threshold_high - 0.0001))
+            category = _worse_category(category, "partially_relevant")
+
+    if constraints.datasets:
+        matched_datasets, dataset_evidence = _matching_constraint_terms(
+            constraints.datasets,
+            result.paper,
+        )
+        evidence.extend(dataset_evidence)
+        matched_terms.extend(matched_datasets)
+        if (
+            "datasets" in constraints.explicit_fields
+            and not matched_datasets
+        ):
+            warnings.append(
+                "dataset_terms_not_matched:" + ",".join(constraints.datasets)
+            )
+            reasoning_additions.append(
+                "requested datasets not matched: " + ", ".join(constraints.datasets)
+            )
+            score = max(0.0, score - 0.08)
+            category = _worse_category(
+                category,
+                _category(
+                    score,
+                    threshold_high=threshold_high,
+                    threshold_partial=threshold_partial,
+                    threshold_weak=threshold_weak,
+                ),
+            )
+
+    if constraints.paper_types:
+        matched_types, type_evidence = _matched_paper_types(
+            constraints.paper_types,
+            result.paper,
+        )
+        evidence.extend(type_evidence)
+        matched_terms.extend(matched_types)
+        if not matched_types:
+            warnings.append(
+                "paper_types_not_matched:" + ",".join(constraints.paper_types)
+            )
+            reasoning_additions.append(
+                "requested paper types not matched: "
+                + ", ".join(constraints.paper_types)
+            )
+            score = max(0.0, score - 0.08)
+            category = _worse_category(
+                category,
+                _category(
+                    score,
+                    threshold_high=threshold_high,
+                    threshold_partial=threshold_partial,
+                    threshold_weak=threshold_weak,
+                ),
+            )
+
+    if _outside_time_range(constraints, result.paper):
+        warnings.append(f"outside_time_range:{result.paper.year}")
+        reasoning_additions.append(
+            f"paper year {result.paper.year} is outside the requested time range"
+        )
+        score = min(score, max(0.0, threshold_high - 0.0001))
+        category = _worse_category(category, "partially_relevant")
+
+    return result.model_copy(
+        update={
+            "score": round(_clamp(score), 4),
+            "category": category,
+            "reasoning": _append_reasoning(result.reasoning, reasoning_additions),
+            "evidence": _dedupe_evidence(evidence),
+            "matched_terms": _dedupe_terms(matched_terms),
+            "warnings": _dedupe_terms(warnings),
+        }
+    )
+
+
+def _matching_constraint_terms(
+    terms: list[str],
+    paper: Paper,
+) -> tuple[list[str], list[EvidenceItem]]:
+    title = paper.title or ""
+    abstract = paper.abstract or ""
+    title_key = title.casefold()
+    abstract_key = abstract.casefold()
+    matched: list[str] = []
+    evidence: list[EvidenceItem] = []
+    for term in _dedupe_terms(terms):
+        normalized = term.casefold()
+        if _contains_term(title_key, normalized):
+            matched.append(term)
+            evidence.append(
+                EvidenceItem(source="title", text=_short_text(title), confidence=0.92)
+            )
+        elif _contains_term(abstract_key, normalized):
+            matched.append(term)
+            evidence.append(
+                EvidenceItem(
+                    source="abstract",
+                    text=_abstract_snippet(abstract, normalized),
+                    confidence=0.8,
+                )
+            )
+    return _dedupe_terms(matched), _dedupe_evidence(evidence)
+
+
+def _matched_paper_types(
+    paper_types: list[str],
+    paper: Paper,
+) -> tuple[list[str], list[EvidenceItem]]:
+    matched: list[str] = []
+    evidence: list[EvidenceItem] = []
+    for paper_type in paper_types:
+        aliases = list(PAPER_TYPE_TERMS.get(paper_type, (paper_type,)))
+        alias_matches, alias_evidence = _matching_constraint_terms(aliases, paper)
+        if not alias_matches:
+            continue
+        matched.append(paper_type)
+        evidence.extend(alias_evidence)
+    return _dedupe_terms(matched), _dedupe_evidence(evidence)
+
+
+def _outside_time_range(constraints: QueryConstraint, paper: Paper) -> bool:
+    time_range = constraints.time_range
+    if time_range is None or paper.year is None:
+        return False
+    if time_range.start_year is not None and paper.year < time_range.start_year:
+        return True
+    return time_range.end_year is not None and paper.year > time_range.end_year
+
+
+def _worse_category(current: str, candidate: str) -> str:
+    if JUDGEMENT_CATEGORY_ORDER.get(candidate, 5) > JUDGEMENT_CATEGORY_ORDER.get(
+        current,
+        5,
+    ):
+        return candidate
+    return current
+
+
+def _append_reasoning(reasoning: str, additions: list[str]) -> str:
+    if not additions:
+        return reasoning
+    base = reasoning.rstrip().rstrip(".")
+    suffix = "; ".join(_dedupe_terms(additions))
+    return f"{base}; {suffix}."
+
+
+def _normalize_venue(value: str) -> str:
+    return re.sub(r"[\s_-]+", "", value.casefold())
 
 
 def _category(
