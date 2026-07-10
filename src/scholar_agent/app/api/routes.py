@@ -32,7 +32,7 @@ from ...core.api_schemas import (
     SearchRunResultResponse,
     SearchRunStatusResponse,
 )
-from ...core.search_schemas import QueryConstraint, RunProfile, TimeRange
+from ...core.search_schemas import QueryConstraint, RunProfile, SearchBudget, TimeRange
 from ...llm.provider import get_llm_runtime_config
 from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import (
@@ -363,6 +363,10 @@ def _to_internal_constraints(constraints: SearchConstraints) -> QueryConstraint:
     )
 
 
+def _to_internal_budget(budgets: BaseModel) -> SearchBudget:
+    return SearchBudget.model_validate(budgets.model_dump())
+
+
 @router.post(
     "/real/search/runs",
     response_model=SearchRunCreateResponse,
@@ -613,6 +617,7 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_llm_judgement=request.options.enable_llm_judgement,
             sources_override=request.source_preferences,
             explicit_constraints=_to_internal_constraints(request.constraints),
+            budget=_to_internal_budget(request.budgets),
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,

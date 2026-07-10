@@ -4,6 +4,7 @@
 
 - 后端测试覆盖 API、SearchService、四个 connector、agent、mapper 和评测工具；前端可通过 lint 与生产构建。
 - fake fixture 可离线比较 baseline、查询演化和 RefChain；真实 batch 可生成结果并对本地 qrels 评分。
+- Search API 的轮次、候选数、LLM 调用、Token 和延迟预算已进入 SearchService，并有离线停止行为测试；尚未通过正式 benchmark 验证其性能影响。
 - 以上只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
@@ -11,7 +12,6 @@
 1. **接入正式评测集**：适配官方或完整公开 benchmark；验收标准是固定版本、配置和随机性后可一条命令复现逐查询及汇总结果。
 2. **统一论文匹配规则**：消除离线 evaluator 与 batch evaluator 的标识符差异；验收标准是 DOI、arXiv、OpenAlex、Semantic Scholar、PubMed 和 title+year 均有跨格式回归测试。
 3. **补齐比赛核心指标**：增加与官方口径一致的 F1 和效率统计；验收标准是报告同时输出质量、API 调用、Token 与端到端延迟。
-4. **落实运行预算**：让请求中的搜索轮数、候选数、LLM 调用、Token 和延迟预算真正约束执行；验收标准是每项预算都有停止行为和测试。
 
 ## P1
 

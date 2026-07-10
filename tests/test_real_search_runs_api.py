@@ -32,6 +32,7 @@ from scholar_agent.core.search_schemas import (  # noqa: E402
     RankedPaper,
     RerankScoreBreakdown,
     SearchPlan,
+    SearchBudget,
     SearchSubquery,
     TimeRange,
 )
@@ -65,6 +66,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             enable_llm_judgement: bool | None = None,
             sources_override: list[str] | None = None,
             explicit_constraints: QueryConstraint | None = None,
+            budget: SearchBudget | None = None,
         ) -> SearchServiceOutput:
             captured.update(
                 {
@@ -79,6 +81,7 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                     "enable_llm_judgement": enable_llm_judgement,
                     "sources_override": sources_override,
                     "explicit_constraints": explicit_constraints,
+                    "budget": budget,
                 }
             )
             assert release.wait(timeout=2)
@@ -106,6 +109,13 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                 "openalex",
                 "arxiv",
             ],
+            "budgets": {
+                "max_search_rounds": 1,
+                "max_candidate_papers": 17,
+                "max_llm_calls": 3,
+                "max_total_tokens": 1234,
+                "max_latency_seconds": 12.5,
+            },
             "options": {
                 "enable_query_evolution": True,
                 "enable_refchain": False,
@@ -159,6 +169,13 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             exclude_terms=["vision"],
             datasets=["LitSearch"],
             paper_types=["review"],
+        ),
+        "budget": SearchBudget(
+            max_search_rounds=1,
+            max_candidate_papers=17,
+            max_llm_calls=3,
+            max_total_tokens=1234,
+            max_latency_seconds=12.5,
         ),
     }
 

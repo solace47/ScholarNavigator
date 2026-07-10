@@ -279,6 +279,29 @@ export interface RetrievalDiagnostics {
   source_stats: RetrievalSourceStats[];
 }
 
+export interface BudgetStatus {
+  exhausted: boolean;
+  stop_reasons: string[];
+  diagnostics: string[];
+  max_search_rounds: number;
+  completed_search_rounds: number;
+  max_candidate_papers: number;
+  candidate_limit_applied: boolean;
+  candidate_truncations: Array<{
+    stage: string;
+    before_count: number;
+    after_count: number;
+    truncated_count: number;
+  }>;
+  max_llm_calls: number;
+  used_llm_calls: number;
+  max_total_tokens: number;
+  used_total_tokens: number;
+  token_usage_precise: boolean;
+  max_latency_seconds: number;
+  elapsed_seconds: number;
+}
+
 export interface SearchRunResultResponse {
   run_id: string;
   status: RunStatus;
@@ -290,9 +313,11 @@ export interface SearchRunResultResponse {
   method_clusters: MethodCluster[];
   timeline: TimelineItem[];
   citation_graph: CitationGraph;
+  warnings: string[];
   missing_evidence: string[];
   synthesis?: SynthesisOutput | null;
   retrieval_diagnostics: RetrievalDiagnostics;
+  budget_status: BudgetStatus;
   cost_report: CostReport;
 }
 

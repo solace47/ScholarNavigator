@@ -19,6 +19,7 @@ from scholar_agent.core.paper_schemas import (  # noqa: E402
     PaperUrls,
 )
 from scholar_agent.core.search_schemas import (  # noqa: E402
+    BudgetStatus,
     EvolvedSubquery,
     EvidenceItem,
     JudgementResult,
@@ -189,7 +190,7 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
     assert "source_error:openalex:HTTP 503" in response.missing_evidence
     assert response.cost_report.search_api_call_count == 2
     assert response.cost_report.api_call_count == 2
-    assert response.cost_report.search_rounds == 2
+    assert response.cost_report.search_rounds == 1
     assert response.cost_report.judged_paper_count == 1
     assert response.cost_report.cache_hit_count == 1
     assert response.cost_report.llm_call_count == 0
@@ -583,4 +584,7 @@ def _output_with_ranked(
         llm_prompt_tokens=llm_prompt_tokens,
         llm_completion_tokens=llm_completion_tokens,
         llm_total_tokens=llm_total_tokens,
+        budget_status=BudgetStatus(
+            completed_search_rounds=1 if retrieval_outputs else 0,
+        ),
     )

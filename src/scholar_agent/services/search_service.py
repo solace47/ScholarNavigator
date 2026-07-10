@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
@@ -28,15 +27,18 @@ from scholar_agent.connectors.openalex import fetch_openalex_references
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
+    BudgetStatus,
     EvolvedSubquery,
     JudgementResult,
     QueryAnalysis,
     QueryConstraint,
     QueryEvolutionRecord,
     RankedPaper,
+    RefChainOptions,
     RefChainOutput,
     RunProfile,
     SearchPlan,
+    SearchBudget,
     SearchSubquery,
     SUPPORTED_SEARCH_SOURCES,
     normalize_search_sources,
@@ -47,6 +49,7 @@ from scholar_agent.llm.provider import (
     OpenAICompatibleLLMClient,
     is_llm_enabled,
 )
+from scholar_agent.services.search_budget import BudgetedLLMClient, SearchBudgetRuntime
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
 ENABLE_LLM_JUDGEMENT_ENV = "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT"
@@ -86,6 +89,7 @@ class SearchServiceOutput(BaseModel):
     llm_prompt_tokens: int = 0
     llm_completion_tokens: int = 0
     llm_total_tokens: int = 0
+    budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
 
 
 class SearchService:
@@ -116,8 +120,10 @@ class SearchService:
         enable_llm_judgement: bool | None = None,
         sources_override: list[str] | None = None,
         explicit_constraints: QueryConstraint | None = None,
+        budget: SearchBudget | None = None,
     ) -> SearchServiceOutput:
-        start = time.perf_counter()
+        runtime = SearchBudgetRuntime(budget)
+        start = runtime.started_at
         stage_latencies: dict[str, float] = {}
         use_llm_query_understanding = (
             _env_flag(ENABLE_LLM_QUERY_UNDERSTANDING_ENV, default=False)
@@ -129,10 +135,14 @@ class SearchService:
             if enable_llm_judgement is None
             else enable_llm_judgement
         )
-        llm_client = self._resolve_llm_client(
+        resolved_llm_client = self._resolve_llm_client(
             use_llm_query_understanding or use_llm_judgement
         )
-        llm_usage_start = _llm_token_usage_snapshot(llm_client)
+        llm_client = (
+            BudgetedLLMClient(resolved_llm_client, runtime)
+            if resolved_llm_client is not None
+            else None
+        )
         stage_start = time.perf_counter()
         search_plan = analyze_query(
             query,
@@ -146,159 +156,215 @@ class SearchService:
             explicit_constraints=explicit_constraints,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)
-        llm_call_count = _query_understanding_llm_call_count(
-            search_plan,
-            use_llm_query_understanding,
-        )
         _add_stage_latency(
             stage_latencies,
             "query_understanding",
             time.perf_counter() - stage_start,
         )
 
-        stage_start = time.perf_counter()
-        initial_subqueries, fast_source_warnings = (
-            _limit_fast_arxiv_initial_subqueries(search_plan)
-        )
-        initial_subqueries, fast_semantic_scholar_warnings = (
-            _limit_fast_semantic_scholar_initial_subqueries(
+        warnings: list[str] = list(search_plan.warnings)
+        retrieval_outputs: list[RetrievalOutput] = []
+        query_evolution_records: list[QueryEvolutionRecord] = []
+        refchain_output: RefChainOutput | None = None
+        raw_papers: list[Paper] = []
+        source_stats: list[SourceStats] = []
+        deduplicated: list[Paper] = []
+        judgements: list[JudgementResult] = []
+        all_ranked_papers: list[RankedPaper] = []
+        ranked_papers: list[RankedPaper] = []
+
+        if runtime.latency_stop_reason() is None:
+            stage_start = time.perf_counter()
+            initial_subqueries, fast_source_warnings = (
+                _limit_fast_arxiv_initial_subqueries(search_plan)
+            )
+            initial_subqueries, fast_semantic_scholar_warnings = (
+                _limit_fast_semantic_scholar_initial_subqueries(
+                    search_plan,
+                    initial_subqueries,
+                )
+            )
+            initial_subqueries = _append_high_recall_targeted_semantic_scholar_subquery(
                 search_plan,
                 initial_subqueries,
             )
-        )
-        initial_subqueries = _append_high_recall_targeted_semantic_scholar_subquery(
-            search_plan,
-            initial_subqueries,
-        )
-        retrieval_outputs = self._retrieve_subqueries(
-            search_plan,
-            subqueries=initial_subqueries,
-        )
-        _add_stage_latency(
-            stage_latencies,
-            "retrieval",
-            time.perf_counter() - stage_start,
-        )
-        warnings: list[str] = list(search_plan.warnings)
-        warnings.extend(fast_source_warnings)
-        warnings.extend(fast_semantic_scholar_warnings)
-        query_evolution_records: list[QueryEvolutionRecord] = []
-        refchain_output: RefChainOutput | None = None
+            warnings.extend(fast_source_warnings)
+            warnings.extend(fast_semantic_scholar_warnings)
+            if initial_subqueries:
+                retrieval_outputs = self._retrieve_subqueries(
+                    search_plan,
+                    subqueries=initial_subqueries,
+                )
+                runtime.record_search_round()
+            _add_stage_latency(
+                stage_latencies,
+                "retrieval",
+                time.perf_counter() - stage_start,
+            )
 
-        raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
-            retrieval_outputs
-        )
-        warnings.extend(retrieval_warnings)
-        deduplicated = deduplicate_papers(raw_papers)
-        stage_start = time.perf_counter()
-        judgements, judgement_llm_calls = self._judge_papers(
-            search_plan,
-            deduplicated,
-            use_llm=use_llm_judgement,
-            llm_client=llm_client,
-        )
-        _add_stage_latency(
-            stage_latencies,
-            "judgement",
-            time.perf_counter() - stage_start,
-        )
-        llm_call_count += judgement_llm_calls
-        stage_start = time.perf_counter()
-        all_ranked_papers, ranked_papers = _rerank_all_and_top(
-            search_plan.query_analysis,
-            judgements,
-            top_k,
-        )
-        _add_stage_latency(
-            stage_latencies,
-            "reranking",
-            time.perf_counter() - stage_start,
-        )
+            raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
+                retrieval_outputs
+            )
+            warnings.extend(retrieval_warnings)
+            deduplicated = _apply_candidate_budget(
+                deduplicate_papers(raw_papers),
+                runtime,
+                stage="initial_retrieval",
+                source_order=search_plan.selected_sources,
+            )
+            stage_start = time.perf_counter()
+            judgement_use_llm = (
+                use_llm_judgement and runtime.latency_stop_reason() is None
+            )
+            judgements, _ = self._judge_papers(
+                search_plan,
+                deduplicated,
+                use_llm=judgement_use_llm,
+                llm_client=llm_client,
+            )
+            _add_stage_latency(
+                stage_latencies,
+                "judgement",
+                time.perf_counter() - stage_start,
+            )
+            runtime.latency_stop_reason()
+            stage_start = time.perf_counter()
+            all_ranked_papers, ranked_papers = _rerank_all_and_top(
+                search_plan.query_analysis,
+                judgements,
+                top_k,
+            )
+            _add_stage_latency(
+                stage_latencies,
+                "reranking",
+                time.perf_counter() - stage_start,
+            )
 
         if enable_query_evolution:
-            used_queries = {subquery.query for subquery in search_plan.subqueries}
-            stage_start = time.perf_counter()
-            evolution_record = evolve_queries(
-                search_plan.query_analysis,
-                search_plan,
-                judgements,
-                ranked_papers,
-                used_queries,
+            evolution_stop_reason = _query_evolution_budget_stop_reason(
+                runtime,
+                len(deduplicated),
             )
-            query_evolution_records.append(evolution_record)
-            warnings.extend(evolution_record.warnings)
-
-            evolved_queries = _filter_new_evolved_queries(
-                evolution_record.generated_queries,
-                used_queries,
-            )
-            if len(evolved_queries) < len(evolution_record.generated_queries):
-                warnings.append("duplicate_evolved_query_skipped")
-
-            if evolved_queries:
-                _add_stage_latency(
-                    stage_latencies,
-                    "query_evolution",
-                    time.perf_counter() - stage_start,
-                )
-                stage_start = time.perf_counter()
-                evolved_outputs = self._retrieve_evolved_queries(
-                    search_plan,
-                    evolved_queries,
-                )
-                _add_stage_latency(
-                    stage_latencies,
-                    "retrieval",
-                    time.perf_counter() - stage_start,
-                )
-                retrieval_outputs.extend(evolved_outputs)
-                (
-                    evolved_papers,
-                    evolved_source_stats,
-                    evolved_warnings,
-                ) = _collect_retrieval_outputs(evolved_outputs)
-                raw_papers.extend(evolved_papers)
-                source_stats.extend(evolved_source_stats)
-                warnings.extend(evolved_warnings)
-
-                deduplicated = deduplicate_papers(raw_papers)
-                stage_start = time.perf_counter()
-                judgements, judgement_llm_calls = self._judge_papers(
-                    search_plan,
-                    deduplicated,
-                    use_llm=use_llm_judgement,
-                    llm_client=llm_client,
-                )
-                _add_stage_latency(
-                    stage_latencies,
-                    "judgement",
-                    time.perf_counter() - stage_start,
-                )
-                llm_call_count += judgement_llm_calls
-                stage_start = time.perf_counter()
-                all_ranked_papers, ranked_papers = _rerank_all_and_top(
-                    search_plan.query_analysis,
-                    judgements,
-                    top_k,
-                )
-                _add_stage_latency(
-                    stage_latencies,
-                    "reranking",
-                    time.perf_counter() - stage_start,
+            if evolution_stop_reason is not None:
+                query_evolution_records.append(
+                    QueryEvolutionRecord(
+                        round_index=2,
+                        skipped_reasons=[evolution_stop_reason],
+                        warnings=[evolution_stop_reason],
+                    )
                 )
             else:
+                used_queries = {subquery.query for subquery in search_plan.subqueries}
+                stage_start = time.perf_counter()
+                evolution_record = evolve_queries(
+                    search_plan.query_analysis,
+                    search_plan,
+                    judgements,
+                    ranked_papers,
+                    used_queries,
+                )
+                evolution_record.round_index = 2
+                query_evolution_records.append(evolution_record)
+                warnings.extend(evolution_record.warnings)
+
+                evolved_queries = _filter_new_evolved_queries(
+                    evolution_record.generated_queries,
+                    used_queries,
+                )
+                if len(evolved_queries) < len(evolution_record.generated_queries):
+                    warnings.append("duplicate_evolved_query_skipped")
                 _add_stage_latency(
                     stage_latencies,
                     "query_evolution",
                     time.perf_counter() - stage_start,
                 )
+                retrieval_stop_reason = _query_evolution_budget_stop_reason(
+                    runtime,
+                    len(deduplicated),
+                    check_rounds=False,
+                )
+                if retrieval_stop_reason is not None:
+                    evolution_record.skipped_reasons = _dedupe_warnings(
+                        [*evolution_record.skipped_reasons, retrieval_stop_reason]
+                    )
+                    evolution_record.warnings = _dedupe_warnings(
+                        [*evolution_record.warnings, retrieval_stop_reason]
+                    )
+                elif evolved_queries:
+                    stage_start = time.perf_counter()
+                    evolved_outputs = self._retrieve_evolved_queries(
+                        search_plan,
+                        evolved_queries,
+                    )
+                    runtime.record_search_round()
+                    _add_stage_latency(
+                        stage_latencies,
+                        "retrieval",
+                        time.perf_counter() - stage_start,
+                    )
+                    retrieval_outputs.extend(evolved_outputs)
+                    (
+                        evolved_papers,
+                        evolved_source_stats,
+                        evolved_warnings,
+                    ) = _collect_retrieval_outputs(evolved_outputs)
+                    raw_papers.extend(evolved_papers)
+                    source_stats.extend(evolved_source_stats)
+                    warnings.extend(evolved_warnings)
+
+                    deduplicated = _apply_candidate_budget(
+                        deduplicate_papers(raw_papers),
+                        runtime,
+                        stage="query_evolution",
+                        source_order=search_plan.selected_sources,
+                    )
+                    stage_start = time.perf_counter()
+                    judgement_use_llm = (
+                        use_llm_judgement
+                        and runtime.latency_stop_reason() is None
+                    )
+                    judgements, _ = self._judge_papers(
+                        search_plan,
+                        deduplicated,
+                        use_llm=judgement_use_llm,
+                        llm_client=llm_client,
+                    )
+                    _add_stage_latency(
+                        stage_latencies,
+                        "judgement",
+                        time.perf_counter() - stage_start,
+                    )
+                    runtime.latency_stop_reason()
+                    stage_start = time.perf_counter()
+                    all_ranked_papers, ranked_papers = _rerank_all_and_top(
+                        search_plan.query_analysis,
+                        judgements,
+                        top_k,
+                    )
+                    _add_stage_latency(
+                        stage_latencies,
+                        "reranking",
+                        time.perf_counter() - stage_start,
+                    )
 
         if enable_refchain:
             stage_start = time.perf_counter()
+            runtime.latency_stop_reason()
+            remaining_candidates = max(
+                0,
+                runtime.budget.max_candidate_papers - len(deduplicated),
+            )
             refchain_output = expand_refchain(
                 search_plan.query_analysis,
                 ranked_papers,
                 self._reference_fetcher,
+                options=RefChainOptions(
+                    max_total_references=min(50, remaining_candidates),
+                ),
+                budget_check=lambda: (
+                    runtime.latency_stop_reason()
+                    or runtime.candidate_stop_reason(len(deduplicated))
+                ),
             )
             raw_papers.extend(refchain_output.references)
             warnings.extend(refchain_output.warnings)
@@ -317,12 +383,20 @@ class SearchService:
                 time.perf_counter() - stage_start,
             )
             if refchain_output.references:
-                deduplicated = deduplicate_papers(raw_papers)
+                deduplicated = _apply_candidate_budget(
+                    deduplicate_papers(raw_papers),
+                    runtime,
+                    stage="refchain",
+                    source_order=search_plan.selected_sources,
+                )
                 stage_start = time.perf_counter()
-                judgements, judgement_llm_calls = self._judge_papers(
+                judgement_use_llm = (
+                    use_llm_judgement and runtime.latency_stop_reason() is None
+                )
+                judgements, _ = self._judge_papers(
                     search_plan,
                     deduplicated,
-                    use_llm=use_llm_judgement,
+                    use_llm=judgement_use_llm,
                     llm_client=llm_client,
                 )
                 _add_stage_latency(
@@ -330,7 +404,7 @@ class SearchService:
                     "judgement",
                     time.perf_counter() - stage_start,
                 )
-                llm_call_count += judgement_llm_calls
+                runtime.latency_stop_reason()
                 stage_start = time.perf_counter()
                 all_ranked_papers, ranked_papers = _rerank_all_and_top(
                     search_plan.query_analysis,
@@ -349,11 +423,6 @@ class SearchService:
             if refchain_output is not None
             else 0
         )
-        llm_usage_delta = _llm_token_usage_delta(
-            llm_usage_start,
-            _llm_token_usage_snapshot(llm_client),
-        )
-
         output = SearchServiceOutput(
             search_plan=search_plan,
             retrieval_outputs=retrieval_outputs,
@@ -365,16 +434,19 @@ class SearchService:
             judgements=judgements,
             ranked_papers=ranked_papers,
             all_ranked_papers=all_ranked_papers,
-            warnings=_dedupe_warnings(warnings),
+            warnings=[],
             source_stats=source_stats,
             latency_seconds=0.0,
             stage_latencies=stage_latencies,
-            llm_call_count=llm_call_count,
-            llm_prompt_tokens=llm_usage_delta.prompt_tokens,
-            llm_completion_tokens=llm_usage_delta.completion_tokens,
-            llm_total_tokens=llm_usage_delta.total_tokens,
+            llm_call_count=runtime.used_llm_calls,
+            llm_prompt_tokens=runtime.prompt_tokens,
+            llm_completion_tokens=runtime.completion_tokens,
+            llm_total_tokens=runtime.total_tokens,
         )
-        if enable_synthesis:
+        output.warnings = _dedupe_warnings(
+            [*warnings, *runtime.stop_reasons, *runtime.diagnostics]
+        )
+        if enable_synthesis and runtime.latency_stop_reason() is None:
             from scholar_agent.agents.synthesis import synthesize_answer
 
             stage_start = time.perf_counter()
@@ -385,6 +457,14 @@ class SearchService:
                 time.perf_counter() - stage_start,
             )
         output.latency_seconds = time.perf_counter() - start
+        output.budget_status = runtime.status()
+        output.warnings = _dedupe_warnings(
+            [
+                *warnings,
+                *runtime.stop_reasons,
+                *runtime.diagnostics,
+            ]
+        )
         return output
 
     def _retrieve_subqueries(
@@ -539,6 +619,7 @@ def run_search(
     enable_llm_judgement: bool | None = None,
     sources_override: list[str] | None = None,
     explicit_constraints: QueryConstraint | None = None,
+    budget: SearchBudget | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -554,6 +635,7 @@ def run_search(
         enable_llm_judgement=enable_llm_judgement,
         sources_override=sources_override,
         explicit_constraints=explicit_constraints,
+        budget=budget,
     )
 
 
@@ -572,52 +654,95 @@ def _rerank_all_and_top(
     return all_ranked_papers, all_ranked_papers[:top_k]
 
 
+def _query_evolution_budget_stop_reason(
+    runtime: SearchBudgetRuntime,
+    candidate_count: int,
+    *,
+    check_rounds: bool = True,
+) -> str | None:
+    if (
+        check_rounds
+        and runtime.completed_search_rounds >= runtime.budget.max_search_rounds
+    ):
+        return runtime.stop("budget_stop:max_search_rounds")
+    return (
+        runtime.candidate_stop_reason(candidate_count)
+        or runtime.latency_stop_reason()
+    )
+
+
+def _apply_candidate_budget(
+    papers: list[Paper],
+    runtime: SearchBudgetRuntime,
+    *,
+    stage: str,
+    source_order: list[str],
+) -> list[Paper]:
+    limit = runtime.budget.max_candidate_papers
+    if len(papers) <= limit:
+        return papers
+
+    truncated = _stable_source_coverage_truncate(
+        papers,
+        limit=limit,
+        source_order=source_order,
+    )
+    runtime.record_candidate_truncation(
+        stage=stage,
+        before_count=len(papers),
+        after_count=len(truncated),
+    )
+    return truncated
+
+
+def _stable_source_coverage_truncate(
+    papers: list[Paper],
+    *,
+    limit: int,
+    source_order: list[str],
+) -> list[Paper]:
+    """Round-robin stable source buckets only when truncation is necessary."""
+
+    ordered_sources = _dedupe_warnings(
+        [*source_order, *SUPPORTED_SEARCH_SOURCES, "other"]
+    )
+    buckets: dict[str, list[Paper]] = {source: [] for source in ordered_sources}
+    source_positions = {source: index for index, source in enumerate(ordered_sources)}
+    for paper in papers:
+        normalized_sources = {
+            str(source).strip().casefold().replace("-", "_").replace(" ", "_")
+            for source in paper.sources
+        }
+        bucket = min(
+            (source for source in ordered_sources if source in normalized_sources),
+            key=lambda source: source_positions[source],
+            default="other",
+        )
+        buckets[bucket].append(paper)
+
+    selected: list[Paper] = []
+    offsets = {source: 0 for source in ordered_sources}
+    while len(selected) < limit:
+        added = False
+        for source in ordered_sources:
+            offset = offsets[source]
+            if offset >= len(buckets[source]):
+                continue
+            selected.append(buckets[source][offset])
+            offsets[source] += 1
+            added = True
+            if len(selected) >= limit:
+                break
+        if not added:
+            break
+    return selected
+
+
 def _env_flag(env_name: str, *, default: bool) -> bool:
     raw_value = os.getenv(env_name)
     if raw_value is None:
         return default
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-@dataclass(frozen=True)
-class _LLMTokenUsageSnapshot:
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-
-
-def _llm_token_usage_snapshot(llm_client: Any | None) -> _LLMTokenUsageSnapshot:
-    usage = getattr(llm_client, "token_usage", None)
-    if usage is None:
-        return _LLMTokenUsageSnapshot()
-    return _LLMTokenUsageSnapshot(
-        prompt_tokens=_usage_count(usage, "prompt_tokens"),
-        completion_tokens=_usage_count(usage, "completion_tokens"),
-        total_tokens=_usage_count(usage, "total_tokens"),
-    )
-
-
-def _llm_token_usage_delta(
-    start: _LLMTokenUsageSnapshot,
-    end: _LLMTokenUsageSnapshot,
-) -> _LLMTokenUsageSnapshot:
-    return _LLMTokenUsageSnapshot(
-        prompt_tokens=max(0, end.prompt_tokens - start.prompt_tokens),
-        completion_tokens=max(0, end.completion_tokens - start.completion_tokens),
-        total_tokens=max(0, end.total_tokens - start.total_tokens),
-    )
-
-
-def _usage_count(usage: Any, key: str) -> int:
-    if isinstance(usage, dict):
-        raw_value = usage.get(key)
-    else:
-        raw_value = getattr(usage, key, 0)
-    try:
-        count = int(raw_value)
-    except (TypeError, ValueError):
-        return 0
-    return count if count > 0 else 0
 
 
 def _add_stage_latency(
@@ -664,24 +789,6 @@ def _limit_sources_to_selected(
 ) -> list[str]:
     selected = set(selected_sources)
     return [source for source in source_hints if source in selected]
-
-
-def _query_understanding_llm_call_count(
-    search_plan: SearchPlan,
-    enabled: bool,
-) -> int:
-    if not enabled:
-        return 0
-    warnings = search_plan.warnings
-    if "llm_query_understanding_disabled" in warnings:
-        return 0
-    if any(
-        warning == "llm_query_understanding_used"
-        or warning.startswith("llm_query_understanding_failed:")
-        for warning in warnings
-    ):
-        return 1
-    return 0
 
 
 def _limit_fast_arxiv_initial_subqueries(

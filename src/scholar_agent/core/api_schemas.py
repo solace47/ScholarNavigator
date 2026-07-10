@@ -8,7 +8,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from scholar_agent.core.search_schemas import (
+    BudgetStatus,
     PaperType,
+    SearchBudget,
     SourceName,
     TimeRange,
     normalize_paper_types,
@@ -98,12 +100,8 @@ class SearchConstraints(BaseModel):
         return normalize_paper_types(value)
 
 
-class SearchBudgets(BaseModel):
-    max_search_rounds: int = 2
-    max_candidate_papers: int = 200
-    max_llm_calls: int = 20
-    max_total_tokens: int = 50_000
-    max_latency_seconds: int = 90
+class SearchBudgets(SearchBudget):
+    """Public request shape backed by the shared internal budget defaults."""
 
 
 class SearchOptions(BaseModel):
@@ -330,9 +328,11 @@ class SearchRunResultResponse(BaseModel):
     method_clusters: list[MethodCluster]
     timeline: list[TimelineItem]
     citation_graph: CitationGraph = Field(default_factory=CitationGraph)
+    warnings: list[str] = Field(default_factory=list)
     missing_evidence: list[str] = Field(default_factory=list)
     synthesis: SynthesisOutput | None = None
     retrieval_diagnostics: RetrievalDiagnostics = Field(
         default_factory=RetrievalDiagnostics
     )
+    budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
     cost_report: CostReport

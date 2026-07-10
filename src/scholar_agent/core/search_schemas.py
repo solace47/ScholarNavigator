@@ -70,6 +70,44 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
+
+
+class SearchBudget(BaseModel):
+    """Execution limits shared by API, CLI, evaluators, and SearchService."""
+
+    max_search_rounds: int = Field(default=2, ge=1, le=3)
+    max_candidate_papers: int = Field(default=200, ge=1, le=300)
+    max_llm_calls: int = Field(default=20, ge=0, le=100)
+    max_total_tokens: int = Field(default=50_000, ge=0, le=1_000_000)
+    max_latency_seconds: float = Field(default=90.0, gt=0.0, le=120.0)
+
+
+DEFAULT_SEARCH_BUDGET = SearchBudget()
+
+
+class CandidateTruncation(BaseModel):
+    stage: str
+    before_count: int = Field(ge=0)
+    after_count: int = Field(ge=0)
+    truncated_count: int = Field(ge=0)
+
+
+class BudgetStatus(BaseModel):
+    exhausted: bool = False
+    stop_reasons: list[str] = Field(default_factory=list)
+    diagnostics: list[str] = Field(default_factory=list)
+    max_search_rounds: int = DEFAULT_SEARCH_BUDGET.max_search_rounds
+    completed_search_rounds: int = 0
+    max_candidate_papers: int = DEFAULT_SEARCH_BUDGET.max_candidate_papers
+    candidate_limit_applied: bool = False
+    candidate_truncations: list[CandidateTruncation] = Field(default_factory=list)
+    max_llm_calls: int = DEFAULT_SEARCH_BUDGET.max_llm_calls
+    used_llm_calls: int = 0
+    max_total_tokens: int = DEFAULT_SEARCH_BUDGET.max_total_tokens
+    used_total_tokens: int = 0
+    token_usage_precise: bool = True
+    max_latency_seconds: float = DEFAULT_SEARCH_BUDGET.max_latency_seconds
+    elapsed_seconds: float = 0.0
 PAPER_TYPE_ALIASES: dict[str, str] = {
     "survey": "survey",
     "review": "review",

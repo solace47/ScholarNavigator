@@ -238,3 +238,35 @@ def test_refchain_output_is_stable() -> None:
     second_dump["record"]["latency_seconds"] = 0.0
 
     assert first_dump == second_dump
+
+
+def test_refchain_checks_budget_before_each_seed_and_keeps_prior_references() -> None:
+    ranked = [
+        make_ranked(make_paper("Seed One", openalex_id="W1"), rank=1),
+        make_ranked(make_paper("Seed Two", openalex_id="W2"), rank=2),
+    ]
+    fetch_calls: list[str] = []
+    budget_checks = 0
+
+    def fake_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        fetch_calls.append(paper.title)
+        return [make_paper("Kept Reference", openalex_id="WREF")]
+
+    def budget_check() -> str | None:
+        nonlocal budget_checks
+        budget_checks += 1
+        if budget_checks >= 2:
+            return "budget_stop:max_latency_seconds"
+        return None
+
+    output = expand_refchain(
+        make_query_analysis(),
+        ranked,
+        fake_fetcher,
+        budget_check=budget_check,
+    )
+
+    assert budget_checks == 2
+    assert fetch_calls == ["Seed One"]
+    assert [paper.title for paper in output.references] == ["Kept Reference"]
+    assert "budget_stop:max_latency_seconds" in output.record.skipped_reasons

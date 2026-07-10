@@ -78,7 +78,7 @@ def map_search_service_output_to_api_result(
     return api.SearchRunResultResponse(
         run_id=run_id,
         status=status,  # type: ignore[arg-type]
-        partial=partial,
+        partial=partial or output.budget_status.exhausted,
         query_analysis=map_query_analysis(output.search_plan.query_analysis),
         search_plan=map_search_plan(output.search_plan, output),
         highly_relevant_papers=highly_relevant,
@@ -86,9 +86,11 @@ def map_search_service_output_to_api_result(
         method_clusters=_method_clusters(output.search_plan.query_analysis, all_visible),
         timeline=_timeline(all_visible),
         citation_graph=_citation_graph(all_visible, output),
+        warnings=list(output.warnings),
         missing_evidence=_dedupe(missing_evidence),
         synthesis=map_synthesis_output(output.synthesis_output),
         retrieval_diagnostics=_retrieval_diagnostics(output),
+        budget_status=output.budget_status,
         cost_report=_cost_report(output),
     )
 
@@ -320,11 +322,8 @@ def _search_rounds(
     search_plan: InternalSearchPlan,
 ) -> int:
     if output is None:
-        return max(1, len(search_plan.subqueries))
-    rounds = len(output.retrieval_outputs)
-    if output.refchain_output is not None:
-        rounds += 1
-    return max(1, rounds)
+        return 1 if search_plan.subqueries else 0
+    return output.budget_status.completed_search_rounds
 
 
 def _method_clusters(
@@ -488,12 +487,14 @@ def _citation_graph(
 
 def _missing_evidence(output: SearchServiceOutput) -> list[str]:
     missing: list[str] = []
-    missing.extend(output.warnings)
+    missing.extend(
+        warning for warning in output.warnings if not _is_budget_diagnostic(warning)
+    )
     for stage, seconds in output.stage_latencies.items():
         missing.append(f"stage_latency:{stage}:{seconds:.6f}")
 
     for stats in output.source_stats:
-        if stats.error_message:
+        if stats.error_message and not _is_budget_diagnostic(stats.error_message):
             missing.append(f"source_error:{stats.source}:{stats.error_message}")
 
     for record in output.query_evolution_records:
@@ -504,10 +505,14 @@ def _missing_evidence(output: SearchServiceOutput) -> list[str]:
             f"generated_count={len(record.generated_queries)}"
         )
         missing.extend(
-            f"query_evolution_warning:{warning}" for warning in record.warnings
+            f"query_evolution_warning:{warning}"
+            for warning in record.warnings
+            if not _is_budget_diagnostic(warning)
         )
         missing.extend(
-            f"query_evolution_skipped:{reason}" for reason in record.skipped_reasons
+            f"query_evolution_skipped:{reason}"
+            for reason in record.skipped_reasons
+            if not _is_budget_diagnostic(reason)
         )
 
     if output.refchain_output is not None:
@@ -517,12 +522,22 @@ def _missing_evidence(output: SearchServiceOutput) -> list[str]:
             f"seed_count={len(record.seeds)}:"
             f"returned_reference_count={record.returned_reference_count}"
         )
-        missing.extend(f"refchain_warning:{warning}" for warning in record.warnings)
         missing.extend(
-            f"refchain_skipped:{reason}" for reason in record.skipped_reasons
+            f"refchain_warning:{warning}"
+            for warning in record.warnings
+            if not _is_budget_diagnostic(warning)
+        )
+        missing.extend(
+            f"refchain_skipped:{reason}"
+            for reason in record.skipped_reasons
+            if not _is_budget_diagnostic(reason)
         )
 
     return missing
+
+
+def _is_budget_diagnostic(value: str) -> bool:
+    return "budget_stop:" in value or "budget_diagnostic:" in value
 
 
 def _filtered_paper_diagnostic(ranked: InternalRankedPaper) -> str:
