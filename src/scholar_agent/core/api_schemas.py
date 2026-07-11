@@ -148,6 +148,7 @@ class SearchRunCreateResponse(BaseModel):
 
 class RunProgress(BaseModel):
     completed_stages: list[str] = Field(default_factory=list)
+    skipped_stages: list[str] = Field(default_factory=list)
     candidate_paper_count: int = 0
     judged_paper_count: int = 0
 

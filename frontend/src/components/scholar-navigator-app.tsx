@@ -494,6 +494,7 @@ function buildInitialRealStatus(
     current_stage: status,
     progress: {
       completed_stages: [],
+      skipped_stages: [],
       candidate_paper_count: 0,
       judged_paper_count: 0,
     },
@@ -1224,7 +1225,9 @@ function RunProgress({
           const Icon = stage.icon;
           const done = completedStages.has(stage.key);
           const active = events.some(
-            (event) => event.event === "stage_started" && event.payload.stage === stage.key,
+            (event) =>
+              event.payload.stage === stage.key &&
+              (event.event === "stage_started" || event.event === `${stage.key}_started`),
           );
           const state = done ? "done" : active ? "active" : "pending";
           const connected = done && index < STAGES.length - 1;
@@ -2313,7 +2316,7 @@ function describeRunEvent(event: StreamEvent): RunEventSummary {
     };
   }
 
-  if (event.event === "stage_started") {
+  if (event.event === "stage_started" || event.event === `${stage}_started`) {
     const stageName = stageDisplayLabel(stage);
     return {
       title: `${stageName}开始`,
@@ -2322,8 +2325,17 @@ function describeRunEvent(event: StreamEvent): RunEventSummary {
     };
   }
 
-  if (event.event === "stage_completed") {
+  if (event.event === "stage_completed" || event.event === `${stage}_completed`) {
     return describeStageCompletedEvent(payload, stage);
+  }
+
+  if (event.event.endsWith("_skipped")) {
+    const stageName = stageDisplayLabel(stage);
+    return {
+      title: `${stageName}已跳过`,
+      description: `本次运行未执行“${stageName}”阶段。`,
+      chips: ["阶段跳过", stageName],
+    };
   }
 
   if (event.event === "connector_completed") {
@@ -2637,6 +2649,9 @@ function eventNameLabel(eventName: string): string {
     stage_started: "阶段开始",
     stage_completed: "阶段完成",
     connector_completed: "检索源完成",
+    connector_started: "检索源开始",
+    budget_stop: "预算停止",
+    run_cancelled: "任务取消",
     warning: "提示",
     cost_updated: "成本更新",
     error: "错误",

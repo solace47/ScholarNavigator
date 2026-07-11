@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from collections.abc import Callable
+from threading import RLock
 from typing import Any, Protocol
 
 from pydantic import BaseModel, Field, model_validator
@@ -57,6 +59,82 @@ from scholar_agent.services.search_budget import BudgetedLLMClient, SearchBudget
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
 ENABLE_LLM_JUDGEMENT_ENV = "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT"
+
+EventCallback = Callable[[str, dict[str, Any]], None]
+ShouldCancel = Callable[[], bool]
+
+
+class SearchCancelled(RuntimeError):
+    """协作式取消信号；区别于检索失败。"""
+
+    def __init__(self, stage: str) -> None:
+        super().__init__(f"search_cancelled:{stage}")
+        self.stage = stage
+
+
+class _ExecutionSignals:
+    def __init__(
+        self,
+        event_callback: EventCallback | None,
+        should_cancel: ShouldCancel | None,
+    ) -> None:
+        self._event_callback = event_callback
+        self._should_cancel = should_cancel
+        self.warnings: list[str] = []
+        self._budget_reasons: set[str] = set()
+        self._warning_events: set[str] = set()
+        self._lock = RLock()
+
+    def emit(self, event_name: str, payload: dict[str, Any] | None = None) -> None:
+        if self._event_callback is None:
+            return
+        try:
+            self._event_callback(event_name, dict(payload or {}))
+        except Exception as exc:  # noqa: BLE001 - callback must not break search
+            warning = f"event_callback_failed:{event_name}:{type(exc).__name__}"
+            with self._lock:
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
+
+    def check_cancelled(self, stage: str) -> None:
+        if self._should_cancel is None:
+            return
+        try:
+            cancelled = bool(self._should_cancel())
+        except Exception as exc:  # noqa: BLE001 - cancellation probe is advisory
+            warning = f"cancellation_check_failed:{stage}:{type(exc).__name__}"
+            with self._lock:
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
+            return
+        if cancelled:
+            raise SearchCancelled(stage)
+
+    def emit_budget_stops(
+        self,
+        runtime: SearchBudgetRuntime,
+        stage: str,
+    ) -> None:
+        for reason in runtime.stop_reasons:
+            if reason in self._budget_reasons:
+                continue
+            self._budget_reasons.add(reason)
+            self.emit(
+                "budget_stop",
+                {
+                    "stage": stage,
+                    "reason": reason,
+                    "budget_status": runtime.status().model_dump(mode="json"),
+                },
+            )
+
+    def emit_warnings(self, warnings: list[str], stage: str) -> None:
+        for warning in warnings:
+            item = warning.strip()
+            if not item or item in self._warning_events:
+                continue
+            self._warning_events.add(item)
+            self.emit("warning", {"stage": stage, "message": item})
 
 
 class RetrieverFn(Protocol):
@@ -133,6 +211,7 @@ class SearchService:
         llm_client: Any | None = None,
     ) -> None:
         self._retriever = retriever
+        self._retriever_emits_connector_events = retriever is retrieve_papers
         self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
@@ -151,7 +230,10 @@ class SearchService:
         sources_override: list[str] | None = None,
         explicit_constraints: QueryConstraint | None = None,
         budget: SearchBudget | None = None,
+        event_callback: EventCallback | None = None,
+        should_cancel: ShouldCancel | None = None,
     ) -> SearchServiceOutput:
+        signals = _ExecutionSignals(event_callback, should_cancel)
         runtime = SearchBudgetRuntime(budget)
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
@@ -173,6 +255,11 @@ class SearchService:
             if resolved_llm_client is not None
             else None
         )
+        signals.check_cancelled("query_understanding:before")
+        signals.emit(
+            "query_understanding_started",
+            {"stage": "query_understanding"},
+        )
         stage_start = time.perf_counter()
         search_plan = analyze_query(
             query,
@@ -186,10 +273,20 @@ class SearchService:
             explicit_constraints=explicit_constraints,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)
+        signals.check_cancelled("query_understanding:after")
+        query_understanding_latency = time.perf_counter() - stage_start
         _add_stage_latency(
             stage_latencies,
             "query_understanding",
-            time.perf_counter() - stage_start,
+            query_understanding_latency,
+        )
+        signals.emit(
+            "query_understanding_completed",
+            {
+                "stage": "query_understanding",
+                "subquery_count": len(search_plan.subqueries),
+                "latency_seconds": query_understanding_latency,
+            },
         )
 
         warnings: list[str] = list(search_plan.warnings)
@@ -204,29 +301,69 @@ class SearchService:
         ranked_papers: list[RankedPaper] = []
 
         if runtime.latency_stop_reason() is None:
+            signals.check_cancelled("retrieval:before_initial_batch")
+            signals.emit(
+                "retrieval_started",
+                {
+                    "stage": "retrieval",
+                    "round_index": 1,
+                    "query_count": len(search_plan.subqueries),
+                },
+            )
             stage_start = time.perf_counter()
             initial_subqueries = search_plan.subqueries
             if initial_subqueries:
                 retrieval_outputs = self._retrieve_subqueries(
                     search_plan,
                     subqueries=initial_subqueries,
+                    signals=signals,
                 )
                 runtime.record_search_round()
+            signals.check_cancelled("retrieval:after_initial_batch")
+            retrieval_latency = time.perf_counter() - stage_start
             _add_stage_latency(
                 stage_latencies,
                 "retrieval",
-                time.perf_counter() - stage_start,
+                retrieval_latency,
             )
 
             raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
                 retrieval_outputs
             )
             warnings.extend(retrieval_warnings)
+            signals.emit_warnings(retrieval_warnings, "retrieval")
+            signals.emit(
+                "retrieval_completed",
+                {
+                    "stage": "retrieval",
+                    "round_index": 1,
+                    "raw_candidate_count": len(raw_papers),
+                    "latency_seconds": retrieval_latency,
+                },
+            )
             deduplicated = _apply_candidate_budget(
                 deduplicate_papers(raw_papers),
                 runtime,
                 stage="initial_retrieval",
                 source_order=search_plan.selected_sources,
+            )
+            signals.emit(
+                "deduplication_completed",
+                {
+                    "stage": "deduplication",
+                    "round_index": 1,
+                    "raw_candidate_count": len(raw_papers),
+                    "deduplicated_candidate_count": len(deduplicated),
+                },
+            )
+            signals.emit_budget_stops(runtime, "deduplication")
+            signals.check_cancelled("judgement:before")
+            signals.emit(
+                "judgement_started",
+                {
+                    "stage": "judgement",
+                    "candidate_paper_count": len(deduplicated),
+                },
             )
             stage_start = time.perf_counter()
             judgement_use_llm = (
@@ -237,26 +374,59 @@ class SearchService:
                 deduplicated,
                 use_llm=judgement_use_llm,
                 llm_client=llm_client,
+                signals=signals,
             )
+            signals.check_cancelled("judgement:after")
+            judgement_latency = time.perf_counter() - stage_start
             _add_stage_latency(
                 stage_latencies,
                 "judgement",
-                time.perf_counter() - stage_start,
+                judgement_latency,
+            )
+            signals.emit(
+                "judgement_completed",
+                {
+                    "stage": "judgement",
+                    "judged_paper_count": len(judgements),
+                    "latency_seconds": judgement_latency,
+                },
             )
             runtime.latency_stop_reason()
+            signals.emit_budget_stops(runtime, "judgement")
+            signals.check_cancelled("reranking:before")
+            signals.emit(
+                "reranking_started",
+                {
+                    "stage": "reranking",
+                    "judged_paper_count": len(judgements),
+                },
+            )
             stage_start = time.perf_counter()
             all_ranked_papers, ranked_papers = _rerank_all_and_top(
                 search_plan.query_analysis,
                 judgements,
                 top_k,
             )
+            signals.check_cancelled("reranking:after")
+            reranking_latency = time.perf_counter() - stage_start
             _add_stage_latency(
                 stage_latencies,
                 "reranking",
-                time.perf_counter() - stage_start,
+                reranking_latency,
             )
+            signals.emit(
+                "reranking_completed",
+                {
+                    "stage": "reranking",
+                    "ranked_paper_count": len(ranked_papers),
+                    "latency_seconds": reranking_latency,
+                },
+            )
+        else:
+            signals.emit_budget_stops(runtime, "query_understanding")
 
         if enable_query_evolution:
+            signals.check_cancelled("query_evolution:before")
             evolution_stop_reason = _query_evolution_budget_stop_reason(
                 runtime,
                 len(deduplicated),
@@ -269,7 +439,19 @@ class SearchService:
                         warnings=[evolution_stop_reason],
                     )
                 )
+                signals.emit_budget_stops(runtime, "query_evolution")
+                signals.emit(
+                    "query_evolution_skipped",
+                    {
+                        "stage": "query_evolution",
+                        "reason": evolution_stop_reason,
+                    },
+                )
             else:
+                signals.emit(
+                    "query_evolution_started",
+                    {"stage": "query_evolution"},
+                )
                 used_queries = {subquery.query for subquery in search_plan.subqueries}
                 stage_start = time.perf_counter()
                 evolution_record = evolve_queries(
@@ -306,17 +488,30 @@ class SearchService:
                     evolution_record.warnings = _dedupe_warnings(
                         [*evolution_record.warnings, retrieval_stop_reason]
                     )
+                    signals.emit_budget_stops(runtime, "query_evolution")
                 elif evolved_queries:
+                    signals.check_cancelled("retrieval:before_evolved_batch")
+                    signals.emit(
+                        "retrieval_started",
+                        {
+                            "stage": "retrieval",
+                            "round_index": 2,
+                            "query_count": len(evolved_queries),
+                        },
+                    )
                     stage_start = time.perf_counter()
                     evolved_outputs = self._retrieve_evolved_queries(
                         search_plan,
                         evolved_queries,
+                        signals=signals,
                     )
                     runtime.record_search_round()
+                    signals.check_cancelled("retrieval:after_evolved_batch")
+                    evolved_retrieval_latency = time.perf_counter() - stage_start
                     _add_stage_latency(
                         stage_latencies,
                         "retrieval",
-                        time.perf_counter() - stage_start,
+                        evolved_retrieval_latency,
                     )
                     retrieval_outputs.extend(evolved_outputs)
                     (
@@ -327,12 +522,41 @@ class SearchService:
                     raw_papers.extend(evolved_papers)
                     source_stats.extend(evolved_source_stats)
                     warnings.extend(evolved_warnings)
+                    signals.emit_warnings(evolved_warnings, "retrieval")
+                    signals.emit(
+                        "retrieval_completed",
+                        {
+                            "stage": "retrieval",
+                            "round_index": 2,
+                            "raw_candidate_count": len(evolved_papers),
+                            "latency_seconds": evolved_retrieval_latency,
+                        },
+                    )
 
                     deduplicated = _apply_candidate_budget(
                         deduplicate_papers(raw_papers),
                         runtime,
                         stage="query_evolution",
                         source_order=search_plan.selected_sources,
+                    )
+                    signals.emit(
+                        "deduplication_completed",
+                        {
+                            "stage": "deduplication",
+                            "round_index": 2,
+                            "raw_candidate_count": len(raw_papers),
+                            "deduplicated_candidate_count": len(deduplicated),
+                        },
+                    )
+                    signals.emit_budget_stops(runtime, "deduplication")
+                    signals.check_cancelled("judgement:before_evolved")
+                    signals.emit(
+                        "judgement_started",
+                        {
+                            "stage": "judgement",
+                            "round_index": 2,
+                            "candidate_paper_count": len(deduplicated),
+                        },
                     )
                     stage_start = time.perf_counter()
                     judgement_use_llm = (
@@ -344,28 +568,80 @@ class SearchService:
                         deduplicated,
                         use_llm=judgement_use_llm,
                         llm_client=llm_client,
+                        signals=signals,
                     )
+                    signals.check_cancelled("judgement:after_evolved")
+                    evolved_judgement_latency = time.perf_counter() - stage_start
                     _add_stage_latency(
                         stage_latencies,
                         "judgement",
-                        time.perf_counter() - stage_start,
+                        evolved_judgement_latency,
+                    )
+                    signals.emit(
+                        "judgement_completed",
+                        {
+                            "stage": "judgement",
+                            "round_index": 2,
+                            "judged_paper_count": len(judgements),
+                            "latency_seconds": evolved_judgement_latency,
+                        },
                     )
                     runtime.latency_stop_reason()
+                    signals.emit_budget_stops(runtime, "judgement")
+                    signals.check_cancelled("reranking:before_evolved")
+                    signals.emit(
+                        "reranking_started",
+                        {
+                            "stage": "reranking",
+                            "round_index": 2,
+                            "judged_paper_count": len(judgements),
+                        },
+                    )
                     stage_start = time.perf_counter()
                     all_ranked_papers, ranked_papers = _rerank_all_and_top(
                         search_plan.query_analysis,
                         judgements,
                         top_k,
                     )
+                    signals.check_cancelled("reranking:after_evolved")
+                    evolved_reranking_latency = time.perf_counter() - stage_start
                     _add_stage_latency(
                         stage_latencies,
                         "reranking",
-                        time.perf_counter() - stage_start,
+                        evolved_reranking_latency,
                     )
+                    signals.emit(
+                        "reranking_completed",
+                        {
+                            "stage": "reranking",
+                            "round_index": 2,
+                            "ranked_paper_count": len(ranked_papers),
+                            "latency_seconds": evolved_reranking_latency,
+                        },
+                    )
+                signals.check_cancelled("query_evolution:after")
+                signals.emit(
+                    "query_evolution_completed",
+                    {
+                        "stage": "query_evolution",
+                        "generated_query_count": len(evolved_queries),
+                        "used_query_count": len(evolved_queries)
+                        if retrieval_stop_reason is None
+                        else 0,
+                    },
+                )
+        else:
+            signals.emit(
+                "query_evolution_skipped",
+                {"stage": "query_evolution", "reason": "disabled"},
+            )
 
         if enable_refchain:
+            signals.check_cancelled("refchain:before")
+            signals.emit("refchain_started", {"stage": "refchain"})
             stage_start = time.perf_counter()
             runtime.latency_stop_reason()
+            signals.emit_budget_stops(runtime, "refchain")
             remaining_candidates = max(
                 0,
                 runtime.budget.max_candidate_papers - len(deduplicated),
@@ -381,9 +657,14 @@ class SearchService:
                     runtime.latency_stop_reason()
                     or runtime.candidate_stop_reason(len(deduplicated))
                 ),
+                cancel_check=lambda: signals.check_cancelled(
+                    "refchain:between_seeds"
+                ),
             )
+            signals.check_cancelled("refchain:after")
             raw_papers.extend(refchain_output.references)
             warnings.extend(refchain_output.warnings)
+            signals.emit_warnings(refchain_output.warnings, "refchain")
             source_stats.append(
                 SourceStats(
                     source="refchain",
@@ -404,12 +685,42 @@ class SearchService:
                 "refchain",
                 time.perf_counter() - stage_start,
             )
+            signals.emit(
+                "refchain_completed",
+                {
+                    "stage": "refchain",
+                    "seed_count": len(refchain_output.record.seeds),
+                    "returned_count": len(refchain_output.references),
+                    "request_count": refchain_output.diagnostics.request_count,
+                    "retry_count": refchain_output.diagnostics.retry_count,
+                    "latency_seconds": refchain_output.latency_seconds,
+                },
+            )
             if refchain_output.references:
                 deduplicated = _apply_candidate_budget(
                     deduplicate_papers(raw_papers),
                     runtime,
                     stage="refchain",
                     source_order=search_plan.selected_sources,
+                )
+                signals.emit(
+                    "deduplication_completed",
+                    {
+                        "stage": "deduplication",
+                        "round_index": "refchain",
+                        "raw_candidate_count": len(raw_papers),
+                        "deduplicated_candidate_count": len(deduplicated),
+                    },
+                )
+                signals.emit_budget_stops(runtime, "deduplication")
+                signals.check_cancelled("judgement:before_refchain")
+                signals.emit(
+                    "judgement_started",
+                    {
+                        "stage": "judgement",
+                        "round_index": "refchain",
+                        "candidate_paper_count": len(deduplicated),
+                    },
                 )
                 stage_start = time.perf_counter()
                 judgement_use_llm = (
@@ -420,26 +731,68 @@ class SearchService:
                     deduplicated,
                     use_llm=judgement_use_llm,
                     llm_client=llm_client,
+                    signals=signals,
                 )
+                signals.check_cancelled("judgement:after_refchain")
+                refchain_judgement_latency = time.perf_counter() - stage_start
                 _add_stage_latency(
                     stage_latencies,
                     "judgement",
-                    time.perf_counter() - stage_start,
+                    refchain_judgement_latency,
+                )
+                signals.emit(
+                    "judgement_completed",
+                    {
+                        "stage": "judgement",
+                        "round_index": "refchain",
+                        "judged_paper_count": len(judgements),
+                        "latency_seconds": refchain_judgement_latency,
+                    },
                 )
                 runtime.latency_stop_reason()
+                signals.emit_budget_stops(runtime, "judgement")
+                signals.check_cancelled("reranking:before_refchain")
+                signals.emit(
+                    "reranking_started",
+                    {
+                        "stage": "reranking",
+                        "round_index": "refchain",
+                        "judged_paper_count": len(judgements),
+                    },
+                )
                 stage_start = time.perf_counter()
                 all_ranked_papers, ranked_papers = _rerank_all_and_top(
                     search_plan.query_analysis,
                     judgements,
                     top_k,
                 )
+                signals.check_cancelled("reranking:after_refchain")
+                refchain_reranking_latency = time.perf_counter() - stage_start
                 _add_stage_latency(
                     stage_latencies,
                     "reranking",
-                    time.perf_counter() - stage_start,
+                    refchain_reranking_latency,
                 )
+                signals.emit(
+                    "reranking_completed",
+                    {
+                        "stage": "reranking",
+                        "round_index": "refchain",
+                        "ranked_paper_count": len(ranked_papers),
+                        "latency_seconds": refchain_reranking_latency,
+                    },
+                )
+        else:
+            signals.emit(
+                "refchain_skipped",
+                {"stage": "refchain", "reason": "disabled"},
+            )
 
-        warnings.extend(_judgement_warnings(judgements))
+        judgement_warnings = _judgement_warnings(judgements)
+        warnings.extend(judgement_warnings)
+        signals.emit_warnings(judgement_warnings, "judgement")
+        signals.emit_budget_stops(runtime, "finalization")
+        signals.check_cancelled("finalization:before_output")
         refchain_raw_count = (
             refchain_output.record.raw_reference_count
             if refchain_output is not None
@@ -456,7 +809,7 @@ class SearchService:
             judgements=judgements,
             ranked_papers=ranked_papers,
             all_ranked_papers=all_ranked_papers,
-            warnings=[],
+            warnings=_dedupe_warnings([*warnings, *signals.warnings]),
             source_stats=source_stats,
             latency_seconds=0.0,
             stage_latencies=stage_latencies,
@@ -475,18 +828,33 @@ class SearchService:
                 else ConnectorDiagnostics()
             ),
         )
-        output.warnings = _dedupe_warnings(
-            [*warnings, *runtime.stop_reasons, *runtime.diagnostics]
-        )
         if enable_synthesis and runtime.latency_stop_reason() is None:
+            signals.check_cancelled("synthesis:before")
+            signals.emit(
+                "synthesis_started",
+                {
+                    "stage": "synthesis",
+                    "ranked_paper_count": len(ranked_papers),
+                },
+            )
             from scholar_agent.agents.synthesis import synthesize_answer
 
             stage_start = time.perf_counter()
             output.synthesis_output = synthesize_answer(output)
+            signals.check_cancelled("synthesis:after")
+            synthesis_latency = time.perf_counter() - stage_start
             _add_stage_latency(
                 output.stage_latencies,
                 "synthesis",
-                time.perf_counter() - stage_start,
+                synthesis_latency,
+            )
+            signals.emit(
+                "synthesis_completed",
+                {
+                    "stage": "synthesis",
+                    "status": output.synthesis_output.status,
+                    "latency_seconds": synthesis_latency,
+                },
             )
         output.latency_seconds = time.perf_counter() - start
         output.budget_status = runtime.status()
@@ -495,8 +863,11 @@ class SearchService:
                 *warnings,
                 *runtime.stop_reasons,
                 *runtime.diagnostics,
+                *signals.warnings,
             ]
         )
+        signals.emit_budget_stops(runtime, "completed")
+        signals.emit_warnings(output.warnings, "completed")
         return output
 
     def _retrieve_subqueries(
@@ -504,6 +875,7 @@ class SearchService:
         search_plan: SearchPlan,
         *,
         subqueries: list[SearchSubquery] | None = None,
+        signals: _ExecutionSignals,
     ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
             search_plan.subqueries if subqueries is None else subqueries,
@@ -511,6 +883,7 @@ class SearchService:
             limit_per_source=search_plan.limit_per_source,
             failure_prefix="subquery_failed",
             failure_source="subquery",
+            signals=signals,
         )
 
     def _judge_papers(
@@ -520,12 +893,16 @@ class SearchService:
         *,
         use_llm: bool,
         llm_client: Any | None,
+        signals: _ExecutionSignals,
     ) -> tuple[list[JudgementResult], int]:
         agent = JudgementAgent(llm_client=llm_client)
         judgements = agent.judge(
             search_plan.query_analysis,
             papers,
             use_llm=use_llm,
+            before_llm_batch=lambda: signals.check_cancelled(
+                "judgement:before_llm_batch"
+            ),
         )
         return judgements, agent.llm_call_count
 
@@ -533,6 +910,8 @@ class SearchService:
         self,
         search_plan: SearchPlan,
         evolved_queries: list[EvolvedSubquery],
+        *,
+        signals: _ExecutionSignals,
     ) -> list[RetrievalOutput]:
         subqueries = [
             SearchSubquery(
@@ -552,6 +931,7 @@ class SearchService:
             limit_per_source=search_plan.limit_per_source,
             failure_prefix="evolved_query_failed",
             failure_source="evolved_query",
+            signals=signals,
         )
 
     def _retrieve_query_batch(
@@ -562,29 +942,47 @@ class SearchService:
         limit_per_source: int,
         failure_prefix: str,
         failure_source: str,
+        signals: _ExecutionSignals,
     ) -> list[RetrievalOutput]:
         if not subqueries:
             return []
 
+        signals.check_cancelled(f"{failure_source}:before_batch")
         worker_count = min(self._max_workers, len(subqueries))
         results: list[RetrievalOutput | None] = [None] * len(subqueries)
 
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(
-                    self._retrieve_one_subquery,
-                    index,
-                    subqueries[index],
-                    selected_sources,
-                    limit_per_source,
-                    failure_prefix,
-                    failure_source,
-                )
-                for index in range(len(subqueries))
-            ]
-            for future in as_completed(futures):
-                result = future.result()
-                results[result.index] = result.output
+            pending: dict[Future[_RetrievalTaskResult], int] = {}
+            next_index = 0
+
+            def submit_available() -> None:
+                nonlocal next_index
+                while next_index < len(subqueries) and len(pending) < worker_count:
+                    signals.check_cancelled(
+                        f"{failure_source}:before_subquery:{next_index}"
+                    )
+                    future = executor.submit(
+                        self._retrieve_one_subquery,
+                        next_index,
+                        subqueries[next_index],
+                        selected_sources,
+                        limit_per_source,
+                        failure_prefix,
+                        failure_source,
+                        signals,
+                    )
+                    pending[future] = next_index
+                    next_index += 1
+
+            submit_available()
+            while pending:
+                completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    pending.pop(future, None)
+                    result = future.result()
+                    results[result.index] = result.output
+                signals.check_cancelled(f"{failure_source}:between_subqueries")
+                submit_available()
 
         return [output for output in results if output is not None]
 
@@ -596,15 +994,49 @@ class SearchService:
         limit_per_source: int,
         failure_prefix: str,
         failure_source: str,
+        signals: _ExecutionSignals,
     ) -> _RetrievalTaskResult:
         sources = subquery.source_hints or selected_sources
+        signals.check_cancelled(f"{failure_source}:subquery:{index}:before")
+        if not self._retriever_emits_connector_events:
+            for source in sources:
+                signals.emit(
+                    "connector_started",
+                    {
+                        "stage": "retrieval",
+                        "query_index": index,
+                        "query": subquery.query,
+                        "connector": source,
+                        "source": source,
+                    },
+                )
         start = time.perf_counter()
         try:
-            output = self._retriever(
-                subquery.query,
-                limit_per_source=limit_per_source,
-                sources=sources,
-            )
+            if self._retriever_emits_connector_events:
+                output = retrieve_papers(
+                    subquery.query,
+                    limit_per_source=limit_per_source,
+                    sources=sources,
+                    connector_event_callback=lambda name, payload: (
+                        self._handle_connector_event(
+                            signals,
+                            name,
+                            payload,
+                            query_index=index,
+                            query=subquery.query,
+                            failure_source=failure_source,
+                        )
+                    ),
+                )
+            else:
+                output = self._retriever(
+                    subquery.query,
+                    limit_per_source=limit_per_source,
+                    sources=sources,
+                )
+            signals.check_cancelled(f"{failure_source}:subquery:{index}:after")
+        except SearchCancelled:
+            raise
         except Exception as exc:  # noqa: BLE001 - isolate one subquery failure
             message = f"{failure_prefix}:{index}:{exc}"
             latency_seconds = time.perf_counter() - start
@@ -626,7 +1058,59 @@ class SearchService:
                 warnings=[message],
                 latency_seconds=latency_seconds,
             )
+        if not self._retriever_emits_connector_events:
+            for stats in output.source_stats:
+                signals.emit(
+                    "connector_completed",
+                    {
+                        "stage": "retrieval",
+                        "query_index": index,
+                        "query": subquery.query,
+                        "connector": stats.source,
+                        "source": stats.source,
+                        "returned_count": stats.returned_count,
+                        "latency_seconds": stats.latency_seconds,
+                        "request_count": stats.diagnostics.request_count,
+                        "retry_count": stats.diagnostics.retry_count,
+                        "error_count": stats.diagnostics.error_count,
+                        "cache_hit": stats.cache_hit,
+                        "cache_hit_count": stats.diagnostics.cache_hit_count,
+                        "rate_limit_wait_seconds": (
+                            stats.diagnostics.rate_limit_wait_seconds
+                        ),
+                        "error_message": stats.error_message,
+                    },
+                )
         return _RetrievalTaskResult(index=index, output=output)
+
+    @staticmethod
+    def _handle_connector_event(
+        signals: _ExecutionSignals,
+        event_name: str,
+        payload: dict[str, object],
+        *,
+        query_index: int,
+        query: str,
+        failure_source: str,
+    ) -> None:
+        source = str(payload.get("source") or payload.get("connector") or "unknown")
+        if event_name == "connector_started":
+            signals.check_cancelled(
+                f"{failure_source}:connector:{query_index}:{source}:before"
+            )
+        signals.emit(
+            event_name,
+            {
+                "stage": "retrieval",
+                "query_index": query_index,
+                "query": query,
+                **payload,
+            },
+        )
+        if event_name == "connector_completed":
+            signals.check_cancelled(
+                f"{failure_source}:connector:{query_index}:{source}:after"
+            )
 
     def _resolve_llm_client(self, enabled: bool) -> Any | None:
         if self._llm_client is not None:
@@ -652,6 +1136,8 @@ def run_search(
     sources_override: list[str] | None = None,
     explicit_constraints: QueryConstraint | None = None,
     budget: SearchBudget | None = None,
+    event_callback: EventCallback | None = None,
+    should_cancel: ShouldCancel | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -668,6 +1154,8 @@ def run_search(
         sources_override=sources_override,
         explicit_constraints=explicit_constraints,
         budget=budget,
+        event_callback=event_callback,
+        should_cancel=should_cancel,
     )
 
 

@@ -9,9 +9,13 @@ from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
-from scholar_agent.core.search_schemas import EvolvedSubquery, QueryEvolutionRecord
+from scholar_agent.core.search_schemas import (
+    EvolvedSubquery,
+    QueryEvolutionRecord,
+    SearchBudget,
+)
 from scholar_agent.services import search_service
-from scholar_agent.services.search_service import SearchService
+from scholar_agent.services.search_service import SearchCancelled, SearchService
 
 
 def make_paper(
@@ -1526,6 +1530,112 @@ def test_run_search_subquery_failure_keeps_other_results_and_warnings() -> None:
     assert output.ranked_papers
 
 
+def test_run_search_emits_events_in_real_stage_order() -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+
+    output = SearchService(
+        retriever=lambda query, limit_per_source=20, sources=None: make_output(
+            query,
+            [make_paper("Event Paper", doi="10.123/event")],
+        ),
+        max_workers=1,
+    ).run_search(
+        "LLM reranking retrieval papers",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        event_callback=lambda name, payload: events.append((name, payload)),
+    )
+
+    names = [name for name, _ in events]
+    required_order = [
+        "query_understanding_started",
+        "query_understanding_completed",
+        "retrieval_started",
+        "connector_started",
+        "connector_completed",
+        "retrieval_completed",
+        "deduplication_completed",
+        "judgement_started",
+        "judgement_completed",
+        "reranking_started",
+        "reranking_completed",
+        "query_evolution_skipped",
+        "refchain_skipped",
+        "synthesis_started",
+        "synthesis_completed",
+    ]
+    positions = [names.index(name) for name in required_order]
+    assert positions == sorted(positions)
+    assert output.ranked_papers
+    assert names.index("connector_started") < names.index("connector_completed")
+
+
+def test_event_callback_failure_becomes_warning_without_failing_search() -> None:
+    def broken_callback(name: str, payload: dict[str, object]) -> None:
+        del name, payload
+        raise RuntimeError("callback unavailable")
+
+    output = SearchService(
+        retriever=lambda query, limit_per_source=20, sources=None: make_output(
+            query,
+            [make_paper("Callback Paper", doi="10.123/callback")],
+        )
+    ).run_search(
+        "LLM reranking retrieval papers",
+        event_callback=broken_callback,
+    )
+
+    assert output.ranked_papers
+    assert any(item.startswith("event_callback_failed:") for item in output.warnings)
+
+
+def test_cancellation_between_subqueries_stops_new_retrieval_and_synthesis() -> None:
+    calls: list[str] = []
+    events: list[str] = []
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        calls.append(query)
+        return make_output(query, [make_paper("Cancel Paper", doi="10.123/cancel")])
+
+    with pytest.raises(SearchCancelled):
+        SearchService(retriever=fake_retriever, max_workers=1).run_search(
+            "latest LLM reranking retrieval benchmark papers",
+            run_profile="high_recall",
+            should_cancel=lambda: len(calls) >= 1,
+            event_callback=lambda name, payload: events.append(name),
+        )
+
+    assert len(calls) == 1
+    assert "synthesis_started" not in events
+    assert "synthesis_completed" not in events
+
+
+def test_budget_stop_event_is_emitted_at_actual_stop() -> None:
+    events: list[tuple[str, dict[str, object]]] = []
+
+    SearchService(
+        retriever=lambda query, limit_per_source=20, sources=None: make_output(
+            query,
+            [make_paper("Budget Paper", doi="10.123/budget")],
+        ),
+        max_workers=1,
+    ).run_search(
+        "latest LLM reranking retrieval papers",
+        enable_query_evolution=True,
+        budget=SearchBudget(max_search_rounds=1),
+        event_callback=lambda name, payload: events.append((name, payload)),
+    )
+
+    budget_events = [payload for name, payload in events if name == "budget_stop"]
+    assert budget_events
+    assert budget_events[0]["reason"] == "budget_stop:max_search_rounds"
+    assert any(name == "query_evolution_skipped" for name, _ in events)
+
+
 class FakeLLMClient:
     def __init__(self) -> None:
         self.calls = 0
@@ -1590,3 +1700,35 @@ class FakeJudgementLLMClient:
             ],
             "warnings": [],
         }
+
+
+def test_cancellation_between_llm_batches_stops_next_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE", "1")
+    llm_client = FakeJudgementLLMClient()
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(
+            query,
+            [
+                make_paper("LLM Batch One", doi="10.123/batch-one"),
+                make_paper("LLM Batch Two", doi="10.123/batch-two"),
+            ],
+        )
+
+    with pytest.raises(SearchCancelled):
+        SearchService(
+            retriever=fake_retriever,
+            llm_client=llm_client,
+        ).run_search(
+            "LLM reranking retrieval papers",
+            enable_llm_judgement=True,
+            should_cancel=lambda: llm_client.calls >= 1,
+        )
+
+    assert llm_client.calls == 1

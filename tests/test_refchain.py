@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from scholar_agent.agents.refchain import expand_refchain
 from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
@@ -301,3 +303,32 @@ def test_refchain_checks_budget_before_each_seed_and_keeps_prior_references() ->
     assert fetch_calls == ["Seed One"]
     assert [paper.title for paper in output.references] == ["Kept Reference"]
     assert "budget_stop:max_latency_seconds" in output.record.skipped_reasons
+
+
+def test_refchain_cancellation_after_seed_fetch_stops_before_next_seed() -> None:
+    ranked = [
+        make_ranked(make_paper("Seed One", openalex_id="W1"), rank=1),
+        make_ranked(make_paper("Seed Two", openalex_id="W2"), rank=2),
+    ]
+    fetch_calls: list[str] = []
+
+    class Cancelled(RuntimeError):
+        pass
+
+    def fake_fetcher(paper: Paper, limit: int) -> list[Paper]:
+        fetch_calls.append(paper.title)
+        return [make_paper("Uncommitted Reference", openalex_id="WREF")]
+
+    def cancel_check() -> None:
+        if fetch_calls:
+            raise Cancelled("cancel after in-flight fetch")
+
+    with pytest.raises(Cancelled, match="cancel after in-flight fetch"):
+        expand_refchain(
+            make_query_analysis(),
+            ranked,
+            fake_fetcher,
+            cancel_check=cancel_check,
+        )
+
+    assert fetch_calls == ["Seed One"]

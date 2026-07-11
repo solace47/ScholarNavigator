@@ -37,7 +37,10 @@ from scholar_agent.core.search_schemas import (  # noqa: E402
     SearchSubquery,
     TimeRange,
 )
-from scholar_agent.services.search_service import SearchServiceOutput  # noqa: E402
+from scholar_agent.services.search_service import (  # noqa: E402
+    SearchCancelled,
+    SearchServiceOutput,
+)
 
 
 client = TestClient(app)
@@ -68,6 +71,8 @@ def test_real_search_run_is_created_before_background_result_is_ready(
             sources_override: list[str] | None = None,
             explicit_constraints: QueryConstraint | None = None,
             budget: SearchBudget | None = None,
+            event_callback=None,
+            should_cancel=None,
         ) -> SearchServiceOutput:
             captured.update(
                 {
@@ -86,7 +91,10 @@ def test_real_search_run_is_created_before_background_result_is_ready(
                 }
             )
             assert release.wait(timeout=2)
-            return _fake_output(query, top_k=top_k)
+            assert not should_cancel()
+            output = _fake_output(query, top_k=top_k)
+            _emit_fake_search_events(event_callback, output)
+            return output
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", BlockingSearchService)
 
@@ -197,7 +205,9 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
             pass
 
         def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
-            return _fake_output(query)
+            output = _fake_output(query)
+            _emit_fake_search_events(kwargs.get("event_callback"), output)
+            return output
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FastSearchService)
 
@@ -207,7 +217,19 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
     )
     assert create_response.status_code == 201
     run_id = create_response.json()["run_id"]
-    _wait_for_status(run_id, "succeeded")
+    status = _wait_for_status(run_id, "succeeded")
+    assert status["progress"]["completed_stages"] == [
+        "query_understanding",
+        "retrieval",
+        "deduplication",
+        "judgement",
+        "reranking",
+        "synthesis",
+    ]
+    assert status["progress"]["skipped_stages"] == [
+        "query_evolution",
+        "refchain",
+    ]
 
     with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
         assert response.status_code == 200
@@ -221,31 +243,41 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
     cost_events = [event for event in events if event["event"] == "cost_updated"]
 
     assert "event: run_started" in text
-    assert "event: stage_started" in text
-    assert "event: stage_completed" in text
+    assert "event: query_understanding_started" in text
+    assert "event: query_understanding_completed" in text
+    assert "event: retrieval_started" in text
+    assert "event: retrieval_completed" in text
+    assert "event: judgement_started" in text
+    assert "event: judgement_completed" in text
+    assert "event: reranking_started" in text
+    assert "event: reranking_completed" in text
+    assert "event: synthesis_started" in text
+    assert "event: synthesis_completed" in text
+    assert "event: stage_started" not in text
+    assert "event: stage_completed" not in text
     assert "event: connector_completed" in text
     assert "event: warning" in text
     assert "event: cost_updated" in text
     assert '"stage": "synthesis"' in text
     assert "event: run_completed" in text
     assert '"status": "succeeded"' in text
+    assert sum(event["event"] == "run_completed" for event in events) == 1
     assert len(connector_events) == 2
     assert connector_events[0]["payload"] == {
         "stage": "retrieval",
+        "query_index": 0,
+        "query": "LLM reranking retrieval papers",
         "connector": "openalex",
         "source": "openalex",
         "returned_count": 1,
         "latency_seconds": 0.1,
+        "request_count": 1,
+        "retry_count": 0,
+        "error_count": 0,
         "cache_hit": False,
+        "cache_hit_count": 0,
+        "rate_limit_wait_seconds": 0.0,
         "error_message": None,
-        "diagnostics": {
-            "request_count": 1,
-            "retry_count": 0,
-            "error_count": 0,
-            "cache_hit_count": 0,
-            "rate_limit_wait_seconds": 0.0,
-            "latency_seconds": 0.1,
-        },
         "run_id": run_id,
         "timestamp": connector_events[0]["payload"]["timestamp"],
     }
@@ -254,6 +286,59 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
     assert warning_events[0]["payload"]["message"] == "real_search_warning"
     assert cost_events[0]["payload"]["run_id"] == run_id
     assert cost_events[0]["payload"]["cost_report"]["judged_paper_count"] == 2
+
+
+def test_route_does_not_fabricate_pipeline_events_after_service_returns(
+    monkeypatch,
+) -> None:
+    class SilentSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
+            return _fake_output(query)
+
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", SilentSearchService)
+
+    create_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "silent fixture", "top_k": 5},
+    )
+    run_id = create_response.json()["run_id"]
+    _wait_for_status(run_id, "succeeded")
+
+    with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
+        events = _parse_sse_events("".join(response.iter_text()))
+
+    event_names = [event["event"] for event in events]
+    assert event_names == ["run_started", "cost_updated", "run_completed"]
+
+
+def test_cancelling_succeeded_run_does_not_change_terminal_state(monkeypatch) -> None:
+    class FastSearchService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
+            return _fake_output(query)
+
+    monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", FastSearchService)
+
+    create_response = client.post(
+        "/api/v1/real/search/runs",
+        json={"query": "already completed", "top_k": 5},
+    )
+    run_id = create_response.json()["run_id"]
+    _wait_for_status(run_id, "succeeded")
+
+    cancel_response = client.post(f"/api/v1/real/search/runs/{run_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "succeeded"
+
+    with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
+        events = _parse_sse_events("".join(response.iter_text()))
+    assert sum(event["event"] == "run_completed" for event in events) == 1
+    assert all(event["event"] != "run_cancelled" for event in events)
 
 
 def test_real_search_failed_run_records_error_and_failed_status(monkeypatch) -> None:
@@ -282,11 +367,14 @@ def test_real_search_failed_run_records_error_and_failed_status(monkeypatch) -> 
 
     with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
         text = "".join(response.iter_text())
+    events = _parse_sse_events(text)
 
     assert "event: error" in text
     assert "service exploded" in text
     assert "event: run_completed" in text
     assert '"status": "failed"' in text
+    assert sum(event["event"] == "error" for event in events) == 1
+    assert sum(event["event"] == "run_completed" for event in events) == 1
 
 
 def test_running_real_search_can_be_cancelled_and_ignores_late_result(
@@ -302,6 +390,8 @@ def test_running_real_search_can_be_cancelled_and_ignores_late_result(
         def run_search(self, query: str, *args, **kwargs) -> SearchServiceOutput:
             service_entered.set()
             assert release.wait(timeout=2)
+            if kwargs["should_cancel"]():
+                raise SearchCancelled("fixture:after_wait")
             return _fake_output(query)
 
     monkeypatch.setattr("scholar_agent.app.api.routes.SearchService", BlockingSearchService)
@@ -327,6 +417,7 @@ def test_running_real_search_can_be_cancelled_and_ignores_late_result(
     repeat_cancel = client.post(f"/api/v1/real/search/runs/{run_id}/cancel")
     assert repeat_cancel.status_code == 200
     assert repeat_cancel.json()["status"] == "cancelled"
+    routes._fail_real_run(run_id, "late background failure")
 
     release.set()
     time.sleep(0.1)
@@ -337,13 +428,16 @@ def test_running_real_search_can_be_cancelled_and_ignores_late_result(
 
     with client.stream("GET", f"/api/v1/real/search/runs/{run_id}/events") as response:
         text = "".join(response.iter_text())
+    events = _parse_sse_events(text)
 
-    assert "event: warning" in text
-    assert "run cancelled" in text
+    assert "event: run_cancelled" in text
     assert "event: run_completed" in text
     assert '"status": "cancelled"' in text
     assert "event: cost_updated" not in text
     assert '"status": "succeeded"' not in text
+    assert "event: error" not in text
+    assert sum(event["event"] == "run_cancelled" for event in events) == 1
+    assert sum(event["event"] == "run_completed" for event in events) == 1
 
 
 def test_queued_real_search_can_be_cancelled_before_worker_starts(monkeypatch) -> None:
@@ -702,6 +796,110 @@ def _fake_output(query: str, top_k: int = 5) -> SearchServiceOutput:
     )
     output.synthesis_output = synthesize_answer(output)
     return output
+
+
+def _emit_fake_search_events(event_callback, output: SearchServiceOutput) -> None:
+    if event_callback is None:
+        return
+    event_callback(
+        "query_understanding_started",
+        {"stage": "query_understanding"},
+    )
+    event_callback(
+        "query_understanding_completed",
+        {
+            "stage": "query_understanding",
+            "subquery_count": len(output.search_plan.subqueries),
+            "latency_seconds": 0.01,
+        },
+    )
+    event_callback(
+        "retrieval_started",
+        {"stage": "retrieval", "round_index": 1, "query_count": 1},
+    )
+    for stats in output.source_stats:
+        event_callback(
+            "connector_started",
+            {
+                "stage": "retrieval",
+                "query_index": 0,
+                "query": output.search_plan.query_analysis.original_query,
+                "connector": stats.source,
+                "source": stats.source,
+            },
+        )
+        event_callback(
+            "connector_completed",
+            {
+                "stage": "retrieval",
+                "query_index": 0,
+                "query": output.search_plan.query_analysis.original_query,
+                "connector": stats.source,
+                "source": stats.source,
+                "returned_count": stats.returned_count,
+                "latency_seconds": stats.latency_seconds,
+                "request_count": stats.diagnostics.request_count,
+                "retry_count": stats.diagnostics.retry_count,
+                "error_count": stats.diagnostics.error_count,
+                "cache_hit": stats.cache_hit,
+                "cache_hit_count": stats.diagnostics.cache_hit_count,
+                "rate_limit_wait_seconds": (
+                    stats.diagnostics.rate_limit_wait_seconds
+                ),
+                "error_message": stats.error_message,
+            },
+        )
+    event_callback(
+        "retrieval_completed",
+        {
+            "stage": "retrieval",
+            "round_index": 1,
+            "raw_candidate_count": output.raw_count,
+            "latency_seconds": 0.1,
+        },
+    )
+    event_callback(
+        "deduplication_completed",
+        {
+            "stage": "deduplication",
+            "round_index": 1,
+            "deduplicated_candidate_count": output.deduplicated_count,
+        },
+    )
+    event_callback(
+        "judgement_started",
+        {"stage": "judgement", "candidate_paper_count": output.deduplicated_count},
+    )
+    event_callback(
+        "judgement_completed",
+        {"stage": "judgement", "judged_paper_count": len(output.judgements)},
+    )
+    event_callback(
+        "reranking_started",
+        {"stage": "reranking", "judged_paper_count": len(output.judgements)},
+    )
+    event_callback(
+        "reranking_completed",
+        {"stage": "reranking", "ranked_paper_count": len(output.ranked_papers)},
+    )
+    event_callback(
+        "query_evolution_skipped",
+        {"stage": "query_evolution", "reason": "disabled"},
+    )
+    event_callback(
+        "refchain_skipped",
+        {"stage": "refchain", "reason": "disabled"},
+    )
+    event_callback(
+        "synthesis_started",
+        {"stage": "synthesis", "ranked_paper_count": len(output.ranked_papers)},
+    )
+    event_callback(
+        "synthesis_completed",
+        {"stage": "synthesis", "status": "completed"},
+    )
+    for warning in output.warnings:
+        event_callback("warning", {"stage": "completed", "message": warning})
 
 
 def _search_plan(query: str, top_k: int = 5) -> SearchPlan:

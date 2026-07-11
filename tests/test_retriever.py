@@ -104,6 +104,44 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
     assert output.latency_seconds >= 0
 
 
+def test_connector_events_wrap_each_actual_connector_call(monkeypatch) -> None:
+    events: list[tuple[str, str]] = []
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        events.append(("call", "openalex"))
+        return ConnectorSearchResult()
+
+    def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
+        events.append(("call", "arxiv"))
+        return ConnectorSearchResult()
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        fake_openalex,
+    )
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_arxiv_detailed",
+        fake_arxiv,
+    )
+
+    retrieve_papers(
+        "event order",
+        sources=["openalex", "arxiv"],
+        connector_event_callback=lambda name, payload: events.append(
+            (name, str(payload["source"]))
+        ),
+    )
+
+    assert events == [
+        ("connector_started", "openalex"),
+        ("call", "openalex"),
+        ("connector_completed", "openalex"),
+        ("connector_started", "arxiv"),
+        ("call", "arxiv"),
+        ("connector_completed", "arxiv"),
+    ]
+
+
 def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) -> None:
     def failing_openalex(query: str, limit: int) -> ConnectorSearchResult:
         return ConnectorSearchResult(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -164,6 +165,7 @@ class JudgementAgent:
         threshold_partial: float = 0.45,
         threshold_weak: float = 0.25,
         use_llm: bool | None = None,
+        before_llm_batch: Callable[[], None] | None = None,
     ) -> list[JudgementResult]:
         _validate_thresholds(threshold_high, threshold_partial, threshold_weak)
         if use_llm:
@@ -173,6 +175,7 @@ class JudgementAgent:
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
+                before_llm_batch=before_llm_batch,
             )
         else:
             results = _judge_papers_rules(
@@ -201,6 +204,7 @@ class JudgementAgent:
         threshold_high: float,
         threshold_partial: float,
         threshold_weak: float,
+        before_llm_batch: Callable[[], None] | None,
     ) -> list[JudgementResult]:
         rule_results = _judge_papers_rules(
             query_analysis,
@@ -225,6 +229,8 @@ class JudgementAgent:
             )[0]
 
         for start in range(0, llm_limit, batch_size):
+            if before_llm_batch is not None:
+                before_llm_batch()
             end = min(start + batch_size, llm_limit)
             batch_papers = papers[start:end]
             batch_rule_results = rule_results[start:end]
@@ -272,6 +278,7 @@ def judge_papers(
     threshold_weak: float = 0.25,
     use_llm: bool | None = None,
     llm_client: LLMJsonClient | None = None,
+    before_llm_batch: Callable[[], None] | None = None,
 ) -> list[JudgementResult]:
     """Judge paper relevance using metadata rules or optional LLM JSON."""
 
@@ -282,6 +289,7 @@ def judge_papers(
         threshold_partial=threshold_partial,
         threshold_weak=threshold_weak,
         use_llm=use_llm,
+        before_llm_batch=before_llm_batch,
     )
 
 

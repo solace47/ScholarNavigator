@@ -89,9 +89,9 @@ Real Search API 将 `time_range`、`venues`、`must_have_terms`、`excluded_term
 ## API 运行生命周期
 
 1. `POST /api/v1/real/search/runs` 创建进程内任务并返回 `queued`。
-2. 后台线程执行 SearchService，状态进入 `running`；状态接口可轮询，事件接口以 SSE 回放运行事件。
-3. 成功后通过结果接口读取结构化结果；异常进入 `failed`。
-4. 取消接口把任务标记为 `cancelled` 并忽略后续结果，但不能强制终止已经发出的外部请求。
+2. 后台线程执行 SearchService；查询理解、检索源、去重、判断、重排、查询演化、RefChain 和归纳在真实执行位置通过回调产生结构化事件，路由按发生顺序写入 run store 并由 SSE 推送。
+3. 阶段开始、完成和跳过事件分别更新 `current_stage`、`completed_stages` 和 `skipped_stages`；成功、失败、取消都只产生一个 `run_completed` 终止事件。
+4. 取消采用协作式检查：停止后续子查询、LLM 批次、RefChain seed 和归纳，不再发起新请求。已经开始的单次 HTTP 请求允许自然结束，返回后立即停止后续阶段。
 
 产品生命周期接口之外，保留两个调用真实 SearchService 的 `/internal/search/preview` 调试接口。
 
@@ -106,7 +106,6 @@ Real Search API 将 `time_range`、`venues`、`must_have_terms`、`excluded_term
 
 - 只使用论文元数据和摘要，不读取全文 PDF，也没有段落级证据检索。
 - 返回格式开关尚未形成完全独立的输出路径。
-- SSE 阶段事件是生命周期级进度，不等同于 SearchService 内部逐步骤实时流。
-- 任务队列、缓存和运行结果未持久化；取消是协作式状态取消。
+- 任务队列、缓存和运行结果未持久化；协作式取消不能强制中断已经发出的单次 HTTP 请求。
 - 外部检索质量与可用性受上游服务限流和故障影响。
 - 尚未完成官方或完整公开 benchmark 的正式评测。

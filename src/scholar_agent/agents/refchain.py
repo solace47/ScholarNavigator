@@ -24,6 +24,7 @@ from scholar_agent.core.search_schemas import (
 
 ReferenceFetcher = Callable[[Paper, int], list[Paper] | ConnectorSearchResult]
 BudgetCheck = Callable[[], str | None]
+CancelCheck = Callable[[], None]
 
 
 class RefChainAgent:
@@ -36,6 +37,7 @@ class RefChainAgent:
         fetch_references: ReferenceFetcher,
         options: RefChainOptions | None = None,
         budget_check: BudgetCheck | None = None,
+        cancel_check: CancelCheck | None = None,
     ) -> RefChainOutput:
         del query_analysis  # Reserved for future domain-aware seed policies.
         start = time.perf_counter()
@@ -52,6 +54,8 @@ class RefChainAgent:
             skipped_reasons.append("refchain_no_eligible_seed")
 
         for ranked in seeds:
+            if cancel_check is not None:
+                cancel_check()
             if budget_check is not None:
                 budget_reason = budget_check()
                 if budget_reason is not None:
@@ -92,6 +96,9 @@ class RefChainAgent:
                 fetched = fetch_result.papers
             else:
                 fetched = fetch_result
+
+            if cancel_check is not None:
+                cancel_check()
 
             for reference in fetched[:per_seed_limit]:
                 if len(references) >= options.max_total_references:
@@ -140,6 +147,7 @@ def expand_refchain(
     fetch_references: ReferenceFetcher,
     options: RefChainOptions | None = None,
     budget_check: BudgetCheck | None = None,
+    cancel_check: CancelCheck | None = None,
 ) -> RefChainOutput:
     """Expand one layer of references using an injected fetcher."""
 
@@ -149,6 +157,7 @@ def expand_refchain(
         fetch_references=fetch_references,
         options=options,
         budget_check=budget_check,
+        cancel_check=cancel_check,
     )
 
 

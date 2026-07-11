@@ -64,6 +64,7 @@ def retrieve_papers(
     query: str,
     limit_per_source: int = 20,
     sources: list[str] | None = None,
+    connector_event_callback: Callable[[str, dict[str, object]], None] | None = None,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -77,6 +78,11 @@ def retrieve_papers(
         warnings.append("empty_query")
 
     for source in requested_sources:
+        if connector_event_callback is not None:
+            connector_event_callback(
+                "connector_started",
+                {"connector": source, "source": source},
+            )
         search = _source_registry().get(source)
         if search is None:
             message = f"unsupported_source:{source}"
@@ -90,6 +96,7 @@ def retrieve_papers(
                     error_message=message,
                 )
             )
+            _emit_connector_completed(connector_event_callback, source_stats[-1])
             continue
 
         if _is_source_in_cooldown(source):
@@ -104,6 +111,7 @@ def retrieve_papers(
                     error_message=message,
                 )
             )
+            _emit_connector_completed(connector_event_callback, source_stats[-1])
             continue
 
         source_start = time.perf_counter()
@@ -151,6 +159,7 @@ def retrieve_papers(
                     ),
                 )
             )
+        _emit_connector_completed(connector_event_callback, source_stats[-1])
 
     deduplicated = deduplicate_papers(raw_papers)
     return RetrievalOutput(
@@ -162,6 +171,30 @@ def retrieve_papers(
         source_stats=source_stats,
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
+    )
+
+
+def _emit_connector_completed(
+    callback: Callable[[str, dict[str, object]], None] | None,
+    stats: SourceStats,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        "connector_completed",
+        {
+            "connector": stats.source,
+            "source": stats.source,
+            "returned_count": stats.returned_count,
+            "latency_seconds": stats.latency_seconds,
+            "request_count": stats.diagnostics.request_count,
+            "retry_count": stats.diagnostics.retry_count,
+            "error_count": stats.diagnostics.error_count,
+            "cache_hit": stats.cache_hit,
+            "cache_hit_count": stats.diagnostics.cache_hit_count,
+            "rate_limit_wait_seconds": stats.diagnostics.rate_limit_wait_seconds,
+            "error_message": stats.error_message,
+        },
     )
 
 

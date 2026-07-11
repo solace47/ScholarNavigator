@@ -38,6 +38,7 @@ from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import (
     ENABLE_LLM_JUDGEMENT_ENV,
     ENABLE_LLM_QUERY_UNDERSTANDING_ENV,
+    SearchCancelled,
     SearchService,
     _env_flag,
 )
@@ -76,6 +77,7 @@ class RealRun:
     cancel_requested: bool
     created_at: datetime
     updated_at: datetime
+    terminal_event_emitted: bool = False
 
 
 class InternalSearchPreviewRequest(BaseModel):
@@ -465,16 +467,13 @@ def cancel_real_search_run(run_id: str) -> SearchRunStatusResponse:
             run.result = None
             run.error_message = "run cancelled"
             run.updated_at = _now()
-            should_emit_cancel_events = True
-        else:
-            should_emit_cancel_events = False
-
-    if should_emit_cancel_events:
-        _append_real_event(run_id, "warning", {"message": "run cancelled"})
-        _append_real_event(run_id, "run_completed", {"status": "cancelled"})
-
-    with _REAL_RUNS_LOCK:
-        return _real_status_response(_get_real_run(run_id))
+            _append_real_event_locked(
+                run,
+                "run_cancelled",
+                {"status": "cancelled", "reason": "user_requested"},
+            )
+            _append_terminal_event_locked(run, "cancelled")
+        return _real_status_response(run)
 
 
 @router.get("/real/search/runs/{run_id}/events", tags=["real-search"])
@@ -491,7 +490,7 @@ def stream_real_search_events(run_id: str) -> StreamingResponse:
                     break
                 pending_events = run.events[event_index:]
                 event_count = len(run.events)
-                terminal = run.status in {"succeeded", "failed", "cancelled"}
+                terminal = run.terminal_event_emitted
 
             for event_name, payload in pending_events:
                 yield f"event: {event_name}\n"
@@ -597,12 +596,12 @@ def _execute_real_search_run(run_id: str) -> None:
             return
         if run.status == "cancelled" or run.cancel_requested:
             return
+        run.status = "running"
+        run.current_stage = "starting"
+        run.updated_at = _now()
         request = run.request
 
     try:
-        _start_real_stage(run_id, "query_understanding")
-        _complete_real_stage(run_id, "query_understanding")
-        _start_real_stage(run_id, "retrieval")
         output = _real_search_service().run_search(
             request.query,
             top_k=request.top_k,
@@ -618,6 +617,12 @@ def _execute_real_search_run(run_id: str) -> None:
             sources_override=request.source_preferences,
             explicit_constraints=_to_internal_constraints(request.constraints),
             budget=_to_internal_budget(request.budgets),
+            event_callback=lambda event_name, payload: _handle_real_search_event(
+                run_id,
+                event_name,
+                payload,
+            ),
+            should_cancel=lambda: _real_run_is_cancelled(run_id),
         )
         result = map_search_service_output_to_api_result(
             run_id=run_id,
@@ -631,119 +636,91 @@ def _execute_real_search_run(run_id: str) -> None:
                 return
             if run.status == "cancelled" or run.cancel_requested:
                 return
-
-        _append_real_connector_events(run_id, output)
-        _append_real_warning_events(run_id, output.warnings)
-
-        candidate_count = len(result.highly_relevant_papers) + len(
-            result.partially_relevant_papers
-        )
-        _complete_real_stage(
-            run_id,
-            "retrieval",
-            candidate_paper_count=candidate_count,
-            extra_payload={
-                "search_api_call_count": result.cost_report.search_api_call_count,
-            },
-        )
-        _start_real_stage(run_id, "judgement")
-        _complete_real_stage(
-            run_id,
-            "judgement",
-            judged_paper_count=result.cost_report.judged_paper_count,
-        )
-        _start_real_stage(run_id, "reranking")
-        _complete_real_stage(
-            run_id,
-            "reranking",
-            extra_payload={"top_k": request.top_k},
-        )
-        _start_real_stage(run_id, "synthesis")
-        _complete_real_stage(
-            run_id,
-            "synthesis",
-            extra_payload={
-                "synthesis_status": result.synthesis.status
-                if result.synthesis is not None
-                else None,
-            },
-        )
-        with _REAL_RUNS_LOCK:
-            run = _REAL_RUNS.get(run_id)
-            if run is None:
-                return
-            if run.status == "cancelled" or run.cancel_requested:
-                return
             run.status = "succeeded"
-            run.current_stage = "synthesis"
-            run.progress = RunProgress(
-                completed_stages=[
-                    "query_understanding",
-                    "retrieval",
-                    "judgement",
-                    "reranking",
-                    "synthesis",
-                ],
-                candidate_paper_count=candidate_count,
-                judged_paper_count=result.cost_report.judged_paper_count,
-            )
             run.cost_report = result.cost_report
             run.result = result
             run.error_message = None
             run.updated_at = _now()
-        if _real_run_is_cancelled(run_id):
-            return
-        _append_real_event(
-            run_id,
-            "cost_updated",
-            {
-                "cost_report": _model_dump(result.cost_report),
-            },
-        )
-        if _real_run_is_cancelled(run_id):
-            return
-        _append_real_event(
-            run_id,
-            "run_completed",
-            {
-                "status": "succeeded",
-                "cost_report": _model_dump(result.cost_report),
-            },
-        )
+            _append_real_event_locked(
+                run,
+                "cost_updated",
+                {"cost_report": _model_dump(result.cost_report)},
+            )
+            _append_terminal_event_locked(
+                run,
+                "succeeded",
+                {"cost_report": _model_dump(result.cost_report)},
+            )
+    except SearchCancelled as exc:
+        _cancel_real_run_from_worker(run_id, exc.stage)
     except ValueError as exc:
         _fail_real_run(run_id, str(exc))
     except Exception as exc:  # noqa: BLE001 - isolate background failure
         _fail_real_run(run_id, str(exc))
 
 
-def _append_real_connector_events(
+def _handle_real_search_event(
     run_id: str,
-    output: Any,
+    event_name: str,
+    payload: dict[str, Any],
 ) -> None:
-    for stats in output.source_stats:
-        if _real_run_is_cancelled(run_id):
+    with _REAL_RUNS_LOCK:
+        run = _REAL_RUNS.get(run_id)
+        if run is None or run.cancel_requested or run.status == "cancelled":
             return
-        _append_real_event(
-            run_id,
-            "connector_completed",
-            {
-                "stage": "retrieval",
-                "connector": stats.source,
-                "source": stats.source,
-                "returned_count": stats.returned_count,
-                "latency_seconds": stats.latency_seconds,
-                "cache_hit": stats.cache_hit,
-                "error_message": stats.error_message,
-                "diagnostics": _model_dump(stats.diagnostics),
-            },
-        )
+        stage = str(payload.get("stage") or _event_stage(event_name) or "running")
+        if event_name == "connector_started":
+            run.status = "running"
+            run.current_stage = "retrieval"
+        elif event_name == "connector_completed":
+            run.status = "running"
+            run.current_stage = "retrieval"
+        elif event_name.endswith("_started"):
+            run.status = "running"
+            run.current_stage = stage
+        elif event_name.endswith("_completed"):
+            run.status = "running"
+            run.current_stage = stage
+            if stage not in run.progress.completed_stages:
+                run.progress.completed_stages.append(stage)
+        elif event_name.endswith("_skipped"):
+            if stage not in run.progress.skipped_stages:
+                run.progress.skipped_stages.append(stage)
 
+        candidate_count = payload.get("deduplicated_candidate_count")
+        if candidate_count is None:
+            candidate_count = payload.get("candidate_paper_count")
+        if isinstance(candidate_count, int):
+            run.progress.candidate_paper_count = max(0, candidate_count)
+        judged_count = payload.get("judged_paper_count")
+        if isinstance(judged_count, int):
+            run.progress.judged_paper_count = max(0, judged_count)
 
-def _append_real_warning_events(run_id: str, warnings: list[str]) -> None:
-    for warning in warnings:
-        if _real_run_is_cancelled(run_id):
-            return
-        _append_real_event(run_id, "warning", {"message": warning})
+        if event_name == "connector_completed":
+            is_reference = stage == "refchain" or payload.get("source") == "refchain"
+            request_count = _nonnegative_int(payload.get("request_count"))
+            retry_count = _nonnegative_int(payload.get("retry_count"))
+            error_count = _nonnegative_int(payload.get("error_count"))
+            cache_hit_count = _nonnegative_int(payload.get("cache_hit_count"))
+            wait_seconds = _nonnegative_float(
+                payload.get("rate_limit_wait_seconds")
+            )
+            if is_reference:
+                run.cost_report.reference_api_call_count += request_count
+            else:
+                run.cost_report.logical_search_call_count += 1
+                run.cost_report.search_api_call_count += request_count
+            run.cost_report.retry_count += retry_count
+            run.cost_report.error_count += error_count
+            run.cost_report.cache_hit_count += cache_hit_count
+            run.cost_report.rate_limit_wait_seconds += wait_seconds
+            run.cost_report.api_call_count = (
+                run.cost_report.search_api_call_count
+                + run.cost_report.reference_api_call_count
+                + run.cost_report.llm_call_count
+            )
+
+        _append_real_event_locked(run, event_name, payload)
 
 
 def _real_run_is_cancelled(run_id: str) -> bool:
@@ -759,15 +736,36 @@ def _append_real_event(
     event_name: str,
     payload: dict[str, Any] | None = None,
 ) -> None:
-    event_payload = dict(payload or {})
-    event_payload.setdefault("run_id", run_id)
-    event_payload.setdefault("timestamp", _now().isoformat())
     with _REAL_RUNS_LOCK:
         run = _REAL_RUNS.get(run_id)
         if run is None:
             return
-        run.events.append((event_name, event_payload))
-        run.updated_at = _now()
+        _append_real_event_locked(run, event_name, payload)
+
+
+def _append_real_event_locked(
+    run: RealRun,
+    event_name: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    event_payload = dict(payload or {})
+    event_payload.setdefault("run_id", run.run_id)
+    event_payload.setdefault("timestamp", _now().isoformat())
+    run.events.append((event_name, event_payload))
+    run.updated_at = _now()
+
+
+def _append_terminal_event_locked(
+    run: RealRun,
+    status: str,
+    payload: dict[str, Any] | None = None,
+) -> bool:
+    if run.terminal_event_emitted:
+        return False
+    run.terminal_event_emitted = True
+    terminal_payload = {"status": status, **dict(payload or {})}
+    _append_real_event_locked(run, "run_completed", terminal_payload)
+    return True
 
 
 def _real_status_response(run: RealRun) -> SearchRunStatusResponse:
@@ -775,58 +773,51 @@ def _real_status_response(run: RealRun) -> SearchRunStatusResponse:
         run_id=run.run_id,
         status=run.status,  # type: ignore[arg-type]
         current_stage=run.current_stage,
-        progress=run.progress,
-        cost_report=run.cost_report,
+        progress=run.progress.model_copy(deep=True),
+        cost_report=run.cost_report.model_copy(deep=True),
         created_at=run.created_at,
         updated_at=run.updated_at,
     )
 
 
-def _start_real_stage(run_id: str, stage: str) -> None:
+def _cancel_real_run_from_worker(run_id: str, stage: str) -> None:
     with _REAL_RUNS_LOCK:
         run = _REAL_RUNS.get(run_id)
         if run is None:
             return
-        if run.status == "cancelled" or run.cancel_requested:
-            return
-        run.status = "running"
-        run.current_stage = stage
-        run.updated_at = _now()
-    _append_real_event(run_id, "stage_started", {"stage": stage})
+        if run.status != "cancelled":
+            run.status = "cancelled"
+            run.current_stage = "cancelled"
+            run.cancel_requested = True
+            run.result = None
+            run.error_message = "run cancelled"
+            _append_real_event_locked(
+                run,
+                "run_cancelled",
+                {"status": "cancelled", "reason": "cooperative", "stage": stage},
+            )
+        _append_terminal_event_locked(run, "cancelled")
 
 
-def _complete_real_stage(
-    run_id: str,
-    stage: str,
-    *,
-    candidate_paper_count: int | None = None,
-    judged_paper_count: int | None = None,
-    extra_payload: dict[str, Any] | None = None,
-) -> None:
-    payload = {"stage": stage}
-    if candidate_paper_count is not None:
-        payload["candidate_paper_count"] = candidate_paper_count
-    if judged_paper_count is not None:
-        payload["judged_paper_count"] = judged_paper_count
-    if extra_payload:
-        payload.update(extra_payload)
+def _event_stage(event_name: str) -> str | None:
+    for suffix in ("_started", "_completed", "_skipped"):
+        if event_name.endswith(suffix):
+            return event_name[: -len(suffix)]
+    return None
 
-    with _REAL_RUNS_LOCK:
-        run = _REAL_RUNS.get(run_id)
-        if run is None:
-            return
-        if run.status == "cancelled" or run.cancel_requested:
-            return
-        run.status = "running"
-        run.current_stage = stage
-        if stage not in run.progress.completed_stages:
-            run.progress.completed_stages.append(stage)
-        if candidate_paper_count is not None:
-            run.progress.candidate_paper_count = candidate_paper_count
-        if judged_paper_count is not None:
-            run.progress.judged_paper_count = judged_paper_count
-        run.updated_at = _now()
-    _append_real_event(run_id, "stage_completed", payload)
+
+def _nonnegative_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _nonnegative_float(value: Any) -> float:
+    try:
+        return max(0.0, float(value or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _fail_real_run(run_id: str, message: str) -> None:
@@ -841,5 +832,9 @@ def _fail_real_run(run_id: str, message: str) -> None:
         run.error_message = message
         run.cost_report = CostReport()
         run.updated_at = _now()
-    _append_real_event(run_id, "error", {"message": message})
-    _append_real_event(run_id, "run_completed", {"status": "failed", "error": message})
+        _append_real_event_locked(run, "error", {"message": message})
+        _append_terminal_event_locked(
+            run,
+            "failed",
+            {"error": message},
+        )

@@ -151,6 +151,7 @@ export interface SearchRunStatusResponse {
   current_stage: string;
   progress: {
     completed_stages: string[];
+    skipped_stages: string[];
     candidate_paper_count: number;
     judged_paper_count: number;
   };
