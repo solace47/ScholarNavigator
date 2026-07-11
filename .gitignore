@@ -76,6 +76,7 @@ data/processed/
 experiments/runs/
 experiments/logs/
 experiments/outputs/
+outputs/benchmark_runs/
 
 # === coverage 覆盖率文件 ===
 .coverage

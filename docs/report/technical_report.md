@@ -2,7 +2,7 @@
 
 ## 报告口径
 
-本报告只记录当前代码中可以定位、可以测试的状态。赛题要求见 [赛题要求摘要](../contest/requirements.md)，系统结构见 [当前架构](../architecture.md)，评测口径见 [评测说明](../evaluation.md)。当前没有可复现的正式 benchmark 结果，因此不报告性能数字。
+本报告只记录当前代码中可以定位、可以测试的状态。赛题要求见 [赛题要求摘要](../contest/requirements.md)，系统结构见 [当前架构](../architecture.md)，评测口径见 [评测说明](../evaluation.md)。当前只有 5 条公开 Benchmark 查询的真实 smoke，不作为正式性能结论。
 
 ## 系统定位
 
@@ -36,7 +36,8 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 ### 评测与工程检查
 
 - fake fixture 离线 evaluator 可比较 baseline、查询演化和 RefChain。
-- batch CLI 可运行真实 SearchService、保存逐查询结果，并用本地 qrels 计算 Recall@K、Precision@K、MRR 和 nDCG@K。
+- AutoScholarQuery Adapter 可确定性加载 1000 条 test 查询和 2403 条 arXiv gold；只读检查报告确认没有空 gold、无效案例或重复 qid。
+- Benchmark Runner 复用真实 SearchService、统一结果选择、全标识符匹配、F1/Precision/Recall/MRR/nDCG 与 success-only/end-to-end 聚合，并支持原子输出和 resume。
 - 当前分支通过后端 pytest、前端 lint 和前端生产构建。
 
 上述“测试”指单元测试、集成测试、mock connector 测试和构建检查，不代表外部检索质量或比赛指标已经验证。
@@ -53,14 +54,13 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 | 证据归纳 | 从判断证据行生成带 citation key 的结论 | 未进行人工事实性与引用覆盖评审 |
 | 运行效率 | 记录来源调用、缓存命中、LLM 用量和延迟 | 未按比赛口径形成可复现效率报告 |
 
-本地 `manual_smoke` qrels 和 fake fixture 均不能替代正式 benchmark。
+AutoScholarQuery 原始顺序前 5 条已用 balanced、单一 arXiv 源完成真实 smoke：成功率 1.0，端到端 F1@5/10/20 为 0.0444/0.0286/0.0357，平均 API 请求 2.4、平均 Token 0、平均延迟 0.78 秒。样本很小且只使用单一来源，不能替代完整 Benchmark 或比赛成绩。
 
 ## 未实现
 
-- 官方或完整公开 benchmark 的稳定数据适配、比赛 F1 与正式实验报告。
+- 完整 1000 条 AutoScholarQuery 的固定配置基线、重复实验和正式报告。
 - 全文 PDF 获取、段落检索和可定位到原文片段的证据链。
 - 持久化任务队列、跨进程 run store、共享缓存和服务重启恢复。
-- 对 API `budgets` 中搜索轮数、候选量、LLM 调用、Token 和延迟的完整执行约束。
 - 强制中止已经发出的 connector 请求。
 - 对重排序、查询演化、RefChain 和归纳阶段的 LLM 实现；当前这些阶段为规则逻辑。
 

@@ -32,6 +32,33 @@
 
 离线 fixture 的 `search_cases.jsonl` 每行包含 `query_id`、`query`、`gold_papers` 和 `top_k_values`。批量 qrels 每行包含 `case_id` 与 `relevant_papers`。gold 论文可提供上述任一稳定标识符；没有稳定标识符时必须同时提供标题和年份。`relevance_grade` 大于 0 表示相关，缺省为 1。
 
+## 公开 Benchmark
+
+当前接入 `benchmark/AutoScholarQuery_test.jsonl`：1000 条 test 查询、2403 条 gold 论文，所有 gold 均带 arXiv ID；原数据没有分级相关性，适配器按其二元 gold 关系使用 `relevance_grade=1`。查询、标题、标识符和源文件顺序均保持不变。仓库中的 LitSearch 目录目前只有代码，没有本地 query/corpus 数据，因此未建立 LitSearch Adapter。
+
+数据检查不访问外网：
+
+```bash
+PYTHONPATH=src python scripts/inspect_benchmark.py \
+  --dataset auto_scholar_query
+```
+
+可恢复的真实运行示例：
+
+```bash
+PYTHONPATH=src python scripts/run_benchmark.py \
+  --dataset auto_scholar_query \
+  --limit 10 \
+  --output-root outputs/benchmark_runs \
+  --run-id autoscholar_smoke \
+  --run-profile balanced \
+  --sources openalex,arxiv,semantic_scholar \
+  --result-policy highly_and_partial \
+  --top-k 20
+```
+
+每次运行独立写入 `config.json`、`dataset_report.json`、`results.jsonl`、`metrics.json`、`failures.jsonl` 和 `summary.md`。`--resume` 跳过成功案例、重试失败案例，并在配置签名一致时重新汇总全部结果。
+
 ## 运行命令
 
 运行确定性 sample fixture 并生成 Markdown 汇总：
@@ -61,4 +88,6 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 ## 限制
 
-sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。当前尚无官方完整 benchmark 的固定版本基线、显著性检验、跨运行方差和分领域切片；manual smoke qrels 也不是官方标注。
+sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
+
+当前真实运行仅覆盖 AutoScholarQuery 原始顺序前 5 条，配置为 balanced、单一 arXiv 源、关闭 LLM/查询演化/RefChain。流程成功率为 1.0，端到端 F1@5/10/20 为 0.0444/0.0286/0.0357，平均 API 请求 2.4、平均 Token 0、平均延迟 0.78 秒。这只是链路 smoke，不代表完整 Benchmark、比赛成绩或多源配置性能；完整 1000 条基线、重复运行、显著性检验和分领域切片尚未完成。
