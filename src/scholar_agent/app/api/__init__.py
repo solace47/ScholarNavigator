@@ -1,2 +1,1 @@
-"""API routes for the SPAR backend."""
-
+"""API routes for the ScholarNavigator backend."""

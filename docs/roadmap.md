@@ -5,6 +5,7 @@
 - 后端测试覆盖 API、SearchService、四个 connector、agent、mapper 和评测工具；前端可通过 lint 与生产构建。
 - fake fixture 可离线比较 baseline、查询演化和 RefChain；真实 batch 可生成结果并对本地 qrels 评分。
 - Search API 的轮次、候选数、LLM 调用、Token 和延迟预算已进入 SearchService，并有离线停止行为测试；尚未通过正式 benchmark 验证其性能影响。
+- 生产检索已移除查询样例、目标论文和评测名称特例，改用结构化维度扩展与约束覆盖判断；泛化行为已有离线测试，真实检索质量仍待正式评测。
 - 以上只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0

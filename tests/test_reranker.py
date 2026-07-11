@@ -216,7 +216,7 @@ def test_top_k_rank_score_range_and_tie_breaker_are_stable() -> None:
     assert all(item.ranking_reason for item in first_run)
 
 
-def test_source_aware_tie_breaker_promotes_adjacent_arxiv_over_close_single_source_s2() -> None:
+def test_reranker_does_not_promote_candidate_by_source_name() -> None:
     query_analysis = make_query_analysis()
     single_source_s2 = make_judgement(
         make_paper(
@@ -239,13 +239,13 @@ def test_source_aware_tie_breaker_promotes_adjacent_arxiv_over_close_single_sour
 
     ranked = rerank_papers(query_analysis, [single_source_s2, arxiv_candidate])
 
-    assert ranked[0].paper.title == "ArXiv Partial"
-    assert ranked[1].paper.title == "Single Source Semantic Scholar Partial"
-    assert ranked[1].final_score > ranked[0].final_score
-    assert ranked[1].final_score - ranked[0].final_score <= 0.02
+    assert ranked[0].paper.title == "Single Source Semantic Scholar Partial"
+    assert ranked[1].paper.title == "ArXiv Partial"
+    assert ranked[0].final_score > ranked[1].final_score
+    assert ranked[0].final_score - ranked[1].final_score <= 0.02
 
 
-def test_source_aware_tie_breaker_does_not_swap_when_score_gap_is_large() -> None:
+def test_score_gap_controls_order_regardless_of_source() -> None:
     query_analysis = make_query_analysis()
     single_source_s2 = make_judgement(
         make_paper(
@@ -273,7 +273,7 @@ def test_source_aware_tie_breaker_does_not_swap_when_score_gap_is_large() -> Non
     assert ranked[0].final_score - ranked[1].final_score > 0.02
 
 
-def test_source_aware_tie_breaker_does_not_swap_multi_source_s2_arxiv_candidate() -> None:
+def test_multi_source_metadata_contributes_without_fixed_source_priority() -> None:
     query_analysis = make_query_analysis()
     multi_source = make_judgement(
         make_paper(
@@ -303,7 +303,7 @@ def test_source_aware_tie_breaker_does_not_swap_multi_source_s2_arxiv_candidate(
     assert ranked[1].paper.title == "ArXiv Partial Behind Multi Source"
 
 
-def test_source_aware_tie_breaker_does_not_swap_highly_relevant_s2_candidate() -> None:
+def test_relevance_category_controls_order_regardless_of_source() -> None:
     query_analysis = make_query_analysis()
     highly_relevant_s2 = make_judgement(
         make_paper(
@@ -330,7 +330,7 @@ def test_source_aware_tie_breaker_does_not_swap_highly_relevant_s2_candidate() -
     assert ranked[1].paper.title == "ArXiv Highly Relevant Behind S2"
 
 
-def test_source_aware_tie_breaker_does_not_move_non_adjacent_arxiv_candidate() -> None:
+def test_three_candidates_follow_deterministic_score_order() -> None:
     query_analysis = make_query_analysis()
     single_source_s2 = make_judgement(
         make_paper(

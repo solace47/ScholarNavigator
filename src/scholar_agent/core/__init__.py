@@ -1,2 +1,1 @@
-"""Core schemas and utilities for the SPAR backend."""
-
+"""Core schemas and utilities for the ScholarNavigator backend."""

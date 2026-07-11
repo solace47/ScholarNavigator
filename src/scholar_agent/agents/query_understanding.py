@@ -250,8 +250,8 @@ class QueryUnderstandingAgent:
         domain = _detect_domain(normalized_query)
         time_range = _parse_time_range(normalized_query, current_year)
         venues = _extract_venues(normalized_query)
-        methods = _extract_terms(normalized_query, METHOD_TERMS)
-        datasets = _extract_terms(normalized_query, DATASET_TERMS)
+        methods = _extract_method_terms(normalized_query)
+        datasets = _extract_dataset_terms(normalized_query)
         keyword_terms = _extract_keyword_terms(normalized_query, venues)
         selected_sources, warnings = _select_sources(normalized_query, domain)
         limit_per_source, max_subqueries = _profile_settings(
@@ -506,6 +506,37 @@ def _extract_terms(query: str, candidates: tuple[str, ...]) -> list[str]:
     return _dedupe([term for term in candidates if term in lowered])
 
 
+def _extract_method_terms(query: str) -> list[str]:
+    terms = _extract_terms(query, METHOD_TERMS)
+    for match in re.finditer(
+        r"\b([A-Za-z][A-Za-z0-9+.#-]*(?:\s+[A-Za-z][A-Za-z0-9+.#-]*){0,2})"
+        r"\s+(?:methods?|approaches?)\b",
+        query,
+        re.I,
+    ):
+        phrase = " ".join(
+            token
+            for token in match.group(1).split()
+            if token.casefold() not in STOPWORDS
+        )
+        if phrase:
+            terms.append(phrase)
+    return _dedupe(terms)
+
+
+def _extract_dataset_terms(query: str) -> list[str]:
+    terms = _extract_terms(query, DATASET_TERMS)
+    for match in re.finditer(
+        r"\b([A-Za-z][A-Za-z0-9_.-]*)\s+(?:dataset|benchmark|corpus)\b",
+        query,
+        re.I,
+    ):
+        name = match.group(1)
+        if name.casefold() not in {"a", "the", "new", "public"}:
+            terms.append(name)
+    return _dedupe(terms)
+
+
 def _extract_keyword_terms(query: str, venues: list[str]) -> list[str]:
     terms: list[str] = []
     for token in re.findall(r"[A-Za-z][A-Za-z0-9+.#-]*", query):
@@ -581,14 +612,14 @@ def _build_subqueries(
     if explicit_constraint_query:
         candidates.append(explicit_constraint_query)
 
-    candidates.extend(_recall_subquery_candidates(original_query))
-
-    if base_query.casefold() != original_query.casefold():
-        candidates.append((base_query, "normalized_keywords"))
-
     intent_query = _intent_subquery(intent, base_query, constraints.time_range)
     if intent_query:
         candidates.append(intent_query)
+
+    candidates.extend(_structured_dimension_subqueries(base_query, constraints))
+
+    if base_query.casefold() != original_query.casefold():
+        candidates.append((base_query, "normalized_keywords"))
 
     domain_query = _domain_subquery(domain, base_query)
     if domain_query:
@@ -620,133 +651,61 @@ def _build_subqueries(
     return subqueries[:5]
 
 
-def _recall_subquery_candidates(query: str) -> list[tuple[str, str]]:
-    lowered = query.casefold()
+def _structured_dimension_subqueries(
+    base_query: str,
+    constraints: QueryConstraint,
+) -> list[tuple[str, str]]:
+    """Build bounded expansions only from parsed query dimensions."""
+
     candidates: list[tuple[str, str]] = []
-
-    if _is_rag_evaluation_query(lowered):
-        candidates.extend(
-            [
-                (
-                    "ARES automated evaluation framework retrieval augmented generation",
-                    "rag_evaluation_expansion",
+    if constraints.methods:
+        candidates.append(
+            (
+                _append_query_fragments(
+                    base_query,
+                    [*constraints.methods, "method"],
                 ),
-                (
-                    "retrieval augmented generation evaluation ARES RAGAS",
-                    "rag_evaluation_expansion",
-                ),
-                (
-                    "RAG evaluation benchmark ARES RAGAS",
-                    "rag_evaluation_expansion",
-                ),
-                (
-                    "retrieval augmented generation evaluation benchmark",
-                    "rag_evaluation_expansion",
-                ),
-                ("RAG evaluation datasets benchmark", "rag_evaluation_expansion"),
-                ("RAGAS ARES RAG evaluation", "rag_evaluation_expansion"),
-                (
-                    "RAG benchmark large language models",
-                    "rag_evaluation_expansion",
-                ),
-                ("automated RAG evaluation system", "rag_evaluation_expansion"),
-                ("RAGAS ARES RAGBench", "rag_evaluation_expansion"),
-            ]
+                "method_dimension",
+            )
         )
-
-    if _is_benchmark_search_agent_query(lowered):
-        candidates.extend(
-            [
-                (
-                    "LitSearch AstaBench SPAR academic search benchmark",
-                    "benchmark_search_agent_expansion",
+    if constraints.datasets:
+        candidates.append(
+            (
+                _append_query_fragments(
+                    base_query,
+                    [*constraints.datasets, "dataset evaluation"],
                 ),
-                (
-                    "scientific literature search benchmark",
-                    "benchmark_search_agent_expansion",
-                ),
-                ("paper search agent benchmark", "benchmark_search_agent_expansion"),
-                ("academic paper search benchmark", "benchmark_search_agent_expansion"),
-                ("scholarly retrieval benchmark", "benchmark_search_agent_expansion"),
-            ]
+                "dataset_dimension",
+            )
         )
-
-    if _is_academic_search_ranking_query(lowered):
-        candidates.extend(
-            [
-                (
-                    "academic paper search neural ranking information retrieval",
-                    "academic_search_ranking_expansion",
-                ),
-                (
-                    "scholarly literature search neural ranking",
-                    "academic_search_ranking_expansion",
-                ),
-                (
-                    "neural ranking for academic paper retrieval",
-                    "academic_search_ranking_expansion",
-                ),
-                (
-                    "semantic ranking academic search",
-                    "academic_search_ranking_expansion",
-                ),
-                ("entity duet neural ranking", "academic_search_ranking_expansion"),
-                (
-                    "neural information retrieval academic search",
-                    "academic_search_ranking_expansion",
-                ),
-                ("scholarly search ranking", "academic_search_ranking_expansion"),
-            ]
+    if constraints.venues:
+        candidates.append(
+            (
+                _append_query_fragments(base_query, [*constraints.venues, "venue"]),
+                "venue_dimension",
+            )
         )
-
+    if constraints.paper_types:
+        candidates.append(
+            (
+                _append_query_fragments(base_query, list(constraints.paper_types)),
+                "paper_type_dimension",
+            )
+        )
     return candidates
 
 
-def _is_benchmark_search_agent_query(lowered_query: str) -> bool:
-    has_benchmark_signal = any(
-        term in lowered_query for term in ("benchmark", "dataset", "datasets")
-    )
-    has_search_agent_signal = any(
-        term in lowered_query
-        for term in (
-            "scientific literature",
-            "academic paper",
-            "scholarly",
-            "literature search",
-            "paper search",
-            "search agent",
-            "search agents",
-        )
-    )
-    return has_benchmark_signal and has_search_agent_signal
-
-
-def _is_rag_evaluation_query(lowered_query: str) -> bool:
-    has_rag_signal = (
-        "rag" in lowered_query or "retrieval augmented generation" in lowered_query
-    )
-    has_eval_signal = any(
-        term in lowered_query
-        for term in ("evaluation", "evaluate", "benchmark", "benchmarks", "评测", "基准")
-    )
-    return has_rag_signal and has_eval_signal
-
-
-def _is_academic_search_ranking_query(lowered_query: str) -> bool:
-    has_ranking_signal = any(
-        term in lowered_query for term in ("neural ranking", "semantic ranking", "ranking")
-    )
-    has_academic_search_signal = any(
-        term in lowered_query
-        for term in (
-            "academic search",
-            "scholarly search",
-            "scientific literature",
-            "paper search",
-            "literature retrieval",
-        )
-    )
-    return has_ranking_signal and has_academic_search_signal
+def _append_query_fragments(base_query: str, fragments: list[str]) -> str:
+    query = base_query.strip()
+    query_key = query.casefold()
+    additions: list[str] = []
+    for fragment in _dedupe(fragments):
+        if _contains_phrase(query_key, fragment.casefold()):
+            continue
+        additions.append(fragment)
+    if not additions:
+        return query
+    return f"{query} {' '.join(additions)}"
 
 
 def _intent_subquery(
@@ -755,18 +714,36 @@ def _intent_subquery(
     time_range: TimeRange | None,
 ) -> tuple[str, str] | None:
     if intent == "survey":
-        return f"{base_query} survey review", "survey_expansion"
+        return (
+            _append_query_fragments(base_query, ["survey", "review"]),
+            "survey_expansion",
+        )
     if intent == "recent_progress":
         time_suffix = _format_time_suffix(time_range)
         return f"recent advances {base_query}{time_suffix}", "recent_progress_expansion"
     if intent == "method_comparison":
-        return f"{base_query} comparison versus", "method_comparison_expansion"
+        return (
+            _append_query_fragments(base_query, ["comparison", "versus"]),
+            "method_comparison_expansion",
+        )
     if intent == "benchmark_or_dataset":
-        return f"{base_query} benchmark dataset evaluation", "benchmark_dataset_expansion"
+        return (
+            _append_query_fragments(
+                base_query,
+                ["benchmark", "dataset", "evaluation"],
+            ),
+            "benchmark_dataset_expansion",
+        )
     if intent == "application":
-        return f"{base_query} application deployment", "application_expansion"
+        return (
+            _append_query_fragments(base_query, ["application", "deployment"]),
+            "application_expansion",
+        )
     if intent == "paper_finding":
-        return f"representative papers {base_query}", "paper_finding_expansion"
+        return (
+            _append_query_fragments(base_query, ["representative papers"]),
+            "paper_finding_expansion",
+        )
     return None
 
 
@@ -788,12 +765,16 @@ def _constraint_subquery(
     constraints: QueryConstraint,
 ) -> tuple[str, str] | None:
     fragments: list[str] = []
+    fragments.extend(constraints.methods)
+    fragments.extend(constraints.datasets)
+    fragments.extend(
+        domain.replace("_", " ")
+        for domain in constraints.domains
+        if domain != "general_science"
+    )
     if "must_include_terms" in constraints.explicit_fields:
         fragments.extend(constraints.must_include_terms)
-    if "datasets" in constraints.explicit_fields:
-        fragments.extend(constraints.datasets)
-    if "paper_types" in constraints.explicit_fields:
-        fragments.extend(constraints.paper_types)
+    fragments.extend(constraints.paper_types)
     if constraints.venues:
         fragments.extend(constraints.venues)
     time_suffix = _format_time_suffix(constraints.time_range).strip()
@@ -802,7 +783,7 @@ def _constraint_subquery(
     if not fragments:
         return None
     fragments = _dedupe(fragments)
-    return f"{base_query} {' '.join(fragments)}", "constraint_expansion"
+    return _append_query_fragments(base_query, fragments), "constraint_expansion"
 
 
 def _format_time_suffix(time_range: TimeRange | None) -> str:
@@ -818,7 +799,19 @@ def _format_time_suffix(time_range: TimeRange | None) -> str:
 
 
 def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
-    return any(term in text for term in terms)
+    return any(_contains_phrase(text, term) for term in terms)
+
+
+def _contains_phrase(text: str, term: str) -> bool:
+    if re.fullmatch(r"[a-z0-9+.# -]+", term):
+        return (
+            re.search(
+                rf"(?<![a-z0-9+.#-]){re.escape(term)}(?![a-z0-9+.#-])",
+                text,
+            )
+            is not None
+        )
+    return term in text
 
 
 def _dedupe(values: list[str]) -> list[str]:

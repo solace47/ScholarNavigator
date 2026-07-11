@@ -454,12 +454,12 @@ def _judge_one_paper(
         + venue_signal.reasons
         + time_signal.reasons
     )
-    score, composite_reasons = _composite_query_adjustment(
+    score, coverage_reasons = _constraint_coverage_adjustment(
         query_analysis,
         paper,
         score,
     )
-    reasons.extend(composite_reasons)
+    reasons.extend(coverage_reasons)
     score = round(_clamp(score), 4)
 
     category = _category(
@@ -479,315 +479,98 @@ def _judge_one_paper(
     )
 
 
-def _composite_query_adjustment(
+def _constraint_coverage_adjustment(
     query_analysis: QueryAnalysis,
     paper: Paper,
     score: float,
 ) -> tuple[float, list[str]]:
-    reasons: list[str] = []
-    query_text = query_analysis.original_query.casefold()
-    paper_text = _paper_text(paper)
+    constraints = query_analysis.constraints
+    topic_terms = _tokenize(query_analysis.original_query)
+    topic_matches, _ = _matching_constraint_terms(topic_terms, paper)
+    method_matches, _ = _matching_constraint_terms(constraints.methods, paper)
+    dataset_matches, _ = _matching_constraint_terms(constraints.datasets, paper)
+    must_matches, _ = _matching_constraint_terms(
+        constraints.must_include_terms,
+        paper,
+    )
+    paper_type_matches, _ = _matched_paper_types(constraints.paper_types, paper)
+    excluded_matches, _ = _matching_constraint_terms(constraints.exclude_terms, paper)
 
-    if _is_rag_evaluation_query(query_text):
-        adjusted, reason = _rag_evaluation_adjustment(score, paper_text)
-        if reason:
-            reasons.append(reason)
-        score = adjusted
-
-    if _is_academic_search_compound_query(query_text):
-        adjusted, compound_reasons = _academic_search_adjustment(
-            score,
-            paper,
-            paper_text,
-            is_neural_ranking_query=_is_academic_neural_ranking_query(query_text),
+    coverages: list[tuple[str, float]] = []
+    if topic_terms:
+        coverages.append(("topic", _coverage_ratio(topic_terms, topic_matches)))
+    if constraints.methods:
+        coverages.append(
+            ("method", _coverage_ratio(constraints.methods, method_matches))
         )
-        reasons.extend(compound_reasons)
-        score = adjusted
-
-    return score, reasons
-
-
-def _rag_evaluation_adjustment(score: float, paper_text: str) -> tuple[float, str | None]:
-    has_named_eval = _contains_any_phrase(paper_text, ("ragas", "ares"))
-    has_rag_acronym = _contains_any_phrase(paper_text, ("rag",))
-    has_full_rag = _contains_any_phrase(
-        paper_text,
-        ("retrieval augmented generation", "retrieval-augmented generation"),
-    )
-    has_explicit_evaluation = _contains_any_phrase(
-        paper_text,
-        ("evaluation", "evaluate", "evaluating", "datasets", "dataset"),
-    )
-    has_benchmark = _contains_any_phrase(paper_text, ("benchmark",))
-    if has_named_eval:
-        return min(1.0, score + 0.08), "composite RAG evaluation acronym matched"
-    if has_full_rag and (has_explicit_evaluation or has_benchmark):
-        return score, "composite RAG evaluation intent satisfied"
-    if has_rag_acronym and has_explicit_evaluation:
-        return score, "composite RAG evaluation intent satisfied"
-    if has_rag_acronym and has_benchmark:
-        return min(score - 0.08, 0.62), (
-            "composite RAG evaluation intent matched only surface acronym benchmark"
-        )
-    if has_rag_acronym or has_full_rag or has_explicit_evaluation or has_benchmark:
-        return min(score - 0.12, 0.44), (
-            "composite RAG evaluation intent only partially satisfied"
-        )
-    return min(score - 0.18, 0.32), "composite RAG evaluation intent not satisfied"
-
-
-def _academic_search_adjustment(
-    score: float,
-    paper: Paper,
-    paper_text: str,
-    *,
-    is_neural_ranking_query: bool = False,
-) -> tuple[float, list[str]]:
-    reasons: list[str] = []
-    has_academic_search_context = _contains_any_phrase(
-        paper_text,
-        (
-            "academic search",
-            "academic paper",
-            "academic literature",
-            "paper search",
-            "paper retrieval",
-            "scientific literature",
-            "literature search",
-            "literature retrieval",
-            "scholarly search",
-            "scholarly retrieval",
-            "scholarly literature",
-        ),
-    )
-    has_document_retrieval_context = _contains_any_phrase(
-        paper_text,
-        (
-            "document retrieval",
-            "document ranking",
-            "information retrieval",
-            "retrieval model",
-            "retrieval models",
-            "relevance ranking",
-        ),
-    )
-    has_neural_ranking_context = _contains_any_phrase(
-        paper_text,
-        (
-            "neural ranking",
-            "neural ranker",
-            "neural rankers",
-            "neural relevance ranking",
-            "neural contextual semantic relevance",
-            "neural information retrieval",
-            "learning to rank",
-        ),
-    )
-    has_task_context = _contains_any_phrase(
-        paper_text,
-        (
-            "ranking",
-            "rank",
-            "benchmark",
-            "agent",
-            "relevance",
-            "retrieval",
-        ),
-    )
-    has_domain_shift = _contains_any_phrase(
-        paper_text,
-        (
-            "academic network embedding",
-            "architecture search",
-            "citation recommendation",
-            "dark web",
-            "dark web retrieval",
-            "news retrieval",
-            "page ranking",
-            "person re-identification",
-            "ranking attack",
-            "adversarial neural",
-            "mobile neural architecture search",
-            "library materials",
-            "student performance",
-        ),
-    )
-    has_generic_ir_noise = _contains_any_phrase(
-        paper_text,
-        (
-            "page ranking algorithm",
-            "page ranking algorithms",
-            "pagerank",
-        ),
-    ) or (
-        _contains_any_phrase(paper_text, ("information retrieval",))
-        and not has_academic_search_context
-        and not has_document_retrieval_context
-        and not has_neural_ranking_context
-    )
-    if is_neural_ranking_query:
-        has_title_level_generic_neural_ir = _is_title_level_generic_neural_ir(paper)
-        has_preferred_match = (
-            has_academic_search_context and (has_neural_ranking_context or has_task_context)
-        ) or (
-            has_document_retrieval_context
-            and has_neural_ranking_context
-            and not has_title_level_generic_neural_ir
+    if constraints.datasets:
+        coverages.append(
+            ("dataset", _coverage_ratio(constraints.datasets, dataset_matches))
         )
 
-        if has_preferred_match:
-            score = min(1.0, score + 0.05)
-            reasons.append("compound academic neural ranking intent satisfied")
-        elif has_academic_search_context or has_document_retrieval_context:
-            score = min(score - 0.06, 0.58)
-            reasons.append(
-                "compound academic neural ranking intent only partially satisfied"
+    topic_keys = {term.casefold() for term in topic_terms}
+    must_keys = {term.casefold() for term in constraints.must_include_terms}
+    if constraints.must_include_terms and (
+        "must_include_terms" in constraints.explicit_fields or must_keys != topic_keys
+    ):
+        coverages.append(
+            (
+                "must_have",
+                _coverage_ratio(constraints.must_include_terms, must_matches),
             )
-        elif has_task_context:
-            score = min(score - 0.14, 0.42)
-            reasons.append("compound academic neural ranking intent weakly satisfied")
-        else:
-            score = min(score - 0.18, 0.32)
-            reasons.append("compound academic neural ranking intent not satisfied")
+        )
+    if constraints.paper_types:
+        coverages.append(
+            (
+                "paper_type",
+                _coverage_ratio(constraints.paper_types, paper_type_matches),
+            )
+        )
+    if constraints.venues:
+        venue_key = _normalize_venue(paper.venue or "")
+        venue_match = bool(venue_key) and any(
+            _normalize_venue(expected) in venue_key
+            for expected in constraints.venues
+        )
+        coverages.append(("venue", 1.0 if venue_match else 0.0))
+    if constraints.time_range is not None:
+        time_match = paper.year is not None and not _outside_time_range(
+            constraints,
+            paper,
+        )
+        coverages.append(("time", 1.0 if time_match else 0.0))
 
-        if has_generic_ir_noise:
-            score = min(score - 0.1, 0.44)
-            reasons.append("generic information retrieval noise detected")
-
-        if has_title_level_generic_neural_ir:
-            score -= 0.04
-            reasons.append("generic title-level neural IR penalty")
-
-        if has_domain_shift:
-            score = min(score - 0.16, 0.36)
-            reasons.append("domain-shift terms detected for academic search query")
-
+    reasons = [
+        "constraint_coverage:"
+        + ",".join(f"{name}={coverage:.2f}" for name, coverage in coverages)
+        + f",excluded_term_match={'true' if excluded_matches else 'false'}"
+    ]
+    if not coverages:
         return score, reasons
 
-    if has_academic_search_context and has_task_context:
-        score = min(1.0, score + 0.04)
-        reasons.append("compound academic search intent satisfied")
-    elif has_academic_search_context or has_task_context:
-        score = min(score - 0.1, 0.44)
-        reasons.append("compound academic search intent only partially satisfied")
-    else:
-        score = min(score - 0.16, 0.34)
-        reasons.append("compound academic search intent not satisfied")
+    strong_dimensions = sum(coverage >= 0.9 for _, coverage in coverages)
+    mean_coverage = sum(coverage for _, coverage in coverages) / len(coverages)
+    broad_topic_only = len(topic_terms) >= 3 and len(topic_matches) <= 1
 
-    if has_domain_shift:
-        score = min(score - 0.12, 0.42)
-        reasons.append("domain-shift terms detected for academic search query")
+    if len(coverages) >= 2 and strong_dimensions >= 2 and mean_coverage >= 0.6:
+        score += min(0.08, strong_dimensions * 0.02)
+        reasons.append("multi_dimension_constraint_coverage")
+    elif len(coverages) >= 2 and strong_dimensions <= 1:
+        score = min(score - 0.06, 0.5 + 0.25 * mean_coverage)
+        reasons.append("insufficient_multi_dimension_coverage")
 
+    if broad_topic_only and strong_dimensions <= 1:
+        score = min(score, 0.68)
+        reasons.append("broad_topic_match_only")
     return score, reasons
 
 
-def _is_title_level_generic_neural_ir(paper: Paper) -> bool:
-    text = " ".join(part for part in (paper.title, paper.venue or "") if part).casefold()
-    if not _contains_any_phrase(
-        text,
-        (
-            "neural ranking",
-            "neural ranker",
-            "neural rankers",
-            "neural information retrieval",
-        ),
-    ):
-        return False
-    if not _contains_any_phrase(
-        text,
-        (
-            "information retrieval",
-            "document retrieval",
-            "retrieval",
-        ),
-    ):
-        return False
-    if _contains_any_phrase(
-        text,
-        (
-            "academic",
-            "academic search",
-            "academic paper",
-            "paper search",
-            "paper retrieval",
-            "scholarly",
-            "scholarly search",
-            "literature",
-            "personalized",
-            "contextual",
-            "semantic relevance",
-            "entity",
-            "knowledge graph",
-            "semantics",
-        ),
-    ):
-        return False
-    return True
-
-
-def _is_rag_evaluation_query(query_text: str) -> bool:
-    has_rag = _contains_any_phrase(
-        query_text,
-        ("rag", "retrieval augmented generation", "retrieval-augmented generation"),
-    )
-    has_evaluation = _contains_any_phrase(
-        query_text,
-        ("evaluation", "evaluate", "evaluating", "benchmark", "datasets", "dataset"),
-    )
-    return has_rag and has_evaluation
-
-
-def _is_academic_search_compound_query(query_text: str) -> bool:
-    has_search_context = _contains_any_phrase(
-        query_text,
-        (
-            "academic search",
-            "scientific literature",
-            "paper search",
-            "literature search",
-            "scholarly search",
-            "scholarly retrieval",
-        ),
-    )
-    has_task_context = _contains_any_phrase(
-        query_text,
-        ("ranking", "rank", "benchmark", "agent", "recommendation"),
-    )
-    return has_search_context and has_task_context
-
-
-def _is_academic_neural_ranking_query(query_text: str) -> bool:
-    has_academic_search_context = _contains_any_phrase(
-        query_text,
-        (
-            "academic search",
-            "academic paper search",
-            "academic paper retrieval",
-            "paper search",
-            "paper retrieval",
-            "scholarly search",
-            "scholarly retrieval",
-            "scholarly literature",
-        ),
-    )
-    has_neural_ranking_context = _contains_any_phrase(
-        query_text,
-        (
-            "neural ranking",
-            "ranking methods",
-            "information retrieval",
-            "neural information retrieval",
-        ),
-    )
-    return has_academic_search_context and has_neural_ranking_context
-
-
-def _paper_text(paper: Paper) -> str:
-    return " ".join(
-        part
-        for part in (paper.title, paper.abstract, paper.venue or "")
-        if part
-    ).casefold()
+def _coverage_ratio(expected: list[str], matched: list[str]) -> float:
+    expected_keys = {item.casefold() for item in expected if item.strip()}
+    if not expected_keys:
+        return 0.0
+    matched_keys = {item.casefold() for item in matched if item.strip()}
+    return len(expected_keys & matched_keys) / len(expected_keys)
 
 
 def _metadata_warnings(constraints: QueryConstraint, paper: Paper) -> list[str]:
@@ -1252,10 +1035,6 @@ def _contains_term(text: str, term: str) -> bool:
     if re.fullmatch(r"[a-z0-9+.#-]+", term):
         return re.search(rf"(?<![a-z0-9+.#-]){re.escape(term)}(?![a-z0-9+.#-])", text) is not None
     return term in text
-
-
-def _contains_any_phrase(text: str, phrases: tuple[str, ...]) -> bool:
-    return any(_contains_term(text, phrase.casefold()) for phrase in phrases)
 
 
 def _abstract_snippet(abstract: str, term: str) -> str:

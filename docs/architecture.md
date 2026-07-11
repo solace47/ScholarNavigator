@@ -80,6 +80,8 @@ LLM 默认关闭，当前只可选用于两个位置：
 
 Real Search API 将 `time_range`、`venues`、`must_have_terms`、`excluded_terms`、`datasets` 和 `paper_types` 映射到统一的 `QueryConstraint`，再传入 SearchService 和 Query Understanding。字段合并优先级为“用户显式非空约束 > LLM 解析 > 规则解析”，未显式填写的字段保留推断结果；`current_year` 只解释相对时间表达，不代替显式时间范围。合并结果参与子查询、相关性判断和重排，并由 API 原样返回。`source_preferences` 在请求校验阶段完成白名单校验、稳定去重和非空检查。
 
+查询扩展只保留原始查询，并按 topic、method、dataset、domain、venue、paper type、time range 和 intent 组合有限子查询；不注入已知论文标题或评测名称。规则 Judgement 记录各约束维度覆盖率，多维覆盖可获得小幅提升，仅命中宽泛主题词时不能进入高度相关；must-have、excluded term 和时间范围仍执行确定性硬约束。Reranker 以相关性为主，来源只通过多源共同命中和元数据完整性形成通用信号，不按来源名称交换顺序。
+
 ## API 运行生命周期
 
 1. `POST /api/v1/real/search/runs` 创建进程内任务并返回 `queued`。

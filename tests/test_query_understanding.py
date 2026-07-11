@@ -4,6 +4,7 @@ import pytest
 
 from scholar_agent.agents import query_understanding as query_understanding_module
 from scholar_agent.agents.query_understanding import analyze_query
+from scholar_agent.core.search_schemas import QueryConstraint
 from scholar_agent.prompts.loader import PromptLoadError, load_prompt
 
 
@@ -113,20 +114,24 @@ def test_subqueries_are_deduplicated() -> None:
     assert len(queries) == len(set(queries))
 
 
-def test_benchmark_search_agent_query_gets_recall_subqueries() -> None:
+def test_unknown_benchmark_name_gets_generic_dimension_subqueries() -> None:
     plan = analyze_query(
-        "benchmark datasets for scientific literature search agents",
+        "OrionEval benchmark datasets for scientific literature search agents",
         run_profile="high_recall",
         current_year=2026,
     )
     queries = [subquery.query for subquery in plan.subqueries]
 
-    assert "LitSearch AstaBench SPAR academic search benchmark" in queries
-    assert "scientific literature search benchmark" in queries
-    assert "paper search agent benchmark" in queries
+    assert queries[0].startswith("OrionEval benchmark datasets")
+    assert any("dataset evaluation" in query for query in queries)
+    assert any(
+        all(term in query.casefold() for term in ("benchmark", "dataset", "evaluation"))
+        for query in queries
+    )
+    assert len(queries) == len({query.casefold() for query in queries})
 
 
-def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
+def test_evaluation_query_uses_only_generic_intent_and_dimensions() -> None:
     plan = analyze_query(
         "retrieval augmented generation evaluation benchmark papers",
         run_profile="high_recall",
@@ -135,14 +140,12 @@ def test_rag_evaluation_query_gets_acronym_subqueries() -> None:
     queries = [subquery.query for subquery in plan.subqueries]
 
     assert queries[0] == "retrieval augmented generation evaluation benchmark papers"
-    assert queries[1] == "ARES automated evaluation framework retrieval augmented generation"
-    assert "RAGAS ARES RAG benchmark large language models" not in queries[:2]
-    assert "retrieval augmented generation evaluation ARES RAGAS" in queries
-    assert "RAG evaluation benchmark ARES RAGAS" in queries
-    assert "retrieval augmented generation evaluation benchmark" in queries
+    assert queries[1] == "retrieval augmented generation evaluation benchmark dataset"
+    assert any("dataset evaluation" in query for query in queries)
+    assert all("automated evaluation framework" not in query for query in queries)
 
 
-def test_rag_evaluation_fast_profile_uses_ares_query_second() -> None:
+def test_fast_profile_bounds_generic_query_expansion() -> None:
     plan = analyze_query(
         "RAG evaluation benchmark papers",
         run_profile="fast",
@@ -152,11 +155,11 @@ def test_rag_evaluation_fast_profile_uses_ares_query_second() -> None:
 
     assert queries == [
         "RAG evaluation benchmark papers",
-        "ARES automated evaluation framework retrieval augmented generation",
+        "RAG evaluation benchmark dataset",
     ]
 
 
-def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
+def test_method_query_gets_generic_method_and_domain_subqueries() -> None:
     plan = analyze_query(
         "neural ranking methods for academic search",
         run_profile="high_recall",
@@ -165,11 +168,94 @@ def test_academic_search_neural_ranking_query_gets_ranking_subqueries() -> None:
     queries = [subquery.query for subquery in plan.subqueries]
 
     assert queries[0] == "neural ranking methods for academic search"
-    assert queries[1] == "academic paper search neural ranking information retrieval"
-    assert "academic search neural ranking" not in queries
-    assert "scholarly literature search neural ranking" in queries
-    assert "neural ranking for academic paper retrieval" in queries
-    assert "semantic ranking academic search" in queries
+    assert queries[1] == "neural ranking methods academic method"
+    assert any(subquery.purpose == "method_dimension" for subquery in plan.subqueries)
+    assert all("explicit semantic" not in query for query in queries)
+
+
+def test_unseen_composite_query_decomposes_method_dataset_and_task() -> None:
+    plan = analyze_query(
+        "compare adaptive evidence retrieval for clinical question answering",
+        run_profile="high_recall",
+        current_year=2026,
+        explicit_constraints=QueryConstraint(
+            methods=["contrastive reranking"],
+            datasets=["NovaSet"],
+            domains=["biomedical"],
+            must_include_terms=["clinical question answering"],
+            paper_types=["comparison"],
+            explicit_fields=[
+                "methods",
+                "datasets",
+                "domains",
+                "must_include_terms",
+                "paper_types",
+            ],
+        ),
+    )
+
+    purposes = [subquery.purpose for subquery in plan.subqueries]
+    assert purposes == [
+        "original_query",
+        "constraint_expansion",
+        "method_comparison_expansion",
+        "method_dimension",
+        "dataset_dimension",
+    ]
+    assert "contrastive reranking" in plan.subqueries[1].query
+    assert "NovaSet" in plan.subqueries[1].query
+    assert "comparison" in plan.subqueries[2].query
+
+
+def test_query_expansion_never_injects_unseen_target_title() -> None:
+    plan = analyze_query(
+        "QuasarEval benchmark for adaptive evidence retrieval",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+
+    assert all(
+        "Canonical Answer Paper" not in subquery.query
+        for subquery in plan.subqueries
+    )
+    assert any("QuasarEval" in subquery.query for subquery in plan.subqueries)
+
+
+def test_different_domains_share_generic_expansion_rules() -> None:
+    computer_science = analyze_query(
+        "database indexing methods for transaction processing",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    biomedical = analyze_query(
+        "protein indexing methods for clinical cohorts",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+
+    assert computer_science.query_analysis.domain == "computer_science"
+    assert biomedical.query_analysis.domain == "biomedical"
+    assert "method_dimension" in {
+        subquery.purpose for subquery in computer_science.subqueries
+    }
+    assert "method_dimension" in {
+        subquery.purpose for subquery in biomedical.subqueries
+    }
+
+
+def test_generic_query_expansion_is_stable() -> None:
+    first = analyze_query(
+        "QuasarEval benchmark for adaptive evidence retrieval",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+    second = analyze_query(
+        "QuasarEval benchmark for adaptive evidence retrieval",
+        run_profile="high_recall",
+        current_year=2026,
+    )
+
+    assert first.model_dump() == second.model_dump()
 
 
 def test_llm_json_can_generate_search_plan() -> None:

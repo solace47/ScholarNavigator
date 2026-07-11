@@ -274,7 +274,7 @@ def test_fast_both_sources_does_not_limit_initial_retrieval() -> None:
     )
 
 
-def test_fast_recommended_uses_arxiv_for_first_two_and_semantic_for_second() -> None:
+def test_fast_profile_sends_each_subquery_to_all_selected_sources() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -305,29 +305,13 @@ def test_fast_recommended_uses_arxiv_for_first_two_and_semantic_for_second() -> 
 
     assert len(output.search_plan.subqueries) > 1
     assert len(calls) == len(output.search_plan.subqueries)
-    assert calls[0] == (
-        output.search_plan.subqueries[0].query,
-        ["arxiv"],
-    )
-    assert calls[1] == (
-        output.search_plan.subqueries[1].query,
-        ["arxiv", "semantic_scholar"],
-    )
-    semantic_calls = [
-        call for call in calls if call[1] and "semantic_scholar" in call[1]
-    ]
-    assert semantic_calls == [
-        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
-    ]
-    assert all(call[1] == ["arxiv"] for call in calls[2:])
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
-    assert not any(
-        warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
-        for warning in output.warnings
-    )
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
 
 
-def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommendation() -> None:
+def test_search_service_does_not_inject_source_specific_override_query() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -370,43 +354,14 @@ def test_fast_recommended_uses_semantic_scholar_override_for_citation_recommenda
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert (
-        output.search_plan.subqueries[0].query,
-        ["arxiv"],
-    ) in calls
-    assert (
-        output.search_plan.subqueries[1].query,
-        ["arxiv"],
-    ) in calls
-    semantic_calls = [
-        call for call in calls if call[1] and "semantic_scholar" in call[1]
-    ]
-    assert semantic_calls == [
-        ("graph embedding citation recommendation", ["semantic_scholar"])
-    ]
-    assert any(
-        stat.source == "semantic_scholar"
-        and stat.query == "graph embedding citation recommendation"
-        for stat in output.source_stats
-    )
-    assert any(
-        stat.source == "arxiv"
-        and stat.query == output.search_plan.subqueries[0].query
-        for stat in output.source_stats
-    )
-    assert any(
-        stat.source == "arxiv"
-        and stat.query == output.search_plan.subqueries[1].query
-        for stat in output.source_stats
-    )
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
-    assert not any(
-        warning.startswith("fast_arxiv_subquery_skipped_by_limit:")
-        for warning in output.warnings
-    )
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
+    assert all(call[1] != ["semantic_scholar"] for call in calls)
 
 
-def test_fast_recommended_uses_second_query_for_llm_literature_retrieval() -> None:
+def test_fast_profile_keeps_source_preferences_uniform_across_subqueries() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -436,25 +391,13 @@ def test_fast_recommended_uses_second_query_for_llm_literature_retrieval() -> No
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert (
-        output.search_plan.subqueries[0].query,
-        ["arxiv"],
-    ) in calls
-    assert (
-        output.search_plan.subqueries[1].query,
-        ["arxiv", "semantic_scholar"],
-    ) in calls
-    semantic_calls = [
-        call for call in calls if call[1] and "semantic_scholar" in call[1]
-    ]
-    assert semantic_calls == [
-        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
-    ]
-    assert len(semantic_calls) == 1
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
 
 
-def test_fast_recommended_does_not_use_llm_literature_override_for_academic_neural_ranking() -> None:
+def test_fast_profile_uses_only_queries_from_search_plan() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -484,23 +427,13 @@ def test_fast_recommended_does_not_use_llm_literature_override_for_academic_neur
     )
 
     assert len(output.search_plan.subqueries) > 1
-    semantic_calls = [
-        call for call in calls if call[1] and "semantic_scholar" in call[1]
-    ]
-    assert semantic_calls == [
-        (output.search_plan.subqueries[1].query, ["arxiv", "semantic_scholar"])
-    ]
-    assert all(
-        call[0] != "LLM based retrieval augmented generation literature review"
-        for call in calls
-    )
-    assert all(
-        call[0] != "neural ranking methods academic search explicit semantic"
-        for call in calls
-    )
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
 
 
-def test_fast_semantic_scholar_only_source_skips_later_subqueries() -> None:
+def test_single_source_preference_runs_all_planned_subqueries() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -530,9 +463,11 @@ def test_fast_semantic_scholar_only_source_skips_later_subqueries() -> None:
     )
 
     assert len(output.search_plan.subqueries) > 1
-    assert calls == [(output.search_plan.subqueries[1].query, ["semantic_scholar"])]
-    assert len(output.retrieval_outputs) == 1
-    assert "fast_semantic_scholar_subquery_skipped_by_limit:0" in output.warnings
+    assert sorted(calls) == sorted([
+        (subquery.query, ["semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
+    assert len(output.retrieval_outputs) == len(output.search_plan.subqueries)
 
 
 def test_fast_semantic_scholar_single_subquery_uses_first_subquery() -> None:
@@ -610,7 +545,7 @@ def test_balanced_semantic_scholar_does_not_limit_subqueries() -> None:
     )
 
 
-def test_high_recall_rag_evaluation_adds_targeted_semantic_scholar_query() -> None:
+def test_high_recall_executes_only_generic_planned_queries() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -639,18 +574,14 @@ def test_high_recall_rag_evaluation_adds_targeted_semantic_scholar_query() -> No
         current_year=2026,
     )
 
-    target_call = (
-        "Benchmarking Large Language Models in Retrieval-Augmented Generation",
-        ["semantic_scholar"],
-    )
-    assert target_call in calls
-    assert calls.count(target_call) == 1
-    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
-        output.search_plan.subqueries
-    )
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
+    assert all(call[1] != ["semantic_scholar"] for call in calls)
 
 
-def test_high_recall_academic_neural_ranking_adds_targeted_semantic_scholar_query() -> None:
+def test_high_recall_method_query_uses_source_neutral_plan() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -679,18 +610,13 @@ def test_high_recall_academic_neural_ranking_adds_targeted_semantic_scholar_quer
         current_year=2026,
     )
 
-    target_call = (
-        "neural ranking methods academic search explicit semantic",
-        ["semantic_scholar"],
-    )
-    assert target_call in calls
-    assert calls.count(target_call) == 1
-    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
-        output.search_plan.subqueries
-    )
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
 
 
-def test_high_recall_targeted_semantic_scholar_adds_at_most_one_query() -> None:
+def test_mixed_query_does_not_create_source_only_target_query() -> None:
     calls: list[tuple[str, list[str] | None]] = []
 
     def fake_retriever(
@@ -720,15 +646,11 @@ def test_high_recall_targeted_semantic_scholar_adds_at_most_one_query() -> None:
     )
 
     semantic_only_calls = [call for call in calls if call[1] == ["semantic_scholar"]]
-    assert semantic_only_calls == [
-        (
-            "Benchmarking Large Language Models in Retrieval-Augmented Generation",
-            ["semantic_scholar"],
-        )
-    ]
-    assert len([call for call in calls if call[1] and "arxiv" in call[1]]) == len(
-        output.search_plan.subqueries
-    )
+    assert semantic_only_calls == []
+    assert sorted(calls) == sorted([
+        (subquery.query, ["arxiv", "semantic_scholar"])
+        for subquery in output.search_plan.subqueries
+    ])
 
 
 def test_run_search_deduplicates_across_subqueries() -> None:

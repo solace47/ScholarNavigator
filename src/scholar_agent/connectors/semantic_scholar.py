@@ -127,7 +127,7 @@ def search_semantic_scholar_detailed(
 
 
 def _semantic_scholar_headers() -> dict[str, str]:
-    headers = {"User-Agent": "SPAR Scholar Agent"}
+    headers = {"User-Agent": "ScholarNavigator"}
     api_key = os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip()
     if api_key:
         headers["x-api-key"] = api_key

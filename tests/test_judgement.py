@@ -81,7 +81,7 @@ def test_strong_title_and_abstract_match_is_highly_relevant() -> None:
     assert result.evidence
 
 
-def test_background_only_match_is_weak_or_partial() -> None:
+def test_background_only_match_is_never_highly_relevant() -> None:
     query_analysis = make_query_analysis()
     paper = make_paper(
         "Scientific Literature Search Systems",
@@ -90,8 +90,9 @@ def test_background_only_match_is_weak_or_partial() -> None:
 
     result = judge_papers(query_analysis, [paper])[0]
 
-    assert result.category in {"weakly_relevant", "partially_relevant"}
+    assert result.category != "highly_relevant"
     assert result.score < 0.72
+    assert "constraint_coverage:" in result.reasoning
 
 
 def test_unrelated_paper_is_irrelevant() -> None:
@@ -206,7 +207,11 @@ def test_judge_papers_preserves_input_order() -> None:
 
 
 def test_threshold_parameters_affect_category() -> None:
-    query_analysis = make_query_analysis(original_query="LLM retrieval")
+    query_analysis = make_query_analysis(
+        original_query="LLM retrieval",
+        methods=["retrieval"],
+        must_include_terms=["LLM", "retrieval"],
+    )
     paper = make_paper("LLM Retrieval")
 
     default_result = judge_papers(query_analysis, [paper])[0]
@@ -222,36 +227,36 @@ def test_threshold_parameters_affect_category() -> None:
     assert lower_high_threshold.category == "highly_relevant"
 
 
-def test_rag_evaluation_compound_query_prefers_ragas_over_surface_noise() -> None:
+def test_multi_dimension_coverage_beats_surface_keyword_overlap() -> None:
     query_analysis = make_query_analysis(
-        original_query="retrieval augmented generation evaluation benchmark papers",
-        methods=["retrieval augmented generation"],
-        datasets=["benchmark"],
-        must_include_terms=["RAG", "evaluation", "benchmark"],
+        original_query="adaptive retrieval evaluation on NovaCorpus",
+        methods=["adaptive retrieval"],
+        datasets=["NovaCorpus"],
+        must_include_terms=["adaptive", "retrieval", "evaluation"],
     )
-    ragas = make_paper(
-        "Ragas: Automated Evaluation of Retrieval Augmented Generation",
+    complete = make_paper(
+        "Adaptive Retrieval Evaluation on NovaCorpus",
         abstract=(
-            "RAGAS evaluates retrieval augmented generation systems with "
-            "metadata-grounded metrics."
+            "We evaluate an adaptive retrieval method on the NovaCorpus dataset "
+            "with reproducible evaluation protocols."
         ),
         year=2023,
         sources=["arxiv"],
     )
-    surface_noise = make_paper(
-        "RAG Benchmark for Large Language Models",
-        abstract="A benchmark of large language models with broad retrieval examples.",
+    broad = make_paper(
+        "Evaluation Methods in Machine Learning",
+        abstract="A broad evaluation overview with one retrieval example.",
         year=2025,
         sources=["semantic_scholar"],
     )
 
-    ragas_result, noise_result = judge_papers(query_analysis, [ragas, surface_noise])
+    complete_result, broad_result = judge_papers(query_analysis, [complete, broad])
 
-    assert ragas_result.score > noise_result.score
-    assert ragas_result.category == "highly_relevant"
-    assert noise_result.category in {"partially_relevant", "weakly_relevant"}
-    assert "composite RAG evaluation acronym matched" in ragas_result.reasoning
-    assert "surface acronym benchmark" in noise_result.reasoning
+    assert complete_result.score > broad_result.score
+    assert complete_result.category == "highly_relevant"
+    assert broad_result.category != "highly_relevant"
+    assert "multi_dimension_constraint_coverage" in complete_result.reasoning
+    assert "insufficient_multi_dimension_coverage" in broad_result.reasoning
 
 
 def test_citation_graph_query_does_not_boost_generic_s2_citation_recommendation() -> None:
@@ -283,47 +288,39 @@ def test_citation_graph_query_does_not_boost_generic_s2_citation_recommendation(
     assert "compound citation graph recommendation" not in s2_surface_result.reasoning
 
 
-def test_academic_search_compound_query_downweights_domain_shift_noise() -> None:
+def test_constraint_coverage_downweights_partial_task_match() -> None:
     query_analysis = make_query_analysis(
-        original_query="neural ranking methods for academic search",
-        methods=["ranking"],
+        original_query="contrastive ranking methods for scholarly document search",
+        methods=["contrastive ranking"],
         datasets=[],
-        must_include_terms=["neural", "ranking", "academic", "search"],
+        must_include_terms=["scholarly", "document", "search"],
     )
-    personalized_search = make_paper(
-        "Personalized Search Via Neural Contextual Semantic Relevance Ranking",
-        abstract="A neural relevance ranking method for personalized academic search.",
+    complete = make_paper(
+        "Contrastive Ranking for Scholarly Document Search",
+        abstract="A contrastive ranking method for scholarly document search.",
         year=2023,
         sources=["arxiv"],
     )
-    network_embedding = make_paper(
-        "Interpretable adversarial neural pairwise ranking for academic network embedding",
-        abstract="This work studies academic network embedding with pairwise ranking.",
+    method_only = make_paper(
+        "Contrastive Ranking for Product Search",
+        abstract="A contrastive ranking model for products.",
         year=2025,
         sources=["semantic_scholar"],
     )
-    news_retrieval = make_paper(
-        "Myanmar News Retrieval Using Kernelized Neural Ranking Model",
-        abstract="Neural methods rank news documents in response to a query.",
-        year=2024,
-        sources=["semantic_scholar"],
-    )
 
-    search_result, embedding_result, news_result = judge_papers(
+    complete_result, partial_result = judge_papers(
         query_analysis,
-        [personalized_search, network_embedding, news_retrieval],
+        [complete, method_only],
     )
 
-    assert search_result.score > embedding_result.score
-    assert search_result.score > news_result.score
-    assert search_result.category in {"highly_relevant", "partially_relevant"}
-    assert embedding_result.category in {"weakly_relevant", "irrelevant"}
-    assert news_result.category in {"weakly_relevant", "irrelevant"}
-    assert "compound academic neural ranking intent satisfied" in search_result.reasoning
-    assert "domain-shift terms detected" in embedding_result.reasoning
+    assert complete_result.score > partial_result.score
+    assert complete_result.category == "highly_relevant"
+    assert partial_result.category != "highly_relevant"
+    assert "multi_dimension_constraint_coverage" in complete_result.reasoning
+    assert "insufficient_multi_dimension_coverage" in partial_result.reasoning
 
 
-def test_academic_neural_ranking_query_downweights_generic_ir_noise() -> None:
+def test_full_query_coverage_ranks_above_single_dimension_matches() -> None:
     query_analysis = make_query_analysis(
         original_query="academic paper search neural ranking information retrieval",
         methods=["neural ranking", "information retrieval"],
@@ -378,17 +375,18 @@ def test_academic_neural_ranking_query_downweights_generic_ir_noise() -> None:
     assert academic_result.score > student_result.score
     assert academic_result.score > news_result.score
     assert academic_result.category in {"highly_relevant", "partially_relevant"}
-    assert page_result.category in {"weakly_relevant", "irrelevant"}
-    assert dark_result.category in {"weakly_relevant", "irrelevant"}
-    assert student_result.category in {"weakly_relevant", "irrelevant"}
-    assert news_result.category in {"weakly_relevant", "irrelevant"}
-    assert "generic information retrieval noise detected" in page_result.reasoning
-    assert "domain-shift terms detected" in dark_result.reasoning
-    assert "domain-shift terms detected" in student_result.reasoning
-    assert "domain-shift terms detected" in news_result.reasoning
+    assert all(
+        result.category != "highly_relevant"
+        for result in (page_result, dark_result, student_result, news_result)
+    )
+    assert "constraint_coverage:" in academic_result.reasoning
+    assert all(
+        "constraint_coverage:" in result.reasoning
+        for result in (page_result, dark_result, student_result, news_result)
+    )
 
 
-def test_academic_neural_ranking_applies_small_penalty_to_generic_title_ir() -> None:
+def test_constraint_coverage_scoring_is_stable() -> None:
     query_analysis = make_query_analysis(
         original_query="academic paper search neural ranking information retrieval",
         methods=["neural ranking", "information retrieval"],
@@ -422,16 +420,19 @@ def test_academic_neural_ranking_applies_small_penalty_to_generic_title_ir() -> 
         sources=["semantic_scholar"],
     )
 
-    personalized_result, generic_result, entity_result = judge_papers(
+    first = judge_papers(
+        query_analysis,
+        [personalized_search, generic_document_retrieval, entity_neural_ranking],
+    )
+    second = judge_papers(
         query_analysis,
         [personalized_search, generic_document_retrieval, entity_neural_ranking],
     )
 
-    assert personalized_result.score > generic_result.score
-    assert "generic title-level neural IR penalty" in generic_result.reasoning
-    assert "generic title-level neural IR penalty" not in personalized_result.reasoning
-    assert "generic title-level neural IR penalty" not in entity_result.reasoning
-    assert entity_result.score > 0.25
+    assert [result.model_dump() for result in first] == [
+        result.model_dump() for result in second
+    ]
+    assert all("constraint_coverage:" in result.reasoning for result in first)
 
 
 def test_academic_neural_ranking_adjustment_does_not_apply_to_plain_ir_query() -> None:

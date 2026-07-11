@@ -303,8 +303,8 @@ def _url_with_mailto(base_url: str, params: dict[str, str]) -> str:
 def _openalex_headers() -> dict[str, str]:
     mailto = os.getenv("OPENALEX_MAILTO")
     if mailto:
-        return {"User-Agent": f"SPAR Scholar Agent (mailto: {mailto})"}
-    return {"User-Agent": "SPAR Scholar Agent (mailto: unavailable)"}
+        return {"User-Agent": f"ScholarNavigator (mailto: {mailto})"}
+    return {"User-Agent": "ScholarNavigator (mailto: unavailable)"}
 
 
 def _parse_work(work: dict[str, Any]) -> Paper | None:

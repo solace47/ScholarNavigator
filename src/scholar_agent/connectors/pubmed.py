@@ -132,7 +132,7 @@ def _esearch_ids(
     )
     request = Request(
         f"{PUBMED_ESEARCH_URL}?{urlencode(params)}",
-        headers={"User-Agent": "SPAR Scholar Agent"},
+        headers={"User-Agent": "ScholarNavigator"},
     )
     payload, error_message, warnings = _request_bytes(
         request,
@@ -175,7 +175,7 @@ def _efetch_articles(
     )
     request = Request(
         f"{PUBMED_EFETCH_URL}?{urlencode(params)}",
-        headers={"User-Agent": "SPAR Scholar Agent"},
+        headers={"User-Agent": "ScholarNavigator"},
     )
     return _request_bytes(
         request,

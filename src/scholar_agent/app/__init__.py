@@ -1,2 +1,1 @@
-"""Application entry points for the SPAR backend."""
-
+"""Application entry points for the ScholarNavigator backend."""

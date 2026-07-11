@@ -53,7 +53,7 @@ def search_arxiv_detailed(
     }
     request = Request(
         f"{ARXIV_QUERY_URL}?{urlencode(params)}",
-        headers={"User-Agent": "SPAR Scholar Agent"},
+        headers={"User-Agent": "ScholarNavigator"},
     )
 
     payload, error_message, warnings = _request_feed_detailed(

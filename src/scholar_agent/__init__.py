@@ -1,2 +1,1 @@
-"""SPAR scholar agent backend package."""
-
+"""ScholarNavigator backend package."""
