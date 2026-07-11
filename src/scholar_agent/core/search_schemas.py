@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 
 
 SourceName = Literal["openalex", "arxiv", "semantic_scholar", "pubmed"]
@@ -336,6 +337,7 @@ class RefChainRecord(BaseModel):
     skipped_reasons: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = Field(default=0.0, ge=0.0)
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 
 
 class RefChainOutput(BaseModel):
@@ -344,6 +346,7 @@ class RefChainOutput(BaseModel):
     record: RefChainRecord
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = Field(default=0.0, ge=0.0)
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 
 
 def _normalize_sources(value: object) -> list[str]:

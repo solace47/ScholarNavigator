@@ -14,6 +14,7 @@ from scholar_agent.agents.retriever import RetrievalOutput, SourceStats  # noqa:
 from scholar_agent.agents.synthesis import synthesize_answer  # noqa: E402
 from scholar_agent.app.main import app  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     EvidenceItem,
     JudgementResult,
@@ -273,11 +274,20 @@ def _fake_output(query: str, *, include_refchain: bool = False) -> SearchService
                 returned_count=0,
                 latency_seconds=0.1,
                 error_message="HTTP 503",
+                diagnostics=ConnectorDiagnostics(
+                    request_count=1,
+                    error_count=1,
+                    latency_seconds=0.1,
+                ),
             ),
             SourceStats(
                 source="arxiv",
                 returned_count=2,
                 latency_seconds=0.1,
+                diagnostics=ConnectorDiagnostics(
+                    request_count=1,
+                    latency_seconds=0.1,
+                ),
             ),
         ],
         latency_seconds=0.25,

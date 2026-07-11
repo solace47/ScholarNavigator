@@ -132,24 +132,26 @@ def _metric_row(group: str, metrics: EvalMetricSet) -> str:
 
 def _statistics_table(result: EvalSuiteResult) -> list[str]:
     rows = [
-        "| 分组 | 总案例 | 有 gold | 成功 | 失败 | 缺少结果 | 缺少 gold | 成功率 | 平均延迟（秒） | LLM 调用 | LLM Tokens | 搜索轮次均值 | Raw | 去重后 | 返回 | 缓存命中 | 来源调用 | 来源错误 |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| 分组 | 总案例 | 成功 | 失败 | 缺少结果 | 缺少 gold | 成功率 | 平均延迟（秒） | 平均 API | 平均检索 API | 平均引用 API | 平均重试 | 平均错误 | 平均缓存命中 | 平均限流等待（秒） | 平均 LLM 调用 | 平均 LLM Tokens |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for group, report in result.aggregate_reports.items():
         stats = report.case_statistics
         efficiency = report.efficiency
         rows.append(
-            f"| {group} | {stats.total_case_count} | {stats.gold_case_count} | "
+            f"| {group} | {stats.total_case_count} | "
             f"{stats.evaluated_success_count} | {stats.failed_case_count} | "
             f"{stats.missing_result_count} | {stats.missing_gold_count} | "
             f"{stats.success_rate:.3f} | {efficiency.average_latency_seconds:.3f} | "
-            f"{efficiency.total_llm_call_count} | {efficiency.total_llm_total_tokens} | "
-            f"{efficiency.average_search_rounds:.3f} | {efficiency.total_raw_count} | "
-            f"{efficiency.total_deduplicated_count} | "
-            f"{efficiency.total_returned_result_count} | "
-            f"{efficiency.total_cache_hit_count} | "
-            f"{efficiency.total_source_call_count} | "
-            f"{efficiency.total_source_error_count} |"
+            f"{efficiency.avg_api_call_count:.3f} | "
+            f"{efficiency.avg_search_api_call_count:.3f} | "
+            f"{efficiency.avg_reference_api_call_count:.3f} | "
+            f"{efficiency.avg_retry_count:.3f} | "
+            f"{efficiency.avg_error_count:.3f} | "
+            f"{efficiency.avg_cache_hit_count:.3f} | "
+            f"{efficiency.avg_rate_limit_wait_seconds:.3f} | "
+            f"{efficiency.avg_llm_call_count:.3f} | "
+            f"{efficiency.avg_llm_total_tokens:.3f} |"
         )
     return rows
 

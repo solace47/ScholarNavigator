@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
@@ -52,6 +53,10 @@ def make_output(
                 query=query,
                 returned_count=len(papers),
                 latency_seconds=0.01,
+                diagnostics=ConnectorDiagnostics(
+                    request_count=1,
+                    latency_seconds=0.01,
+                ),
             )
         ],
         warnings=warnings or [],
@@ -102,6 +107,7 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert output.synthesis_output is not None
     assert output.synthesis_output.evidence_table
     assert output.latency_seconds >= 0
+    assert output.llm_call_count == 0
     assert set(output.stage_latencies) >= {
         "query_understanding",
         "retrieval",
@@ -943,6 +949,7 @@ def test_run_search_with_query_evolution_retrieves_evolved_queries() -> None:
     assert len(calls) > len(initial_queries)
     assert any(call not in initial_queries for call in calls)
     assert output.raw_count == len(output.retrieval_outputs)
+    assert output.search_diagnostics.request_count == len(calls)
     assert "evolved_retriever_warning" in output.warnings
 
 
@@ -1229,15 +1236,21 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
             ],
         )
 
-    def fake_reference_fetcher(paper: Paper, limit: int) -> list[Paper]:
+    def fake_reference_fetcher(
+        paper: Paper,
+        limit: int,
+    ) -> ConnectorSearchResult:
         reference_calls.append(paper.title)
-        return [
-            make_paper(
-                "RefChain LLM Reranking Retrieval Reference",
-                doi=f"10.123/ref-{len(reference_calls)}",
-                openalex_id=f"WREF{len(reference_calls)}",
-            )
-        ]
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    "RefChain LLM Reranking Retrieval Reference",
+                    doi=f"10.123/ref-{len(reference_calls)}",
+                    openalex_id=f"WREF{len(reference_calls)}",
+                )
+            ],
+            diagnostics=ConnectorDiagnostics(request_count=2),
+        )
 
     output = SearchService(
         retriever=fake_retriever,
@@ -1259,6 +1272,8 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
     assert output.synthesis_output.evidence_table
     assert output.stage_latencies["query_evolution"] >= 0
     assert output.stage_latencies["refchain"] >= 0
+    assert output.search_diagnostics.request_count == len(retriever_calls)
+    assert output.reference_diagnostics.request_count == 2 * len(reference_calls)
 
 
 def test_run_search_can_use_llm_query_understanding_with_injected_client() -> None:

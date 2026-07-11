@@ -5,6 +5,11 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
+from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.diagnostics_schemas import (
+    ConnectorDiagnostics,
+    merge_connector_diagnostics,
+)
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     QueryAnalysis,
@@ -17,7 +22,7 @@ from scholar_agent.core.search_schemas import (
 )
 
 
-ReferenceFetcher = Callable[[Paper, int], list[Paper]]
+ReferenceFetcher = Callable[[Paper, int], list[Paper] | ConnectorSearchResult]
 BudgetCheck = Callable[[], str | None]
 
 
@@ -39,6 +44,7 @@ class RefChainAgent:
         skipped_reasons: list[str] = []
         references: list[Paper] = []
         reference_edges: list[ReferenceEdge] = []
+        connector_diagnostics: list[ConnectorDiagnostics] = []
 
         seeds = _select_seeds(ranked_papers, options)
         if not seeds:
@@ -70,12 +76,22 @@ class RefChainAgent:
                 break
 
             try:
-                fetched = fetch_references(ranked.paper, per_seed_limit)
+                fetch_result = fetch_references(ranked.paper, per_seed_limit)
             except Exception as exc:  # noqa: BLE001 - isolate one seed failure
                 warning = f"refchain_seed_failed:{ranked.rank}:{exc}"
                 warnings.append(warning)
                 skipped_reasons.append(warning)
+                connector_diagnostics.append(ConnectorDiagnostics(error_count=1))
                 continue
+
+            if isinstance(fetch_result, ConnectorSearchResult):
+                connector_diagnostics.append(fetch_result.diagnostics)
+                warnings.extend(fetch_result.warnings)
+                if fetch_result.error_message:
+                    skipped_reasons.append(fetch_result.error_message)
+                fetched = fetch_result.papers
+            else:
+                fetched = fetch_result
 
             for reference in fetched[:per_seed_limit]:
                 if len(references) >= options.max_total_references:
@@ -97,6 +113,7 @@ class RefChainAgent:
                 )
 
         latency_seconds = time.perf_counter() - start
+        diagnostics = merge_connector_diagnostics(connector_diagnostics)
         record = RefChainRecord(
             seeds=[_to_seed(seed) for seed in seeds],
             reference_edges=reference_edges,
@@ -105,6 +122,7 @@ class RefChainAgent:
             skipped_reasons=_dedupe(skipped_reasons),
             warnings=_dedupe(warnings),
             latency_seconds=latency_seconds,
+            diagnostics=diagnostics,
         )
         return RefChainOutput(
             references=references,
@@ -112,6 +130,7 @@ class RefChainAgent:
             record=record,
             warnings=record.warnings,
             latency_seconds=latency_seconds,
+            diagnostics=diagnostics,
         )
 
 

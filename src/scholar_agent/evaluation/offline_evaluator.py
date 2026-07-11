@@ -170,8 +170,13 @@ def _score_output(
         ranked_count=len(ranked),
         source_stats=output.source_stats,
     )
-    source_error_count = sum(
-        bool(str(item.error_message or "").strip()) for item in output.source_stats
+    source_call_count = (
+        output.search_diagnostics.request_count
+        + output.reference_diagnostics.request_count
+    )
+    source_error_count = (
+        output.search_diagnostics.error_count
+        + output.reference_diagnostics.error_count
     )
     return metrics.model_copy(
         update={
@@ -181,9 +186,11 @@ def _score_output(
             "duplicate_count": counts["duplicate_count"],
             "duplicate_ratio": counts["duplicate_ratio"],
             "per_source_returned_count": counts["per_source_returned_count"],
-            "source_call_count": 0,
+            "source_call_count": source_call_count,
             "source_error_count": source_error_count,
-            "source_error_rate": 0.0,
+            "source_error_rate": (
+                source_error_count / source_call_count if source_call_count else 0.0
+            ),
             "warning_count": len(output.warnings),
             "query_warning_rate": float(bool(output.warnings)),
         }
@@ -194,18 +201,28 @@ def _output_efficiency(
     output: SearchServiceOutput,
     returned_result_count: int,
 ) -> EvalCaseEfficiency:
+    search = output.search_diagnostics
+    reference = output.reference_diagnostics
+    external_requests = search.request_count + reference.request_count
     return EvalCaseEfficiency(
         latency_seconds=output.latency_seconds,
+        api_call_count=external_requests + output.llm_call_count,
+        search_api_call_count=search.request_count,
+        reference_api_call_count=reference.request_count,
+        retry_count=search.retry_count + reference.retry_count,
+        error_count=search.error_count + reference.error_count,
         llm_call_count=output.llm_call_count,
         llm_total_tokens=output.llm_total_tokens,
         search_rounds=output.budget_status.completed_search_rounds,
         raw_count=output.raw_count,
         deduplicated_count=output.deduplicated_count,
         returned_result_count=returned_result_count,
-        cache_hit_count=sum(item.cache_hit for item in output.source_stats),
-        source_call_count=0,
-        source_error_count=sum(bool(item.error_message) for item in output.source_stats),
-        warnings=["source_call_count_unavailable:not_equal_to_http_requests"],
+        cache_hit_count=search.cache_hit_count + reference.cache_hit_count,
+        rate_limit_wait_seconds=(
+            search.rate_limit_wait_seconds + reference.rate_limit_wait_seconds
+        ),
+        source_call_count=external_requests,
+        source_error_count=search.error_count + reference.error_count,
     )
 
 

@@ -281,11 +281,18 @@ def map_search_plan(
 
 
 def _cost_report(output: SearchServiceOutput) -> api.CostReport:
-    search_api_call_count = len(output.source_stats)
-    cache_hit_count = sum(1 for stats in output.source_stats if stats.cache_hit)
+    search = output.search_diagnostics
+    reference = output.reference_diagnostics
+    connector_request_count = search.request_count + reference.request_count
     return api.CostReport(
-        api_call_count=search_api_call_count,
-        search_api_call_count=search_api_call_count,
+        api_call_count=connector_request_count + output.llm_call_count,
+        logical_search_call_count=sum(
+            stat.source != "refchain" for stat in output.source_stats
+        ),
+        search_api_call_count=search.request_count,
+        reference_api_call_count=reference.request_count,
+        retry_count=search.retry_count + reference.retry_count,
+        error_count=search.error_count + reference.error_count,
         llm_call_count=output.llm_call_count,
         llm_prompt_tokens=output.llm_prompt_tokens,
         llm_completion_tokens=output.llm_completion_tokens,
@@ -294,9 +301,14 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
         estimated_output_tokens=output.llm_completion_tokens,
         estimated_total_tokens=output.llm_total_tokens,
         latency_seconds=output.latency_seconds,
-        cache_hit_count=cache_hit_count,
+        cache_hit_count=search.cache_hit_count + reference.cache_hit_count,
+        rate_limit_wait_seconds=(
+            search.rate_limit_wait_seconds + reference.rate_limit_wait_seconds
+        ),
         search_rounds=_search_rounds(output, output.search_plan),
         judged_paper_count=len(output.judgements),
+        raw_candidate_count=output.raw_count,
+        deduplicated_candidate_count=output.deduplicated_count,
     )
 
 
@@ -311,6 +323,7 @@ def _retrieval_diagnostics(output: SearchServiceOutput) -> api.RetrievalDiagnost
                 latency_seconds=stats.latency_seconds,
                 cache_hit=stats.cache_hit,
                 error_message=stats.error_message,
+                diagnostics=stats.diagnostics,
             )
             for stats in output.source_stats
         ],

@@ -18,6 +18,7 @@ from scholar_agent.connectors import (
     search_semantic_scholar_detailed,
 )
 from scholar_agent.core.dedup import deduplicate_papers
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
 
 
@@ -45,6 +46,7 @@ class SourceStats(BaseModel):
     latency_seconds: float = 0.0
     error_message: str | None = None
     cache_hit: bool = False
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 
 
 class RetrievalOutput(BaseModel):
@@ -128,6 +130,7 @@ def retrieve_papers(
                     latency_seconds=time.perf_counter() - source_start,
                     error_message=result.error_message,
                     cache_hit=cache_hit,
+                    diagnostics=result.diagnostics,
                 )
             )
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
@@ -142,6 +145,10 @@ def retrieve_papers(
                     returned_count=0,
                     latency_seconds=time.perf_counter() - source_start,
                     error_message=str(exc),
+                    diagnostics=ConnectorDiagnostics(
+                        error_count=1,
+                        latency_seconds=time.perf_counter() - source_start,
+                    ),
                 )
             )
 
@@ -213,7 +220,15 @@ def _search_with_cache(
     key = _cache_key(source, query, limit_per_source)
     cached = _get_cached_result(key, config.ttl_seconds)
     if cached is not None:
-        return cached, True
+        return (
+            cached.model_copy(
+                update={
+                    "latency_seconds": 0.0,
+                    "diagnostics": ConnectorDiagnostics(cache_hit_count=1),
+                }
+            ),
+            True,
+        )
 
     result = search(query, limit_per_source)
     if result.error_message is None:

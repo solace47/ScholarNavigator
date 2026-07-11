@@ -89,8 +89,13 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
 
     cost_totals = {
         "api_call_count": 0,
+        "logical_search_call_count": 0,
         "search_api_call_count": 0,
+        "reference_api_call_count": 0,
+        "retry_count": 0,
+        "error_count": 0,
         "cache_hit_count": 0,
+        "rate_limit_wait_seconds": 0.0,
         "llm_call_count": 0,
         "llm_prompt_tokens": 0,
         "llm_completion_tokens": 0,
@@ -98,6 +103,8 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
         "estimated_input_tokens": 0,
         "estimated_output_tokens": 0,
         "estimated_total_tokens": 0,
+        "raw_candidate_count": 0,
+        "deduplicated_candidate_count": 0,
     }
 
     for row in rows:
@@ -146,7 +153,8 @@ def summarize_rows(rows: list[dict[str, Any]], top_n: int = 10) -> dict[str, Any
         _update_source_reliability(source_reliability, result_dict)
 
         for key in cost_totals:
-            cost_totals[key] += int(_as_float(_cost_report(result_dict).get(key)))
+            value = _as_float(_cost_report(result_dict).get(key))
+            cost_totals[key] += value if key == "rate_limit_wait_seconds" else int(value)
 
         for paper in _iter_result_papers(result_dict):
             title = _paper_title(paper)
@@ -214,8 +222,13 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
         f"- Failed cases: {summary['failed_count']}",
         f"- Average latency seconds: {_format_float(latency['average'])}",
         f"- Total API calls: {cost['api_call_count']}",
+        f"- Logical search calls: {cost['logical_search_call_count']}",
         f"- Search API calls: {cost['search_api_call_count']}",
+        f"- Reference API calls: {cost['reference_api_call_count']}",
+        f"- Retries: {cost['retry_count']}",
+        f"- Connector errors: {cost['error_count']}",
         f"- Cache hits: {cost['cache_hit_count']}",
+        f"- Rate-limit wait seconds: {_format_float(cost['rate_limit_wait_seconds'])}",
         f"- Total LLM calls: {cost['llm_call_count']}",
         f"- Total LLM prompt tokens: {cost['llm_prompt_tokens']}",
         f"- Total LLM completion tokens: {cost['llm_completion_tokens']}",
@@ -223,6 +236,8 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
         f"- Estimated input tokens: {cost['estimated_input_tokens']}",
         f"- Estimated output tokens: {cost['estimated_output_tokens']}",
         f"- Estimated total tokens: {cost['estimated_total_tokens']}",
+        f"- Raw candidates: {cost['raw_candidate_count']}",
+        f"- Deduplicated candidates: {cost['deduplicated_candidate_count']}",
         "",
         "## Case Summary",
         "",

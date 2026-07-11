@@ -13,6 +13,10 @@ from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.diagnostics_schemas import (
+    ConnectorDiagnostics,
+    merge_connector_diagnostics,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -23,6 +27,7 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
 MAX_OPENALEX_LIMIT = 200
+MAX_OPENALEX_BATCH_IDS = 100
 
 
 def search_openalex(query: str, limit: int = 20) -> list[Paper]:
@@ -45,9 +50,14 @@ def search_openalex_detailed(
 ) -> ConnectorSearchResult:
     """Search papers from OpenAlex Works with diagnostic details."""
 
+    start = time.perf_counter()
     query = query.strip()
     if not query or limit <= 0:
-        return ConnectorSearchResult()
+        return ConnectorSearchResult(
+            diagnostics=ConnectorDiagnostics(
+                latency_seconds=time.perf_counter() - start
+            )
+        )
 
     params = {
         "search": query,
@@ -57,7 +67,7 @@ def search_openalex_detailed(
     if mailto:
         params["mailto"] = mailto
 
-    payload, error_message, warnings = _request_json_detailed(
+    payload, error_message, warnings, diagnostics = _request_json_detailed(
         f"{OPENALEX_WORKS_URL}?{urlencode(params)}",
         context="OpenAlex search",
         max_retries=max_retries,
@@ -67,6 +77,8 @@ def search_openalex_detailed(
         return ConnectorSearchResult(
             error_message=error_message,
             warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
         )
 
     results = payload.get("results", [])
@@ -74,7 +86,14 @@ def search_openalex_detailed(
         message = "OpenAlex search response missing list results"
         return ConnectorSearchResult(
             error_message=message,
-            warnings=[message],
+            warnings=warnings + [message],
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
         )
 
     papers: list[Paper] = []
@@ -91,7 +110,12 @@ def search_openalex_detailed(
         if paper is not None:
             papers.append(paper)
 
-    return ConnectorSearchResult(papers=papers, warnings=warnings)
+    return ConnectorSearchResult(
+        papers=papers,
+        warnings=warnings,
+        latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
+    )
 
 
 def fetch_openalex_references(paper: Paper, limit: int = 20) -> list[Paper]:
@@ -102,72 +126,188 @@ def fetch_openalex_references(paper: Paper, limit: int = 20) -> list[Paper]:
     list or the successfully parsed subset of references.
     """
 
+    return fetch_openalex_references_detailed(paper, limit).papers
+
+
+def fetch_openalex_references_detailed(
+    paper: Paper,
+    limit: int = 20,
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+) -> ConnectorSearchResult:
+    """批量获取一层 OpenAlex 引用，并返回每次真实请求的诊断。"""
+
+    start = time.perf_counter()
     if limit <= 0:
-        return []
+        return ConnectorSearchResult(
+            diagnostics=ConnectorDiagnostics(
+                latency_seconds=time.perf_counter() - start
+            )
+        )
 
-    seed_work = _fetch_seed_work(paper)
-    if not seed_work:
-        return []
+    seed_work, seed_error, warnings, seed_diagnostics = _fetch_seed_work_detailed(
+        paper,
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
+    )
+    diagnostics = seed_diagnostics
+    if seed_work is None:
+        return ConnectorSearchResult(
+            error_message=seed_error,
+            warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
+        )
 
-    reference_ids = _referenced_work_ids(seed_work.get("referenced_works"))
+    reference_ids = _referenced_work_ids(seed_work.get("referenced_works"))[
+        : min(limit, MAX_OPENALEX_LIMIT)
+    ]
     if not reference_ids:
-        return []
+        return ConnectorSearchResult(
+            warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
+        )
+
+    works_by_id: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+    for offset in range(0, len(reference_ids), MAX_OPENALEX_BATCH_IDS):
+        batch_ids = reference_ids[offset : offset + MAX_OPENALEX_BATCH_IDS]
+        payload, error, batch_warnings, batch_diagnostics = (
+            _fetch_works_by_openalex_ids_detailed(
+                batch_ids,
+                max_retries=max_retries,
+                retry_sleep=retry_sleep,
+            )
+        )
+        diagnostics = merge_connector_diagnostics(
+            [diagnostics, batch_diagnostics]
+        )
+        warnings.extend(batch_warnings)
+        if error is not None:
+            errors.append(error)
+            continue
+        results = (payload or {}).get("results", [])
+        if not isinstance(results, list):
+            message = "OpenAlex reference batch response missing list results"
+            warnings.append(message)
+            errors.append(message)
+            diagnostics = diagnostics.model_copy(
+                update={"error_count": diagnostics.error_count + 1}
+            )
+            continue
+        for work in results:
+            if not isinstance(work, dict):
+                continue
+            work_id = _normalize_openalex_id(work.get("id"))
+            if work_id:
+                works_by_id[work_id.casefold()] = work
+
+    missing_ids = [
+        reference_id
+        for reference_id in reference_ids
+        if reference_id.casefold() not in works_by_id
+    ]
+    if missing_ids and not errors:
+        message = "OpenAlex reference batch missing work ids:" + ",".join(missing_ids)
+        warnings.append(message)
+        errors.append(message)
+        diagnostics = diagnostics.model_copy(
+            update={"error_count": diagnostics.error_count + 1}
+        )
 
     papers: list[Paper] = []
-    for reference_id in reference_ids[: min(limit, MAX_OPENALEX_LIMIT)]:
-        work = _fetch_work_by_openalex_id(reference_id)
-        if not work:
+    for reference_id in reference_ids:
+        work = works_by_id.get(reference_id.casefold())
+        if work is None:
             continue
         try:
             reference_paper = _parse_work(work)
         except Exception as exc:  # noqa: BLE001 - isolate malformed references
-            logger.warning("Failed to parse OpenAlex reference work: %s", exc)
+            message = f"Failed to parse OpenAlex reference work: {exc}"
+            logger.warning(message)
+            warnings.append(message)
             continue
         if reference_paper is not None:
             papers.append(reference_paper)
-    return papers[:limit]
+
+    return ConnectorSearchResult(
+        papers=papers[:limit],
+        error_message=";".join(errors) or None,
+        warnings=warnings,
+        latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
+    )
 
 
-def _fetch_seed_work(paper: Paper) -> dict[str, Any] | None:
+def _fetch_seed_work_detailed(
+    paper: Paper,
+    *,
+    max_retries: int,
+    retry_sleep: Callable[[float], None] | None,
+) -> tuple[
+    dict[str, Any] | None,
+    str | None,
+    list[str],
+    ConnectorDiagnostics,
+]:
     openalex_id = _normalize_openalex_id(paper.identifiers.openalex_id)
     if openalex_id:
-        return _fetch_work_by_openalex_id(openalex_id)
+        url = _url_with_mailto(
+            f"{OPENALEX_WORKS_URL}/{quote(openalex_id, safe='')}",
+            {},
+        )
+        return _request_json_detailed(
+            url,
+            context="OpenAlex seed work",
+            max_retries=max_retries,
+            retry_sleep=retry_sleep,
+        )
 
     doi = _normalize_doi(paper.identifiers.doi)
     if doi:
-        return _fetch_work_by_doi(doi)
+        payload, error, warnings, diagnostics = _request_json_detailed(
+            _url_with_mailto(
+                OPENALEX_WORKS_URL,
+                {"filter": f"doi:{doi}", "per-page": "1"},
+            ),
+            context="OpenAlex DOI seed work",
+            max_retries=max_retries,
+            retry_sleep=retry_sleep,
+        )
+        results = (payload or {}).get("results", [])
+        if isinstance(results, list) and results and isinstance(results[0], dict):
+            return results[0], None, warnings, diagnostics
+        if error is None:
+            error = "OpenAlex DOI seed work not found"
+            warnings.append(error)
+            diagnostics = diagnostics.model_copy(
+                update={"error_count": diagnostics.error_count + 1}
+            )
+        return None, error, warnings, diagnostics
 
-    return None
+    return None, None, [], ConnectorDiagnostics()
 
 
-def _fetch_work_by_openalex_id(openalex_id: str) -> dict[str, Any] | None:
-    normalized = _normalize_openalex_id(openalex_id)
-    if not normalized:
-        return None
-    url = _url_with_mailto(f"{OPENALEX_WORKS_URL}/{quote(normalized, safe='')}", {})
-    payload = _request_json(url)
-    return payload if isinstance(payload, dict) else None
-
-
-def _fetch_work_by_doi(doi: str) -> dict[str, Any] | None:
-    normalized = _normalize_doi(doi)
-    if not normalized:
-        return None
-
-    params = {
-        "filter": f"doi:{normalized}",
-        "per-page": "1",
-    }
-    payload = _request_json(_url_with_mailto(OPENALEX_WORKS_URL, params))
-    if not payload:
-        return None
-
-    results = payload.get("results", [])
-    if not isinstance(results, list) or not results:
-        return None
-
-    first = results[0]
-    return first if isinstance(first, dict) else None
+def _fetch_works_by_openalex_ids_detailed(
+    openalex_ids: list[str],
+    *,
+    max_retries: int,
+    retry_sleep: Callable[[float], None] | None,
+) -> tuple[dict[str, Any] | None, str | None, list[str], ConnectorDiagnostics]:
+    return _request_json_detailed(
+        _url_with_mailto(
+            OPENALEX_WORKS_URL,
+            {
+                "filter": "openalex_id:" + "|".join(openalex_ids),
+                "per-page": str(len(openalex_ids)),
+            },
+        ),
+        context="OpenAlex reference batch",
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
+    )
 
 
 def _referenced_work_ids(value: Any) -> list[str]:
@@ -189,7 +329,7 @@ def _referenced_work_ids(value: Any) -> list[str]:
 
 
 def _request_json(url: str) -> dict[str, Any] | None:
-    payload, _, _ = _request_json_detailed(url, context="OpenAlex request")
+    payload, _, _, _ = _request_json_detailed(url, context="OpenAlex request")
     return payload
 
 
@@ -199,14 +339,24 @@ def _request_json_detailed(
     context: str,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
-) -> tuple[dict[str, Any] | None, str | None, list[str]]:
+) -> tuple[
+    dict[str, Any] | None,
+    str | None,
+    list[str],
+    ConnectorDiagnostics,
+]:
+    started_at = time.perf_counter()
     request = Request(url, headers=_openalex_headers())
     warnings: list[str] = []
     attempts = max(0, max_retries) + 1
     sleep = retry_sleep or time.sleep
     payload: Any = None
+    request_count = 0
+    retry_count = 0
 
     for attempt in range(attempts):
+        request_count += 1
+        retry_count += int(attempt > 0)
         try:
             with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
                 status = getattr(response, "status", getattr(response, "code", 200))
@@ -223,7 +373,12 @@ def _request_json_detailed(
                         sleep(_retry_backoff_seconds(attempt))
                         continue
                     logger.warning(message)
-                    return None, message, warnings + [message]
+                    return None, message, warnings + [message], ConnectorDiagnostics(
+                        request_count=request_count,
+                        retry_count=retry_count,
+                        error_count=1,
+                        latency_seconds=time.perf_counter() - started_at,
+                    )
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             if _should_retry_status(exc.code) and attempt < attempts - 1:
@@ -238,7 +393,12 @@ def _request_json_detailed(
                 continue
             message = f"{context} failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         except (URLError, TimeoutError, OSError) as exc:
             if attempt < attempts - 1:
                 _record_retry_warning(
@@ -252,18 +412,46 @@ def _request_json_detailed(
                 continue
             message = f"{context} failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         except json.JSONDecodeError as exc:
             message = f"{context} failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         break
 
     if not isinstance(payload, dict):
         message = f"{context} returned non-object JSON payload"
         logger.warning(message)
-        return None, message, warnings + [message]
-    return payload, None, warnings
+        return None, message, warnings + [message], ConnectorDiagnostics(
+            request_count=request_count,
+            retry_count=retry_count,
+            error_count=1,
+            latency_seconds=time.perf_counter() - started_at,
+        )
+    return payload, None, warnings, ConnectorDiagnostics(
+        request_count=request_count,
+        retry_count=retry_count,
+        latency_seconds=time.perf_counter() - started_at,
+    )
+
+
+def _with_total_latency(
+    diagnostics: ConnectorDiagnostics,
+    started_at: float,
+) -> ConnectorDiagnostics:
+    return diagnostics.model_copy(
+        update={"latency_seconds": time.perf_counter() - started_at}
+    )
 
 
 def _record_retry_warning(

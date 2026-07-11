@@ -15,6 +15,10 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.diagnostics_schemas import (
+    ConnectorDiagnostics,
+    merge_connector_diagnostics,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -51,9 +55,13 @@ def search_pubmed_detailed(
     start = time.perf_counter()
     query = query.strip()
     if not query or limit <= 0:
-        return ConnectorSearchResult(latency_seconds=time.perf_counter() - start)
+        latency = time.perf_counter() - start
+        return ConnectorSearchResult(
+            latency_seconds=latency,
+            diagnostics=ConnectorDiagnostics(latency_seconds=latency),
+        )
 
-    ids, search_error, search_warnings = _esearch_ids(
+    ids, search_error, search_warnings, search_diagnostics = _esearch_ids(
         query,
         limit=limit,
         throttle_sleep=throttle_sleep,
@@ -64,24 +72,30 @@ def search_pubmed_detailed(
             error_message=search_error,
             warnings=search_warnings,
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(search_diagnostics, start),
         )
     if not ids:
         return ConnectorSearchResult(
             warnings=search_warnings,
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(search_diagnostics, start),
         )
 
-    payload, fetch_error, fetch_warnings = _efetch_articles(
+    payload, fetch_error, fetch_warnings, fetch_diagnostics = _efetch_articles(
         ids,
         throttle_sleep=throttle_sleep,
         monotonic=monotonic,
     )
     warnings = [*search_warnings, *fetch_warnings]
+    diagnostics = merge_connector_diagnostics(
+        [search_diagnostics, fetch_diagnostics]
+    )
     if fetch_error is not None:
         return ConnectorSearchResult(
             error_message=fetch_error,
             warnings=warnings,
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
         )
 
     papers: list[Paper] = []
@@ -94,6 +108,12 @@ def search_pubmed_detailed(
             error_message=message,
             warnings=warnings + [message],
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
         )
 
     for article in root.findall(".//PubmedArticle"):
@@ -111,6 +131,7 @@ def search_pubmed_detailed(
         papers=papers,
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
     )
 
 
@@ -120,7 +141,7 @@ def _esearch_ids(
     limit: int,
     throttle_sleep: Callable[[float], None] | None,
     monotonic: Callable[[], float] | None,
-) -> tuple[list[str], str | None, list[str]]:
+) -> tuple[list[str], str | None, list[str], ConnectorDiagnostics]:
     params = _with_api_key(
         {
             "db": "pubmed",
@@ -134,14 +155,14 @@ def _esearch_ids(
         f"{PUBMED_ESEARCH_URL}?{urlencode(params)}",
         headers={"User-Agent": "ScholarNavigator"},
     )
-    payload, error_message, warnings = _request_bytes(
+    payload, error_message, warnings, diagnostics = _request_bytes(
         request,
         label="PubMed esearch",
         throttle_sleep=throttle_sleep,
         monotonic=monotonic,
     )
     if payload is None:
-        return [], error_message, warnings
+        return [], error_message, warnings, diagnostics
 
     try:
         data = json.loads(payload.decode("utf-8"))
@@ -149,15 +170,19 @@ def _esearch_ids(
     except (json.JSONDecodeError, AttributeError) as exc:
         message = f"PubMed esearch parse failed: {exc}"
         logger.warning(message)
-        return [], message, warnings + [message]
+        return [], message, warnings + [message], diagnostics.model_copy(
+            update={"error_count": diagnostics.error_count + 1}
+        )
 
     if not isinstance(raw_ids, list):
         message = "PubMed esearch response missing idlist"
         logger.warning(message)
-        return [], message, warnings + [message]
+        return [], message, warnings + [message], diagnostics.model_copy(
+            update={"error_count": diagnostics.error_count + 1}
+        )
 
     ids = [_normalize_pmid(item) for item in raw_ids]
-    return [pmid for pmid in ids if pmid], None, warnings
+    return [pmid for pmid in ids if pmid], None, warnings, diagnostics
 
 
 def _efetch_articles(
@@ -165,7 +190,7 @@ def _efetch_articles(
     *,
     throttle_sleep: Callable[[float], None] | None,
     monotonic: Callable[[], float] | None,
-) -> tuple[bytes | None, str | None, list[str]]:
+) -> tuple[bytes | None, str | None, list[str], ConnectorDiagnostics]:
     params = _with_api_key(
         {
             "db": "pubmed",
@@ -191,25 +216,49 @@ def _request_bytes(
     label: str,
     throttle_sleep: Callable[[float], None] | None,
     monotonic: Callable[[], float] | None,
-) -> tuple[bytes | None, str | None, list[str]]:
+) -> tuple[bytes | None, str | None, list[str], ConnectorDiagnostics]:
+    started_at = time.perf_counter()
     warnings: list[str] = []
+    rate_limit_wait_seconds = 0.0
     try:
-        _throttle_pubmed_request(sleep=throttle_sleep, monotonic=monotonic)
+        rate_limit_wait_seconds = _throttle_pubmed_request(
+            sleep=throttle_sleep,
+            monotonic=monotonic,
+        )
         with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
             status = getattr(response, "status", getattr(response, "code", 200))
             if status < 200 or status >= 300:
                 message = f"{label} returned non-2xx status: {status}"
                 logger.warning(message)
-                return None, message, warnings + [message]
-            return response.read(), None, warnings
+                return None, message, warnings + [message], ConnectorDiagnostics(
+                    request_count=1,
+                    error_count=1,
+                    rate_limit_wait_seconds=rate_limit_wait_seconds,
+                    latency_seconds=time.perf_counter() - started_at,
+                )
+            return response.read(), None, warnings, ConnectorDiagnostics(
+                request_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                latency_seconds=time.perf_counter() - started_at,
+            )
     except HTTPError as exc:
         message = f"{label} failed: {exc}"
         logger.warning(message)
-        return None, message, warnings + [message]
+        return None, message, warnings + [message], ConnectorDiagnostics(
+            request_count=1,
+            error_count=1,
+            rate_limit_wait_seconds=rate_limit_wait_seconds,
+            latency_seconds=time.perf_counter() - started_at,
+        )
     except (URLError, TimeoutError, OSError) as exc:
         message = f"{label} failed: {exc}"
         logger.warning(message)
-        return None, message, warnings + [message]
+        return None, message, warnings + [message], ConnectorDiagnostics(
+            request_count=1,
+            error_count=1,
+            rate_limit_wait_seconds=rate_limit_wait_seconds,
+            latency_seconds=time.perf_counter() - started_at,
+        )
 
 
 def _with_api_key(params: dict[str, str]) -> dict[str, str]:
@@ -238,23 +287,35 @@ def _throttle_pubmed_request(
     *,
     sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
-) -> None:
+) -> float:
     min_interval = _pubmed_min_interval_seconds()
     if min_interval <= 0:
-        return
+        return 0.0
 
     sleep_fn = sleep or time.sleep
     monotonic_fn = monotonic or time.monotonic
 
     global _LAST_REQUEST_MONOTONIC
+    waited = 0.0
     with _REQUEST_THROTTLE_LOCK:
         now = monotonic_fn()
         if _LAST_REQUEST_MONOTONIC is not None:
             wait_seconds = min_interval - (now - _LAST_REQUEST_MONOTONIC)
             if wait_seconds > 0:
                 sleep_fn(wait_seconds)
+                waited = wait_seconds
                 now = monotonic_fn()
         _LAST_REQUEST_MONOTONIC = now
+    return waited
+
+
+def _with_total_latency(
+    diagnostics: ConnectorDiagnostics,
+    started_at: float,
+) -> ConnectorDiagnostics:
+    return diagnostics.model_copy(
+        update={"latency_seconds": time.perf_counter() - started_at}
+    )
 
 
 def _reset_pubmed_throttle_for_tests() -> None:

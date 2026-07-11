@@ -15,7 +15,7 @@
 - `success_only_metrics`：仅统计成功且有有效 gold 的案例。
 - `end_to_end_metrics`：失败、超时、取消、结果缺失或非法但有 gold 的案例按零分计入。
 - `case_statistics`：记录总数、成功、失败、结果缺失、gold 缺失及对应比率。
-- `efficiency`：汇总延迟、LLM 调用与 Token、搜索轮次、候选数、返回数、缓存命中和来源错误。无法准确取得的来源调用数记为 0，并附 unavailable warning。
+- `efficiency`：直接读取 SearchService/API 的真实 CostReport，输出平均总 API、检索 API、引用 API、重试、错误、缓存命中、限流等待、LLM 调用和 LLM Token；不再通过 `source_stats` 条数推算请求数。
 
 没有有效 gold 的 batch case 记录在 `missing_gold_cases`，不进入两套指标分母；gold 存在但 batch 缺失的案例记录在 `missing_result_cases`，并以零分进入端到端指标。
 

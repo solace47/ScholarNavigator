@@ -106,13 +106,20 @@ function listItems(values: string[]): string[] {
 function costReportMarkdown(costReport: CostReport): string {
   return [
     `- api_call_count: ${costReport.api_call_count}`,
+    `- logical_search_call_count: ${costReport.logical_search_call_count}`,
     `- search_api_call_count: ${costReport.search_api_call_count}`,
+    `- reference_api_call_count: ${costReport.reference_api_call_count}`,
+    `- retry_count: ${costReport.retry_count}`,
+    `- error_count: ${costReport.error_count}`,
     `- llm_call_count: ${costReport.llm_call_count}`,
     `- estimated_total_tokens: ${costReport.estimated_total_tokens}`,
     `- latency_seconds: ${costReport.latency_seconds}`,
     `- cache_hit_count: ${costReport.cache_hit_count}`,
+    `- rate_limit_wait_seconds: ${costReport.rate_limit_wait_seconds}`,
     `- search_rounds: ${costReport.search_rounds}`,
     `- judged_paper_count: ${costReport.judged_paper_count}`,
+    `- raw_candidate_count: ${costReport.raw_candidate_count}`,
+    `- deduplicated_candidate_count: ${costReport.deduplicated_candidate_count}`,
   ].join("\n");
 }
 

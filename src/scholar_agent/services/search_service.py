@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from scholar_agent.agents.judgement import JudgementAgent
 from scholar_agent.agents.query_evolution import evolve_queries
@@ -23,8 +23,12 @@ from scholar_agent.agents.retriever import (
     SourceStats,
     retrieve_papers,
 )
-from scholar_agent.connectors.openalex import fetch_openalex_references
+from scholar_agent.connectors.openalex import fetch_openalex_references_detailed
 from scholar_agent.core.dedup import deduplicate_papers
+from scholar_agent.core.diagnostics_schemas import (
+    ConnectorDiagnostics,
+    merge_connector_diagnostics,
+)
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     BudgetStatus,
@@ -89,7 +93,33 @@ class SearchServiceOutput(BaseModel):
     llm_prompt_tokens: int = 0
     llm_completion_tokens: int = 0
     llm_total_tokens: int = 0
+    search_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    reference_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
     budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
+
+    @model_validator(mode="after")
+    def derive_connector_diagnostics(self) -> "SearchServiceOutput":
+        search = merge_connector_diagnostics(
+            stat.diagnostics for stat in self.source_stats if stat.source != "refchain"
+        )
+        reference = merge_connector_diagnostics(
+            stat.diagnostics for stat in self.source_stats if stat.source == "refchain"
+        )
+        if (
+            self.search_diagnostics == ConnectorDiagnostics()
+            and search != ConnectorDiagnostics()
+        ):
+            self.search_diagnostics = search
+        if (
+            self.reference_diagnostics == ConnectorDiagnostics()
+            and reference != ConnectorDiagnostics()
+        ):
+            self.reference_diagnostics = reference
+        return self
 
 
 class SearchService:
@@ -98,7 +128,7 @@ class SearchService:
     def __init__(
         self,
         retriever: RetrieverFn = retrieve_papers,
-        reference_fetcher: ReferenceFetcher = fetch_openalex_references,
+        reference_fetcher: ReferenceFetcher = fetch_openalex_references_detailed,
         max_workers: int = 4,
         llm_client: Any | None = None,
     ) -> None:
@@ -360,7 +390,13 @@ class SearchService:
                     query="refchain",
                     returned_count=len(refchain_output.references),
                     latency_seconds=refchain_output.latency_seconds,
-                    error_message=";".join(refchain_output.warnings) or None,
+                    error_message=(
+                        f"refchain_connector_errors:"
+                        f"{refchain_output.diagnostics.error_count}"
+                        if refchain_output.diagnostics.error_count
+                        else None
+                    ),
+                    diagnostics=refchain_output.diagnostics,
                 )
             )
             _add_stage_latency(
@@ -428,6 +464,16 @@ class SearchService:
             llm_prompt_tokens=runtime.prompt_tokens,
             llm_completion_tokens=runtime.completion_tokens,
             llm_total_tokens=runtime.total_tokens,
+            search_diagnostics=merge_connector_diagnostics(
+                stat.diagnostics
+                for stat in source_stats
+                if stat.source != "refchain"
+            ),
+            reference_diagnostics=(
+                refchain_output.diagnostics
+                if refchain_output is not None
+                else ConnectorDiagnostics()
+            ),
         )
         output.warnings = _dedupe_warnings(
             [*warnings, *runtime.stop_reasons, *runtime.diagnostics]

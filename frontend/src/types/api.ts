@@ -115,7 +115,11 @@ export interface SearchRunCreateResponse {
 
 export interface CostReport {
   api_call_count: number;
+  logical_search_call_count: number;
   search_api_call_count: number;
+  reference_api_call_count: number;
+  retry_count: number;
+  error_count: number;
   llm_call_count: number;
   llm_prompt_tokens?: number;
   llm_completion_tokens?: number;
@@ -125,8 +129,20 @@ export interface CostReport {
   estimated_total_tokens: number;
   latency_seconds: number;
   cache_hit_count: number;
+  rate_limit_wait_seconds: number;
   search_rounds: number;
   judged_paper_count: number;
+  raw_candidate_count: number;
+  deduplicated_candidate_count: number;
+}
+
+export interface ConnectorDiagnostics {
+  request_count: number;
+  retry_count: number;
+  error_count: number;
+  cache_hit_count: number;
+  rate_limit_wait_seconds: number;
+  latency_seconds: number;
 }
 
 export interface SearchRunStatusResponse {
@@ -271,6 +287,7 @@ export interface RetrievalSourceStats {
   latency_seconds: number;
   cache_hit: boolean;
   error_message?: string | null;
+  diagnostics: ConnectorDiagnostics;
 }
 
 export interface RetrievalDiagnostics {

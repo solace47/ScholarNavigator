@@ -88,6 +88,8 @@ def test_search_arxiv_detailed_normal_response_has_no_error(monkeypatch) -> None
     assert len(result.papers) == 1
     assert result.error_message is None
     assert result.warnings == []
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.retry_count == 0
 
 
 def test_search_arxiv_detailed_retries_transient_error_then_succeeds(
@@ -122,6 +124,9 @@ def test_search_arxiv_detailed_retries_transient_error_then_succeeds(
     assert len(result.papers) == 1
     assert any("retried" in warning for warning in result.warnings)
     assert any("HTTP Error 429" in warning for warning in result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 0
 
 
 def test_search_arxiv_detailed_retry_failure_keeps_diagnostics(monkeypatch) -> None:
@@ -142,6 +147,9 @@ def test_search_arxiv_detailed_retry_failure_keeps_diagnostics(monkeypatch) -> N
     assert "read timed out" in result.error_message
     assert result.error_message in result.warnings
     assert any("retried" in warning for warning in result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 1
 
 
 def test_search_arxiv_exception_returns_empty(monkeypatch) -> None:

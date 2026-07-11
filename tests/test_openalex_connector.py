@@ -8,6 +8,7 @@ import pytest
 
 from scholar_agent.connectors.openalex import (
     fetch_openalex_references,
+    fetch_openalex_references_detailed,
     search_openalex,
     search_openalex_detailed,
 )
@@ -118,6 +119,9 @@ def test_search_openalex_detailed_normal_response_has_no_error(monkeypatch) -> N
     assert result.papers[0].title == "Detailed OpenAlex Paper"
     assert result.error_message is None
     assert result.warnings == []
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.retry_count == 0
+    assert result.diagnostics.error_count == 0
 
 
 def test_search_openalex_detailed_retries_transient_error_then_succeeds(
@@ -161,6 +165,9 @@ def test_search_openalex_detailed_retries_transient_error_then_succeeds(
     assert [paper.title for paper in result.papers] == ["Recovered OpenAlex Paper"]
     assert any("retried" in warning for warning in result.warnings)
     assert any("HTTP Error 503" in warning for warning in result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 0
 
 
 def test_search_openalex_detailed_retry_failure_keeps_diagnostics(
@@ -189,6 +196,9 @@ def test_search_openalex_detailed_retry_failure_keeps_diagnostics(
     assert "HTTP Error 503" in result.error_message
     assert result.error_message in result.warnings
     assert any("retried" in warning for warning in result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 1
 
 
 def test_search_openalex_exception_returns_empty(monkeypatch) -> None:
@@ -293,10 +303,16 @@ def test_fetch_openalex_references_with_openalex_id_seed(monkeypatch) -> None:
                     ],
                 }
             )
-        if request.full_url.endswith("/WREF1"):
-            return MockResponse(_openalex_work("WREF1", "Reference One"))
-        if request.full_url.endswith("/WREF2"):
-            return MockResponse(_openalex_work("WREF2", "Reference Two"))
+        decoded = unquote(request.full_url)
+        if "filter=openalex_id:WREF1|WREF2" in decoded:
+            return MockResponse(
+                {
+                    "results": [
+                        _openalex_work("WREF2", "Reference Two"),
+                        _openalex_work("WREF1", "Reference One"),
+                    ]
+                }
+            )
         raise AssertionError(f"unexpected url: {request.full_url}")
 
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
@@ -305,12 +321,16 @@ def test_fetch_openalex_references_with_openalex_id_seed(monkeypatch) -> None:
         identifiers=PaperIdentifiers(openalex_id="WSEED"),
     )
 
-    references = fetch_openalex_references(seed, limit=20)
+    result = fetch_openalex_references_detailed(seed, limit=20)
+    references = result.papers
 
     assert [paper.title for paper in references] == ["Reference One", "Reference Two"]
     assert [paper.identifiers.openalex_id for paper in references] == ["WREF1", "WREF2"]
     assert all(paper.sources == ["openalex"] for paper in references)
     assert requested_urls[0].endswith("/WSEED")
+    assert len(requested_urls) == 2
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 0
 
 
 def test_fetch_openalex_references_with_doi_seed(monkeypatch) -> None:
@@ -330,8 +350,10 @@ def test_fetch_openalex_references_with_doi_seed(monkeypatch) -> None:
                     ]
                 }
             )
-        if request.full_url.endswith("/WREFDOI"):
-            return MockResponse(_openalex_work("WREFDOI", "DOI Reference"))
+        if "filter=openalex_id:WREFDOI" in decoded:
+            return MockResponse(
+                {"results": [_openalex_work("WREFDOI", "DOI Reference")]}
+            )
         raise AssertionError(f"unexpected url: {request.full_url}")
 
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
@@ -340,12 +362,14 @@ def test_fetch_openalex_references_with_doi_seed(monkeypatch) -> None:
         identifiers=PaperIdentifiers(doi="https://doi.org/10.555/seed"),
     )
 
-    references = fetch_openalex_references(seed)
+    result = fetch_openalex_references_detailed(seed)
+    references = result.papers
 
     assert len(references) == 1
     assert references[0].title == "DOI Reference"
     assert references[0].identifiers.openalex_id == "WREFDOI"
     assert "filter=doi:10.555/seed" in unquote(requested_urls[0])
+    assert result.diagnostics.request_count == 2
 
 
 def test_fetch_openalex_references_limit_is_applied(monkeypatch) -> None:
@@ -363,10 +387,12 @@ def test_fetch_openalex_references_limit_is_applied(monkeypatch) -> None:
                     ],
                 }
             )
-        if request.full_url.endswith("/WREF1"):
-            return MockResponse(_openalex_work("WREF1", "Reference One"))
-        if request.full_url.endswith("/WREF2"):
-            raise AssertionError("limit should avoid requesting WREF2")
+        decoded = unquote(request.full_url)
+        if "filter=openalex_id:WREF1" in decoded:
+            assert "WREF2" not in decoded
+            return MockResponse(
+                {"results": [_openalex_work("WREF1", "Reference One")]}
+            )
         raise AssertionError(f"unexpected url: {request.full_url}")
 
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
@@ -379,7 +405,7 @@ def test_fetch_openalex_references_limit_is_applied(monkeypatch) -> None:
 
     assert len(references) == 1
     assert references[0].title == "Reference One"
-    assert not any(url.endswith("/WREF2") for url in requested_urls)
+    assert not any("WREF2" in unquote(url) for url in requested_urls[1:])
 
 
 def test_fetch_openalex_references_without_supported_identifier_returns_empty(
@@ -422,8 +448,10 @@ def test_fetch_openalex_references_missing_fields_are_tolerated(monkeypatch) -> 
                     ],
                 }
             )
-        if request.full_url.endswith("/WMINIMAL"):
-            return MockResponse({"id": "https://openalex.org/WMINIMAL"})
+        if "filter=openalex_id:WMINIMAL" in unquote(request.full_url):
+            return MockResponse(
+                {"results": [{"id": "https://openalex.org/WMINIMAL"}]}
+            )
         raise AssertionError(f"unexpected url: {request.full_url}")
 
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
@@ -437,6 +465,42 @@ def test_fetch_openalex_references_missing_fields_are_tolerated(monkeypatch) -> 
     assert references[0].abstract == ""
     assert references[0].identifiers.openalex_id == "WMINIMAL"
     assert references[0].sources == ["openalex"]
+
+
+def test_fetch_openalex_references_detailed_counts_batch_retry(monkeypatch) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": ["https://openalex.org/WREF1"],
+                }
+            )
+        if calls == 2:
+            raise HTTPError(
+                request.full_url,
+                503,
+                "Service Unavailable",
+                hdrs=None,
+                fp=None,
+            )
+        return MockResponse(
+            {"results": [_openalex_work("WREF1", "Reference One")]}
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    seed = Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+
+    result = fetch_openalex_references_detailed(seed)
+
+    assert [paper.title for paper in result.papers] == ["Reference One"]
+    assert result.diagnostics.request_count == 3
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 0
 
 
 def _openalex_work(openalex_id: str, title: str) -> dict:

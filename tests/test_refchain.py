@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from scholar_agent.agents.refchain import expand_refchain
+from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
@@ -166,6 +167,36 @@ def test_fake_fetcher_returns_references_and_edges() -> None:
         "doi:10.123/ref-two",
     ]
     assert output.record.reference_edges == output.reference_edges
+
+
+def test_detailed_fetcher_diagnostics_are_aggregated() -> None:
+    ranked = [
+        make_ranked(make_paper("Seed 1", openalex_id="WSEED1"), rank=1),
+        make_ranked(make_paper("Seed 2", openalex_id="WSEED2"), rank=2),
+    ]
+
+    def fake_fetcher(paper: Paper, limit: int) -> ConnectorSearchResult:
+        del limit
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    f"Reference {paper.title}",
+                    openalex_id=f"WREF{paper.title[-1]}",
+                )
+            ],
+            diagnostics=ConnectorDiagnostics(
+                request_count=3,
+                retry_count=1,
+                rate_limit_wait_seconds=0.25,
+            ),
+        )
+
+    output = expand_refchain(make_query_analysis(), ranked, fake_fetcher)
+
+    assert output.diagnostics.request_count == 6
+    assert output.diagnostics.retry_count == 2
+    assert output.diagnostics.rate_limit_wait_seconds == 0.5
+    assert output.record.diagnostics == output.diagnostics
 
 
 def test_fetcher_exception_warns_and_continues() -> None:

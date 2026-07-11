@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from scholar_agent.connectors import ConnectorSearchResult
+from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.retriever import (
     clear_retrieval_cache,
     clear_source_cooldowns,
@@ -266,6 +266,7 @@ def test_retrieve_papers_cache_hit_reuses_successful_connector_result(
         return ConnectorSearchResult(
             papers=[make_paper("Cached OpenAlex Result", sources=["openalex"])],
             warnings=["OpenAlex parse warning"],
+            diagnostics=ConnectorDiagnostics(request_count=1),
         )
 
     monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", fake_openalex)
@@ -276,6 +277,10 @@ def test_retrieve_papers_cache_hit_reuses_successful_connector_result(
     assert calls["openalex"] == 1
     assert first.source_stats[0].cache_hit is False
     assert second.source_stats[0].cache_hit is True
+    assert first.source_stats[0].diagnostics.request_count == 1
+    assert first.source_stats[0].diagnostics.cache_hit_count == 0
+    assert second.source_stats[0].diagnostics.request_count == 0
+    assert second.source_stats[0].diagnostics.cache_hit_count == 1
     assert second.papers[0].title == "Cached OpenAlex Result"
     assert "OpenAlex parse warning" in second.warnings
     assert "retrieval_cache_hit:openalex" in second.warnings

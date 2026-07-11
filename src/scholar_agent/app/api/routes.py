@@ -734,6 +734,7 @@ def _append_real_connector_events(
                 "latency_seconds": stats.latency_seconds,
                 "cache_hit": stats.cache_hit,
                 "error_message": stats.error_message,
+                "diagnostics": _model_dump(stats.diagnostics),
             },
         )
 

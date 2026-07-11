@@ -127,6 +127,7 @@ def test_search_semantic_scholar_detailed_normal_response_has_no_error(
     assert result.error_message is None
     assert result.warnings == []
     assert result.latency_seconds >= 0
+    assert result.diagnostics.request_count == 1
 
 
 def test_search_semantic_scholar_detailed_retries_429_then_succeeds(
@@ -164,6 +165,10 @@ def test_search_semantic_scholar_detailed_retries_429_then_succeeds(
     assert [paper.title for paper in result.papers] == ["Recovered Semantic Scholar Paper"]
     assert any("retried" in warning for warning in result.warnings)
     assert any("HTTP Error 429" in warning for warning in result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 0
+    assert result.diagnostics.rate_limit_wait_seconds >= 2.0
 
 
 def test_search_semantic_scholar_detailed_429_respects_retry_after(
@@ -190,6 +195,9 @@ def test_search_semantic_scholar_detailed_429_respects_retry_after(
     assert sleeps == [3.5]
     assert result.error_message is None
     assert result.papers[0].identifiers.semantic_scholar_id == "S2RETRYAFTER"
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.rate_limit_wait_seconds >= 3.5
 
 
 def test_search_semantic_scholar_detailed_retry_failure_keeps_diagnostics(
@@ -214,6 +222,9 @@ def test_search_semantic_scholar_detailed_retry_failure_keeps_diagnostics(
     assert result.error_message in result.warnings
     assert any("retried" in warning for warning in result.warnings)
     assert "s2-secret" not in " ".join(result.warnings)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 1
+    assert result.diagnostics.error_count == 1
 
 
 def test_search_semantic_scholar_exception_wrapper_returns_empty(monkeypatch) -> None:
@@ -325,6 +336,8 @@ def test_semantic_scholar_throttle_waits_between_consecutive_requests(
     assert first.error_message is None
     assert second.error_message is None
     assert sleeps == pytest.approx([1.5])
+    assert first.diagnostics.rate_limit_wait_seconds == 0.0
+    assert second.diagnostics.rate_limit_wait_seconds == pytest.approx(1.5)
 
 
 def test_semantic_scholar_throttle_can_be_disabled(monkeypatch) -> None:

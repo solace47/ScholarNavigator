@@ -452,14 +452,20 @@ def test_failed_case_without_gold_is_counted_but_not_scored() -> None:
     assert result["end_to_end_metrics"]["f1_at_k"] == {"5": 0.0}
 
 
-def test_batch_efficiency_uses_observed_fields_and_marks_source_calls_unavailable() -> None:
+def test_batch_efficiency_uses_observed_cost_fields() -> None:
     row = _batch_row("case_001", high=[_ranked("Paper", doi="10.1/p")])
     row["latency_seconds"] = 1.25
     row["result"]["cost_report"] = {
         "llm_call_count": 3,
         "llm_total_tokens": 420,
+        "api_call_count": 9,
+        "search_api_call_count": 4,
+        "reference_api_call_count": 2,
+        "retry_count": 1,
+        "error_count": 1,
         "search_rounds": 2,
         "cache_hit_count": 1,
+        "rate_limit_wait_seconds": 0.5,
     }
     row["result"]["retrieval_diagnostics"] = {
         "raw_count": 12,
@@ -484,11 +490,18 @@ def test_batch_efficiency_uses_observed_fields_and_marks_source_calls_unavailabl
     assert efficiency["total_deduplicated_count"] == 8
     assert efficiency["total_returned_result_count"] == 1
     assert efficiency["total_cache_hit_count"] == 1
-    assert efficiency["total_source_call_count"] == 0
+    assert efficiency["avg_api_call_count"] == 9
+    assert efficiency["avg_search_api_call_count"] == 4
+    assert efficiency["avg_reference_api_call_count"] == 2
+    assert efficiency["avg_retry_count"] == 1
+    assert efficiency["avg_error_count"] == 1
+    assert efficiency["avg_cache_hit_count"] == 1
+    assert efficiency["avg_rate_limit_wait_seconds"] == pytest.approx(0.5)
+    assert efficiency["avg_llm_call_count"] == 3
+    assert efficiency["avg_llm_total_tokens"] == 420
+    assert efficiency["total_source_call_count"] == 6
     assert efficiency["total_source_error_count"] == 1
-    assert "source_call_count_unavailable:not_equal_to_http_requests" in efficiency[
-        "warnings"
-    ]
+    assert efficiency["warnings"] == []
 
 
 def test_cli_legacy_include_partial_and_conflict(tmp_path: Path) -> None:

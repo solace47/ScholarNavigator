@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -70,7 +71,11 @@ def search_semantic_scholar_detailed(
     start = time.perf_counter()
     query = query.strip()
     if not query or limit <= 0:
-        return ConnectorSearchResult(latency_seconds=time.perf_counter() - start)
+        latency = time.perf_counter() - start
+        return ConnectorSearchResult(
+            latency_seconds=latency,
+            diagnostics=ConnectorDiagnostics(latency_seconds=latency),
+        )
 
     params = {
         "query": query,
@@ -82,7 +87,7 @@ def search_semantic_scholar_detailed(
         headers=_semantic_scholar_headers(),
     )
 
-    payload, error_message, warnings = _request_json_detailed(
+    payload, error_message, warnings, diagnostics = _request_json_detailed(
         request,
         max_retries=max_retries,
         retry_sleep=retry_sleep,
@@ -94,6 +99,7 @@ def search_semantic_scholar_detailed(
             error_message=error_message,
             warnings=warnings,
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
         )
 
     results = payload.get("data", [])
@@ -103,6 +109,12 @@ def search_semantic_scholar_detailed(
             error_message=message,
             warnings=warnings + [message],
             latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
         )
 
     papers: list[Paper] = []
@@ -123,6 +135,7 @@ def search_semantic_scholar_detailed(
         papers=papers,
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
     )
 
 
@@ -141,17 +154,28 @@ def _request_json_detailed(
     retry_sleep: Callable[[float], None] | None = None,
     throttle_sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
-) -> tuple[dict[str, Any] | None, str | None, list[str]]:
+) -> tuple[
+    dict[str, Any] | None,
+    str | None,
+    list[str],
+    ConnectorDiagnostics,
+]:
+    started_at = time.perf_counter()
     warnings: list[str] = []
     attempts = max(0, max_retries) + 1
     sleep = retry_sleep or time.sleep
+    request_count = 0
+    retry_count = 0
+    rate_limit_wait_seconds = 0.0
 
     for attempt in range(attempts):
         try:
-            _throttle_semantic_scholar_request(
+            rate_limit_wait_seconds += _throttle_semantic_scholar_request(
                 sleep=throttle_sleep,
                 monotonic=monotonic,
             )
+            request_count += 1
+            retry_count += int(attempt > 0)
             with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
                 status = getattr(response, "status", getattr(response, "code", 200))
                 if status < 200 or status >= 300:
@@ -163,11 +187,30 @@ def _request_json_detailed(
                             attempts=attempts,
                             reason=message,
                         )
-                        sleep(_retry_backoff_seconds(attempt, response))
+                        wait_seconds = _retry_backoff_seconds(attempt, response)
+                        sleep(wait_seconds)
+                        if _is_rate_limit_wait(status, response):
+                            rate_limit_wait_seconds += wait_seconds
                         continue
                     logger.warning(message)
-                    return None, message, warnings + [message]
-                return json.loads(response.read().decode("utf-8")), None, warnings
+                    return None, message, warnings + [message], ConnectorDiagnostics(
+                        request_count=request_count,
+                        retry_count=retry_count,
+                        error_count=1,
+                        rate_limit_wait_seconds=rate_limit_wait_seconds,
+                        latency_seconds=time.perf_counter() - started_at,
+                    )
+                return (
+                    json.loads(response.read().decode("utf-8")),
+                    None,
+                    warnings,
+                    ConnectorDiagnostics(
+                        request_count=request_count,
+                        retry_count=retry_count,
+                        rate_limit_wait_seconds=rate_limit_wait_seconds,
+                        latency_seconds=time.perf_counter() - started_at,
+                    ),
+                )
         except HTTPError as exc:
             if _should_retry_status(exc.code) and attempt < attempts - 1:
                 _record_retry_warning(
@@ -176,11 +219,20 @@ def _request_json_detailed(
                     attempts=attempts,
                     reason=str(exc),
                 )
-                sleep(_retry_backoff_seconds(attempt, exc))
+                wait_seconds = _retry_backoff_seconds(attempt, exc)
+                sleep(wait_seconds)
+                if _is_rate_limit_wait(exc.code, exc):
+                    rate_limit_wait_seconds += wait_seconds
                 continue
             message = f"Semantic Scholar search failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         except (URLError, TimeoutError, OSError) as exc:
             if attempt < attempts - 1:
                 _record_retry_warning(
@@ -193,15 +245,33 @@ def _request_json_detailed(
                 continue
             message = f"Semantic Scholar search failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         except json.JSONDecodeError as exc:
             message = f"Semantic Scholar search failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                latency_seconds=time.perf_counter() - started_at,
+            )
 
     message = "Semantic Scholar search failed: retry attempts exhausted"
     logger.warning(message)
-    return None, message, warnings + [message]
+    return None, message, warnings + [message], ConnectorDiagnostics(
+        request_count=request_count,
+        retry_count=retry_count,
+        error_count=1,
+        rate_limit_wait_seconds=rate_limit_wait_seconds,
+        latency_seconds=time.perf_counter() - started_at,
+    )
 
 
 def _semantic_scholar_min_interval_seconds() -> float:
@@ -219,23 +289,26 @@ def _throttle_semantic_scholar_request(
     *,
     sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
-) -> None:
+) -> float:
     min_interval = _semantic_scholar_min_interval_seconds()
     if min_interval <= 0:
-        return
+        return 0.0
 
     sleep_fn = sleep or time.sleep
     monotonic_fn = monotonic or time.monotonic
 
     global _LAST_REQUEST_MONOTONIC
+    waited = 0.0
     with _REQUEST_THROTTLE_LOCK:
         now = monotonic_fn()
         if _LAST_REQUEST_MONOTONIC is not None:
             wait_seconds = min_interval - (now - _LAST_REQUEST_MONOTONIC)
             if wait_seconds > 0:
                 sleep_fn(wait_seconds)
+                waited = wait_seconds
                 now = monotonic_fn()
         _LAST_REQUEST_MONOTONIC = now
+    return waited
 
 
 def _reset_semantic_scholar_throttle_for_tests() -> None:
@@ -283,6 +356,22 @@ def _retry_after_seconds(response_or_error: Any | None) -> float | None:
     except ValueError:
         return None
     return value if value >= 0 else None
+
+
+def _is_rate_limit_wait(
+    status: int | None,
+    response_or_error: Any | None,
+) -> bool:
+    return status == 429 or _retry_after_seconds(response_or_error) is not None
+
+
+def _with_total_latency(
+    diagnostics: ConnectorDiagnostics,
+    started_at: float,
+) -> ConnectorDiagnostics:
+    return diagnostics.model_copy(
+        update={"latency_seconds": time.perf_counter() - started_at}
+    )
 
 
 def _status_code(response_or_error: Any | None) -> int | None:

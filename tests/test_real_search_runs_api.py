@@ -24,6 +24,7 @@ from scholar_agent.core.api_schemas import (  # noqa: E402
     SearchRunCreateRequest,
 )
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     EvidenceItem,
     JudgementResult,
@@ -237,6 +238,14 @@ def test_real_search_events_replay_started_and_completed(monkeypatch) -> None:
         "latency_seconds": 0.1,
         "cache_hit": False,
         "error_message": None,
+        "diagnostics": {
+            "request_count": 1,
+            "retry_count": 0,
+            "error_count": 0,
+            "cache_hit_count": 0,
+            "rate_limit_wait_seconds": 0.0,
+            "latency_seconds": 0.1,
+        },
         "run_id": run_id,
         "timestamp": connector_events[0]["payload"]["timestamp"],
     }
@@ -676,12 +685,17 @@ def _fake_output(query: str, top_k: int = 5) -> SearchServiceOutput:
                 source="openalex",
                 returned_count=1,
                 latency_seconds=0.1,
+                diagnostics=ConnectorDiagnostics(
+                    request_count=1,
+                    latency_seconds=0.1,
+                ),
             ),
             SourceStats(
                 source="arxiv",
                 returned_count=1,
                 latency_seconds=0.1,
                 cache_hit=True,
+                diagnostics=ConnectorDiagnostics(cache_hit_count=1),
             ),
         ],
         latency_seconds=0.25,

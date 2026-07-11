@@ -259,6 +259,21 @@ def aggregate_efficiency(
     return EvalAggregateEfficiency(
         case_count=count,
         average_latency_seconds=sum(item.latency_seconds for item in cases) / count,
+        avg_api_call_count=sum(item.api_call_count for item in cases) / count,
+        avg_search_api_call_count=(
+            sum(item.search_api_call_count for item in cases) / count
+        ),
+        avg_reference_api_call_count=(
+            sum(item.reference_api_call_count for item in cases) / count
+        ),
+        avg_retry_count=sum(item.retry_count for item in cases) / count,
+        avg_error_count=sum(item.error_count for item in cases) / count,
+        avg_cache_hit_count=sum(item.cache_hit_count for item in cases) / count,
+        avg_rate_limit_wait_seconds=(
+            sum(item.rate_limit_wait_seconds for item in cases) / count
+        ),
+        avg_llm_call_count=sum(item.llm_call_count for item in cases) / count,
+        avg_llm_total_tokens=sum(item.llm_total_tokens for item in cases) / count,
         total_llm_call_count=sum(item.llm_call_count for item in cases),
         total_llm_total_tokens=sum(item.llm_total_tokens for item in cases),
         average_search_rounds=sum(item.search_rounds for item in cases) / count,

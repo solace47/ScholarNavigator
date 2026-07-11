@@ -24,12 +24,12 @@
 
 ## 案例统计与效率
 
-| 分组 | 总案例 | 有 gold | 成功 | 失败 | 缺少结果 | 缺少 gold | 成功率 | 平均延迟（秒） | LLM 调用 | LLM Tokens | 搜索轮次均值 | Raw | 去重后 | 返回 | 缓存命中 | 来源调用 | 来源错误 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | 1 | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.007 | 0 | 0 | 1.000 | 2 | 1 | 1 | 0 | 0 | 2 |
-| query_evolution_only | 1 | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.002 | 0 | 0 | 2.000 | 3 | 2 | 2 | 0 | 0 | 4 |
-| refchain_only | 1 | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.002 | 0 | 0 | 1.000 | 3 | 2 | 2 | 0 | 0 | 2 |
-| query_evolution_plus_refchain | 1 | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.004 | 0 | 0 | 2.000 | 5 | 3 | 3 | 0 | 0 | 4 |
+| 分组 | 总案例 | 成功 | 失败 | 缺少结果 | 缺少 gold | 成功率 | 平均延迟（秒） | 平均 API | 平均检索 API | 平均引用 API | 平均重试 | 平均错误 | 平均缓存命中 | 平均限流等待（秒） | 平均 LLM 调用 | 平均 LLM Tokens |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.007 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| query_evolution_only | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.002 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| refchain_only | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.002 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| query_evolution_plus_refchain | 1 | 1 | 0 | 0 | 0 | 1.000 | 0.003 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 
 
 ## 单查询结果
@@ -40,7 +40,7 @@ latest LLM reranking methods for scientific literature retrieval
 
 | 分组 | 排名标识 | 警告 |
 | --- | --- | --- |
-| baseline | doi:10.123/baseline | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, source_call_count_unavailable:not_equal_to_http_requests |
-| query_evolution_only | doi:10.123/baseline, doi:10.123/evolved | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature, fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking, source_call_count_unavailable:not_equal_to_http_requests |
-| refchain_only | doi:10.123/baseline, doi:10.123/refchain | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, source_call_count_unavailable:not_equal_to_http_requests |
-| query_evolution_plus_refchain | doi:10.123/baseline, doi:10.123/evolved, doi:10.123/refchain | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature, fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking, source_call_count_unavailable:not_equal_to_http_requests |
+| baseline | doi:10.123/baseline | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method |
+| query_evolution_only | doi:10.123/baseline, doi:10.123/evolved | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature, fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking |
+| refchain_only | doi:10.123/baseline, doi:10.123/refchain | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method |
+| query_evolution_plus_refchain | doi:10.123/baseline, doi:10.123/evolved, doi:10.123/refchain | fixture simulated source warning, fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method, fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature, fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking |

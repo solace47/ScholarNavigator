@@ -506,7 +506,11 @@ function buildInitialRealStatus(
 function emptyCostReport(): CostReport {
   return {
     api_call_count: 0,
+    logical_search_call_count: 0,
     search_api_call_count: 0,
+    reference_api_call_count: 0,
+    retry_count: 0,
+    error_count: 0,
     llm_call_count: 0,
     llm_prompt_tokens: 0,
     llm_completion_tokens: 0,
@@ -516,8 +520,11 @@ function emptyCostReport(): CostReport {
     estimated_total_tokens: 0,
     latency_seconds: 0,
     cache_hit_count: 0,
+    rate_limit_wait_seconds: 0,
     search_rounds: 0,
     judged_paper_count: 0,
+    raw_candidate_count: 0,
+    deduplicated_candidate_count: 0,
   };
 }
 

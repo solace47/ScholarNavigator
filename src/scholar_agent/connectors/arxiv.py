@@ -14,6 +14,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -42,9 +43,14 @@ def search_arxiv_detailed(
 ) -> ConnectorSearchResult:
     """Search papers from the arXiv public API with diagnostic details."""
 
+    start = time.perf_counter()
     query = query.strip()
     if not query or limit <= 0:
-        return ConnectorSearchResult()
+        return ConnectorSearchResult(
+            diagnostics=ConnectorDiagnostics(
+                latency_seconds=time.perf_counter() - start
+            )
+        )
 
     params = {
         "search_query": f"all:{query}",
@@ -56,7 +62,7 @@ def search_arxiv_detailed(
         headers={"User-Agent": "ScholarNavigator"},
     )
 
-    payload, error_message, warnings = _request_feed_detailed(
+    payload, error_message, warnings, diagnostics = _request_feed_detailed(
         request,
         max_retries=max_retries,
         retry_sleep=retry_sleep,
@@ -65,6 +71,8 @@ def search_arxiv_detailed(
         return ConnectorSearchResult(
             error_message=error_message,
             warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
         )
 
     try:
@@ -75,6 +83,13 @@ def search_arxiv_detailed(
         return ConnectorSearchResult(
             error_message=message,
             warnings=warnings + [message],
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
         )
 
     papers: list[Paper] = []
@@ -89,7 +104,12 @@ def search_arxiv_detailed(
         if paper is not None:
             papers.append(paper)
 
-    return ConnectorSearchResult(papers=papers, warnings=warnings)
+    return ConnectorSearchResult(
+        papers=papers,
+        warnings=warnings,
+        latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
+    )
 
 
 def _request_feed_detailed(
@@ -97,12 +117,17 @@ def _request_feed_detailed(
     *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
-) -> tuple[bytes | None, str | None, list[str]]:
+) -> tuple[bytes | None, str | None, list[str], ConnectorDiagnostics]:
+    started_at = time.perf_counter()
     warnings: list[str] = []
     attempts = max(0, max_retries) + 1
     sleep = retry_sleep or time.sleep
 
+    request_count = 0
+    retry_count = 0
     for attempt in range(attempts):
+        request_count += 1
+        retry_count += int(attempt > 0)
         try:
             with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
                 status = getattr(response, "status", getattr(response, "code", 200))
@@ -118,8 +143,17 @@ def _request_feed_detailed(
                         sleep(_retry_backoff_seconds(attempt))
                         continue
                     logger.warning(message)
-                    return None, message, warnings + [message]
-                return response.read(), None, warnings
+                    return None, message, warnings + [message], ConnectorDiagnostics(
+                        request_count=request_count,
+                        retry_count=retry_count,
+                        error_count=1,
+                        latency_seconds=time.perf_counter() - started_at,
+                    )
+                return response.read(), None, warnings, ConnectorDiagnostics(
+                    request_count=request_count,
+                    retry_count=retry_count,
+                    latency_seconds=time.perf_counter() - started_at,
+                )
         except HTTPError as exc:
             if _should_retry_status(exc.code) and attempt < attempts - 1:
                 _record_retry_warning(
@@ -132,7 +166,12 @@ def _request_feed_detailed(
                 continue
             message = f"arXiv search failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                latency_seconds=time.perf_counter() - started_at,
+            )
         except (URLError, TimeoutError, OSError) as exc:
             if attempt < attempts - 1:
                 _record_retry_warning(
@@ -145,11 +184,30 @@ def _request_feed_detailed(
                 continue
             message = f"arXiv search failed: {exc}"
             logger.warning(message)
-            return None, message, warnings + [message]
+            return None, message, warnings + [message], ConnectorDiagnostics(
+                request_count=request_count,
+                retry_count=retry_count,
+                error_count=1,
+                latency_seconds=time.perf_counter() - started_at,
+            )
 
     message = "arXiv search failed: retry attempts exhausted"
     logger.warning(message)
-    return None, message, warnings + [message]
+    return None, message, warnings + [message], ConnectorDiagnostics(
+        request_count=request_count,
+        retry_count=retry_count,
+        error_count=1,
+        latency_seconds=time.perf_counter() - started_at,
+    )
+
+
+def _with_total_latency(
+    diagnostics: ConnectorDiagnostics,
+    started_at: float,
+) -> ConnectorDiagnostics:
+    return diagnostics.model_copy(
+        update={"latency_seconds": time.perf_counter() - started_at}
+    )
 
 
 def _record_retry_warning(

@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.search_schemas import (
     BudgetStatus,
     PaperType,
@@ -153,7 +154,11 @@ class RunProgress(BaseModel):
 
 class CostReport(BaseModel):
     api_call_count: int = 0
+    logical_search_call_count: int = 0
     search_api_call_count: int = 0
+    reference_api_call_count: int = 0
+    retry_count: int = 0
+    error_count: int = 0
     llm_call_count: int = 0
     llm_prompt_tokens: int = 0
     llm_completion_tokens: int = 0
@@ -163,8 +168,11 @@ class CostReport(BaseModel):
     estimated_total_tokens: int = 0
     latency_seconds: float = 0.0
     cache_hit_count: int = 0
+    rate_limit_wait_seconds: float = 0.0
     search_rounds: int = 0
     judged_paper_count: int = 0
+    raw_candidate_count: int = 0
+    deduplicated_candidate_count: int = 0
 
 
 class SearchRunStatusResponse(BaseModel):
@@ -309,6 +317,7 @@ class RetrievalSourceStats(BaseModel):
     latency_seconds: float = 0.0
     cache_hit: bool = False
     error_message: str | None = None
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 
 
 class RetrievalDiagnostics(BaseModel):

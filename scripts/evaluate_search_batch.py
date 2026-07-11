@@ -344,12 +344,15 @@ def _case_efficiency(
     cost = cost if isinstance(cost, dict) else {}
     diagnostics = result.get("retrieval_diagnostics")
     diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
-    source_stats = diagnostics.get("source_stats")
-    source_stats = source_stats if isinstance(source_stats, list) else []
     return EvalCaseEfficiency(
         latency_seconds=_as_float(
             (row or {}).get("latency_seconds", cost.get("latency_seconds"))
         ),
+        api_call_count=_as_int(cost.get("api_call_count")),
+        search_api_call_count=_as_int(cost.get("search_api_call_count")),
+        reference_api_call_count=_as_int(cost.get("reference_api_call_count")),
+        retry_count=_as_int(cost.get("retry_count")),
+        error_count=_as_int(cost.get("error_count")),
         llm_call_count=_as_int(cost.get("llm_call_count")),
         llm_total_tokens=_as_int(cost.get("llm_total_tokens")),
         search_rounds=_as_int(cost.get("search_rounds")),
@@ -357,12 +360,14 @@ def _case_efficiency(
         deduplicated_count=_as_int(diagnostics.get("deduplicated_count")),
         returned_result_count=returned_result_count,
         cache_hit_count=_as_int(cost.get("cache_hit_count")),
-        source_call_count=0,
-        source_error_count=sum(
-            isinstance(item, dict) and bool(item.get("error_message"))
-            for item in source_stats
+        rate_limit_wait_seconds=_as_float(
+            cost.get("rate_limit_wait_seconds")
         ),
-        warnings=["source_call_count_unavailable:not_equal_to_http_requests"],
+        source_call_count=(
+            _as_int(cost.get("search_api_call_count"))
+            + _as_int(cost.get("reference_api_call_count"))
+        ),
+        source_error_count=_as_int(cost.get("error_count")),
     )
 
 

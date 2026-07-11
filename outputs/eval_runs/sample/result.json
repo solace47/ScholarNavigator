@@ -39,7 +39,7 @@
               "fixture": 0
             },
             "source_call_count": 0,
-            "source_error_count": 2,
+            "source_error_count": 0,
             "source_error_rate": 0.0,
             "warning_count": 2,
             "query_warning_rate": 1.0,
@@ -51,8 +51,7 @@
           ],
           "warnings": [
             "fixture simulated source warning",
-            "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-            "source_call_count_unavailable:not_equal_to_http_requests"
+            "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method"
           ],
           "source_stats": [
             {
@@ -61,7 +60,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -69,7 +76,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": "fixture simulated source warning",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -77,14 +92,27 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             }
           ],
           "raw_count": 2,
           "deduplicated_count": 1,
-          "latency_seconds": 0.007491042139008641,
+          "latency_seconds": 0.007496250094845891,
           "efficiency": {
-            "latency_seconds": 0.007491042139008641,
+            "latency_seconds": 0.007496250094845891,
+            "api_call_count": 0,
+            "search_api_call_count": 0,
+            "reference_api_call_count": 0,
+            "retry_count": 0,
+            "error_count": 0,
             "llm_call_count": 0,
             "llm_total_tokens": 0,
             "search_rounds": 1,
@@ -92,11 +120,10 @@
             "deduplicated_count": 1,
             "returned_result_count": 1,
             "cache_hit_count": 0,
+            "rate_limit_wait_seconds": 0.0,
             "source_call_count": 0,
-            "source_error_count": 2,
-            "warnings": [
-              "source_call_count_unavailable:not_equal_to_http_requests"
-            ]
+            "source_error_count": 0,
+            "warnings": []
           },
           "failed": false,
           "error_message": null
@@ -136,7 +163,7 @@
               "fixture": 0
             },
             "source_call_count": 0,
-            "source_error_count": 4,
+            "source_error_count": 0,
             "source_error_rate": 0.0,
             "warning_count": 4,
             "query_warning_rate": 1.0,
@@ -151,8 +178,7 @@
             "fixture simulated source warning",
             "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
             "fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature",
-            "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking",
-            "source_call_count_unavailable:not_equal_to_http_requests"
+            "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking"
           ],
           "source_stats": [
             {
@@ -161,7 +187,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -169,7 +203,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": "fixture simulated source warning",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -177,7 +219,15 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -185,7 +235,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -193,7 +251,15 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -201,14 +267,27 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             }
           ],
           "raw_count": 3,
           "deduplicated_count": 2,
-          "latency_seconds": 0.0019651250913739204,
+          "latency_seconds": 0.0023789170663803816,
           "efficiency": {
-            "latency_seconds": 0.0019651250913739204,
+            "latency_seconds": 0.0023789170663803816,
+            "api_call_count": 0,
+            "search_api_call_count": 0,
+            "reference_api_call_count": 0,
+            "retry_count": 0,
+            "error_count": 0,
             "llm_call_count": 0,
             "llm_total_tokens": 0,
             "search_rounds": 2,
@@ -216,11 +295,10 @@
             "deduplicated_count": 2,
             "returned_result_count": 2,
             "cache_hit_count": 0,
+            "rate_limit_wait_seconds": 0.0,
             "source_call_count": 0,
-            "source_error_count": 4,
-            "warnings": [
-              "source_call_count_unavailable:not_equal_to_http_requests"
-            ]
+            "source_error_count": 0,
+            "warnings": []
           },
           "failed": false,
           "error_message": null
@@ -261,7 +339,7 @@
               "refchain": 1
             },
             "source_call_count": 0,
-            "source_error_count": 2,
+            "source_error_count": 0,
             "source_error_rate": 0.0,
             "warning_count": 2,
             "query_warning_rate": 1.0,
@@ -274,8 +352,7 @@
           ],
           "warnings": [
             "fixture simulated source warning",
-            "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-            "source_call_count_unavailable:not_equal_to_http_requests"
+            "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method"
           ],
           "source_stats": [
             {
@@ -284,7 +361,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -292,7 +377,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": "fixture simulated source warning",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -300,22 +393,43 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "refchain",
               "query": "refchain",
               "returned_count": 1,
-              "latency_seconds": 4.154094494879246e-05,
+              "latency_seconds": 5.974993109703064e-05,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             }
           ],
           "raw_count": 3,
           "deduplicated_count": 2,
-          "latency_seconds": 0.001797208096832037,
+          "latency_seconds": 0.0018360409885644913,
           "efficiency": {
-            "latency_seconds": 0.001797208096832037,
+            "latency_seconds": 0.0018360409885644913,
+            "api_call_count": 0,
+            "search_api_call_count": 0,
+            "reference_api_call_count": 0,
+            "retry_count": 0,
+            "error_count": 0,
             "llm_call_count": 0,
             "llm_total_tokens": 0,
             "search_rounds": 1,
@@ -323,11 +437,10 @@
             "deduplicated_count": 2,
             "returned_result_count": 2,
             "cache_hit_count": 0,
+            "rate_limit_wait_seconds": 0.0,
             "source_call_count": 0,
-            "source_error_count": 2,
-            "warnings": [
-              "source_call_count_unavailable:not_equal_to_http_requests"
-            ]
+            "source_error_count": 0,
+            "warnings": []
           },
           "failed": false,
           "error_message": null
@@ -368,7 +481,7 @@
               "refchain": 2
             },
             "source_call_count": 0,
-            "source_error_count": 4,
+            "source_error_count": 0,
             "source_error_rate": 0.0,
             "warning_count": 4,
             "query_warning_rate": 1.0,
@@ -384,8 +497,7 @@
             "fixture simulated source warning",
             "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
             "fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature",
-            "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking",
-            "source_call_count_unavailable:not_equal_to_http_requests"
+            "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking"
           ],
           "source_stats": [
             {
@@ -394,7 +506,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -402,7 +522,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": "fixture simulated source warning",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -410,7 +538,15 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods scientific literature retrieval method",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture-openalex",
@@ -418,7 +554,15 @@
               "returned_count": 1,
               "latency_seconds": 0.01,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -426,7 +570,15 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:llm reranking retrieval LLM reranking methods literature",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "fixture",
@@ -434,22 +586,43 @@
               "returned_count": 0,
               "latency_seconds": 0.0,
               "error_message": "fixture_missing_retrieval:LLM reranking methods literature retrieval scientific LLM reranking",
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             },
             {
               "source": "refchain",
               "query": "refchain",
               "returned_count": 2,
-              "latency_seconds": 0.00010470813140273094,
+              "latency_seconds": 5.920790135860443e-05,
               "error_message": null,
-              "cache_hit": false
+              "cache_hit": false,
+              "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0
+              }
             }
           ],
           "raw_count": 5,
           "deduplicated_count": 3,
-          "latency_seconds": 0.0035516659263521433,
+          "latency_seconds": 0.003304708981886506,
           "efficiency": {
-            "latency_seconds": 0.0035516659263521433,
+            "latency_seconds": 0.003304708981886506,
+            "api_call_count": 0,
+            "search_api_call_count": 0,
+            "reference_api_call_count": 0,
+            "retry_count": 0,
+            "error_count": 0,
             "llm_call_count": 0,
             "llm_total_tokens": 0,
             "search_rounds": 2,
@@ -457,11 +630,10 @@
             "deduplicated_count": 3,
             "returned_result_count": 3,
             "cache_hit_count": 0,
+            "rate_limit_wait_seconds": 0.0,
             "source_call_count": 0,
-            "source_error_count": 4,
-            "warnings": [
-              "source_call_count_unavailable:not_equal_to_http_requests"
-            ]
+            "source_error_count": 0,
+            "warnings": []
           },
           "failed": false,
           "error_message": null
@@ -502,7 +674,7 @@
         "fixture": 0
       },
       "source_call_count": 0,
-      "source_error_count": 2,
+      "source_error_count": 0,
       "source_error_rate": 0.0,
       "warning_count": 2,
       "query_warning_rate": 1.0,
@@ -541,7 +713,7 @@
         "fixture": 0
       },
       "source_call_count": 0,
-      "source_error_count": 4,
+      "source_error_count": 0,
       "source_error_rate": 0.0,
       "warning_count": 4,
       "query_warning_rate": 1.0,
@@ -581,7 +753,7 @@
         "refchain": 1
       },
       "source_call_count": 0,
-      "source_error_count": 2,
+      "source_error_count": 0,
       "source_error_rate": 0.0,
       "warning_count": 2,
       "query_warning_rate": 1.0,
@@ -621,7 +793,7 @@
         "refchain": 2
       },
       "source_call_count": 0,
-      "source_error_count": 4,
+      "source_error_count": 0,
       "source_error_rate": 0.0,
       "warning_count": 4,
       "query_warning_rate": 1.0,
@@ -663,7 +835,7 @@
           "fixture": 0
         },
         "source_call_count": 0,
-        "source_error_count": 2,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 2,
         "query_warning_rate": 1.0,
@@ -702,7 +874,7 @@
           "fixture": 0
         },
         "source_call_count": 0,
-        "source_error_count": 2,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 2,
         "query_warning_rate": 1.0,
@@ -722,7 +894,16 @@
       },
       "efficiency": {
         "case_count": 1,
-        "average_latency_seconds": 0.007491042139008641,
+        "average_latency_seconds": 0.007496250094845891,
+        "avg_api_call_count": 0.0,
+        "avg_search_api_call_count": 0.0,
+        "avg_reference_api_call_count": 0.0,
+        "avg_retry_count": 0.0,
+        "avg_error_count": 0.0,
+        "avg_cache_hit_count": 0.0,
+        "avg_rate_limit_wait_seconds": 0.0,
+        "avg_llm_call_count": 0.0,
+        "avg_llm_total_tokens": 0.0,
         "total_llm_call_count": 0,
         "total_llm_total_tokens": 0,
         "average_search_rounds": 1.0,
@@ -731,10 +912,8 @@
         "total_returned_result_count": 1,
         "total_cache_hit_count": 0,
         "total_source_call_count": 0,
-        "total_source_error_count": 2,
-        "warnings": [
-          "source_call_count_unavailable:not_equal_to_http_requests"
-        ]
+        "total_source_error_count": 0,
+        "warnings": []
       }
     },
     "query_evolution_only": {
@@ -770,7 +949,7 @@
           "fixture": 0
         },
         "source_call_count": 0,
-        "source_error_count": 4,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 4,
         "query_warning_rate": 1.0,
@@ -809,7 +988,7 @@
           "fixture": 0
         },
         "source_call_count": 0,
-        "source_error_count": 4,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 4,
         "query_warning_rate": 1.0,
@@ -829,7 +1008,16 @@
       },
       "efficiency": {
         "case_count": 1,
-        "average_latency_seconds": 0.0019651250913739204,
+        "average_latency_seconds": 0.0023789170663803816,
+        "avg_api_call_count": 0.0,
+        "avg_search_api_call_count": 0.0,
+        "avg_reference_api_call_count": 0.0,
+        "avg_retry_count": 0.0,
+        "avg_error_count": 0.0,
+        "avg_cache_hit_count": 0.0,
+        "avg_rate_limit_wait_seconds": 0.0,
+        "avg_llm_call_count": 0.0,
+        "avg_llm_total_tokens": 0.0,
         "total_llm_call_count": 0,
         "total_llm_total_tokens": 0,
         "average_search_rounds": 2.0,
@@ -838,10 +1026,8 @@
         "total_returned_result_count": 2,
         "total_cache_hit_count": 0,
         "total_source_call_count": 0,
-        "total_source_error_count": 4,
-        "warnings": [
-          "source_call_count_unavailable:not_equal_to_http_requests"
-        ]
+        "total_source_error_count": 0,
+        "warnings": []
       }
     },
     "refchain_only": {
@@ -878,7 +1064,7 @@
           "refchain": 1
         },
         "source_call_count": 0,
-        "source_error_count": 2,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 2,
         "query_warning_rate": 1.0,
@@ -918,7 +1104,7 @@
           "refchain": 1
         },
         "source_call_count": 0,
-        "source_error_count": 2,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 2,
         "query_warning_rate": 1.0,
@@ -938,7 +1124,16 @@
       },
       "efficiency": {
         "case_count": 1,
-        "average_latency_seconds": 0.001797208096832037,
+        "average_latency_seconds": 0.0018360409885644913,
+        "avg_api_call_count": 0.0,
+        "avg_search_api_call_count": 0.0,
+        "avg_reference_api_call_count": 0.0,
+        "avg_retry_count": 0.0,
+        "avg_error_count": 0.0,
+        "avg_cache_hit_count": 0.0,
+        "avg_rate_limit_wait_seconds": 0.0,
+        "avg_llm_call_count": 0.0,
+        "avg_llm_total_tokens": 0.0,
         "total_llm_call_count": 0,
         "total_llm_total_tokens": 0,
         "average_search_rounds": 1.0,
@@ -947,10 +1142,8 @@
         "total_returned_result_count": 2,
         "total_cache_hit_count": 0,
         "total_source_call_count": 0,
-        "total_source_error_count": 2,
-        "warnings": [
-          "source_call_count_unavailable:not_equal_to_http_requests"
-        ]
+        "total_source_error_count": 0,
+        "warnings": []
       }
     },
     "query_evolution_plus_refchain": {
@@ -987,7 +1180,7 @@
           "refchain": 2
         },
         "source_call_count": 0,
-        "source_error_count": 4,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 4,
         "query_warning_rate": 1.0,
@@ -1027,7 +1220,7 @@
           "refchain": 2
         },
         "source_call_count": 0,
-        "source_error_count": 4,
+        "source_error_count": 0,
         "source_error_rate": 0.0,
         "warning_count": 4,
         "query_warning_rate": 1.0,
@@ -1047,7 +1240,16 @@
       },
       "efficiency": {
         "case_count": 1,
-        "average_latency_seconds": 0.0035516659263521433,
+        "average_latency_seconds": 0.003304708981886506,
+        "avg_api_call_count": 0.0,
+        "avg_search_api_call_count": 0.0,
+        "avg_reference_api_call_count": 0.0,
+        "avg_retry_count": 0.0,
+        "avg_error_count": 0.0,
+        "avg_cache_hit_count": 0.0,
+        "avg_rate_limit_wait_seconds": 0.0,
+        "avg_llm_call_count": 0.0,
+        "avg_llm_total_tokens": 0.0,
         "total_llm_call_count": 0,
         "total_llm_total_tokens": 0,
         "average_search_rounds": 2.0,
@@ -1056,10 +1258,8 @@
         "total_returned_result_count": 3,
         "total_cache_hit_count": 0,
         "total_source_call_count": 0,
-        "total_source_error_count": 4,
-        "warnings": [
-          "source_call_count_unavailable:not_equal_to_http_requests"
-        ]
+        "total_source_error_count": 0,
+        "warnings": []
       }
     }
   }

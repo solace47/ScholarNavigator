@@ -14,6 +14,7 @@ from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.core.evaluation_schemas import EvalGoldPaper, EvalQuery
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.evaluation.offline_evaluator import evaluate_search_service_offline
 from scholar_agent.evaluation import offline_evaluator
 from scripts import evaluate_search_batch
@@ -82,6 +83,11 @@ def make_output(
                 returned_count=len(papers),
                 latency_seconds=0.01,
                 error_message=error_message,
+                diagnostics=ConnectorDiagnostics(
+                    request_count=1,
+                    error_count=int(error_message is not None),
+                    latency_seconds=0.01,
+                ),
             )
         ],
         warnings=warnings,
@@ -214,9 +220,9 @@ def test_connector_warning_and_error_enter_error_metrics() -> None:
 
     assert "fixture_openalex_warning" in baseline.warnings
     assert baseline.metrics.source_error_count > 0
-    assert baseline.metrics.source_call_count == 0
-    assert baseline.metrics.source_error_rate == 0
-    assert "source_call_count_unavailable:not_equal_to_http_requests" in baseline.warnings
+    assert baseline.metrics.source_call_count > 0
+    assert baseline.metrics.source_error_rate > 0
+    assert not any("source_call_count_unavailable" in item for item in baseline.warnings)
     assert baseline.metrics.warning_count == 1
     assert baseline.metrics.query_warning_rate == 1.0
 

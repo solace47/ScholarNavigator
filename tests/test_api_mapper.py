@@ -18,6 +18,7 @@ from scholar_agent.core.paper_schemas import (  # noqa: E402
     PaperIdentifiers,
     PaperUrls,
 )
+from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     BudgetStatus,
     EvolvedSubquery,
@@ -62,6 +63,8 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.partially_relevant_papers == []
     assert response.synthesis is None
     assert response.cost_report.llm_call_count == 0
+    assert response.cost_report.raw_candidate_count == 0
+    assert response.cost_report.deduplicated_candidate_count == 0
     assert response.cost_report.llm_prompt_tokens == 0
     assert response.cost_report.llm_completion_tokens == 0
     assert response.cost_report.llm_total_tokens == 0
@@ -167,12 +170,19 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
                 returned_count=0,
                 latency_seconds=0.2,
                 error_message="HTTP 503",
+                diagnostics=ConnectorDiagnostics(
+                    request_count=3,
+                    retry_count=2,
+                    error_count=1,
+                    latency_seconds=0.2,
+                ),
             ),
             SourceStats(
                 source="arxiv",
                 returned_count=1,
                 latency_seconds=0.1,
                 cache_hit=True,
+                diagnostics=ConnectorDiagnostics(cache_hit_count=1),
             ),
         ],
         retrieval_output_count=2,
@@ -188,12 +198,19 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
     assert "stage_latency:query_understanding:0.012346" in response.missing_evidence
     assert "stage_latency:retrieval:0.200000" in response.missing_evidence
     assert "source_error:openalex:HTTP 503" in response.missing_evidence
-    assert response.cost_report.search_api_call_count == 2
-    assert response.cost_report.api_call_count == 2
+    assert response.cost_report.search_api_call_count == 3
+    assert response.cost_report.logical_search_call_count == 2
+    assert response.cost_report.reference_api_call_count == 0
+    assert response.cost_report.retry_count == 2
+    assert response.cost_report.error_count == 1
+    assert response.cost_report.api_call_count == 3
+    assert response.cost_report.api_call_count != len(output.source_stats)
     assert response.cost_report.search_rounds == 1
     assert response.cost_report.judged_paper_count == 1
     assert response.cost_report.cache_hit_count == 1
     assert response.cost_report.llm_call_count == 0
+    assert response.cost_report.raw_candidate_count == 1
+    assert response.cost_report.deduplicated_candidate_count == 1
     assert response.retrieval_diagnostics.raw_count == 1
     assert response.retrieval_diagnostics.deduplicated_count == 1
     assert [
@@ -205,6 +222,14 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
             "latency_seconds": 0.2,
             "cache_hit": False,
             "error_message": "HTTP 503",
+            "diagnostics": {
+                "request_count": 3,
+                "retry_count": 2,
+                "error_count": 1,
+                "cache_hit_count": 0,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.2,
+            },
         },
         {
             "source": "arxiv",
@@ -212,6 +237,14 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
             "latency_seconds": 0.1,
             "cache_hit": True,
             "error_message": None,
+            "diagnostics": {
+                "request_count": 0,
+                "retry_count": 0,
+                "error_count": 0,
+                "cache_hit_count": 1,
+                "rate_limit_wait_seconds": 0.0,
+                "latency_seconds": 0.0,
+            },
         },
     ]
 
@@ -234,6 +267,7 @@ def test_llm_call_count_maps_to_cost_report() -> None:
     assert response.cost_report.estimated_input_tokens == 120
     assert response.cost_report.estimated_output_tokens == 45
     assert response.cost_report.estimated_total_tokens == 165
+    assert response.cost_report.api_call_count == 3
 
 
 def test_method_clusters_group_ranked_papers_by_method_keywords() -> None:

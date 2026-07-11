@@ -110,6 +110,9 @@ def test_search_pubmed_esearch_and_efetch_parse_metadata(
     assert paper.identifiers.pubmed_id == "12345"
     assert paper.urls.landing_page == "https://pubmed.ncbi.nlm.nih.gov/12345/"
     assert paper.sources == ["pubmed"]
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 0
+    assert result.diagnostics.error_count == 0
 
     esearch_query = parse_qs(urlparse(captured_urls[0]).query)
     efetch_query = parse_qs(urlparse(captured_urls[1]).query)
@@ -151,6 +154,8 @@ def test_search_pubmed_empty_result_skips_efetch(monkeypatch: pytest.MonkeyPatch
     assert result.papers == []
     assert len(calls) == 1
     assert "esearch.fcgi" in urlparse(calls[0]).path
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.error_count == 0
 
 
 def test_search_pubmed_http_error_returns_diagnostic(
@@ -173,6 +178,37 @@ def test_search_pubmed_http_error_returns_diagnostic(
     assert result.error_message is not None
     assert "PubMed esearch failed: HTTP Error 503" in result.error_message
     assert result.warnings == [result.error_message]
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.error_count == 1
+
+
+def test_search_pubmed_efetch_failure_keeps_two_request_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):  # noqa: ANN001
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return MockResponse({"esearchresult": {"idlist": ["12345"]}})
+        raise HTTPError(
+            url=request.full_url,
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.pubmed.urlopen", fake_urlopen)
+
+    result = search_pubmed_detailed("biomedical retrieval")
+
+    assert result.papers == []
+    assert "PubMed efetch failed" in str(result.error_message)
+    assert result.diagnostics.request_count == 2
+    assert result.diagnostics.retry_count == 0
+    assert result.diagnostics.error_count == 1
 
 
 def test_search_pubmed_throttles_consecutive_requests(
@@ -198,3 +234,4 @@ def test_search_pubmed_throttles_consecutive_requests(
 
     assert result.error_message is None
     assert slept == [pytest.approx(0.24)]
+    assert result.diagnostics.rate_limit_wait_seconds == pytest.approx(0.24)
