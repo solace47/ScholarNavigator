@@ -38,6 +38,7 @@ class EvalMetricSet(BaseModel):
 
     recall_at_k: dict[int, float] = Field(default_factory=dict)
     precision_at_k: dict[int, float] = Field(default_factory=dict)
+    f1_at_k: dict[int, float] = Field(default_factory=dict)
     ndcg_at_k: dict[int, float] = Field(default_factory=dict)
     mrr: float = Field(default=0.0, ge=0.0)
     raw_count: int = Field(default=0, ge=0)
@@ -55,7 +56,64 @@ class EvalMetricSet(BaseModel):
     failed_case_rate: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
-EvalGroupName = Literal["baseline", "query_evolution", "refchain"]
+EvalGroupName = Literal[
+    "baseline",
+    "query_evolution_only",
+    "refchain_only",
+    "query_evolution_plus_refchain",
+]
+
+
+class EvalCaseEfficiency(BaseModel):
+    """Efficiency counters observed for one evaluated search."""
+
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+    llm_call_count: int = Field(default=0, ge=0)
+    llm_total_tokens: int = Field(default=0, ge=0)
+    search_rounds: int = Field(default=0, ge=0)
+    raw_count: int = Field(default=0, ge=0)
+    deduplicated_count: int = Field(default=0, ge=0)
+    returned_result_count: int = Field(default=0, ge=0)
+    cache_hit_count: int = Field(default=0, ge=0)
+    source_call_count: int = Field(default=0, ge=0)
+    source_error_count: int = Field(default=0, ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class EvalAggregateEfficiency(BaseModel):
+    """Aggregate efficiency totals and per-case averages."""
+
+    case_count: int = Field(default=0, ge=0)
+    average_latency_seconds: float = Field(default=0.0, ge=0.0)
+    total_llm_call_count: int = Field(default=0, ge=0)
+    total_llm_total_tokens: int = Field(default=0, ge=0)
+    average_search_rounds: float = Field(default=0.0, ge=0.0)
+    total_raw_count: int = Field(default=0, ge=0)
+    total_deduplicated_count: int = Field(default=0, ge=0)
+    total_returned_result_count: int = Field(default=0, ge=0)
+    total_cache_hit_count: int = Field(default=0, ge=0)
+    total_source_call_count: int = Field(default=0, ge=0)
+    total_source_error_count: int = Field(default=0, ge=0)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class EvalCaseStatistics(BaseModel):
+    total_case_count: int = Field(default=0, ge=0)
+    gold_case_count: int = Field(default=0, ge=0)
+    evaluated_success_count: int = Field(default=0, ge=0)
+    failed_case_count: int = Field(default=0, ge=0)
+    missing_result_count: int = Field(default=0, ge=0)
+    missing_gold_count: int = Field(default=0, ge=0)
+    success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    failed_case_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    missing_result_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class EvalAggregateReport(BaseModel):
+    success_only_metrics: EvalMetricSet = Field(default_factory=EvalMetricSet)
+    end_to_end_metrics: EvalMetricSet = Field(default_factory=EvalMetricSet)
+    case_statistics: EvalCaseStatistics = Field(default_factory=EvalCaseStatistics)
+    efficiency: EvalAggregateEfficiency = Field(default_factory=EvalAggregateEfficiency)
 
 
 class EvalGroupResult(BaseModel):
@@ -70,6 +128,7 @@ class EvalGroupResult(BaseModel):
     raw_count: int = Field(default=0, ge=0)
     deduplicated_count: int = Field(default=0, ge=0)
     latency_seconds: float = Field(default=0.0, ge=0.0)
+    efficiency: EvalCaseEfficiency = Field(default_factory=EvalCaseEfficiency)
     failed: bool = False
     error_message: str | None = None
 
@@ -87,3 +146,6 @@ class EvalSuiteResult(BaseModel):
 
     query_results: list[EvalQueryResult] = Field(default_factory=list)
     aggregate_metrics: dict[EvalGroupName, EvalMetricSet] = Field(default_factory=dict)
+    aggregate_reports: dict[EvalGroupName, EvalAggregateReport] = Field(
+        default_factory=dict
+    )

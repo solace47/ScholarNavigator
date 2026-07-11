@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Evaluate run_search_batch.py JSONL output against gold/qrels JSONL."""
+"""Evaluate batch JSONL using the shared scholar_agent evaluation policy."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import math
-import re
 import sys
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -18,39 +15,63 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from scholar_agent.core.evaluation_schemas import EvalGoldPaper  # noqa: E402
+from scholar_agent.core.evaluation_schemas import (  # noqa: E402
+    EvalAggregateReport,
+    EvalCaseEfficiency,
+    EvalCaseStatistics,
+    EvalGoldPaper,
+    EvalMetricSet,
+)
+from scholar_agent.evaluation.metrics import (  # noqa: E402
+    aggregate_efficiency,
+    average_metric_sets,
+    evaluable_gold_count,
+    evaluate_ranking,
+    matched_paper_ids,
+    zero_metric_set,
+)
+from scholar_agent.evaluation.selection import (  # noqa: E402
+    DEFAULT_RESULT_POLICY,
+    ResultPolicy,
+    select_ranked_results,
+)
 
-DEFAULT_K_VALUES = [5, 10]
+
+DEFAULT_K_VALUES = [5, 10, 20]
+_FAILED_STATUSES = {"failed", "timeout", "cancelled"}
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate SearchService batch JSONL results against gold qrels."
     )
-    parser.add_argument(
-        "--batch-results",
-        required=True,
-        help="JSONL output produced by scripts/run_search_batch.py.",
-    )
-    parser.add_argument("--gold", required=True, help="Gold/qrels JSONL file.")
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="JSON output path. Defaults to stdout.",
-    )
-    parser.add_argument(
-        "--k",
-        action="append",
-        type=int,
-        default=None,
-        help="K value to evaluate. Repeatable. Defaults to 5 and 10.",
-    )
+    parser.add_argument("--batch-results", required=True)
+    parser.add_argument("--gold", required=True)
+    parser.add_argument("--output", default=None)
+    parser.add_argument("--k", action="append", type=int, default=None)
     parser.add_argument(
         "--include-partial",
         action="store_true",
-        help="Include partially_relevant_papers after highly_relevant_papers.",
+        help="Legacy alias for --result-policy highly_and_partial.",
+    )
+    parser.add_argument(
+        "--result-policy",
+        choices=["highly_only", "highly_and_partial"],
+        default=None,
     )
     args = parser.parse_args(argv)
+
+    if args.include_partial and args.result_policy == "highly_only":
+        print(
+            "--include-partial conflicts with --result-policy highly_only",
+            file=sys.stderr,
+        )
+        return 1
+    result_policy: ResultPolicy = (
+        "highly_and_partial"
+        if args.include_partial
+        else args.result_policy or DEFAULT_RESULT_POLICY
+    )
 
     batch_path = Path(args.batch_results)
     gold_path = Path(args.gold)
@@ -62,15 +83,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{label} path is not a file: {path}", file=sys.stderr)
             return 1
 
-    k_values = _normalize_k_values(args.k or DEFAULT_K_VALUES)
     try:
-        batch_rows = load_jsonl_objects(batch_path, label="batch results")
-        gold_rows = load_gold_rows(gold_path)
+        k_values = _normalize_k_values(args.k or DEFAULT_K_VALUES)
         result = evaluate_batch_results(
-            batch_rows,
-            gold_rows,
+            load_jsonl_objects(batch_path, label="batch results"),
+            load_gold_rows(gold_path),
             k_values=k_values,
-            include_partial=args.include_partial,
+            result_policy=result_policy,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
@@ -112,10 +131,14 @@ def load_jsonl_objects(path: Path, *, label: str) -> list[dict[str, Any]]:
 def load_gold_rows(path: Path) -> list[dict[str, Any]]:
     rows = load_jsonl_objects(path, label="gold")
     normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for index, row in enumerate(rows, start=1):
         case_id = str(row.get("case_id") or "").strip()
         if not case_id:
             raise ValueError(f"invalid gold JSONL at line {index}: missing case_id")
+        if case_id in seen:
+            raise ValueError(f"invalid gold JSONL at line {index}: duplicate case_id")
+        seen.add(case_id)
         raw_papers = row.get("relevant_papers", [])
         if raw_papers is None:
             raw_papers = []
@@ -128,7 +151,7 @@ def load_gold_rows(path: Path) -> list[dict[str, Any]]:
                 EvalGoldPaper.model_validate(paper).model_dump(mode="json")
                 for paper in raw_papers
             ]
-        except Exception as exc:  # noqa: BLE001 - surface malformed gold row
+        except Exception as exc:  # noqa: BLE001 - report malformed gold
             raise ValueError(f"invalid gold JSONL at line {index}: {exc}") from exc
         normalized.append({"case_id": case_id, "relevant_papers": gold_papers})
     return normalized
@@ -139,444 +162,218 @@ def evaluate_batch_results(
     gold_rows: list[dict[str, Any]],
     *,
     k_values: list[int] | None = None,
-    include_partial: bool = False,
+    result_policy: ResultPolicy = DEFAULT_RESULT_POLICY,
+    include_partial: bool | None = None,
 ) -> dict[str, Any]:
-    k_values = _normalize_k_values(k_values or DEFAULT_K_VALUES)
-    batch_by_case = {
-        str(row.get("case_id") or "").strip(): row
-        for row in batch_rows
-        if str(row.get("case_id") or "").strip()
+    if include_partial is not None:
+        legacy_policy: ResultPolicy = (
+            "highly_and_partial" if include_partial else "highly_only"
+        )
+        if include_partial and result_policy == "highly_only":
+            raise ValueError("include_partial conflicts with highly_only")
+        result_policy = legacy_policy
+    values = _normalize_k_values(k_values or DEFAULT_K_VALUES)
+    batch_by_case = _index_batch_rows(batch_rows)
+    all_gold_by_case = {
+        str(row["case_id"]): list(row.get("relevant_papers") or [])
+        for row in gold_rows
     }
     gold_by_case = {
-        str(row.get("case_id") or "").strip(): list(row.get("relevant_papers") or [])
-        for row in gold_rows
-        if str(row.get("case_id") or "").strip()
+        case_id: papers
+        for case_id, papers in all_gold_by_case.items()
+        if evaluable_gold_count(papers) > 0
     }
 
-    failed_cases: list[dict[str, Any]] = []
-    missing_gold_cases: list[str] = []
+    missing_gold_cases = sorted(set(batch_by_case) - set(gold_by_case))
     missing_result_cases: list[str] = []
-    per_case: list[dict[str, Any]] = []
-    evaluated_metrics: list[dict[str, Any]] = []
-
-    for row in batch_rows:
-        case_id = str(row.get("case_id") or "").strip()
-        if not case_id:
-            continue
-        status = str(row.get("status") or "")
-        if status == "failed":
-            failed_cases.append(
-                {
-                    "case_id": case_id,
-                    "query": str(row.get("query") or ""),
-                    "error": str(row.get("error") or ""),
-                }
-            )
-        if case_id not in gold_by_case:
-            missing_gold_cases.append(case_id)
-            continue
-        result = row.get("result")
-        if status != "succeeded" or not isinstance(result, dict):
-            continue
-
-        ranked = extract_ranked_papers(result, include_partial=include_partial)
-        gold = gold_by_case[case_id]
-        metrics = _case_metrics(ranked, gold, k_values)
-        case_payload = {
+    failed_cases = [
+        {
             "case_id": case_id,
             "query": str(row.get("query") or ""),
-            "ranked_count": len(ranked),
-            "gold_count": _positive_gold_count(gold),
-            "matched_ids": _matched_ids(ranked, gold),
-            "metrics": metrics,
+            "status": str(row.get("status") or "").casefold(),
+            "error": str(row.get("error") or ""),
         }
-        per_case.append(case_payload)
-        evaluated_metrics.append(metrics)
+        for case_id, row in batch_by_case.items()
+        if str(row.get("status") or "").casefold() in _FAILED_STATUSES
+    ]
+    per_case: list[dict[str, Any]] = []
+    success_metrics: list[EvalMetricSet] = []
+    end_to_end_metrics: list[EvalMetricSet] = []
+    efficiencies: list[EvalCaseEfficiency] = []
 
-    for case_id in gold_by_case:
-        if case_id not in batch_by_case:
+    for case_id, gold in gold_by_case.items():
+        row = batch_by_case.get(case_id)
+        status = str((row or {}).get("status") or "missing").casefold()
+        result = (row or {}).get("result")
+        valid_result = status == "succeeded" and _is_valid_result(result)
+        if status not in _FAILED_STATUSES and not valid_result:
             missing_result_cases.append(case_id)
 
-    aggregate = _aggregate_metrics(evaluated_metrics, k_values)
+        if valid_result:
+            ranked = select_ranked_results(result, policy=result_policy)
+            metrics = evaluate_ranking(ranked, gold, values)
+            success_metrics.append(metrics)
+            end_to_end_metrics.append(metrics)
+            matched_ids = matched_paper_ids(ranked, gold)
+        else:
+            ranked = []
+            metrics = zero_metric_set(values)
+            end_to_end_metrics.append(metrics)
+            matched_ids = []
+
+        efficiency = _case_efficiency(row, result if valid_result else None, len(ranked))
+        efficiencies.append(efficiency)
+        per_case.append(
+            {
+                "case_id": case_id,
+                "query": str((row or {}).get("query") or ""),
+                "status": status,
+                "ranked_count": len(ranked),
+                "gold_count": evaluable_gold_count(gold),
+                "matched_ids": matched_ids,
+                "metrics": _metric_payload(metrics),
+                "efficiency": efficiency.model_dump(mode="json"),
+            }
+        )
+
+    total_case_count = len(set(batch_by_case).union(gold_by_case))
+    failed_count = len(failed_cases)
+    success_count = len(success_metrics)
+    statistics = EvalCaseStatistics(
+        total_case_count=total_case_count,
+        gold_case_count=len(gold_by_case),
+        evaluated_success_count=success_count,
+        failed_case_count=failed_count,
+        missing_result_count=len(missing_result_cases),
+        missing_gold_count=len(missing_gold_cases),
+        success_rate=success_count / total_case_count if total_case_count else 0.0,
+        failed_case_rate=failed_count / total_case_count if total_case_count else 0.0,
+        missing_result_rate=(
+            len(missing_result_cases) / total_case_count if total_case_count else 0.0
+        ),
+    )
+    success_aggregate = (
+        average_metric_sets(success_metrics)
+        if success_metrics
+        else zero_metric_set(values)
+    )
+    end_to_end_aggregate = (
+        average_metric_sets(end_to_end_metrics)
+        if end_to_end_metrics
+        else zero_metric_set(values)
+    )
+    efficiency = aggregate_efficiency(efficiencies)
+    aggregate_report = EvalAggregateReport(
+        success_only_metrics=success_aggregate,
+        end_to_end_metrics=end_to_end_aggregate,
+        case_statistics=statistics,
+        efficiency=efficiency,
+    )
     return {
         "config": {
-            "k_values": k_values,
-            "include_partial": include_partial,
-            "failed_cases_policy": "excluded_from_metric_averages",
+            "k_values": values,
+            "result_policy": result_policy,
+            "include_partial": result_policy == "highly_and_partial",
+            "failed_cases_policy": "zero_in_end_to_end",
         },
-        "aggregate": aggregate,
+        "aggregate": _metric_payload(success_aggregate),
+        "success_only_metrics": _metric_payload(success_aggregate),
+        "end_to_end_metrics": _metric_payload(end_to_end_aggregate),
+        "case_statistics": statistics.model_dump(mode="json"),
+        "efficiency": efficiency.model_dump(mode="json"),
+        "aggregate_report": aggregate_report.model_dump(mode="json"),
         "per_case": per_case,
         "failed_cases": failed_cases,
         "missing_gold_cases": missing_gold_cases,
         "missing_result_cases": missing_result_cases,
         "case_count": len(batch_rows),
-        "evaluated_case_count": len(per_case),
+        "evaluated_case_count": success_count,
     }
 
 
 def extract_ranked_papers(
     result: dict[str, Any],
     *,
-    include_partial: bool = False,
+    result_policy: ResultPolicy = DEFAULT_RESULT_POLICY,
+    include_partial: bool | None = None,
 ) -> list[dict[str, Any]]:
-    ranked: list[dict[str, Any]] = []
-    high = result.get("highly_relevant_papers")
-    if isinstance(high, list):
-        ranked.extend(item for item in high if isinstance(item, dict))
-    if include_partial:
-        partial = result.get("partially_relevant_papers")
-        if isinstance(partial, list):
-            ranked.extend(item for item in partial if isinstance(item, dict))
-    return ranked
+    if include_partial is not None:
+        result_policy = "highly_and_partial" if include_partial else "highly_only"
+    return list(select_ranked_results(result, policy=result_policy))
 
 
-def _case_metrics(
-    ranked: list[dict[str, Any]],
-    gold: list[dict[str, Any]],
-    k_values: list[int],
-) -> dict[str, Any]:
-    gold_records = _gold_match_records(gold)
-    return {
-        "recall_at_k": {
-            str(k): _recall_at_k(ranked, gold_records, k) for k in k_values
-        },
-        "precision_at_k": {
-            str(k): _precision_at_k(ranked, gold_records, k) for k in k_values
-        },
-        "mrr": _mrr(ranked, gold_records),
-        "ndcg_at_k": {str(k): _ndcg_at_k(ranked, gold_records, k) for k in k_values},
-    }
+def _index_batch_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for index, row in enumerate(rows, start=1):
+        case_id = str(row.get("case_id") or "").strip()
+        if not case_id:
+            raise ValueError(f"invalid batch results at row {index}: missing case_id")
+        if case_id in indexed:
+            raise ValueError(f"invalid batch results at row {index}: duplicate case_id")
+        indexed[case_id] = row
+    return indexed
 
 
-def _aggregate_metrics(
-    case_metrics: list[dict[str, Any]],
-    k_values: list[int],
-) -> dict[str, Any]:
-    if not case_metrics:
-        return {
-            "recall_at_k": {str(k): 0.0 for k in k_values},
-            "precision_at_k": {str(k): 0.0 for k in k_values},
-            "mrr": 0.0,
-            "ndcg_at_k": {str(k): 0.0 for k in k_values},
-        }
-
-    count = len(case_metrics)
-    return {
-        "recall_at_k": {
-            str(k): sum(item["recall_at_k"][str(k)] for item in case_metrics) / count
-            for k in k_values
-        },
-        "precision_at_k": {
-            str(k): sum(item["precision_at_k"][str(k)] for item in case_metrics)
-            / count
-            for k in k_values
-        },
-        "mrr": sum(item["mrr"] for item in case_metrics) / count,
-        "ndcg_at_k": {
-            str(k): sum(item["ndcg_at_k"][str(k)] for item in case_metrics) / count
-            for k in k_values
-        },
-    }
+def _is_valid_result(result: Any) -> bool:
+    if not isinstance(result, dict):
+        return False
+    for key in ("highly_relevant_papers", "partially_relevant_papers"):
+        candidates = result.get(key)
+        if not isinstance(candidates, list):
+            return False
+        for candidate in candidates:
+            if not isinstance(candidate, dict) or not isinstance(
+                candidate.get("paper"),
+                dict,
+            ):
+                return False
+    return True
 
 
-def _matched_ids(
-    ranked: list[dict[str, Any]],
-    gold: list[dict[str, Any]],
-) -> list[str]:
-    gold_records = _gold_match_records(gold)
-    matched: list[str] = []
-    seen_gold_indexes: set[int] = set()
-    for paper in ranked:
-        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
-        if match is None:
-            continue
-        gold_index, match_key = match
-        matched.append(match_key)
-        seen_gold_indexes.add(gold_index)
-    return matched
-
-
-def _positive_gold_count(gold: list[dict[str, Any]]) -> int:
-    return sum(1 for record in _gold_match_records(gold) if record["grade"] > 0)
-
-
-def _recall_at_k(
-    ranked: list[dict[str, Any]],
-    gold_records: list[dict[str, Any]],
-    k: int,
-) -> float:
-    if k <= 0:
-        return 0.0
-    relevant_count = sum(1 for record in gold_records if record["grade"] > 0)
-    if relevant_count == 0:
-        return 0.0
-    matched_indexes = _matched_gold_indexes(ranked[:k], gold_records)
-    return len(matched_indexes) / relevant_count
-
-
-def _precision_at_k(
-    ranked: list[dict[str, Any]],
-    gold_records: list[dict[str, Any]],
-    k: int,
-) -> float:
-    if k <= 0 or not ranked:
-        return 0.0
-    if not any(record["grade"] > 0 for record in gold_records):
-        return 0.0
-    matched_indexes = _matched_gold_indexes(ranked[:k], gold_records)
-    return len(matched_indexes) / k
-
-
-def _mrr(ranked: list[dict[str, Any]], gold_records: list[dict[str, Any]]) -> float:
-    if not any(record["grade"] > 0 for record in gold_records):
-        return 0.0
-    seen_gold_indexes: set[int] = set()
-    for rank, paper in enumerate(ranked, start=1):
-        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
-        if match is not None:
-            return 1.0 / rank
-    return 0.0
-
-
-def _ndcg_at_k(
-    ranked: list[dict[str, Any]],
-    gold_records: list[dict[str, Any]],
-    k: int,
-) -> float:
-    if k <= 0:
-        return 0.0
-    positive_grades = [record["grade"] for record in gold_records if record["grade"] > 0]
-    if not positive_grades:
-        return 0.0
-
-    seen_gold_indexes: set[int] = set()
-    gains: list[float] = []
-    for paper in ranked[:k]:
-        match = _first_matching_gold(paper, gold_records, seen_gold_indexes)
-        if match is None:
-            gains.append(0.0)
-            continue
-        gold_index, _ = match
-        gains.append(float(gold_records[gold_index]["grade"]))
-        seen_gold_indexes.add(gold_index)
-
-    dcg = _dcg(gains)
-    idcg = _dcg(sorted(positive_grades, reverse=True)[:k])
-    return dcg / idcg if idcg > 0 else 0.0
-
-
-def _matched_gold_indexes(
-    ranked: list[dict[str, Any]],
-    gold_records: list[dict[str, Any]],
-) -> set[int]:
-    matched: set[int] = set()
-    for paper in ranked:
-        match = _first_matching_gold(paper, gold_records, matched)
-        if match is None:
-            continue
-        gold_index, _ = match
-        matched.add(gold_index)
-    return matched
-
-
-def _first_matching_gold(
-    predicted_paper: dict[str, Any],
-    gold_records: list[dict[str, Any]],
-    seen_gold_indexes: set[int],
-) -> tuple[int, str] | None:
-    predicted_ids = _paper_identifier_set(predicted_paper)
-    predicted_title_key = _title_year_key(predicted_paper)
-    for index, record in enumerate(gold_records):
-        if index in seen_gold_indexes or record["grade"] <= 0:
-            continue
-        match_key = _match_key(
-            predicted_ids,
-            predicted_title_key,
-            record["identifiers"],
-            record["title_key"],
+def _case_efficiency(
+    row: dict[str, Any] | None,
+    result: dict[str, Any] | None,
+    returned_result_count: int,
+) -> EvalCaseEfficiency:
+    if result is None:
+        return EvalCaseEfficiency(
+            latency_seconds=_as_float((row or {}).get("latency_seconds")),
+            warnings=["efficiency_unavailable:result_missing"],
         )
-        if match_key is not None:
-            return index, match_key
-    return None
-
-
-def _match_key(
-    predicted_ids: set[str],
-    predicted_title_key: str | None,
-    gold_ids: set[str],
-    gold_title_key: str | None,
-) -> str | None:
-    if predicted_ids or gold_ids:
-        shared = predicted_ids.intersection(gold_ids)
-        return _preferred_identifier(shared) if shared else None
-    if predicted_title_key and predicted_title_key == gold_title_key:
-        return predicted_title_key
-    return None
-
-
-def _gold_match_records(gold: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    for paper in gold:
-        identifiers = _paper_identifier_set(paper)
-        title_key = None if identifiers else _title_year_key(paper)
-        if not identifiers and title_key is None:
-            continue
-        records.append(
-            {
-                "identifiers": identifiers,
-                "title_key": title_key,
-                "grade": _relevance_grade(paper),
-            }
-        )
-    return records
-
-
-def _paper_identifier_set(paper: Any) -> set[str]:
-    identifiers: set[str] = set()
-
-    doi_value = _extract_identifier(paper, "doi")
-    if doi_value:
-        normalized_doi = _normalize_doi(doi_value)
-        if normalized_doi:
-            identifiers.add(f"doi:{normalized_doi}")
-            arxiv_id = _arxiv_id_from_doi(normalized_doi)
-            if arxiv_id:
-                identifiers.add(f"arxiv:{arxiv_id}")
-
-    arxiv_value = _extract_identifier(paper, "arxiv_id")
-    if arxiv_value:
-        identifiers.add(f"arxiv:{_normalize_arxiv_id(arxiv_value)}")
-
-    semantic_scholar_value = (
-        _extract_identifier(paper, "semantic_scholar_id")
-        or _extract_identifier(paper, "s2_id")
-        or _extract_identifier(paper, "corpus_id")
-        or _extract_identifier(paper, "paper_id")
+    cost = result.get("cost_report")
+    cost = cost if isinstance(cost, dict) else {}
+    diagnostics = result.get("retrieval_diagnostics")
+    diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
+    source_stats = diagnostics.get("source_stats")
+    source_stats = source_stats if isinstance(source_stats, list) else []
+    return EvalCaseEfficiency(
+        latency_seconds=_as_float(
+            (row or {}).get("latency_seconds", cost.get("latency_seconds"))
+        ),
+        llm_call_count=_as_int(cost.get("llm_call_count")),
+        llm_total_tokens=_as_int(cost.get("llm_total_tokens")),
+        search_rounds=_as_int(cost.get("search_rounds")),
+        raw_count=_as_int(diagnostics.get("raw_count")),
+        deduplicated_count=_as_int(diagnostics.get("deduplicated_count")),
+        returned_result_count=returned_result_count,
+        cache_hit_count=_as_int(cost.get("cache_hit_count")),
+        source_call_count=0,
+        source_error_count=sum(
+            isinstance(item, dict) and bool(item.get("error_message"))
+            for item in source_stats
+        ),
+        warnings=["source_call_count_unavailable:not_equal_to_http_requests"],
     )
-    if semantic_scholar_value:
-        identifiers.add(f"s2:{_normalize_semantic_scholar_id(semantic_scholar_value)}")
-
-    return {identifier for identifier in identifiers if identifier.split(":", 1)[1]}
 
 
-def _extract_identifier(paper: Any, name: str) -> str | None:
-    unwrapped = _unwrap_ranked_paper(paper)
-    value = _get_value(unwrapped, name)
-    if value:
-        return str(value)
-    nested_identifiers = _get_value(unwrapped, "identifiers")
-    value = _get_value(nested_identifiers, name)
-    if value:
-        return str(value)
-    return None
-
-
-def _title_year_key(paper: Any) -> str | None:
-    unwrapped = _unwrap_ranked_paper(paper)
-    title = _normalize_title(str(_get_value(unwrapped, "title") or ""))
-    year = _get_value(unwrapped, "year")
-    if not title or year is None:
-        return None
-    return f"title_year:{title}:{year}"
-
-
-def _preferred_identifier(identifiers: set[str]) -> str | None:
-    if not identifiers:
-        return None
-    priority = ("arxiv:", "doi:", "s2:")
-    for prefix in priority:
-        values = sorted(identifier for identifier in identifiers if identifier.startswith(prefix))
-        if values:
-            return values[0]
-    return sorted(identifiers)[0]
-
-
-def _relevance_grade(paper: Any) -> float:
-    grade = _get_value(_unwrap_ranked_paper(paper), "relevance_grade")
-    if grade is None:
-        return 1.0
-    try:
-        return max(0.0, float(grade))
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _dcg(gains: list[float]) -> float:
-    score = 0.0
-    for index, gain in enumerate(gains, start=1):
-        if gain <= 0:
-            continue
-        score += (math.pow(2.0, gain) - 1.0) / math.log2(index + 1)
-    return score
-
-
-def _unwrap_ranked_paper(paper: Any) -> Any:
-    if isinstance(paper, Mapping) and "paper" in paper:
-        return paper["paper"]
-    if hasattr(paper, "paper"):
-        return getattr(paper, "paper")
-    return paper
-
-
-def _get_value(item: Any, key: str) -> Any:
-    if item is None:
-        return None
-    if isinstance(item, Mapping):
-        return item.get(key)
-    return getattr(item, key, None)
-
-
-def _normalize_doi(value: str) -> str:
-    normalized = value.strip().casefold()
-    for prefix in (
-        "https://doi.org/",
-        "http://doi.org/",
-        "https://dx.doi.org/",
-        "http://dx.doi.org/",
-        "doi:",
-    ):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-            break
-    return normalized.strip()
-
-
-def _arxiv_id_from_doi(normalized_doi: str) -> str | None:
-    match = re.fullmatch(r"10\.48550/arxiv\.(.+)", normalized_doi.strip())
-    if not match:
-        return None
-    arxiv_id = _normalize_arxiv_id(match.group(1))
-    return arxiv_id or None
-
-
-def _normalize_arxiv_id(value: str) -> str:
-    normalized = value.strip().casefold()
-    normalized = normalized.split("?", 1)[0].rstrip("/")
-    if "arxiv.org/" in normalized:
-        normalized = normalized.rsplit("/", 1)[-1]
-    for prefix in ("arxiv:", "abs/", "pdf/"):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-    if normalized.endswith(".pdf"):
-        normalized = normalized[:-4]
-    return re.sub(r"v\d+$", "", normalized).strip()
-
-
-def _normalize_semantic_scholar_id(value: str) -> str:
-    normalized = value.strip().casefold()
-    for prefix in ("semantic_scholar:", "semantic-scholar:", "corpusid:", "s2:"):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-            break
-    return normalized.strip()
-
-
-def _normalize_title(value: str) -> str:
-    normalized = value.casefold()
-    normalized = re.sub(r"\\[a-zA-Z]+\*?", " ", normalized)
-    normalized = re.sub(r"[{}$^_~]", " ", normalized)
-    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
-    return " ".join(normalized.split())
+def _metric_payload(metrics: EvalMetricSet) -> dict[str, Any]:
+    return metrics.model_dump(mode="json", include={
+        "recall_at_k",
+        "precision_at_k",
+        "f1_at_k",
+        "ndcg_at_k",
+        "mrr",
+    })
 
 
 def _normalize_k_values(values: list[int]) -> list[int]:
@@ -584,6 +381,20 @@ def _normalize_k_values(values: list[int]) -> list[int]:
     if not normalized:
         raise ValueError("at least one positive --k value is required")
     return normalized
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _as_float(value: Any) -> float:
+    try:
+        return max(0.0, float(value or 0.0))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 if __name__ == "__main__":

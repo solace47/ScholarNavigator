@@ -1,18 +1,40 @@
 # 评测说明
 
-## fake fixture 的用途和限制
+## 统一口径
 
-`datasets/eval_fixtures/sample/` 是手写的确定性 fixture，用于验证 SearchService、指标、脚本和三组开关对比：
+离线评测与批量评测共同使用 `scholar_agent.evaluation` 中的结果选择、论文匹配和指标实现。
 
-| 组 | 查询演化 | RefChain |
+默认结果策略为 `highly_and_partial`：先取 `highly_relevant`，再取 `partially_relevant`，各类别内按原始 rank 稳定排序。`highly_only` 只取高度相关论文；弱相关、不相关和证据不足论文均不进入正式列表。
+
+论文匹配提取双方全部稳定标识符，任意交集即匹配。支持 DOI、arXiv（忽略版本号，并识别 arXiv DOI）、OpenAlex、Semantic Scholar 和 PubMed 的常见 URL 或前缀。只有双方均无稳定标识符时才按规范化标题和年份匹配。重复预测只计一次，一条预测最多匹配一个 gold。
+
+核心排名指标为 F1@K，同时输出 Precision@K、Recall@K、MRR 和 nDCG@K；默认 K 为 5、10、20。Precision@K 的分母固定为 K。
+
+聚合报告同时包含：
+
+- `success_only_metrics`：仅统计成功且有有效 gold 的案例。
+- `end_to_end_metrics`：失败、超时、取消、结果缺失或非法但有 gold 的案例按零分计入。
+- `case_statistics`：记录总数、成功、失败、结果缺失、gold 缺失及对应比率。
+- `efficiency`：汇总延迟、LLM 调用与 Token、搜索轮次、候选数、返回数、缓存命中和来源错误。无法准确取得的来源调用数记为 0，并附 unavailable warning。
+
+没有有效 gold 的 batch case 记录在 `missing_gold_cases`，不进入两套指标分母；gold 存在但 batch 缺失的案例记录在 `missing_result_cases`，并以零分进入端到端指标。
+
+## 离线消融组
+
+| 分组 | 查询演化 | RefChain |
 | --- | --- | --- |
 | `baseline` | 关闭 | 关闭 |
-| `query_evolution` | 开启 | 关闭 |
-| `refchain` | 开启 | 开启 |
+| `query_evolution_only` | 开启 | 关闭 |
+| `refchain_only` | 关闭 | 开启 |
+| `query_evolution_plus_refchain` | 开启 | 开启 |
 
-fixture retriever 和 reference fetcher 不访问真实 connector。其分数只说明离线链路可复现，不能作为真实检索性能、正式 benchmark 或比赛成绩。
+## 数据格式
 
-运行 fake fixture：
+离线 fixture 的 `search_cases.jsonl` 每行包含 `query_id`、`query`、`gold_papers` 和 `top_k_values`。批量 qrels 每行包含 `case_id` 与 `relevant_papers`。gold 论文可提供上述任一稳定标识符；没有稳定标识符时必须同时提供标题和年份。`relevance_grade` 大于 0 表示相关，缺省为 1。
+
+## 运行命令
+
+运行确定性 sample fixture 并生成 Markdown 汇总：
 
 ```bash
 PYTHONPATH=src python scripts/eval_search_service.py \
@@ -24,73 +46,19 @@ PYTHONPATH=src python scripts/summarize_eval_results.py \
   outputs/eval_runs/sample/result.json
 ```
 
-输出位于 `outputs/eval_runs/<run-id>/result.json` 和同目录的 `summary.md`。
-
-## 真实 batch 评测
-
-`run_search_batch.py` 会调用真实 SearchService 和所选学术来源；`evaluate_search_batch.py` 只读取已生成结果与本地 qrels，不访问网络。
+评测已有 batch 结果：
 
 ```bash
-PYTHONPATH=src python scripts/run_search_batch.py \
-  --input datasets/eval_fixtures/manual_smoke/queries.jsonl \
-  --output outputs/manual_smoke/results.jsonl \
-  --sources arxiv,semantic_scholar \
-  --top-k 5 \
-  --run-profile fast \
-  --current-year 2026 \
-  --dump-ranked-candidates
-
 PYTHONPATH=src python scripts/evaluate_search_batch.py \
   --batch-results outputs/manual_smoke/results.jsonl \
   --gold datasets/eval_fixtures/manual_smoke/qrels.filled.jsonl \
   --output outputs/manual_smoke/eval.json \
-  --k 1 \
-  --k 5 \
-  --include-partial
+  --k 5 --k 10 --k 20 \
+  --result-policy highly_and_partial
 ```
 
-batch 结果写入 `--output` 指定的 JSONL；可选候选诊断写入同目录 `ranked_candidates.jsonl`；评分写入评测命令的 `--output`。
+`--include-partial` 作为旧参数继续等价于 `--result-policy highly_and_partial`。与 `--result-policy highly_only` 同时使用会报错。
 
-## gold 与 qrels 格式
+## 限制
 
-离线 fixture 使用 `search_cases.jsonl`，每行包含：
-
-```json
-{"query_id":"q1","query":"...","gold_papers":[{"doi":"10.x/example","relevance_grade":2}],"top_k_values":[5,10,20]}
-```
-
-真实 batch qrels 每行包含：
-
-```json
-{"case_id":"q1","relevant_papers":[{"title":"...","year":2025,"doi":"10.x/example","arxiv_id":null,"semantic_scholar_id":null}]}
-```
-
-`relevance_grade` 大于 0 表示相关；缺省为 1。`--include-partial` 会把部分相关结果接在高度相关结果之后，否则只评高度相关结果。
-
-## 当前指标
-
-- 排名质量：Recall@K、Precision@K、MRR、nDCG@K；nDCG 支持分级相关性。
-- 离线 fixture 额外统计原始、去重和排序候选数、重复率、各来源返回量、warning 数、来源错误率和失败率。
-- 当前脚本尚未实现比赛核心 F1，也没有统一汇总 API 调用、Token 和端到端延迟。
-
-## 当前匹配规则
-
-离线 evaluator 的 `canonical_paper_id` 采用单一优先级：DOI（arXiv DOI 会转为 arXiv ID）→ arXiv ID（去版本号）→ OpenAlex ID → Semantic Scholar ID → PubMed ID → 规范化 title+year。
-
-batch evaluator 当前使用标识符集合匹配：
-
-1. 识别 DOI、arXiv ID 和 Semantic Scholar ID，并把 `10.48550/arXiv.*` DOI 同时映射为 arXiv ID。
-2. 预测与 gold 只要任一方含受支持标识符，就必须有标识符交集，不再回退标题。
-3. 双方都没有受支持标识符时，才使用规范化 title+year。
-4. 同一 gold 每个查询最多匹配一次。
-
-OpenAlex ID 和 PubMed ID 虽可写入 batch qrels Schema，但当前 batch 匹配器尚未使用，这是已知差异。
-
-## 已知评测缺口
-
-- 尚未接入官方或完整 LitSearch、AstaBench、PaSa 等 benchmark 并形成可复现基线。
-- `manual_smoke` qrels 是本地人工集合，不是官方标注；未验证覆盖度和一致性。
-- 两套 evaluator 的匹配规则和失败样本聚合口径尚未统一。
-- failed batch case 会从指标平均中排除，需另看 `failed_cases`，避免只读均值。
-- 没有显著性检验、跨运行方差、分领域切片和正式效率报告。
-- fake fixture 与 mock connector 测试不会验证上游 API 的实时质量或稳定性。
+sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。当前尚无官方完整 benchmark 的固定版本基线、显著性检验、跨运行方差和分领域切片；manual smoke qrels 也不是官方标注。

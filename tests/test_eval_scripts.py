@@ -34,12 +34,15 @@ def test_eval_and_summary_scripts_run_with_sample_fixtures(tmp_path: Path) -> No
     data = json.loads(result_path.read_text(encoding="utf-8"))
     assert set(data["aggregate_metrics"]) == {
         "baseline",
-        "query_evolution",
-        "refchain",
+        "query_evolution_only",
+        "refchain_only",
+        "query_evolution_plus_refchain",
     }
-    assert data["aggregate_metrics"]["query_evolution"]["raw_count"] > data[
+    assert data["aggregate_metrics"]["query_evolution_only"]["raw_count"] > data[
         "aggregate_metrics"
     ]["baseline"]["raw_count"]
+    assert set(data["aggregate_reports"]) == set(data["aggregate_metrics"])
+    assert "f1_at_k" in data["aggregate_reports"]["baseline"]["end_to_end_metrics"]
 
     summary_command = [
         sys.executable,
@@ -56,7 +59,9 @@ def test_eval_and_summary_scripts_run_with_sample_fixtures(tmp_path: Path) -> No
     summary = summary_path.read_text(encoding="utf-8")
 
     assert str(summary_path) in summary_result.stdout
-    assert "| Group | R@5 | R@10 | R@20 |" in summary
+    assert "| 分组 | F1@5 | F1@10 | F1@20 |" in summary
     assert "| baseline |" in summary
-    assert "| query_evolution |" in summary
-    assert "| refchain |" in summary
+    assert "| query_evolution_only |" in summary
+    assert "| refchain_only |" in summary
+    assert "| query_evolution_plus_refchain |" in summary
+    assert "sample fixture 仅验证评测流程，不代表真实 benchmark 性能" in summary

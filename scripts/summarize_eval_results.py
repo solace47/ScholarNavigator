@@ -14,7 +14,10 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from scholar_agent.core.evaluation_schemas import EvalSuiteResult  # noqa: E402
+from scholar_agent.core.evaluation_schemas import (  # noqa: E402
+    EvalMetricSet,
+    EvalSuiteResult,
+)
 
 
 DEFAULT_K_VALUES = (5, 10, 20)
@@ -46,45 +49,32 @@ def main() -> int:
 
 def build_markdown_summary(result: EvalSuiteResult) -> str:
     lines = [
-        "# Offline Evaluation Summary",
+        "# 离线评测汇总",
         "",
-        f"Query count: {len(result.query_results)}",
+        f"查询数：{len(result.query_results)}",
         "",
-        "| Group | R@5 | R@10 | R@20 | P@5 | P@10 | P@20 | MRR | nDCG@5 | nDCG@10 | nDCG@20 | Raw | Dedup | Warnings | Source Error Rate |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "> sample fixture 仅验证评测流程，不代表真实 benchmark 性能。",
+        "",
     ]
-    for group, metrics in result.aggregate_metrics.items():
-        lines.append(
-            "| {group} | {r5:.3f} | {r10:.3f} | {r20:.3f} | "
-            "{p5:.3f} | {p10:.3f} | {p20:.3f} | {mrr:.3f} | "
-            "{n5:.3f} | {n10:.3f} | {n20:.3f} | {raw} | {dedup} | "
-            "{warnings} | {error_rate:.3f} |".format(
-                group=group,
-                r5=_metric_at(metrics.recall_at_k, 5),
-                r10=_metric_at(metrics.recall_at_k, 10),
-                r20=_metric_at(metrics.recall_at_k, 20),
-                p5=_metric_at(metrics.precision_at_k, 5),
-                p10=_metric_at(metrics.precision_at_k, 10),
-                p20=_metric_at(metrics.precision_at_k, 20),
-                mrr=metrics.mrr,
-                n5=_metric_at(metrics.ndcg_at_k, 5),
-                n10=_metric_at(metrics.ndcg_at_k, 10),
-                n20=_metric_at(metrics.ndcg_at_k, 20),
-                raw=metrics.raw_count,
-                dedup=metrics.deduplicated_count,
-                warnings=metrics.warning_count,
-                error_rate=metrics.source_error_rate,
-            )
-        )
+    if result.aggregate_reports:
+        for label, attribute in (
+            ("端到端指标", "end_to_end_metrics"),
+            ("仅成功案例指标", "success_only_metrics"),
+        ):
+            lines.extend([f"## {label}", "", *_metric_table(result, attribute), ""])
+    else:
+        lines.extend(["## 聚合指标", "", *_legacy_metric_table(result), ""])
+
+    lines.extend(["## 案例统计与效率", "", *_statistics_table(result), ""])
     lines.append("")
-    lines.append("## Per Query")
+    lines.append("## 单查询结果")
     for query_result in result.query_results:
         lines.append("")
         lines.append(f"### {query_result.query_id}")
         lines.append("")
         lines.append(query_result.query)
         lines.append("")
-        lines.append("| Group | Ranked IDs | Warnings |")
+        lines.append("| 分组 | 排名标识 | 警告 |")
         lines.append("| --- | --- | --- |")
         for group, group_result in query_result.group_results.items():
             ranked_ids = ", ".join(group_result.ranked_paper_ids[:5]) or "-"
@@ -92,6 +82,76 @@ def build_markdown_summary(result: EvalSuiteResult) -> str:
             lines.append(f"| {group} | {ranked_ids} | {warnings} |")
     lines.append("")
     return "\n".join(lines)
+
+
+def _metric_table(result: EvalSuiteResult, attribute: str) -> list[str]:
+    rows = [
+        "| 分组 | F1@5 | F1@10 | F1@20 | R@5 | R@10 | R@20 | P@5 | P@10 | P@20 | MRR | nDCG@5 | nDCG@10 | nDCG@20 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for group, report in result.aggregate_reports.items():
+        rows.append(_metric_row(group, getattr(report, attribute)))
+    return rows
+
+
+def _legacy_metric_table(result: EvalSuiteResult) -> list[str]:
+    rows = [
+        "| 分组 | F1@5 | F1@10 | F1@20 | R@5 | R@10 | R@20 | P@5 | P@10 | P@20 | MRR | nDCG@5 | nDCG@10 | nDCG@20 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    rows.extend(
+        _metric_row(group, metrics)
+        for group, metrics in result.aggregate_metrics.items()
+    )
+    return rows
+
+
+def _metric_row(group: str, metrics: EvalMetricSet) -> str:
+    return (
+        "| {group} | {f5:.3f} | {f10:.3f} | {f20:.3f} | "
+        "{r5:.3f} | {r10:.3f} | {r20:.3f} | "
+        "{p5:.3f} | {p10:.3f} | {p20:.3f} | {mrr:.3f} | "
+        "{n5:.3f} | {n10:.3f} | {n20:.3f} |"
+    ).format(
+        group=group,
+        f5=_metric_at(metrics.f1_at_k, 5),
+        f10=_metric_at(metrics.f1_at_k, 10),
+        f20=_metric_at(metrics.f1_at_k, 20),
+        r5=_metric_at(metrics.recall_at_k, 5),
+        r10=_metric_at(metrics.recall_at_k, 10),
+        r20=_metric_at(metrics.recall_at_k, 20),
+        p5=_metric_at(metrics.precision_at_k, 5),
+        p10=_metric_at(metrics.precision_at_k, 10),
+        p20=_metric_at(metrics.precision_at_k, 20),
+        mrr=metrics.mrr,
+        n5=_metric_at(metrics.ndcg_at_k, 5),
+        n10=_metric_at(metrics.ndcg_at_k, 10),
+        n20=_metric_at(metrics.ndcg_at_k, 20),
+    )
+
+
+def _statistics_table(result: EvalSuiteResult) -> list[str]:
+    rows = [
+        "| 分组 | 总案例 | 有 gold | 成功 | 失败 | 缺少结果 | 缺少 gold | 成功率 | 平均延迟（秒） | LLM 调用 | LLM Tokens | 搜索轮次均值 | Raw | 去重后 | 返回 | 缓存命中 | 来源调用 | 来源错误 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for group, report in result.aggregate_reports.items():
+        stats = report.case_statistics
+        efficiency = report.efficiency
+        rows.append(
+            f"| {group} | {stats.total_case_count} | {stats.gold_case_count} | "
+            f"{stats.evaluated_success_count} | {stats.failed_case_count} | "
+            f"{stats.missing_result_count} | {stats.missing_gold_count} | "
+            f"{stats.success_rate:.3f} | {efficiency.average_latency_seconds:.3f} | "
+            f"{efficiency.total_llm_call_count} | {efficiency.total_llm_total_tokens} | "
+            f"{efficiency.average_search_rounds:.3f} | {efficiency.total_raw_count} | "
+            f"{efficiency.total_deduplicated_count} | "
+            f"{efficiency.total_returned_result_count} | "
+            f"{efficiency.total_cache_hit_count} | "
+            f"{efficiency.total_source_call_count} | "
+            f"{efficiency.total_source_error_count} |"
+        )
+    return rows
 
 
 def _metric_at(values: dict[int, float], k: int) -> float:

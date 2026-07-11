@@ -8,6 +8,9 @@ from scholar_agent.evaluation.metrics import (
     candidate_count_metrics,
     canonical_paper_id,
     error_rate_metrics,
+    evaluate_ranking,
+    f1_at_k,
+    matched_paper_ids,
     mrr,
     ndcg_at_k,
     precision_at_k,
@@ -91,6 +94,94 @@ def test_recall_precision_and_mrr() -> None:
     assert recall_at_k(ranked, gold, 2) == pytest.approx(1 / 3)
     assert precision_at_k(ranked, gold, 2) == pytest.approx(0.5)
     assert mrr(ranked, gold) == pytest.approx(0.5)
+    assert f1_at_k(ranked, gold, 2) == pytest.approx(0.4)
+
+
+def test_f1_zero_and_default_k_values() -> None:
+    gold = [EvalGoldPaper(doi="10.123/gold")]
+    ranked = [make_paper("Other", doi="10.123/other")]
+
+    assert f1_at_k(ranked, gold, 5) == 0.0
+    metrics = evaluate_ranking(ranked, gold)
+    assert metrics.f1_at_k == {5: 0.0, 10: 0.0, 20: 0.0}
+
+    matched = evaluate_ranking(
+        [make_paper("Gold", doi="10.123/gold")],
+        gold,
+    )
+    assert matched.f1_at_k[5] == pytest.approx(1 / 3)
+    assert matched.f1_at_k[10] == pytest.approx(2 / 11)
+    assert matched.f1_at_k[20] == pytest.approx(2 / 21)
+
+
+def test_all_identifier_intersection_and_one_to_one_matching() -> None:
+    gold = [
+        EvalGoldPaper(
+            doi="10.123/different",
+            openalex_id="openalex:W123",
+            pubmed_id="pmid:987",
+        ),
+        EvalGoldPaper(doi="10.123/duplicate-gold", openalex_id="W123"),
+    ]
+    ranked = [
+        make_paper(
+            "Identifier Match",
+            doi="10.123/predicted",
+            openalex_id="https://openalex.org/W123",
+            pubmed_id="pubmed:987",
+        ),
+        make_paper("Duplicate Prediction", openalex_id="W123"),
+    ]
+
+    assert recall_at_k(ranked, gold, 2) == pytest.approx(0.5)
+    assert matched_paper_ids(ranked, gold) == ["openalex:w123"]
+
+
+def test_semantic_scholar_prefixes_match() -> None:
+    gold = [EvalGoldPaper(semantic_scholar_id="s2:ABCDEF")]
+    ranked = [make_paper("S2", semantic_scholar_id="CorpusId:abcdef")]
+
+    assert recall_at_k(ranked, gold, 1) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("predicted", "gold", "expected_id"),
+    [
+        (
+            make_paper("OpenAlex", openalex_id="https://openalex.org/W2468"),
+            EvalGoldPaper(openalex_id="openalex:W2468"),
+            "openalex:w2468",
+        ),
+        (
+            make_paper(
+                "PubMed",
+                pubmed_id="https://pubmed.ncbi.nlm.nih.gov/13579/",
+            ),
+            EvalGoldPaper(pubmed_id="pmid:13579"),
+            "pubmed:13579",
+        ),
+    ],
+)
+def test_openalex_and_pubmed_formats_match(
+    predicted: Paper,
+    gold: EvalGoldPaper,
+    expected_id: str,
+) -> None:
+    assert matched_paper_ids([predicted], [gold]) == [expected_id]
+
+
+def test_duplicate_prediction_and_duplicate_gold_count_only_once() -> None:
+    ranked = [
+        make_paper("First", doi="10.123/same"),
+        make_paper("Duplicate", doi="doi:10.123/same"),
+    ]
+    gold = [
+        EvalGoldPaper(doi="10.123/same"),
+        EvalGoldPaper(doi="https://doi.org/10.123/same"),
+    ]
+
+    assert len(matched_paper_ids(ranked, gold)) == 1
+    assert precision_at_k(ranked, gold, 2) == pytest.approx(0.5)
 
 
 def test_binary_ndcg() -> None:

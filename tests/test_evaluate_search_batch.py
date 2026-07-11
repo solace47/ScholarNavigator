@@ -60,6 +60,7 @@ def test_complete_match_metrics_are_correct(tmp_path: Path) -> None:
     assert payload["evaluated_case_count"] == 1
     assert payload["aggregate"]["recall_at_k"]["2"] == pytest.approx(1.0)
     assert payload["aggregate"]["precision_at_k"]["2"] == pytest.approx(1.0)
+    assert payload["aggregate"]["f1_at_k"]["2"] == pytest.approx(1.0)
     assert payload["aggregate"]["mrr"] == pytest.approx(1.0)
     assert payload["aggregate"]["ndcg_at_k"]["2"] == pytest.approx(1.0)
 
@@ -348,12 +349,26 @@ def test_failed_missing_gold_and_missing_result_cases_are_tracked() -> None:
         {
             "case_id": "case_failed",
             "query": "failed query",
+            "status": "failed",
             "error": "connector failed",
         }
     ]
     assert result["missing_gold_cases"] == ["case_missing_gold"]
     assert result["missing_result_cases"] == ["case_missing_result"]
     assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert result["success_only_metrics"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert result["end_to_end_metrics"]["recall_at_k"]["1"] == pytest.approx(1 / 3)
+    assert result["case_statistics"] == {
+        "total_case_count": 4,
+        "gold_case_count": 3,
+        "evaluated_success_count": 1,
+        "failed_case_count": 1,
+        "missing_result_count": 1,
+        "missing_gold_count": 1,
+        "success_rate": 0.25,
+        "failed_case_rate": 0.25,
+        "missing_result_rate": 0.25,
+    }
 
 
 def test_include_partial_controls_ranked_list() -> None:
@@ -366,23 +381,174 @@ def test_include_partial_controls_ranked_list() -> None:
     ]
     gold_rows = [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/partial"}]}]
 
-    without_partial = evaluate_search_batch.evaluate_batch_results(
+    default_policy = evaluate_search_batch.evaluate_batch_results(
         batch_rows,
         evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
         k_values=[1],
-        include_partial=False,
     )
-    with_partial = evaluate_search_batch.evaluate_batch_results(
+    highly_only = evaluate_search_batch.evaluate_batch_results(
         batch_rows,
         evaluate_search_batch.load_gold_rows(_write_jsonl_for_rows(gold_rows)),
         k_values=[1],
-        include_partial=True,
+        result_policy="highly_only",
     )
 
-    assert without_partial["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
-    assert without_partial["per_case"][0]["ranked_count"] == 0
-    assert with_partial["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
-    assert with_partial["per_case"][0]["ranked_count"] == 1
+    assert default_policy["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert default_policy["per_case"][0]["ranked_count"] == 1
+    assert highly_only["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
+    assert highly_only["per_case"][0]["ranked_count"] == 0
+
+
+def test_succeeded_but_invalid_result_counts_as_missing_result() -> None:
+    result = evaluate_search_batch.evaluate_batch_results(
+        [
+            {
+                "case_id": "case_001",
+                "query": "query",
+                "status": "succeeded",
+                "result": {},
+            }
+        ],
+        [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/gold"}]}],
+        k_values=[1],
+    )
+
+    assert result["missing_result_cases"] == ["case_001"]
+    assert result["case_statistics"]["evaluated_success_count"] == 0
+    assert result["end_to_end_metrics"]["f1_at_k"]["1"] == 0.0
+
+
+def test_empty_gold_is_excluded_from_metric_denominators() -> None:
+    result = evaluate_search_batch.evaluate_batch_results(
+        [_batch_row("case_without_gold", high=[])],
+        [{"case_id": "case_without_gold", "relevant_papers": []}],
+        k_values=[1],
+    )
+
+    assert result["missing_gold_cases"] == ["case_without_gold"]
+    assert result["case_statistics"]["gold_case_count"] == 0
+    assert result["case_statistics"]["evaluated_success_count"] == 0
+    assert result["success_only_metrics"]["f1_at_k"] == {"1": 0.0}
+
+
+def test_failed_case_without_gold_is_counted_but_not_scored() -> None:
+    result = evaluate_search_batch.evaluate_batch_results(
+        [
+            {
+                "case_id": "case_001",
+                "query": "query",
+                "status": "timeout",
+                "result": None,
+                "error": "timeout",
+            }
+        ],
+        [],
+        k_values=[5],
+    )
+
+    assert result["missing_gold_cases"] == ["case_001"]
+    assert result["case_statistics"]["failed_case_count"] == 1
+    assert result["case_statistics"]["gold_case_count"] == 0
+    assert result["end_to_end_metrics"]["f1_at_k"] == {"5": 0.0}
+
+
+def test_batch_efficiency_uses_observed_fields_and_marks_source_calls_unavailable() -> None:
+    row = _batch_row("case_001", high=[_ranked("Paper", doi="10.1/p")])
+    row["latency_seconds"] = 1.25
+    row["result"]["cost_report"] = {
+        "llm_call_count": 3,
+        "llm_total_tokens": 420,
+        "search_rounds": 2,
+        "cache_hit_count": 1,
+    }
+    row["result"]["retrieval_diagnostics"] = {
+        "raw_count": 12,
+        "deduplicated_count": 8,
+        "source_stats": [
+            {"source": "openalex", "error_message": "timeout"},
+            {"source": "arxiv", "error_message": None},
+        ],
+    }
+
+    result = evaluate_search_batch.evaluate_batch_results(
+        [row],
+        [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/p"}]}],
+    )
+    efficiency = result["aggregate_report"]["efficiency"]
+
+    assert efficiency["average_latency_seconds"] == pytest.approx(1.25)
+    assert efficiency["total_llm_call_count"] == 3
+    assert efficiency["total_llm_total_tokens"] == 420
+    assert efficiency["average_search_rounds"] == 2
+    assert efficiency["total_raw_count"] == 12
+    assert efficiency["total_deduplicated_count"] == 8
+    assert efficiency["total_returned_result_count"] == 1
+    assert efficiency["total_cache_hit_count"] == 1
+    assert efficiency["total_source_call_count"] == 0
+    assert efficiency["total_source_error_count"] == 1
+    assert "source_call_count_unavailable:not_equal_to_http_requests" in efficiency[
+        "warnings"
+    ]
+
+
+def test_cli_legacy_include_partial_and_conflict(tmp_path: Path) -> None:
+    batch_path = _write_jsonl(
+        tmp_path / "batch.jsonl",
+        [_batch_row("case_001", partial=[_ranked("Partial", doi="10.1/p")])],
+    )
+    gold_path = _write_jsonl(
+        tmp_path / "gold.jsonl",
+        [{"case_id": "case_001", "relevant_papers": [{"doi": "10.1/p"}]}],
+    )
+    output_path = tmp_path / "report.json"
+
+    code = evaluate_search_batch.main(
+        [
+            "--batch-results",
+            str(batch_path),
+            "--gold",
+            str(gold_path),
+            "--output",
+            str(output_path),
+            "--include-partial",
+        ]
+    )
+    conflict = evaluate_search_batch.main(
+        [
+            "--batch-results",
+            str(batch_path),
+            "--gold",
+            str(gold_path),
+            "--include-partial",
+            "--result-policy",
+            "highly_only",
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(output_path.read_text(encoding="utf-8"))["config"][
+        "result_policy"
+    ] == "highly_and_partial"
+    assert conflict == 1
+
+
+def test_cli_invalid_result_policy_returns_parser_error(tmp_path: Path) -> None:
+    batch_path = _write_jsonl(tmp_path / "batch.jsonl", [])
+    gold_path = _write_jsonl(tmp_path / "gold.jsonl", [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        evaluate_search_batch.main(
+            [
+                "--batch-results",
+                str(batch_path),
+                "--gold",
+                str(gold_path),
+                "--result-policy",
+                "invalid",
+            ]
+        )
+
+    assert exc_info.value.code == 2
 
 
 def test_invalid_jsonl_returns_nonzero(tmp_path: Path) -> None:
