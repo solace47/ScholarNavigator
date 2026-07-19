@@ -8,6 +8,7 @@ from datetime import date
 from typing import Any, Protocol
 
 from scholar_agent.agents.query_planning import (
+    plan_controlled_relaxation,
     plan_facet_balanced,
     summarize_current_rules_planning,
 )
@@ -307,7 +308,13 @@ class QueryUnderstandingAgent:
             needs_expansion=_needs_expansion(intent, keyword_terms, max_subqueries),
             reasoning=reasoning,
         )
-        if options.query_planning_policy == "facet_balanced":
+        if options.query_planning_policy == "controlled_relaxation":
+            subqueries, query_planning = plan_controlled_relaxation(
+                query_analysis,
+                selected_sources=selected_sources,
+                max_subqueries=max_subqueries,
+            )
+        elif options.query_planning_policy == "facet_balanced":
             subqueries, query_planning = plan_facet_balanced(
                 query_analysis,
                 selected_sources=selected_sources,
@@ -1056,7 +1063,13 @@ def _search_plan_from_llm_json(
             ]
         ),
     )
-    if options.query_planning_policy == "facet_balanced":
+    if options.query_planning_policy == "controlled_relaxation":
+        subqueries, query_planning = plan_controlled_relaxation(
+            query_analysis,
+            selected_sources=selected_sources,
+            max_subqueries=max_subqueries,
+        )
+    elif options.query_planning_policy == "facet_balanced":
         subqueries, query_planning = plan_facet_balanced(
             query_analysis,
             selected_sources=selected_sources,

@@ -4,6 +4,7 @@ export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
 export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
 export type QueryPlanningPolicy =
   | "current_rules"
+  | "controlled_relaxation"
   | "facet_balanced"
   | "llm_semantic";
 export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";

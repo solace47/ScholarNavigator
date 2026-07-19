@@ -32,7 +32,12 @@ ConstraintField = Literal[
 ]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
-QueryPlanningPolicy = Literal["current_rules", "facet_balanced", "llm_semantic"]
+QueryPlanningPolicy = Literal[
+    "current_rules",
+    "controlled_relaxation",
+    "facet_balanced",
+    "llm_semantic",
+]
 JudgementPolicy = Literal["current_rules", "calibrated_rules_v1"]
 QueryFacetType = Literal[
     "topic",
@@ -94,7 +99,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.3.0"
+QUERY_PLANNER_VERSION = "1.4.0"
 LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 

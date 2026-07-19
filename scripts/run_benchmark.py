@@ -1159,7 +1159,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--query-planning-policy",
-        choices=["current_rules", "facet_balanced", "llm_semantic"],
+        choices=[
+            "current_rules",
+            "controlled_relaxation",
+            "facet_balanced",
+            "llm_semantic",
+        ],
         default="current_rules",
     )
     parser.add_argument(

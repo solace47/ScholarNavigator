@@ -69,7 +69,7 @@ class ReferenceSnapshotEntry(BaseModel):
 
 class SnapshotGroupObservation(BaseModel):
     query_planning_policy: Literal[
-        "current_rules", "facet_balanced", "llm_semantic"
+        "current_rules", "controlled_relaxation", "facet_balanced", "llm_semantic"
     ] | None = None
     query_planner_version: str | None = None
     judgement_policy: Literal["current_rules", "calibrated_rules_v1"] = (
@@ -116,7 +116,7 @@ class SnapshotPlanEntry(BaseModel):
         "off", "seed_expansion", "coverage_gap"
     ] | None = None
     query_planning_policy: Literal[
-        "current_rules", "facet_balanced", "llm_semantic"
+        "current_rules", "controlled_relaxation", "facet_balanced", "llm_semantic"
     ] | None = None
     query_planner_version: str | None = None
     dependency_keys: list[str] = Field(default_factory=list)

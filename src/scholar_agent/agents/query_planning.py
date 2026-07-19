@@ -135,6 +135,51 @@ PURPOSE_FACETS: dict[str, tuple[QueryFacetType, ...]] = {
     "survey_expansion": ("topic", "paper_type"),
     "recent_progress_expansion": ("topic", "temporal"),
 }
+CONTROLLED_RELAXATION_MAX_SUPPLEMENTAL_QUERIES = 2
+CONTROLLED_RELAXATION_MAX_CORE_TERMS = 8
+CONTROLLED_RELAXATION_STOPWORDS = PLANNER_STOPWORDS | {
+    "advancement",
+    "any",
+    "applying",
+    "been",
+    "called",
+    "contribute",
+    "designed",
+    "during",
+    "enhancing",
+    "focus",
+    "focused",
+    "formalised",
+    "framework",
+    "fundamental",
+    "improve",
+    "introduced",
+    "introduce",
+    "leveraged",
+    "like",
+    "only",
+    "proposing",
+    "recently",
+    "reducing",
+    "stage",
+    "talked",
+    "term",
+    "tested",
+    "used",
+    "was",
+    "while",
+    "work",
+    "working",
+}
+_UNRELIABLE_INFERRED_FACET_TERMS = {
+    "approach",
+    "benchmark",
+    "corpus",
+    "dataset",
+    "method",
+    "proposed",
+    "study",
+}
 
 
 def plan_facet_balanced(
@@ -189,6 +234,106 @@ def plan_facet_balanced(
         duplicate_count=duplicate_count,
     )
     return selected, result
+
+
+def plan_controlled_relaxation(
+    query_analysis: QueryAnalysis,
+    *,
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> tuple[list[SearchSubquery], QueryPlanningResult]:
+    """保留原查询，并用至多两条来源无关查询受控放宽召回。"""
+
+    facets = identify_query_facets(query_analysis)
+    original = SearchSubquery(
+        query=query_analysis.original_query,
+        source_hints=selected_sources,
+        priority=1,
+        purpose="original_query",
+        facet_types=["topic"],
+        provenance=["original_query"],
+    )
+    maximum = min(
+        max(1, max_subqueries),
+        1 + CONTROLLED_RELAXATION_MAX_SUPPLEMENTAL_QUERIES,
+    )
+    if maximum == 1:
+        return [original], _planning_result(
+            policy="controlled_relaxation",
+            facets=facets,
+            selected=[original],
+            skipped_facets=["budget:controlled_core_topic"],
+            duplicate_count=0,
+        )
+
+    explicit_must = _explicit_must_have(query_analysis)
+    core_terms = _controlled_core_terms(query_analysis, facets, explicit_must)
+    core_query = " ".join(_dedupe([*explicit_must, *core_terms])).strip()
+    candidates: list[SearchSubquery] = []
+    if core_query:
+        candidates.append(
+            SearchSubquery(
+                query=core_query,
+                source_hints=selected_sources,
+                priority=2,
+                purpose="controlled_core_topic",
+                facet_types=["topic"],
+                provenance=_dedupe(
+                    [
+                        "topic:controlled_relaxation",
+                        *("must_have:explicit" for _ in explicit_must[:1]),
+                    ]
+                ),
+            )
+        )
+
+    selected_facet = _most_reliable_relaxation_facet(
+        facets,
+        core_query,
+        query_analysis.original_query,
+    )
+    if core_query and selected_facet is not None:
+        facet_query = " ".join(
+            _dedupe([*explicit_must, *core_terms, *selected_facet.terms])
+        ).strip()
+        candidates.append(
+            SearchSubquery(
+                query=facet_query,
+                source_hints=selected_sources,
+                priority=3,
+                purpose=f"controlled_core_plus_{selected_facet.facet_type}",
+                facet_types=["topic", selected_facet.facet_type],
+                provenance=_dedupe(
+                    [
+                        "topic:controlled_relaxation",
+                        f"{selected_facet.facet_type}:{selected_facet.source}",
+                        *("must_have:explicit" for _ in explicit_must[:1]),
+                    ]
+                ),
+            )
+        )
+
+    selected = [original]
+    skipped: list[str] = []
+    duplicate_count = 0
+    for candidate in candidates:
+        duplicate = _similar_subquery(selected, candidate)
+        if duplicate is not None:
+            duplicate_count += 1
+            skipped.append(f"duplicate:{candidate.purpose}")
+            continue
+        if len(selected) >= maximum:
+            skipped.append(f"budget:{candidate.purpose}")
+            continue
+        selected.append(candidate.model_copy(update={"priority": len(selected) + 1}))
+
+    return selected, _planning_result(
+        policy="controlled_relaxation",
+        facets=facets,
+        selected=selected,
+        skipped_facets=skipped,
+        duplicate_count=duplicate_count,
+    )
 
 
 def summarize_current_rules_planning(
@@ -540,6 +685,78 @@ def _explicit_must_have(query_analysis: QueryAnalysis) -> list[str]:
     if "must_include_terms" not in constraints.explicit_fields:
         return []
     return list(constraints.must_include_terms)
+
+
+def _controlled_core_terms(
+    query_analysis: QueryAnalysis,
+    facets: list[QueryFacet],
+    explicit_must: list[str],
+) -> list[str]:
+    topic = next((item for item in facets if item.facet_type == "topic"), None)
+    candidates = list(topic.terms if topic is not None else [])
+    explicit_keys = _casefold_set(explicit_must)
+    core = [
+        term
+        for term in candidates
+        if term.casefold() not in explicit_keys
+        and term.casefold() not in CONTROLLED_RELAXATION_STOPWORDS
+        and term.casefold() not in GENERIC_PAPER_TERMS
+    ]
+    return _dedupe(core)[:CONTROLLED_RELAXATION_MAX_CORE_TERMS]
+
+
+def _most_reliable_relaxation_facet(
+    facets: list[QueryFacet],
+    core_query: str,
+    original_query: str,
+) -> QueryFacet | None:
+    type_priority = {"dataset": 0, "task": 1, "method": 2}
+    candidates: list[tuple[int, int, int, QueryFacet]] = []
+    core_key = core_query.casefold()
+    for index, facet in enumerate(facets):
+        if facet.facet_type not in type_priority:
+            continue
+        useful_terms = [
+            term
+            for term in facet.terms
+            if any(
+                token.casefold() not in _UNRELIABLE_INFERRED_FACET_TERMS
+                for token in _query_terms(term)
+            )
+            and (
+                facet.source == "explicit"
+                or _contains_term(original_query.casefold(), term)
+            )
+            and not _contains_term(core_key, term)
+        ]
+        if not useful_terms:
+            continue
+        candidates.append(
+            (
+                0 if facet.source == "explicit" else 1,
+                type_priority[facet.facet_type],
+                index,
+                facet.model_copy(update={"terms": useful_terms}),
+            )
+        )
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[:3])
+    return candidates[0][3]
+
+
+def _contains_term(query_key: str, term: str) -> bool:
+    term_key = " ".join(term.casefold().split())
+    if not term_key:
+        return False
+    if re.fullmatch(r"[a-z0-9+.# -]+", term_key):
+        return bool(
+            re.search(
+                rf"(?<![a-z0-9+.#-]){re.escape(term_key)}(?![a-z0-9+.#-])",
+                query_key,
+            )
+        )
+    return term_key in query_key
 
 
 def _task_terms(query: str) -> list[str]:

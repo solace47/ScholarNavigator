@@ -216,10 +216,22 @@ def test_facet_planner_has_versioned_key_while_current_rules_stays_legacy() -> N
         query_planning_policy="facet_balanced",
         query_planner_version="2.0.0",
     )[0]
+    controlled_v1 = retrieval_snapshot_key(
+        **kwargs,
+        query_planning_policy="controlled_relaxation",
+        query_planner_version="1.0.0",
+    )[0]
+    controlled_v2 = retrieval_snapshot_key(
+        **kwargs,
+        query_planning_policy="controlled_relaxation",
+        query_planner_version="2.0.0",
+    )[0]
 
     assert current == legacy
     assert facet_v1 != legacy
     assert facet_v2 != facet_v1
+    assert controlled_v1 not in {legacy, facet_v1}
+    assert controlled_v2 != controlled_v1
 
 
 def test_manifest_group_records_query_planning_policy_and_version(

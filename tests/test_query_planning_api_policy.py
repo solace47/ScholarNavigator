@@ -23,6 +23,17 @@ def test_api_accepts_facet_balanced_planning() -> None:
     assert request.options.query_planning_policy == "facet_balanced"
 
 
+def test_api_accepts_controlled_relaxation_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "controlled_relaxation"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "controlled_relaxation"
+
+
 def test_api_accepts_llm_semantic_planning() -> None:
     request = SearchRunCreateRequest.model_validate(
         {
