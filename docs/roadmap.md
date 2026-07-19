@@ -13,13 +13,14 @@
 - 阶段快照、gold drop reason、Judgement/Reranking 错误、来源独占贡献和规则瓶颈标签已接入 Benchmark Runner；固定前 10 条完成两组基线，剩余配置因公共源持续 429/超时暂停。
 - 查询适配已改为安全原查询保底和核心查询补充，信息保留保护、精确 run 去重和完整 provenance 已通过离线测试；固定前 10 条 arXiv 开发诊断恢复候选 Recall，独立 5 条验证未低于 safe-original，但三源运行仍受持续 429 限制。
 - 自适应查询策略已按候选充分性、预算和来源状态按需执行核心补充，并记录触发、跳过、成本和事后 gold 增量；固定开发集、独立验证集和无 Semantic Scholar 的双源结果仍需结合小样本限制解释。
+- Query Evolution 与 RefChain 已补齐逐 case seed、动作、去重新增候选、事后 gold、Judgement/Top-K 丢失及边际成本诊断；四组双源运行因 OpenAlex 持续 timeout、429 和 cooldown 仅完成开发集 baseline，尚无模块收益结论。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
 
 1. **完成正式基线**：在固定代码、数据、来源和预算下运行完整 AutoScholarQuery；验收标准是一条命令复现 1000 条逐查询 F1@5/10/20、端到端汇总和效率报告。
 2. **校准官方口径**：核对 gold 转换、K 值和官方计分器差异；验收标准是共享样例与官方输出逐项一致。
-3. **补齐固定子集矩阵**：上游服务恢复后以相同案例和预算完成 Query Evolution、RefChain 与 full；验收标准是五组均有完整诊断文件且来源错误率可解释。
+3. **补齐固定子集矩阵**：上游服务恢复后以相同案例和预算完成 baseline、Query Evolution、RefChain 与组合组；验收标准是开发集和独立验证集四组均有完整诊断文件且来源错误率可解释。
 4. **扩大查询适配验证**：在不使用 gold 生成查询的前提下扩大异质查询集；验收标准是多次运行中来源可靠性不退化且候选 Recall 不低于原始查询基线。
 
 ## P1

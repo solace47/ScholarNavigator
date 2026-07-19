@@ -362,7 +362,6 @@ class SearchService:
                 "retrieval",
                 retrieval_latency,
             )
-
             raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
                 retrieval_outputs
             )
@@ -536,10 +535,12 @@ class SearchService:
                 )
                 if len(evolved_queries) < len(evolution_record.generated_queries):
                     warnings.append("duplicate_evolved_query_skipped")
+                evolution_generation_latency = time.perf_counter() - stage_start
+                evolution_record.latency_seconds = evolution_generation_latency
                 _add_stage_latency(
                     stage_latencies,
                     "query_evolution",
-                    time.perf_counter() - stage_start,
+                    evolution_generation_latency,
                 )
                 retrieval_stop_reason = _query_evolution_budget_stop_reason(
                     runtime,
@@ -588,6 +589,12 @@ class SearchService:
                         "retrieval",
                         evolved_retrieval_latency,
                     )
+                    if collect_diagnostics:
+                        _add_stage_latency(
+                            stage_latencies,
+                            "query_evolution_retrieval",
+                            evolved_retrieval_latency,
+                        )
                     retrieval_outputs.extend(evolved_outputs)
                     (
                         evolved_papers,
@@ -667,6 +674,12 @@ class SearchService:
                         "judgement",
                         evolved_judgement_latency,
                     )
+                    if collect_diagnostics:
+                        _add_stage_latency(
+                            stage_latencies,
+                            "query_evolution_judgement",
+                            evolved_judgement_latency,
+                        )
                     signals.emit(
                         "judgement_completed",
                         {
@@ -704,6 +717,12 @@ class SearchService:
                         "reranking",
                         evolved_reranking_latency,
                     )
+                    if collect_diagnostics:
+                        _add_stage_latency(
+                            stage_latencies,
+                            "query_evolution_reranking",
+                            evolved_reranking_latency,
+                        )
                     signals.emit(
                         "reranking_completed",
                         {
@@ -861,6 +880,12 @@ class SearchService:
                     "judgement",
                     refchain_judgement_latency,
                 )
+                if collect_diagnostics:
+                    _add_stage_latency(
+                        stage_latencies,
+                        "refchain_judgement",
+                        refchain_judgement_latency,
+                    )
                 signals.emit(
                     "judgement_completed",
                     {
@@ -898,6 +923,12 @@ class SearchService:
                     "reranking",
                     refchain_reranking_latency,
                 )
+                if collect_diagnostics:
+                    _add_stage_latency(
+                        stage_latencies,
+                        "refchain_reranking",
+                        refchain_reranking_latency,
+                    )
                 signals.emit(
                     "reranking_completed",
                     {

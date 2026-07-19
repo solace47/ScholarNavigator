@@ -19,6 +19,7 @@ from scholar_agent.evaluation.metrics import (
     canonical_paper_id,
     evaluable_gold_count,
     matched_paper_ids,
+    paper_identifier_set,
     recall_at_k,
 )
 from scholar_agent.evaluation.selection import ResultPolicy, select_ranked_results
@@ -97,6 +98,28 @@ def analyze_search_stages(
         snapshots,
         output,
     )
+    query_evolution = _query_evolution_diagnostics(
+        eval_query,
+        by_stage,
+        output,
+    )
+    refchain = _refchain_diagnostics(eval_query, by_stage, output)
+    stage_costs = _stage_cost_diagnostics(
+        output,
+        by_stage,
+        query_evolution=query_evolution,
+        refchain=refchain,
+    )
+    query_evolution["conclusions"] = classify_module_outcome(
+        query_evolution,
+        stage_costs["query_evolution"],
+        case_count=1,
+    )
+    refchain["conclusions"] = classify_module_outcome(
+        refchain,
+        stage_costs["refchain"],
+        case_count=1,
+    )
     return {
         "snapshots": [item.model_dump(mode="json") for item in snapshots],
         "gold_diagnostics": [item.model_dump(mode="json") for item in gold_diagnostics],
@@ -106,6 +129,9 @@ def analyze_search_stages(
         "source_contribution": source_contribution,
         "retrieval_diagnostics": retrieval_diagnostics,
         "query_strategy_contribution": query_strategy_contribution,
+        "query_evolution": query_evolution,
+        "refchain": refchain,
+        "stage_costs": stage_costs,
         "budget_stopped": bool(output.budget_status.stop_reasons),
         "budget_stop_reasons": list(output.budget_status.stop_reasons),
     }
@@ -166,6 +192,22 @@ def aggregate_stage_diagnostics(
     query_strategy_contribution = _aggregate_strategy_contribution(
         case_diagnostics
     )
+    query_evolution = _aggregate_module_diagnostics(
+        case_diagnostics,
+        "query_evolution",
+    )
+    refchain = _aggregate_module_diagnostics(case_diagnostics, "refchain")
+    stage_costs = _aggregate_stage_costs(case_diagnostics)
+    query_evolution["conclusions"] = classify_module_outcome(
+        query_evolution,
+        stage_costs["query_evolution"],
+        case_count=len(case_diagnostics),
+    )
+    refchain["conclusions"] = classify_module_outcome(
+        refchain,
+        stage_costs["refchain"],
+        case_count=len(case_diagnostics),
+    )
     drop_reasons = dict(
         sorted(Counter(str(row.get("drop_reason")) for row in gold_rows).items())
     )
@@ -200,6 +242,9 @@ def aggregate_stage_diagnostics(
         "source_contribution": sources,
         "retrieval_diagnostics": retrieval_diagnostics,
         "query_strategy_contribution": query_strategy_contribution,
+        "query_evolution": query_evolution,
+        "refchain": refchain,
+        "stage_costs": stage_costs,
         "budget_stop_rate": budget_stop_rate,
     }
     bottlenecks = classify_bottlenecks(stage_metrics)
@@ -574,6 +619,759 @@ def _source_contribution(
         "overlap": overlap,
         "source_error_rate": error_count / request_count if request_count else 0.0,
     }
+
+
+def _query_evolution_diagnostics(
+    eval_query: EvalQuery,
+    snapshots: dict[str, StageCandidateSnapshot],
+    output: SearchServiceOutput,
+) -> dict[str, Any]:
+    initial = snapshots.get("initial_deduplicated")
+    evolved = snapshots.get("query_evolution_retrieval")
+    post_evolved = snapshots.get("post_evolution_deduplicated")
+    final_returned = snapshots.get("final_returned")
+    initial_ids = _candidate_ids(initial)
+    evolved_ids = _candidate_ids(evolved)
+    new_ids = evolved_ids - initial_ids
+    initial_gold = _gold_match_keys(eval_query, initial)
+    evolved_gold = _gold_match_keys(eval_query, evolved)
+    new_gold = evolved_gold - initial_gold
+    returned_ids = _candidate_ids(final_returned)
+    returned_gold = _gold_match_keys(eval_query, final_returned)
+    records = list(output.query_evolution_records)
+    generated = [query for record in records for query in record.generated_queries]
+    retrieval_calls = list(evolved.retrieval_calls) if evolved is not None else []
+    executed_queries = {
+        call.origin_subquery
+        for call in retrieval_calls
+        if call.logical_call_executed
+    }
+    stage_skip = evolved.skipped_reason if evolved is not None else None
+    query_details = _evolved_query_details(
+        generated,
+        retrieval_calls,
+        evolved,
+        initial_ids=initial_ids,
+        stage_skip=stage_skip,
+    )
+    generated_queries = {item.query for item in generated}
+    absent_queries = generated_queries - {
+        call.origin_subquery for call in retrieval_calls
+    }
+    budget_skipped = (
+        len(absent_queries) if _is_budget_reason(stage_skip) else 0
+    )
+    duplicate_queries = len(
+        {
+            item["query"]
+            for item in query_details
+            if item["skip_reason"] == "duplicate_query"
+        }
+    )
+    eligible_seeds = _eligible_query_evolution_seed_count(
+        snapshots.get("initial_reranked")
+    )
+    selected_seeds = sum(record.seed_count for record in records)
+    skipped_reasons = _stable_reasons(
+        [
+            *(
+                _normalize_query_evolution_skip(reason)
+                for record in records
+                for reason in record.skipped_reasons
+            ),
+            *(item["skip_reason"] for item in query_details),
+        ]
+    )
+    if output.search_plan.enable_query_evolution and eligible_seeds == 0:
+        skipped_reasons = _stable_reasons([*skipped_reasons, "no_eligible_seed"])
+    if output.search_plan.enable_query_evolution and not generated:
+        skipped_reasons = _stable_reasons([*skipped_reasons, "no_new_query"])
+    category_stats = _new_candidate_categories(
+        new_ids,
+        snapshots.get("post_evolution_judged"),
+    )
+    judgement_filtered, top_k_lost = _module_gold_losses(
+        new_gold,
+        snapshots.get("post_evolution_judged"),
+        final_returned,
+        eval_query,
+    )
+    prior_recall = _candidate_recall_value(initial, eval_query.gold_papers)
+    post_recall = _candidate_recall_value(post_evolved or initial, eval_query.gold_papers)
+    return {
+        "enabled": output.search_plan.enable_query_evolution,
+        "eligible_seed_count": eligible_seeds,
+        "selected_seed_count": selected_seeds,
+        "generated_query_count": len(generated),
+        "executed_query_count": len(executed_queries),
+        "duplicate_query_count": max(0, duplicate_queries),
+        "budget_skipped_query_count": budget_skipped,
+        "source_skipped_query_count": len(
+            {
+                item["query"]
+                for item in query_details
+                if item["skip_reason"] in {"source_cooldown", "source_failure"}
+            }
+        ),
+        "evolved_raw_candidate_count": len(evolved.candidates) if evolved else 0,
+        "evolved_unique_candidate_count": len(evolved_ids),
+        "evolved_new_unique_candidate_count": len(new_ids),
+        "evolved_gold_hit_count": _raw_gold_hit_count(eval_query, evolved),
+        "evolved_unique_gold_hit_count": len(evolved_gold),
+        "evolved_new_unique_gold_count": len(new_gold),
+        "evolved_candidates_returned_count": len(new_ids & returned_ids),
+        "evolved_gold_returned_count": len(new_gold & returned_gold),
+        "gold_found_but_filtered_count": len(new_gold - returned_gold),
+        "gold_filtered_by_judgement_count": judgement_filtered,
+        "gold_lost_by_top_k_count": top_k_lost,
+        "candidate_recall_gain": max(0.0, post_recall - prior_recall),
+        "new_candidate_categories": category_stats,
+        "queries": query_details,
+        "skipped_reasons": skipped_reasons,
+    }
+
+
+def _refchain_diagnostics(
+    eval_query: EvalQuery,
+    snapshots: dict[str, StageCandidateSnapshot],
+    output: SearchServiceOutput,
+) -> dict[str, Any]:
+    prior = _latest_snapshot(
+        snapshots,
+        ("post_evolution_deduplicated", "initial_deduplicated"),
+    )
+    prior_ranked = _latest_snapshot(
+        snapshots,
+        ("post_evolution_reranked", "initial_reranked"),
+    )
+    references = snapshots.get("refchain_retrieval")
+    post_refchain = snapshots.get("post_refchain_deduplicated")
+    final_returned = snapshots.get("final_returned")
+    prior_ids = _candidate_ids(prior)
+    reference_ids = _candidate_ids(references)
+    new_ids = reference_ids - prior_ids
+    prior_gold = _gold_match_keys(eval_query, prior)
+    reference_gold = _gold_match_keys(eval_query, references)
+    new_gold = reference_gold - prior_gold
+    returned_ids = _candidate_ids(final_returned)
+    returned_gold = _gold_match_keys(eval_query, final_returned)
+    refchain_output = output.refchain_output
+    record = refchain_output.record if refchain_output is not None else None
+    seeds = list(record.seeds) if record is not None else []
+    supported = [seed for seed in seeds if _supported_seed_identifier(seed.paper)]
+    seed_details = _refchain_seed_details(record, prior)
+    skipped_reasons = _stable_reasons(
+        [
+            *(
+                _normalize_refchain_skip(reason)
+                for reason in (
+                    record.skipped_reasons if record is not None else []
+                )
+            ),
+            *(item["skip_reason"] for item in seed_details),
+        ]
+    )
+    eligible_seeds = _eligible_refchain_seed_count(prior_ranked)
+    if output.search_plan.enable_refchain and eligible_seeds == 0:
+        skipped_reasons = _stable_reasons([*skipped_reasons, "no_eligible_seed"])
+    category_stats = _new_candidate_categories(
+        new_ids,
+        snapshots.get("post_refchain_judged"),
+    )
+    judgement_filtered, top_k_lost = _module_gold_losses(
+        new_gold,
+        snapshots.get("post_refchain_judged"),
+        final_returned,
+        eval_query,
+    )
+    prior_recall = _candidate_recall_value(prior, eval_query.gold_papers)
+    post_recall = _candidate_recall_value(
+        post_refchain or prior,
+        eval_query.gold_papers,
+    )
+    return {
+        "enabled": output.search_plan.enable_refchain,
+        "eligible_seed_count": eligible_seeds,
+        "selected_seed_count": len(seeds),
+        "seed_with_supported_identifier_count": len(supported),
+        "seed_without_supported_identifier_count": len(seeds) - len(supported),
+        "reference_request_count": (
+            refchain_output.diagnostics.request_count if refchain_output else 0
+        ),
+        "raw_reference_count": len(references.candidates) if references else 0,
+        "unique_reference_count": len(reference_ids),
+        "new_unique_reference_count": len(new_ids),
+        "reference_gold_hit_count": _raw_gold_hit_count(eval_query, references),
+        "unique_reference_gold_hit_count": len(reference_gold),
+        "new_unique_reference_gold_count": len(new_gold),
+        "reference_candidates_returned_count": len(new_ids & returned_ids),
+        "reference_gold_returned_count": len(new_gold & returned_gold),
+        "gold_found_but_filtered_count": len(new_gold - returned_gold),
+        "gold_filtered_by_judgement_count": judgement_filtered,
+        "gold_lost_by_top_k_count": top_k_lost,
+        "candidate_recall_gain": max(0.0, post_recall - prior_recall),
+        "new_candidate_categories": category_stats,
+        "seeds": seed_details,
+        "skipped_reasons": skipped_reasons,
+    }
+
+
+def _stage_cost_diagnostics(
+    output: SearchServiceOutput,
+    snapshots: dict[str, StageCandidateSnapshot],
+    *,
+    query_evolution: dict[str, Any],
+    refchain: dict[str, Any],
+) -> dict[str, Any]:
+    initial_calls = sum(
+        call.request_count
+        for call in snapshots.get(
+            "initial_retrieval",
+            StageCandidateSnapshot(stage="initial_retrieval", status="skipped"),
+        ).retrieval_calls
+    )
+    evolution_calls = sum(
+        call.request_count
+        for call in snapshots.get(
+            "query_evolution_retrieval",
+            StageCandidateSnapshot(
+                stage="query_evolution_retrieval",
+                status="skipped",
+            ),
+        ).retrieval_calls
+    )
+    reference_calls = output.reference_diagnostics.request_count
+    qe_latency = sum(
+        output.stage_latencies.get(name, 0.0)
+        for name in (
+            "query_evolution",
+            "query_evolution_retrieval",
+            "query_evolution_judgement",
+            "query_evolution_reranking",
+        )
+    )
+    refchain_latency = sum(
+        output.stage_latencies.get(name, 0.0)
+        for name in (
+            "refchain",
+            "refchain_judgement",
+            "refchain_reranking",
+        )
+    )
+    return {
+        "initial_search_api_calls": initial_calls,
+        "query_evolution_api_calls": evolution_calls,
+        "refchain_api_calls": reference_calls,
+        "retry_count": (
+            output.search_diagnostics.retry_count
+            + output.reference_diagnostics.retry_count
+        ),
+        "cache_hit_count": (
+            output.search_diagnostics.cache_hit_count
+            + output.reference_diagnostics.cache_hit_count
+        ),
+        "latency_seconds": output.latency_seconds,
+        "query_evolution_latency_seconds": qe_latency,
+        "refchain_latency_seconds": refchain_latency,
+        "judgement_latency_seconds": output.stage_latencies.get("judgement", 0.0),
+        "reranking_latency_seconds": output.stage_latencies.get("reranking", 0.0),
+        "query_evolution": _module_marginal_costs(
+            evolution_calls,
+            int(query_evolution["evolved_new_unique_candidate_count"]),
+            int(query_evolution["evolved_new_unique_gold_count"]),
+            float(query_evolution["candidate_recall_gain"]),
+            qe_latency,
+        ),
+        "refchain": _module_marginal_costs(
+            reference_calls,
+            int(refchain["new_unique_reference_count"]),
+            int(refchain["new_unique_reference_gold_count"]),
+            float(refchain["candidate_recall_gain"]),
+            refchain_latency,
+        ),
+    }
+
+
+def _module_marginal_costs(
+    api_calls: int,
+    new_candidates: int,
+    new_gold: int,
+    recall_gain: float,
+    latency_seconds: float,
+) -> dict[str, Any]:
+    return {
+        "api_calls": api_calls,
+        "latency_seconds": latency_seconds,
+        "api_per_new_unique_candidate": (
+            api_calls / new_candidates if new_candidates else None
+        ),
+        "api_per_new_unique_gold": api_calls / new_gold if new_gold else None,
+        "api_per_0_01_recall_gain": (
+            api_calls / (recall_gain / 0.01) if recall_gain > 0 else None
+        ),
+    }
+
+
+def classify_module_outcome(
+    diagnostics: dict[str, Any],
+    costs: dict[str, Any],
+    *,
+    case_count: int,
+) -> list[str]:
+    labels: list[str] = []
+    if not diagnostics.get("enabled"):
+        labels.append("no_action_generated")
+    elif int(diagnostics.get("selected_seed_count") or 0) == 0:
+        labels.append("no_seed")
+    else:
+        action_count = int(
+            diagnostics.get("executed_query_count")
+            or diagnostics.get("reference_request_count")
+            or diagnostics.get("raw_reference_count")
+            or 0
+        )
+        new_candidates = int(
+            diagnostics.get("evolved_new_unique_candidate_count")
+            or diagnostics.get("new_unique_reference_count")
+            or 0
+        )
+        new_gold = int(
+            diagnostics.get("evolved_new_unique_gold_count")
+            or diagnostics.get("new_unique_reference_gold_count")
+            or 0
+        )
+        recall_gain = float(diagnostics.get("candidate_recall_gain") or 0.0)
+        skipped = set(diagnostics.get("skipped_reasons") or [])
+        if action_count == 0:
+            labels.append("no_action_generated")
+        if skipped.intersection({"source_cooldown", "source_failure"}) and not new_candidates:
+            labels.append("source_unavailable")
+        raw_candidates = int(
+            diagnostics.get("evolved_raw_candidate_count")
+            or diagnostics.get("raw_reference_count")
+            or 0
+        )
+        if raw_candidates and not new_candidates:
+            labels.append("mostly_duplicate_candidates")
+        elif new_candidates and not new_gold:
+            labels.append("new_candidates_but_no_gold")
+        if new_gold and int(diagnostics.get("gold_found_but_filtered_count") or 0):
+            labels.append("gold_found_but_filtered")
+        if recall_gain > 0:
+            api_per_gain = costs.get("api_per_0_01_recall_gain")
+            if api_per_gain is not None and float(api_per_gain) > 5.0:
+                labels.append("positive_recall_gain_high_cost")
+            else:
+                labels.append("effective")
+        elif action_count and not labels:
+            labels.append("no_measurable_gain")
+    if case_count < 30:
+        labels.append("insufficient_sample")
+    return _stable_reasons(labels)
+
+
+def _evolved_query_details(
+    generated: list[Any],
+    calls: list[Any],
+    snapshot: StageCandidateSnapshot | None,
+    *,
+    initial_ids: set[str],
+    stage_skip: str | None,
+) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    for evolved in generated:
+        sources = list(evolved.source_hints) or ["unknown"]
+        for source in sources:
+            matching_calls = [
+                call
+                for call in calls
+                if call.origin_subquery == evolved.query and call.source == source
+            ]
+            executed = any(call.logical_call_executed for call in matching_calls)
+            returned = sum(call.returned_count for call in matching_calls)
+            candidate_ids = _query_candidate_ids(snapshot, evolved.query, source)
+            skip_reason = _query_execution_skip_reason(
+                matching_calls,
+                executed=executed,
+                returned_count=returned,
+                stage_skip=stage_skip,
+            )
+            details.append(
+                {
+                    "query": evolved.query,
+                    "seed_titles": list(evolved.seed_paper_titles),
+                    "source": source,
+                    "executed": executed,
+                    "skip_reason": skip_reason,
+                    "request_count": sum(call.request_count for call in matching_calls),
+                    "returned_count": returned,
+                    "new_unique_candidate_count": len(candidate_ids - initial_ids),
+                }
+            )
+    return details
+
+
+def _refchain_seed_details(record: Any, prior: StageCandidateSnapshot | None) -> list[dict[str, Any]]:
+    if record is None:
+        return []
+    prior_tokens = set().union(
+        *(paper_identifier_set(candidate) for candidate in (prior.candidates if prior else []))
+    ) if prior and prior.candidates else set()
+    seen: set[str] = set()
+    edges_by_seed: dict[str, list[str]] = {}
+    for edge in record.reference_edges:
+        edges_by_seed.setdefault(edge.seed_paper_id, []).append(edge.reference_paper_id)
+    details: list[dict[str, Any]] = []
+    for diagnostic in record.seed_diagnostics:
+        references = edges_by_seed.get(diagnostic.seed_id or "", [])
+        unique = {
+            reference
+            for reference in references
+            if reference not in prior_tokens and reference not in seen
+        }
+        seen.update(references)
+        skip_reason = diagnostic.skip_reason
+        if diagnostic.references_returned and not unique:
+            skip_reason = "all_references_duplicate"
+        details.append(
+            {
+                "seed_id": diagnostic.seed_id,
+                "seed_rank": diagnostic.seed_rank,
+                "seed_category": diagnostic.seed_category,
+                "seed_score": diagnostic.seed_score,
+                "identifier_type": diagnostic.identifier_type,
+                "request_count": diagnostic.request_count,
+                "references_returned": diagnostic.references_returned,
+                "new_unique_references": len(unique),
+                "skip_reason": skip_reason,
+            }
+        )
+    return details
+
+
+def _aggregate_module_diagnostics(
+    cases: list[dict[str, Any]],
+    name: str,
+) -> dict[str, Any]:
+    modules = [case.get(name) or {} for case in cases]
+    count_keys = (
+        (
+            "eligible_seed_count",
+            "selected_seed_count",
+            "generated_query_count",
+            "executed_query_count",
+            "duplicate_query_count",
+            "budget_skipped_query_count",
+            "source_skipped_query_count",
+            "evolved_raw_candidate_count",
+            "evolved_unique_candidate_count",
+            "evolved_new_unique_candidate_count",
+            "evolved_gold_hit_count",
+            "evolved_unique_gold_hit_count",
+            "evolved_new_unique_gold_count",
+            "evolved_candidates_returned_count",
+            "evolved_gold_returned_count",
+            "gold_found_but_filtered_count",
+            "gold_filtered_by_judgement_count",
+            "gold_lost_by_top_k_count",
+        )
+        if name == "query_evolution"
+        else (
+            "eligible_seed_count",
+            "selected_seed_count",
+            "seed_with_supported_identifier_count",
+            "seed_without_supported_identifier_count",
+            "reference_request_count",
+            "raw_reference_count",
+            "unique_reference_count",
+            "new_unique_reference_count",
+            "reference_gold_hit_count",
+            "unique_reference_gold_hit_count",
+            "new_unique_reference_gold_count",
+            "reference_candidates_returned_count",
+            "reference_gold_returned_count",
+            "gold_found_but_filtered_count",
+            "gold_filtered_by_judgement_count",
+            "gold_lost_by_top_k_count",
+        )
+    )
+    categories = Counter()
+    skip_reasons = Counter()
+    for module in modules:
+        categories.update((module.get("new_candidate_categories") or {}).get("counts") or {})
+        skip_reasons.update(module.get("skipped_reasons") or [])
+    category_total = sum(categories.values())
+    result: dict[str, Any] = {
+        "enabled": any(module.get("enabled") for module in modules),
+        "enabled_case_count": sum(bool(module.get("enabled")) for module in modules),
+        **{
+            key: sum(int(module.get(key) or 0) for module in modules)
+            for key in count_keys
+        },
+        "candidate_recall_gain": _average_optional(
+            [module.get("candidate_recall_gain") for module in modules]
+        ) or 0.0,
+        "new_candidate_categories": {
+            "counts": dict(sorted(categories.items())),
+            "ratios": {
+                category: count / category_total
+                for category, count in sorted(categories.items())
+            },
+        },
+        "skipped_reasons": dict(sorted(skip_reasons.items())),
+    }
+    return result
+
+
+def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    costs = [case.get("stage_costs") or {} for case in cases]
+    case_count = len(costs)
+    result = {
+        "initial_search_api_calls": sum(int(item.get("initial_search_api_calls") or 0) for item in costs),
+        "query_evolution_api_calls": sum(int(item.get("query_evolution_api_calls") or 0) for item in costs),
+        "refchain_api_calls": sum(int(item.get("refchain_api_calls") or 0) for item in costs),
+        "retry_count": sum(int(item.get("retry_count") or 0) for item in costs),
+        "cache_hit_count": sum(int(item.get("cache_hit_count") or 0) for item in costs),
+        "average_latency_seconds": _average_optional([item.get("latency_seconds") for item in costs]) or 0.0,
+        "average_query_evolution_latency_seconds": _average_optional([item.get("query_evolution_latency_seconds") for item in costs]) or 0.0,
+        "average_refchain_latency_seconds": _average_optional([item.get("refchain_latency_seconds") for item in costs]) or 0.0,
+        "average_judgement_latency_seconds": _average_optional([item.get("judgement_latency_seconds") for item in costs]) or 0.0,
+        "average_reranking_latency_seconds": _average_optional([item.get("reranking_latency_seconds") for item in costs]) or 0.0,
+    }
+    qe_new = sum(int((case.get("query_evolution") or {}).get("evolved_new_unique_candidate_count") or 0) for case in cases)
+    qe_gold = sum(int((case.get("query_evolution") or {}).get("evolved_new_unique_gold_count") or 0) for case in cases)
+    qe_gain = _average_optional([(case.get("query_evolution") or {}).get("candidate_recall_gain") for case in cases]) or 0.0
+    rc_new = sum(int((case.get("refchain") or {}).get("new_unique_reference_count") or 0) for case in cases)
+    rc_gold = sum(int((case.get("refchain") or {}).get("new_unique_reference_gold_count") or 0) for case in cases)
+    rc_gain = _average_optional([(case.get("refchain") or {}).get("candidate_recall_gain") for case in cases]) or 0.0
+    result["query_evolution"] = _module_marginal_costs(
+        result["query_evolution_api_calls"], qe_new, qe_gold, qe_gain,
+        result["average_query_evolution_latency_seconds"] * case_count,
+    )
+    result["refchain"] = _module_marginal_costs(
+        result["refchain_api_calls"], rc_new, rc_gold, rc_gain,
+        result["average_refchain_latency_seconds"] * case_count,
+    )
+    return result
+
+
+def _candidate_ids(snapshot: StageCandidateSnapshot | None) -> set[str]:
+    if snapshot is None or snapshot.status != "completed":
+        return set()
+    return {
+        identifier
+        for candidate in snapshot.candidates
+        if (identifier := canonical_paper_id(candidate))
+    }
+
+
+def _query_candidate_ids(
+    snapshot: StageCandidateSnapshot | None,
+    query: str,
+    source: str,
+) -> set[str]:
+    if snapshot is None:
+        return set()
+    return {
+        identifier
+        for candidate in snapshot.candidates
+        if any(
+            provenance.origin_stage == "query_evolution_retrieval"
+            and provenance.origin_subquery == query
+            and provenance.source == source
+            for provenance in candidate.provenance
+        )
+        if (identifier := canonical_paper_id(candidate))
+    }
+
+
+def _gold_match_keys(
+    eval_query: EvalQuery,
+    snapshot: StageCandidateSnapshot | None,
+) -> set[str]:
+    if snapshot is None or snapshot.status != "completed":
+        return set()
+    return {
+        f"{eval_query.query_id}:{index}"
+        for index, gold in enumerate(eval_query.gold_papers)
+        if any(_candidate_matches(candidate, gold) for candidate in snapshot.candidates)
+    }
+
+
+def _raw_gold_hit_count(
+    eval_query: EvalQuery,
+    snapshot: StageCandidateSnapshot | None,
+) -> int:
+    if snapshot is None or snapshot.status != "completed":
+        return 0
+    return sum(
+        _candidate_matches(candidate, gold)
+        for candidate in snapshot.candidates
+        for gold in eval_query.gold_papers
+    )
+
+
+def _candidate_recall_value(
+    snapshot: StageCandidateSnapshot | None,
+    gold: list[EvalGoldPaper],
+) -> float:
+    if snapshot is None or snapshot.status != "completed":
+        return 0.0
+    value = _candidate_recall(snapshot, gold)
+    return float(value or 0.0)
+
+
+def _new_candidate_categories(
+    new_ids: set[str],
+    judged: StageCandidateSnapshot | None,
+) -> dict[str, Any]:
+    categories = Counter(
+        candidate.category or "unjudged"
+        for candidate in (judged.candidates if judged else [])
+        if canonical_paper_id(candidate) in new_ids
+    )
+    total = sum(categories.values())
+    return {
+        "counts": dict(sorted(categories.items())),
+        "ratios": {
+            category: count / total
+            for category, count in sorted(categories.items())
+        },
+    }
+
+
+def _module_gold_losses(
+    new_gold: set[str],
+    judged: StageCandidateSnapshot | None,
+    final_returned: StageCandidateSnapshot | None,
+    eval_query: EvalQuery,
+) -> tuple[int, int]:
+    retained_after_judgement = _gold_match_keys_for_categories(
+        eval_query,
+        judged,
+        RETURN_CATEGORIES,
+    )
+    returned = _gold_match_keys(eval_query, final_returned)
+    judgement_filtered = new_gold - retained_after_judgement
+    top_k_lost = (new_gold & retained_after_judgement) - returned
+    return len(judgement_filtered), len(top_k_lost)
+
+
+def _gold_match_keys_for_categories(
+    eval_query: EvalQuery,
+    snapshot: StageCandidateSnapshot | None,
+    categories: set[str],
+) -> set[str]:
+    if snapshot is None or snapshot.status != "completed":
+        return set()
+    return {
+        f"{eval_query.query_id}:{index}"
+        for index, gold in enumerate(eval_query.gold_papers)
+        if any(
+            candidate.category in categories and _candidate_matches(candidate, gold)
+            for candidate in snapshot.candidates
+        )
+    }
+
+
+def _eligible_query_evolution_seed_count(
+    snapshot: StageCandidateSnapshot | None,
+) -> int:
+    if snapshot is None:
+        return 0
+    return sum(
+        candidate.category == "highly_relevant"
+        or (
+            candidate.category == "partially_relevant"
+            and float(candidate.judgement_score or 0.0) >= 0.45
+        )
+        for candidate in snapshot.candidates
+    )
+
+
+def _eligible_refchain_seed_count(snapshot: StageCandidateSnapshot | None) -> int:
+    if snapshot is None:
+        return 0
+    return sum(
+        candidate.category == "highly_relevant"
+        or (
+            candidate.category == "partially_relevant"
+            and float(candidate.final_score or 0.0) >= 0.45
+        )
+        for candidate in snapshot.candidates
+    )
+
+
+def _supported_seed_identifier(paper: Any) -> bool:
+    return bool(paper.identifiers.openalex_id or paper.identifiers.doi)
+
+
+def _query_execution_skip_reason(
+    calls: list[Any],
+    *,
+    executed: bool,
+    returned_count: int,
+    stage_skip: str | None,
+) -> str | None:
+    if not calls:
+        return "budget_stop" if _is_budget_reason(stage_skip) else "duplicate_query"
+    reasons = [call.source_skipped_reason or "" for call in calls]
+    errors = [call.error_count for call in calls]
+    if any("cooldown" in reason or "rate_limit" in reason for reason in reasons):
+        return "source_cooldown"
+    if any(errors) or any("failure" in reason for reason in reasons):
+        return "source_failure"
+    if not executed:
+        return "duplicate_query"
+    if returned_count == 0:
+        return "empty_result"
+    return None
+
+
+def _normalize_query_evolution_skip(reason: str) -> str:
+    normalized = reason.casefold()
+    if "no_relevant_seed" in normalized:
+        return "no_eligible_seed"
+    if "no_new" in normalized:
+        return "no_new_query"
+    if "budget" in normalized or "max_" in normalized:
+        return "budget_stop"
+    if "cooldown" in normalized or "429" in normalized:
+        return "source_cooldown"
+    if "failed" in normalized or "error" in normalized:
+        return "source_failure"
+    return reason
+
+
+def _normalize_refchain_skip(reason: str) -> str:
+    normalized = reason.casefold()
+    if "no_eligible_seed" in normalized:
+        return "no_eligible_seed"
+    if "missing_supported_identifier" in normalized:
+        return "unsupported_identifier"
+    if "budget" in normalized or "max_" in normalized:
+        return "budget_stop"
+    if "cooldown" in normalized or "429" in normalized:
+        return "source_cooldown"
+    if "failed" in normalized or "error" in normalized:
+        return "source_failure"
+    return reason
+
+
+def _is_budget_reason(reason: str | None) -> bool:
+    normalized = (reason or "").casefold()
+    return "budget" in normalized or "max_" in normalized
+
+
+def _stable_reasons(values: Any) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        item = str(value).strip()
+        if item and item not in result:
+            result.append(item)
+    return result
 
 
 def _retrieval_query_diagnostics(output: SearchServiceOutput) -> dict[str, Any]:

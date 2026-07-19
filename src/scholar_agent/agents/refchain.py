@@ -18,6 +18,7 @@ from scholar_agent.core.search_schemas import (
     RefChainOutput,
     RefChainRecord,
     RefChainSeed,
+    RefChainSeedDiagnostic,
     ReferenceEdge,
 )
 
@@ -47,6 +48,8 @@ class RefChainAgent:
         references: list[Paper] = []
         reference_edges: list[ReferenceEdge] = []
         connector_diagnostics: list[ConnectorDiagnostics] = []
+        seed_diagnostics: list[RefChainSeedDiagnostic] = []
+        seen_reference_ids: set[str] = set()
 
         seeds = _select_seeds(ranked_papers, options)
         if not seeds:
@@ -61,9 +64,15 @@ class RefChainAgent:
                 if budget_reason is not None:
                     warnings.append(budget_reason)
                     skipped_reasons.append(budget_reason)
+                    seed_diagnostics.append(
+                        _seed_diagnostic(ranked, skip_reason="budget_stop")
+                    )
                     break
             if len(references) >= options.max_total_references:
                 warnings.append("refchain_total_reference_limit_reached")
+                seed_diagnostics.append(
+                    _seed_diagnostic(ranked, skip_reason="budget_stop")
+                )
                 break
 
             seed_id = _paper_identifier(ranked.paper)
@@ -71,12 +80,18 @@ class RefChainAgent:
                 warning = f"refchain_seed_missing_supported_identifier:{ranked.rank}"
                 warnings.append(warning)
                 skipped_reasons.append(warning)
+                seed_diagnostics.append(
+                    _seed_diagnostic(ranked, skip_reason="unsupported_identifier")
+                )
                 continue
 
             remaining = options.max_total_references - len(references)
             per_seed_limit = min(options.max_references_per_seed, remaining)
             if per_seed_limit <= 0:
                 warnings.append("refchain_total_reference_limit_reached")
+                seed_diagnostics.append(
+                    _seed_diagnostic(ranked, skip_reason="budget_stop")
+                )
                 break
 
             try:
@@ -86,11 +101,18 @@ class RefChainAgent:
                 warnings.append(warning)
                 skipped_reasons.append(warning)
                 connector_diagnostics.append(ConnectorDiagnostics(error_count=1))
+                seed_diagnostics.append(
+                    _seed_diagnostic(ranked, skip_reason="source_failure")
+                )
                 continue
 
+            request_count = 0
+            fetch_error: str | None = None
             if isinstance(fetch_result, ConnectorSearchResult):
                 connector_diagnostics.append(fetch_result.diagnostics)
                 warnings.extend(fetch_result.warnings)
+                request_count = fetch_result.diagnostics.request_count
+                fetch_error = fetch_result.error_message
                 if fetch_result.error_message:
                     skipped_reasons.append(fetch_result.error_message)
                 fetched = fetch_result.papers
@@ -100,6 +122,8 @@ class RefChainAgent:
             if cancel_check is not None:
                 cancel_check()
 
+            returned_for_seed = 0
+            unique_for_seed = 0
             for reference in fetched[:per_seed_limit]:
                 if len(references) >= options.max_total_references:
                     warnings.append("refchain_total_reference_limit_reached")
@@ -111,6 +135,10 @@ class RefChainAgent:
                     skipped_reasons.append(warning)
                     continue
                 references.append(reference)
+                returned_for_seed += 1
+                if reference_id not in seen_reference_ids:
+                    unique_for_seed += 1
+                    seen_reference_ids.add(reference_id)
                 reference_edges.append(
                     ReferenceEdge(
                         seed_paper_id=seed_id,
@@ -118,11 +146,33 @@ class RefChainAgent:
                         source="openalex",
                     )
                 )
+            skip_reason = _seed_fetch_skip_reason(
+                fetch_error,
+                returned_for_seed=returned_for_seed,
+                unique_for_seed=unique_for_seed,
+            )
+            seed_diagnostics.append(
+                _seed_diagnostic(
+                    ranked,
+                    request_count=request_count,
+                    references_returned=returned_for_seed,
+                    unique_references_returned=unique_for_seed,
+                    skip_reason=skip_reason,
+                )
+            )
+
+        diagnosed_ranks = {item.seed_rank for item in seed_diagnostics}
+        for ranked in seeds:
+            if ranked.rank not in diagnosed_ranks:
+                seed_diagnostics.append(
+                    _seed_diagnostic(ranked, skip_reason="budget_stop")
+                )
 
         latency_seconds = time.perf_counter() - start
         diagnostics = merge_connector_diagnostics(connector_diagnostics)
         record = RefChainRecord(
             seeds=[_to_seed(seed) for seed in seeds],
+            seed_diagnostics=seed_diagnostics,
             reference_edges=reference_edges,
             raw_reference_count=len(references),
             returned_reference_count=len(references),
@@ -194,6 +244,53 @@ def _paper_identifier(paper: Paper) -> str | None:
         return f"openalex:{identifiers.openalex_id.casefold()}"
     if identifiers.doi:
         return f"doi:{identifiers.doi.casefold()}"
+    return None
+
+
+def _identifier_type(paper: Paper) -> str | None:
+    if paper.identifiers.openalex_id:
+        return "openalex"
+    if paper.identifiers.doi:
+        return "doi"
+    return None
+
+
+def _seed_diagnostic(
+    ranked: RankedPaper,
+    *,
+    request_count: int = 0,
+    references_returned: int = 0,
+    unique_references_returned: int = 0,
+    skip_reason: str | None = None,
+) -> RefChainSeedDiagnostic:
+    return RefChainSeedDiagnostic(
+        seed_id=_paper_identifier(ranked.paper),
+        seed_rank=ranked.rank,
+        seed_category=ranked.category,
+        seed_score=ranked.final_score,
+        identifier_type=_identifier_type(ranked.paper),
+        request_count=request_count,
+        references_returned=references_returned,
+        unique_references_returned=unique_references_returned,
+        skip_reason=skip_reason,
+    )
+
+
+def _seed_fetch_skip_reason(
+    error_message: str | None,
+    *,
+    returned_for_seed: int,
+    unique_for_seed: int,
+) -> str | None:
+    normalized = (error_message or "").casefold()
+    if "cooldown" in normalized or "429" in normalized:
+        return "source_cooldown"
+    if error_message:
+        return "source_failure"
+    if returned_for_seed == 0:
+        return "no_references"
+    if unique_for_seed == 0:
+        return "all_references_duplicate"
     return None
 
 

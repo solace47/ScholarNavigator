@@ -322,6 +322,18 @@ class RefChainSeed(BaseModel):
     reason: str
 
 
+class RefChainSeedDiagnostic(BaseModel):
+    seed_id: str | None = None
+    seed_rank: int = Field(ge=1)
+    seed_category: JudgementCategory
+    seed_score: float = Field(ge=0.0, le=1.0)
+    identifier_type: str | None = None
+    request_count: int = Field(default=0, ge=0)
+    references_returned: int = Field(default=0, ge=0)
+    unique_references_returned: int = Field(default=0, ge=0)
+    skip_reason: str | None = None
+
+
 class ReferenceEdge(BaseModel):
     seed_paper_id: str
     reference_paper_id: str
@@ -331,6 +343,7 @@ class ReferenceEdge(BaseModel):
 
 class RefChainRecord(BaseModel):
     seeds: list[RefChainSeed] = Field(default_factory=list)
+    seed_diagnostics: list[RefChainSeedDiagnostic] = Field(default_factory=list)
     reference_edges: list[ReferenceEdge] = Field(default_factory=list)
     raw_reference_count: int = Field(default=0, ge=0)
     returned_reference_count: int = Field(default=0, ge=0)
