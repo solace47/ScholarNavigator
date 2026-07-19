@@ -13,16 +13,31 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import run_benchmark
+from scholar_agent.agents import retriever as retriever_module
 from scholar_agent.agents.llm_query_planning import LLMPlanningRequest
 from scholar_agent.agents.query_understanding import analyze_query
+from scholar_agent.connectors.schemas import ConnectorSearchResult
+from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.evaluation.llm_planning_snapshots import (
     LLMPlanningSnapshotRuntime,
     LLMPlanningSnapshotStore,
     llm_planning_snapshot_key,
 )
-from scholar_agent.evaluation.snapshots.store import SnapshotMissingError
+from scholar_agent.evaluation.snapshots import (
+    SnapshotAwareReferenceFetcher,
+    SnapshotAwareRetriever,
+    SnapshotManifest,
+    SnapshotRuntime,
+    SnapshotStore,
+)
+from scholar_agent.evaluation.snapshots.store import (
+    SnapshotMissingError,
+    connector_version,
+    utc_now,
+)
 from scholar_agent.evaluation.snapshots.schemas import SnapshotPlanEntry, SnapshotPlanRound
 from scholar_agent.prompts.loader import load_prompt, render_messages
+from scholar_agent.services.search_service import SearchService
 
 
 def _response() -> dict[str, object]:
@@ -287,6 +302,147 @@ def test_query_planning_record_then_replay_is_fully_offline(tmp_path: Path) -> N
     assert replayed.query_planning.replayed is True
     assert replayed.query_planning.llm_call_attempted is False
     assert replay_runtime.finish_case().replay_execution_request_count == 0
+
+
+def test_search_service_double_replay_is_fully_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    retrieval_root = tmp_path / "retrieval"
+    retrieval_store = SnapshotStore(retrieval_root)
+    now = utc_now()
+    retrieval_store.ensure_manifest(
+        SnapshotManifest(
+            snapshot_name="double-replay",
+            dataset="auto_scholar_query",
+            split="test",
+            offset=0,
+            limit=1,
+            sources=["arxiv"],
+            adapter_policy="adaptive",
+            run_profile="balanced",
+            budgets={},
+            llm_enabled=True,
+            query_understanding_prompt={},
+            llm_query_planning_prompt={},
+            judgement_prompt={},
+            connector_versions={"arxiv": connector_version("arxiv")},
+            code_hash="test",
+            git_commit="test",
+            dirty_worktree=False,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+
+    paper = Paper(
+        title="Graph Retrieval with Representation Learning",
+        authors=["Test Author"],
+        year=2024,
+        abstract="Graph representation learning for retrieval benchmarks.",
+        identifiers=PaperIdentifiers(arxiv_id="2401.00001"),
+        sources=["arxiv"],
+    )
+    monkeypatch.setattr(
+        retriever_module,
+        "search_arxiv_detailed",
+        lambda query, limit: ConnectorSearchResult(papers=[paper]),
+    )
+    retrieval_record = SnapshotRuntime(
+        retrieval_store,
+        mode="record",
+        group_name="llm_semantic",
+        query_planning_policy="llm_semantic",
+        query_planner_version="1.3.0",
+    )
+    llm_store = LLMPlanningSnapshotStore(tmp_path / "llm")
+    llm_record = LLMPlanningSnapshotRuntime(
+        llm_store,
+        mode="record",
+        group_name="llm_semantic",
+    )
+    retrieval_record.begin_case("case-1")
+    llm_record.begin_case("case-1")
+    recorded = SearchService(
+        retriever=SnapshotAwareRetriever(retrieval_record),
+        reference_fetcher=SnapshotAwareReferenceFetcher(
+            retrieval_record,
+            lambda paper, limit: pytest.fail("reference network forbidden"),
+        ),
+        llm_client=Client(),
+        llm_planning_runtime=llm_record,
+        max_workers=1,
+    ).run_search(
+        "graph retrieval",
+        top_k=5,
+        sources_override=["arxiv"],
+        query_planning_policy="llm_semantic",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        enable_synthesis=False,
+    )
+
+    def network_forbidden(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        pytest.fail("network forbidden during double replay")
+
+    for name in (
+        "search_arxiv_detailed",
+        "search_openalex_detailed",
+        "search_semantic_scholar_detailed",
+        "search_pubmed_detailed",
+    ):
+        monkeypatch.setattr(retriever_module, name, network_forbidden)
+
+    class ForbiddenLLM:
+        provider = "test_provider"
+        model = "semantic-v1"
+
+        def chat_json(self, *args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+            pytest.fail("LLM network forbidden during replay")
+
+    retrieval_replay = SnapshotRuntime(
+        retrieval_store,
+        mode="replay",
+        group_name="llm_semantic",
+        query_planning_policy="llm_semantic",
+        query_planner_version="1.3.0",
+    )
+    llm_replay = LLMPlanningSnapshotRuntime(
+        llm_store,
+        mode="replay",
+        group_name="llm_semantic",
+    )
+    retrieval_replay.begin_case("case-1")
+    llm_replay.begin_case("case-1")
+    replayed = SearchService(
+        retriever=SnapshotAwareRetriever(retrieval_replay),
+        reference_fetcher=SnapshotAwareReferenceFetcher(
+            retrieval_replay,
+            network_forbidden,
+        ),
+        llm_client=ForbiddenLLM(),
+        llm_planning_runtime=llm_replay,
+        max_workers=1,
+    ).run_search(
+        "graph retrieval",
+        top_k=5,
+        sources_override=["arxiv"],
+        query_planning_policy="llm_semantic",
+        enable_query_evolution=False,
+        enable_refchain=False,
+        enable_synthesis=False,
+    )
+
+    assert replayed.search_plan.subqueries == recorded.search_plan.subqueries
+    assert replayed.ranked_papers == recorded.ranked_papers
+    llm_cost = llm_replay.finish_case()
+    retrieval_cost = retrieval_replay.finish_case()
+    assert llm_cost.replay_execution_request_count == 0
+    assert llm_cost.replay_execution_retry_count == 0
+    assert llm_cost.replay_execution_network_wait_seconds == 0
+    assert retrieval_cost.replay_execution_request_count == 0
+    assert retrieval_cost.replay_execution_retry_count == 0
+    assert retrieval_cost.replay_execution_network_wait_seconds == 0
 
 
 def test_dynamic_plan_freezes_llm_before_retrieval_and_records_dependency(
