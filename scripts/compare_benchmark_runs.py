@@ -19,16 +19,20 @@ def compare_runs(run_dirs: list[Path]) -> str:
     lines = [
         "# Benchmark 配置对比",
         "",
-        "> 开发诊断样本，仅 10 条，不代表最终比赛成绩；不进行显著性声明。",
+        (
+            f"> 固定诊断样本，共 {baseline['config'].get('limit', '-')} 条，"
+            "不代表完整 Benchmark 或比赛成绩；不进行显著性声明。"
+        ),
         "",
         (
-            "| 配置 | 成功率 | F1@5 | F1@10 | F1@20 | P@20 | R@20 | "
+            "| 配置 | 策略（policy） | 成功率 | F1@5 | F1@10 | F1@20 | P@20 | R@20 | "
             "初始候选 Recall | 最终返回 Recall@20 | Judgement FN 率 | "
-            "平均 gold rank | 平均 API | 平均延迟（秒） | 来源错误率 | 瓶颈标签 |"
+            "平均 gold rank | 平均 API | 平均延迟（秒） | compact 执行率 | "
+            "compact 平均新增候选 | compact gold 增量 | 来源错误率 | 瓶颈标签 |"
         ),
         (
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | "
-            "---: | ---: | ---: | ---: | ---: | ---: | --- |"
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | "
+            "---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
         ),
     ]
     for run in runs:
@@ -70,10 +74,14 @@ def _validate_comparable(runs: list[dict[str, Any]]) -> None:
         "case_ids",
         "offset",
         "limit",
+        "sources",
+        "run_profile",
         "result_policy",
         "top_k",
         "budgets",
         "llm",
+        "enable_query_evolution",
+        "enable_refchain",
     )
     for run in runs[1:]:
         mismatched = [
@@ -97,9 +105,12 @@ def _run_row(run: dict[str, Any]) -> str:
     judgement = stage.get("judgement", {})
     reranking = stage.get("reranking", {})
     sources = stage.get("source_contribution", {})
+    adaptive = (stage.get("retrieval_diagnostics") or {}).get("adaptive") or {}
+    strategy = stage.get("query_strategy_contribution") or {}
     labels = ", ".join(stage.get("bottleneck_labels") or []) or "-"
     return (
-        f"| {run['name']} | {float(stats['success_rate']):.3f} | "
+        f"| {run['name']} | {run['config'].get('query_adapter_policy', '-')} | "
+        f"{float(stats['success_rate']):.3f} | "
         f"{_at_k(end_to_end, 'f1_at_k', 5):.3f} | "
         f"{_at_k(end_to_end, 'f1_at_k', 10):.3f} | "
         f"{_at_k(end_to_end, 'f1_at_k', 20):.3f} | "
@@ -111,6 +122,9 @@ def _run_row(run: dict[str, Any]) -> str:
         f"{_optional(reranking.get('average_gold_rank'))} | "
         f"{float(efficiency.get('average_api_calls') or 0.0):.3f} | "
         f"{float(efficiency.get('average_latency_seconds') or 0.0):.3f} | "
+        f"{float(adaptive.get('compact_execution_ratio') or 0.0):.3f} | "
+        f"{float(adaptive.get('compact_average_added_unique_candidates') or 0.0):.3f} | "
+        f"{int(strategy.get('compact_gold_increment') or 0)} | "
         f"{float(sources.get('source_error_rate') or 0.0):.3f} | {labels} |"
     )
 

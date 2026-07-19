@@ -601,7 +601,7 @@ def _retrieval_query_diagnostics(output: SearchServiceOutput) -> dict[str, Any]:
                 "strategies": {},
             },
         )
-        bucket["logical_call_count"] += 1
+        bucket["logical_call_count"] += int(item.logical_call_executed)
         bucket["request_count"] += item.diagnostics.request_count
         bucket["empty_result_count"] += int(
             item.diagnostics.request_count > 0
@@ -628,7 +628,7 @@ def _retrieval_query_diagnostics(output: SearchServiceOutput) -> dict[str, Any]:
         elif item.error_message:
             errors["other"] += 1
     return {
-        "logical_call_count": len(stats),
+        "logical_call_count": sum(item.logical_call_executed for item in stats),
         "actual_request_count": sum(
             item.diagnostics.request_count for item in stats
         ),
@@ -647,8 +647,61 @@ def _retrieval_query_diagnostics(output: SearchServiceOutput) -> dict[str, Any]:
         "empty_result_rate": len(empty) / len(actual) if actual else 0.0,
         "errors": dict(sorted(errors.items())),
         "skipped": dict(sorted(skipped.items())),
+        "adaptive": _adaptive_retrieval_diagnostics(stats),
         "by_source": by_source,
     }
+
+
+def _adaptive_retrieval_diagnostics(stats: list[Any]) -> dict[str, Any]:
+    decisions = [
+        item
+        for item in stats
+        if item.adaptation_strategy == "compact_core"
+        and item.compact_query_executed is not None
+    ]
+    executed = [item for item in decisions if item.compact_query_executed]
+    safe_keys = {
+        _paper_identity_key(paper)
+        for item in stats
+        if item.adaptation_strategy in {"safe_original", "fallback_original"}
+        for paper in item.diagnostic_papers
+    }
+    compact_keys = {
+        _paper_identity_key(paper)
+        for item in executed
+        for paper in item.diagnostic_papers
+    }
+    return {
+        "compact_decision_count": len(decisions),
+        "compact_executed_count": len(executed),
+        "compact_execution_ratio": (
+            len(executed) / len(decisions) if decisions else 0.0
+        ),
+        "compact_added_unique_candidate_count": len(compact_keys - safe_keys),
+        "skip_reasons": dict(
+            sorted(
+                Counter(
+                    item.compact_query_skipped_reason
+                    for item in decisions
+                    if item.compact_query_skipped_reason
+                ).items()
+            )
+        ),
+    }
+
+
+def _paper_identity_key(paper: Any) -> str:
+    identifiers = paper.identifiers
+    for value in (
+        identifiers.doi,
+        identifiers.arxiv_id,
+        identifiers.semantic_scholar_id,
+        identifiers.openalex_id,
+        identifiers.pubmed_id,
+    ):
+        if value:
+            return str(value).casefold()
+    return f"{paper.title.casefold()}::{paper.year}"
 
 
 def _query_strategy_gold_contribution(
@@ -661,6 +714,7 @@ def _query_strategy_gold_contribution(
     }
     purpose_hits: dict[str, set[str]] = {}
     adaptation_hits: dict[str, set[str]] = {}
+    compact_only_hits: set[str] = set()
     initial = next(
         (item for item in snapshots if item.stage == "initial_retrieval"),
         None,
@@ -675,6 +729,14 @@ def _query_strategy_gold_contribution(
         }
         if not matched:
             continue
+        strategies = {
+            provenance.adaptation_strategy or "unadapted"
+            for provenance in candidate.provenance
+        }
+        if "compact_core" in strategies and not strategies.intersection(
+            {"safe_original", "fallback_original"}
+        ):
+            compact_only_hits.update(matched)
         for provenance in candidate.provenance:
             purpose = purposes.get(provenance.origin_subquery, "unknown")
             purpose_hits.setdefault(purpose, set()).update(matched)
@@ -687,6 +749,7 @@ def _query_strategy_gold_contribution(
         "adaptation_strategies": {
             key: len(value) for key, value in sorted(adaptation_hits.items())
         },
+        "compact_gold_increment": len(compact_only_hits),
     }
 
 
@@ -699,9 +762,20 @@ def _aggregate_retrieval_diagnostics(
     empty = sum(int(item.get("empty_result_count") or 0) for item in diagnostics)
     errors = Counter()
     skipped = Counter()
+    compact_decisions = 0
+    compact_executed = 0
+    compact_added = 0
+    adaptive_skips: Counter[str] = Counter()
     for item in diagnostics:
         errors.update(item.get("errors") or {})
         skipped.update(item.get("skipped") or {})
+        adaptive = item.get("adaptive") or {}
+        compact_decisions += int(adaptive.get("compact_decision_count") or 0)
+        compact_executed += int(adaptive.get("compact_executed_count") or 0)
+        compact_added += int(
+            adaptive.get("compact_added_unique_candidate_count") or 0
+        )
+        adaptive_skips.update(adaptive.get("skip_reasons") or {})
     return {
         "logical_call_count": logical,
         "actual_request_count": actual,
@@ -710,6 +784,18 @@ def _aggregate_retrieval_diagnostics(
         "empty_result_rate": empty / actual if actual else 0.0,
         "errors": dict(sorted(errors.items())),
         "skipped": dict(sorted(skipped.items())),
+        "adaptive": {
+            "compact_decision_count": compact_decisions,
+            "compact_executed_count": compact_executed,
+            "compact_execution_ratio": (
+                compact_executed / compact_decisions if compact_decisions else 0.0
+            ),
+            "compact_added_unique_candidate_count": compact_added,
+            "compact_average_added_unique_candidates": (
+                compact_added / compact_executed if compact_executed else 0.0
+            ),
+            "skip_reasons": dict(sorted(adaptive_skips.items())),
+        },
         "average_adapted_query_length": _average_optional(
             [item.get("average_adapted_query_length") for item in diagnostics]
         ),
@@ -721,16 +807,21 @@ def _aggregate_retrieval_diagnostics(
 
 def _aggregate_strategy_contribution(
     cases: list[dict[str, Any]],
-) -> dict[str, dict[str, int]]:
+) -> dict[str, Any]:
     purposes: Counter[str] = Counter()
     adaptations: Counter[str] = Counter()
+    compact_gold_increment = 0
     for case in cases:
         contribution = case.get("query_strategy_contribution") or {}
         purposes.update(contribution.get("subquery_purposes") or {})
         adaptations.update(contribution.get("adaptation_strategies") or {})
+        compact_gold_increment += int(
+            contribution.get("compact_gold_increment") or 0
+        )
     return {
         "subquery_purposes": dict(sorted(purposes.items())),
         "adaptation_strategies": dict(sorted(adaptations.items())),
+        "compact_gold_increment": compact_gold_increment,
     }
 
 

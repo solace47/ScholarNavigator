@@ -287,7 +287,8 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
     return api.CostReport(
         api_call_count=connector_request_count + output.llm_call_count,
         logical_search_call_count=sum(
-            stat.source != "refchain" for stat in output.source_stats
+            stat.source != "refchain" and stat.logical_call_executed
+            for stat in output.source_stats
         ),
         search_api_call_count=search.request_count,
         reference_api_call_count=reference.request_count,
@@ -322,6 +323,19 @@ def _retrieval_diagnostics(output: SearchServiceOutput) -> api.RetrievalDiagnost
                 returned_count=stats.returned_count,
                 latency_seconds=stats.latency_seconds,
                 cache_hit=stats.cache_hit,
+                logical_call_executed=stats.logical_call_executed,
+                adaptation_strategy=stats.adaptation_strategy,
+                triggered_by=list(stats.triggered_by),
+                safe_original_candidate_count=stats.safe_original_candidate_count,
+                safe_original_core_term_coverage=(
+                    stats.safe_original_core_term_coverage
+                ),
+                safe_original_constraint_coverage=(
+                    stats.safe_original_constraint_coverage
+                ),
+                sufficiency_reasons=list(stats.sufficiency_reasons),
+                compact_query_executed=stats.compact_query_executed,
+                compact_query_skipped_reason=stats.compact_query_skipped_reason,
                 error_message=stats.error_message,
                 diagnostics=stats.diagnostics,
             )

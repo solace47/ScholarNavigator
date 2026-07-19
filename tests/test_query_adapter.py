@@ -68,7 +68,9 @@ def test_compact_core_supplements_instead_of_replacing_safe_original() -> None:
 def test_low_information_retention_falls_back_to_safe_original() -> None:
     query = " ".join(f"SpecializedTerm{index}" for index in range(30))
 
-    queries = adapt_queries_for_source(query, "semantic_scholar")
+    queries = adapt_queries_for_source(
+        query, "semantic_scholar", policy="hybrid"
+    )
 
     assert len(queries) == 1
     assert queries[0].strategy == "fallback_original"
@@ -137,7 +139,9 @@ def test_explicit_method_and_dataset_are_prioritized_in_compact_query() -> None:
 
 
 def test_equivalent_safe_and_compact_queries_merge_without_second_request_variant() -> None:
-    queries = adapt_queries_for_source("graph retrieval", "openalex")
+    queries = adapt_queries_for_source(
+        "graph retrieval", "openalex", policy="hybrid"
+    )
 
     assert len(queries) == 1
     assert queries[0].equivalent_strategies == ["safe_original", "compact_core"]

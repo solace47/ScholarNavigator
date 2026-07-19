@@ -44,6 +44,14 @@ class RetrievalCallTrace(BaseModel):
     adaptation_strategy: str | None = None
     cache_hit: bool = False
     run_dedupe_hit: bool = False
+    logical_call_executed: bool = True
+    triggered_by: list[str] = Field(default_factory=list)
+    safe_original_candidate_count: int | None = None
+    safe_original_core_term_coverage: float | None = None
+    safe_original_constraint_coverage: float | None = None
+    sufficiency_reasons: list[str] = Field(default_factory=list)
+    compact_query_executed: bool | None = None
+    compact_query_skipped_reason: str | None = None
     source_skipped_reason: str | None = None
     remaining_subquery_count: int = 0
     returned_count: int = 0
@@ -121,6 +129,22 @@ class PipelineDiagnosticsCollector:
                         adaptation_strategy=stats.adaptation_strategy,
                         cache_hit=stats.cache_hit,
                         run_dedupe_hit=stats.run_dedupe_hit,
+                        logical_call_executed=stats.logical_call_executed,
+                        triggered_by=list(stats.triggered_by),
+                        safe_original_candidate_count=(
+                            stats.safe_original_candidate_count
+                        ),
+                        safe_original_core_term_coverage=(
+                            stats.safe_original_core_term_coverage
+                        ),
+                        safe_original_constraint_coverage=(
+                            stats.safe_original_constraint_coverage
+                        ),
+                        sufficiency_reasons=list(stats.sufficiency_reasons),
+                        compact_query_executed=stats.compact_query_executed,
+                        compact_query_skipped_reason=(
+                            stats.compact_query_skipped_reason
+                        ),
                         source_skipped_reason=stats.source_skipped_reason,
                         remaining_subquery_count=stats.remaining_subquery_count,
                         returned_count=stats.returned_count,

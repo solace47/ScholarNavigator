@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field
 from scholar_agent.core.search_schemas import QueryConstraint
 
 
-QueryAdapterPolicy = Literal["safe_original", "hybrid"]
-DEFAULT_QUERY_ADAPTER_POLICY: QueryAdapterPolicy = "hybrid"
+QueryAdapterPolicy = Literal["safe_original", "hybrid", "adaptive"]
+DEFAULT_QUERY_ADAPTER_POLICY: QueryAdapterPolicy = "adaptive"
 MAX_ADAPTED_QUERIES_PER_SOURCE = 2
 MIN_COMPACT_RETENTION_RATIO = 0.5
 MAX_OPENALEX_QUERY_LENGTH = 180
@@ -81,7 +81,7 @@ def adapt_queries_for_source(
 ) -> list[AdaptedQuery]:
     """按策略生成“安全原查询保底 + 核心查询补充”的有界变体。"""
 
-    if policy not in ("safe_original", "hybrid"):
+    if policy not in ("safe_original", "hybrid", "adaptive"):
         raise ValueError(f"unsupported query adapter policy: {policy}")
     limit = max(0, min(int(max_queries), MAX_ADAPTED_QUERIES_PER_SOURCE))
     if limit == 0:
@@ -102,13 +102,13 @@ def adapt_queries_for_source(
         or compact.retention_ratio < MIN_COMPACT_RETENTION_RATIO
         or "compact_query_protected_terms_removed" in compact.warnings
     )
-    if compact_unsafe:
+    if compact_unsafe and policy != "adaptive":
         warnings = _stable(
             [*safe.warnings, *compact.warnings, "compact_query_fallback_to_safe_original"]
         )
         return [safe.model_copy(update={"strategy": "fallback_original", "warnings": warnings})]
 
-    if _query_key(compact.query) == _query_key(safe.query):
+    if _query_key(compact.query) == _query_key(safe.query) and policy != "adaptive":
         return [
             safe.model_copy(
                 update={

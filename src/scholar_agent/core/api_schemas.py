@@ -120,9 +120,7 @@ class SearchRunCreateRequest(BaseModel):
     query: str = Field(..., min_length=1)
     locale: str = "zh-CN"
     constraints: SearchConstraints = Field(default_factory=SearchConstraints)
-    source_preferences: list[SourceName] = Field(
-        default_factory=lambda: ["openalex", "arxiv", "semantic_scholar"]
-    )
+    source_preferences: list[SourceName] | None = None
     run_profile: RunProfile = "balanced"
     top_k: int = Field(default=20, ge=1, le=100)
     budgets: SearchBudgets = Field(default_factory=SearchBudgets)
@@ -130,9 +128,9 @@ class SearchRunCreateRequest(BaseModel):
 
     @field_validator("source_preferences", mode="before")
     @classmethod
-    def validate_source_preferences(cls, value: object) -> list[str]:
+    def validate_source_preferences(cls, value: object) -> list[str] | None:
         if value is None:
-            raise ValueError("source_preferences must be a non-empty list")
+            return None
         normalized = normalize_search_sources(value)
         if not normalized:
             raise ValueError("source_preferences must be a non-empty list")
@@ -317,6 +315,15 @@ class RetrievalSourceStats(BaseModel):
     returned_count: int = 0
     latency_seconds: float = 0.0
     cache_hit: bool = False
+    logical_call_executed: bool = True
+    adaptation_strategy: str | None = None
+    triggered_by: list[str] = Field(default_factory=list)
+    safe_original_candidate_count: int | None = None
+    safe_original_core_term_coverage: float | None = None
+    safe_original_constraint_coverage: float | None = None
+    sufficiency_reasons: list[str] = Field(default_factory=list)
+    compact_query_executed: bool | None = None
+    compact_query_skipped_reason: str | None = None
     error_message: str | None = None
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 

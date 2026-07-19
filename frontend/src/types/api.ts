@@ -287,6 +287,15 @@ export interface RetrievalSourceStats {
   returned_count: number;
   latency_seconds: number;
   cache_hit: boolean;
+  logical_call_executed: boolean;
+  adaptation_strategy?: string | null;
+  triggered_by: string[];
+  safe_original_candidate_count?: number | null;
+  safe_original_core_term_coverage?: number | null;
+  safe_original_constraint_coverage?: number | null;
+  sufficiency_reasons: string[];
+  compact_query_executed?: boolean | null;
+  compact_query_skipped_reason?: string | null;
   error_message?: string | null;
   diagnostics: ConnectorDiagnostics;
 }

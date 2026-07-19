@@ -84,7 +84,7 @@ class BenchmarkRunOptions(BaseModel):
     budgets: SearchBudget = Field(default_factory=SearchBudget)
     diagnostics: bool = False
     resume: bool = False
-    query_adapter_policy: QueryAdapterPolicy = "hybrid"
+    query_adapter_policy: QueryAdapterPolicy = "adaptive"
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -678,8 +678,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument(
         "--query-adapter-policy",
-        choices=["safe_original", "hybrid"],
-        default="hybrid",
+        choices=["safe_original", "hybrid", "adaptive"],
+        default="adaptive",
     )
     parser.add_argument("--resume", action="store_true")
     return parser

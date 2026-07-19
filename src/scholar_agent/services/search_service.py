@@ -161,6 +161,24 @@ class _RetrievalTaskResult(BaseModel):
     output: RetrievalOutput
 
 
+class _AdaptiveBudgetTracker:
+    """在并行子查询之间共享 adaptive 候选与延迟预算视图。"""
+
+    def __init__(self, runtime: SearchBudgetRuntime) -> None:
+        self._runtime = runtime
+        self._lock = RLock()
+        self._papers: list[Paper] = []
+
+    def check(self, papers: list[Paper]) -> str | None:
+        with self._lock:
+            if papers:
+                self._papers = deduplicate_papers([*self._papers, *papers])
+            latency_reason = self._runtime.latency_stop_reason()
+            if latency_reason is not None:
+                return latency_reason
+            return self._runtime.candidate_stop_reason(len(self._papers))
+
+
 class SearchServiceOutput(BaseModel):
     search_plan: SearchPlan
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
@@ -249,6 +267,7 @@ class SearchService:
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
         retrieval_run_context = RetrievalRunContext()
         runtime = SearchBudgetRuntime(budget)
+        adaptive_budget_tracker = _AdaptiveBudgetTracker(runtime)
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
         use_llm_query_understanding = (
@@ -333,6 +352,7 @@ class SearchService:
                     signals=signals,
                     run_context=retrieval_run_context,
                     query_adapter_policy=query_adapter_policy,
+                    adaptive_budget_check=adaptive_budget_tracker.check,
                 )
                 runtime.record_search_round()
             signals.check_cancelled("retrieval:after_initial_batch")
@@ -558,6 +578,7 @@ class SearchService:
                         signals=signals,
                         run_context=retrieval_run_context,
                         query_adapter_policy=query_adapter_policy,
+                        adaptive_budget_check=adaptive_budget_tracker.check,
                     )
                     runtime.record_search_round()
                     signals.check_cancelled("retrieval:after_evolved_batch")
@@ -998,6 +1019,7 @@ class SearchService:
         signals: _ExecutionSignals,
         run_context: RetrievalRunContext,
         query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
     ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
             search_plan.subqueries if subqueries is None else subqueries,
@@ -1009,6 +1031,7 @@ class SearchService:
             constraints=search_plan.query_analysis.constraints,
             run_context=run_context,
             query_adapter_policy=query_adapter_policy,
+            adaptive_budget_check=adaptive_budget_check,
         )
 
     def _judge_papers(
@@ -1039,6 +1062,7 @@ class SearchService:
         signals: _ExecutionSignals,
         run_context: RetrievalRunContext,
         query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
     ) -> list[RetrievalOutput]:
         subqueries = [
             SearchSubquery(
@@ -1062,6 +1086,7 @@ class SearchService:
             constraints=search_plan.query_analysis.constraints,
             run_context=run_context,
             query_adapter_policy=query_adapter_policy,
+            adaptive_budget_check=adaptive_budget_check,
         )
 
     def _retrieve_query_batch(
@@ -1076,6 +1101,7 @@ class SearchService:
         constraints: QueryConstraint,
         run_context: RetrievalRunContext,
         query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
     ) -> list[RetrievalOutput]:
         if not subqueries:
             return []
@@ -1107,6 +1133,7 @@ class SearchService:
                         run_context,
                         len(subqueries) - next_index - 1,
                         query_adapter_policy,
+                        adaptive_budget_check,
                     )
                     pending[future] = next_index
                     next_index += 1
@@ -1136,6 +1163,7 @@ class SearchService:
         run_context: RetrievalRunContext,
         remaining_subquery_count: int,
         query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
     ) -> _RetrievalTaskResult:
         sources = subquery.source_hints or selected_sources
         signals.check_cancelled(f"{failure_source}:subquery:{index}:before")
@@ -1163,6 +1191,7 @@ class SearchService:
                     remaining_subquery_count=remaining_subquery_count,
                     query_adapter_policy=query_adapter_policy,
                     query_purpose=subquery.purpose,
+                    adaptive_budget_check=adaptive_budget_check,
                     connector_event_callback=lambda name, payload: (
                         self._handle_connector_event(
                             signals,

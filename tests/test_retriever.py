@@ -83,6 +83,7 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
         "llm reranking",
         limit_per_source=5,
         sources=["openalex", "arxiv"],
+        query_adapter_policy="hybrid",
     )
 
     assert output.query == "llm reranking"
@@ -133,6 +134,7 @@ def test_connector_events_wrap_each_actual_connector_call(monkeypatch) -> None:
     retrieve_papers(
         "event order",
         sources=["openalex", "arxiv"],
+        query_adapter_policy="hybrid",
         connector_event_callback=lambda name, payload: events.append(
             (name, str(payload["source"]))
         ),
@@ -166,7 +168,11 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
     monkeypatch.setattr("scholar_agent.agents.retriever.search_openalex_detailed", failing_openalex)
     monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", fake_arxiv)
 
-    output = retrieve_papers("llm reranking", sources=["openalex", "arxiv"])
+    output = retrieve_papers(
+        "llm reranking",
+        sources=["openalex", "arxiv"],
+        query_adapter_policy="hybrid",
+    )
 
     assert output.raw_count == 2
     assert output.deduplicated_count == 1
@@ -548,8 +554,16 @@ def test_retrieve_papers_does_not_global_cooldown_after_one_timeout(
 
     monkeypatch.setattr("scholar_agent.agents.retriever.search_arxiv_detailed", timeout_then_skipped)
 
-    first = retrieve_papers("llm reranking timeout", sources=["arxiv"])
-    second = retrieve_papers("llm reranking timeout", sources=["arxiv"])
+    first = retrieve_papers(
+        "llm reranking timeout",
+        sources=["arxiv"],
+        query_adapter_policy="hybrid",
+    )
+    second = retrieve_papers(
+        "llm reranking timeout",
+        sources=["arxiv"],
+        query_adapter_policy="hybrid",
+    )
 
     assert calls["arxiv"] == 4
     assert first.source_stats[0].error_message == "arXiv search failed: request timed out"
@@ -641,11 +655,13 @@ def test_same_adapted_query_is_called_once_per_run(monkeypatch) -> None:
         "Could you list papers about graph retrieval?",
         sources=["openalex"],
         run_context=context,
+        query_adapter_policy="hybrid",
     )
     second = retrieve_papers(
         "graph retrieval",
         sources=["openalex"],
         run_context=context,
+        query_adapter_policy="hybrid",
     )
 
     assert calls == [

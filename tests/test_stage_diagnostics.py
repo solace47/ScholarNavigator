@@ -411,6 +411,8 @@ def test_comparison_reads_runs_and_rejects_incompatible_budget(
 
     assert "a" in report and "b" in report
     assert "ΔF1@20" in report
+    assert "策略（policy）" in report
+    assert "compact 执行率" in report
     assert "0.100" in report
 
     config_path = second / "config.json"
@@ -419,6 +421,46 @@ def test_comparison_reads_runs_and_rejects_incompatible_budget(
     config_path.write_text(json.dumps(config))
     with pytest.raises(ValueError, match="budgets"):
         compare_runs([first, second])
+
+
+def test_adaptive_diagnostics_count_execution_new_candidates_and_posthoc_gold() -> None:
+    compact_paper = _paper("Compact Gold", "2401.00002")
+    compact_candidate = _candidate("Compact Gold", "2401.00002")
+    compact_candidate.provenance[0].adaptation_strategy = "compact_core"
+    snapshots = _base_snapshots(initial=[compact_candidate])
+    output = _output(
+        snapshots,
+        source_stats=[
+            SourceStats(
+                source="arxiv",
+                adaptation_strategy="safe_original",
+                diagnostic_papers=[_paper("Safe Only", "2401.00001")],
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            ),
+            SourceStats(
+                source="arxiv",
+                adaptation_strategy="compact_core",
+                logical_call_executed=True,
+                compact_query_executed=True,
+                triggered_by=["adaptive_low_candidate_count"],
+                diagnostic_papers=[compact_paper],
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            ),
+        ],
+    )
+
+    result = analyze_search_stages(
+        _query([_gold("Compact Gold", "2401.00002")]),
+        output,
+        result_policy="highly_and_partial",
+    )
+
+    adaptive = result["retrieval_diagnostics"]["adaptive"]
+    assert adaptive["compact_decision_count"] == 1
+    assert adaptive["compact_executed_count"] == 1
+    assert adaptive["compact_execution_ratio"] == 1.0
+    assert adaptive["compact_added_unique_candidate_count"] == 1
+    assert result["query_strategy_contribution"]["compact_gold_increment"] == 1
 
 
 def _query(gold: list[EvalGoldPaper]) -> EvalQuery:
@@ -609,6 +651,7 @@ def _comparison_run(path: Path, *, api: float, f1: float) -> Path:
         "top_k": 20,
         "budgets": {"max_candidate_papers": 150},
         "llm": {"llm_enabled": False},
+        "query_adapter_policy": "adaptive",
     }
     metrics = {
         "case_statistics": {"success_rate": 1.0},
@@ -628,6 +671,13 @@ def _comparison_run(path: Path, *, api: float, f1: float) -> Path:
         "judgement": {"gold_false_negative_rate": 0.0},
         "reranking": {"average_gold_rank": 1.0},
         "source_contribution": {"source_error_rate": 0.0},
+        "retrieval_diagnostics": {
+            "adaptive": {
+                "compact_execution_ratio": 0.5,
+                "compact_average_added_unique_candidates": 2.0,
+            }
+        },
+        "query_strategy_contribution": {"compact_gold_increment": 1},
         "bottleneck_labels": ["insufficient_sample"],
     }
     (path / "config.json").write_text(json.dumps(config))

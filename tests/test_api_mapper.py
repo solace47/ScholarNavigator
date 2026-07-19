@@ -74,6 +74,33 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.retrieval_diagnostics.source_stats == []
 
 
+def test_adaptive_skipped_compact_does_not_count_as_logical_or_http_call() -> None:
+    output = SearchServiceOutput(
+        search_plan=_search_plan("dense retrieval"),
+        source_stats=[
+            SourceStats(
+                source="openalex",
+                adaptation_strategy="safe_original",
+                logical_call_executed=True,
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            ),
+            SourceStats(
+                source="openalex",
+                adaptation_strategy="compact_core",
+                logical_call_executed=False,
+                compact_query_executed=False,
+                compact_query_skipped_reason="adaptive_sufficient_results",
+            ),
+        ],
+    )
+
+    response = map_search_service_output_to_api_result("run_adaptive", output)
+
+    assert response.cost_report.logical_search_call_count == 1
+    assert response.cost_report.search_api_call_count == 1
+    assert response.retrieval_diagnostics.source_stats[1].logical_call_executed is False
+
+
 def test_paper_fields_identifiers_urls_and_sources_are_preserved() -> None:
     paper = _paper(
         "Mapped Paper",
@@ -219,9 +246,18 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
         {
             "source": "openalex",
             "returned_count": 0,
-            "latency_seconds": 0.2,
-            "cache_hit": False,
-            "error_message": "HTTP 503",
+                "latency_seconds": 0.2,
+                "cache_hit": False,
+                "logical_call_executed": True,
+                "adaptation_strategy": None,
+                "triggered_by": [],
+                "safe_original_candidate_count": None,
+                "safe_original_core_term_coverage": None,
+                "safe_original_constraint_coverage": None,
+                "sufficiency_reasons": [],
+                "compact_query_executed": None,
+                "compact_query_skipped_reason": None,
+                "error_message": "HTTP 503",
             "diagnostics": {
                 "request_count": 3,
                 "retry_count": 2,
@@ -234,9 +270,18 @@ def test_warnings_and_source_errors_enter_missing_evidence_and_cost_report() -> 
         {
             "source": "arxiv",
             "returned_count": 1,
-            "latency_seconds": 0.1,
-            "cache_hit": True,
-            "error_message": None,
+                "latency_seconds": 0.1,
+                "cache_hit": True,
+                "logical_call_executed": True,
+                "adaptation_strategy": None,
+                "triggered_by": [],
+                "safe_original_candidate_count": None,
+                "safe_original_core_term_coverage": None,
+                "safe_original_constraint_coverage": None,
+                "sufficiency_reasons": [],
+                "compact_query_executed": None,
+                "compact_query_skipped_reason": None,
+                "error_message": None,
             "diagnostics": {
                 "request_count": 0,
                 "retry_count": 0,

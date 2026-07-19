@@ -511,7 +511,10 @@ def test_invalid_llm_json_falls_back_to_rules_with_warning() -> None:
     )
 
 
-def test_llm_semantic_scholar_and_pubmed_sources_are_allowed() -> None:
+def test_llm_semantic_scholar_and_pubmed_sources_are_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "test-key")
     client = FakeLLMClient(
         {
             "language": "en",
@@ -542,6 +545,33 @@ def test_llm_semantic_scholar_and_pubmed_sources_are_allowed() -> None:
     assert "llm_selected_source_not_implemented:pubmed" not in plan.warnings
     assert not any(
         warning == "llm_subquery_source_not_implemented:semantic_scholar"
+        for warning in plan.warnings
+    )
+
+
+def test_llm_semantic_scholar_is_not_a_default_without_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SEMANTIC_SCHOLAR_API_KEY", raising=False)
+    client = FakeLLMClient(
+        {
+            "language": "en",
+            "intent": "paper_finding",
+            "domain": "machine_learning",
+            "selected_sources": ["semantic_scholar", "arxiv", "openalex"],
+            "subqueries": [],
+        }
+    )
+
+    plan = analyze_query(
+        "find papers about LLM retrieval",
+        use_llm=True,
+        llm_client=client,
+    )
+
+    assert plan.selected_sources == ["arxiv", "openalex"]
+    assert any(
+        warning.endswith("unavailable_without_key:semantic_scholar")
         for warning in plan.warnings
     )
 

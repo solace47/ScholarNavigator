@@ -150,7 +150,7 @@ const SOURCE_MODE_LABELS: Record<SourceMode, string> = {
 };
 
 const SOURCE_MODE_DESCRIPTIONS: Record<SourceMode, string> = {
-  recommended: "arXiv + Semantic Scholar，兼顾稳定性和覆盖",
+  recommended: "按查询领域自动选择稳定的公开来源",
   arxiv: "开放预印本与学术论文库",
   semantic_scholar: "跨学科论文与引用索引",
   pubmed: "生物医学文献数据库",
@@ -298,7 +298,10 @@ export function ScholarNavigatorApp() {
           datasets: [],
           paper_types: [],
         },
-        source_preferences: runConfigSnapshot.sourcePreferences,
+        source_preferences:
+          sourceMode === "recommended"
+            ? undefined
+            : runConfigSnapshot.sourcePreferences,
         run_profile: runConfigSnapshot.runProfile,
         top_k: runConfigSnapshot.topK,
         budgets: buildBudgets(runConfigSnapshot.runProfile),
@@ -541,7 +544,7 @@ function buildBudgets(runProfile: RunProfile): SearchRunCreateRequest["budgets"]
 
 function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
   if (sourceMode === "recommended") {
-    return ["arxiv", "semantic_scholar"];
+    return [];
   }
   if (sourceMode === "arxiv") {
     return ["arxiv"];
@@ -555,7 +558,7 @@ function sourcePreferencesForMode(sourceMode: SourceMode): string[] {
   if (sourceMode === "openalex") {
     return ["openalex"];
   }
-  return ["openalex", "arxiv", "semantic_scholar"];
+  return ["openalex", "arxiv", "semantic_scholar", "pubmed"];
 }
 
 function sleep(ms: number): Promise<void> {

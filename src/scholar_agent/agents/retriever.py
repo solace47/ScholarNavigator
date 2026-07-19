@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Callable
@@ -25,6 +26,7 @@ from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import QueryConstraint
 from scholar_agent.retrieval.query_adapter import (
     DEFAULT_QUERY_ADAPTER_POLICY,
+    MIN_COMPACT_RETENTION_RATIO,
     AdaptedQuery,
     QueryAdapterPolicy,
     adapt_queries_for_source,
@@ -38,6 +40,13 @@ DEFAULT_SOURCE_COOLDOWN_SECONDS = 60
 DEFAULT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS = 60
 RUN_TRANSIENT_FAILURE_THRESHOLD = 2
 CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
+ADAPTIVE_MIN_UNIQUE_CANDIDATES = 8
+ADAPTIVE_MIN_CANDIDATE_RATIO = 0.5
+ADAPTIVE_MIN_CORE_TERM_COVERAGE = 0.6
+ADAPTIVE_MIN_CONSTRAINT_COVERAGE = 0.5
+ADAPTIVE_MIN_METADATA_COVERAGE = 0.5
+ADAPTIVE_COMPLEX_CORE_TERM_COUNT = 5
+ADAPTIVE_COMPLEX_DIMENSION_COUNT = 2
 
 
 _CacheKey = tuple[str, str, int]
@@ -53,6 +62,16 @@ class QueryAdaptationProvenance(BaseModel):
     origin_subquery: str
     adaptation_strategy: str
     purpose: str | None = None
+
+
+class RetrievalSufficiency(BaseModel):
+    sufficient: bool
+    unique_candidate_count: int = 0
+    core_term_coverage: float = 0.0
+    constraint_coverage: float = 0.0
+    metadata_coverage: float = 0.0
+    missing_dimensions: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
 
 
 class SourceStats(BaseModel):
@@ -71,6 +90,14 @@ class SourceStats(BaseModel):
     retained_information_terms: list[str] = Field(default_factory=list)
     retention_ratio: float | None = None
     protected_terms: list[str] = Field(default_factory=list)
+    logical_call_executed: bool = True
+    triggered_by: list[str] = Field(default_factory=list)
+    safe_original_candidate_count: int | None = None
+    safe_original_core_term_coverage: float | None = None
+    safe_original_constraint_coverage: float | None = None
+    sufficiency_reasons: list[str] = Field(default_factory=list)
+    compact_query_executed: bool | None = None
+    compact_query_skipped_reason: str | None = None
     warnings: list[str] = Field(default_factory=list)
     source_skipped_reason: str | None = None
     remaining_subquery_count: int = 0
@@ -162,6 +189,7 @@ def retrieve_papers(
     remaining_subquery_count: int = 0,
     query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
     query_purpose: str | None = None,
+    adaptive_budget_check: Callable[[list[Paper]], str | None] | None = None,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -199,6 +227,30 @@ def retrieve_papers(
             constraints=constraints,
             policy=query_adapter_policy,
         )
+        if query_adapter_policy == "adaptive":
+            adaptive_stats = _retrieve_adaptive_source(
+                original_query=query,
+                source=source,
+                adapted_queries=adapted_queries,
+                constraints=constraints,
+                limit_per_source=limit_per_source,
+                search=search,
+                run_context=run_context,
+                remaining_subquery_count=remaining_subquery_count,
+                query_purpose=query_purpose,
+                connector_event_callback=connector_event_callback,
+                adaptive_budget_check=adaptive_budget_check,
+            )
+            for stats in adaptive_stats:
+                source_stats.append(stats)
+                if stats.logical_call_executed and not stats.run_dedupe_hit:
+                    raw_papers.extend(stats.diagnostic_papers)
+                warnings.extend(stats.warnings)
+                if stats.cache_hit:
+                    warnings.append(f"retrieval_cache_hit:{source}")
+                if stats.error_message and stats.error_message not in warnings:
+                    warnings.append(stats.error_message)
+            continue
         for adapted in adapted_queries:
             if connector_event_callback is not None:
                 connector_event_callback(
@@ -247,6 +299,431 @@ def retrieve_papers(
         source_stats=source_stats,
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
+    )
+
+
+def evaluate_retrieval_sufficiency(
+    papers: list[Paper],
+    *,
+    compact_query: AdaptedQuery,
+    constraints: QueryConstraint | None,
+    limit_per_source: int,
+    source_succeeded: bool,
+    safe_original_truncated: bool = False,
+) -> RetrievalSufficiency:
+    """仅根据查询、约束和 safe-original 候选判断是否需要补充检索。"""
+
+    unique = deduplicate_papers(papers)
+    candidate_count = len(unique)
+    corpus = [_paper_search_text(paper) for paper in unique]
+    core_terms = _stable_strings(compact_query.original_information_terms)
+    matched_core = [
+        term for term in core_terms if _term_in_any_candidate(term, corpus)
+    ]
+    core_coverage = len(matched_core) / len(core_terms) if core_terms else 1.0
+    dimensions = _constraint_dimensions(constraints)
+    missing_dimensions = [
+        name
+        for name, terms in dimensions.items()
+        if terms and not any(_term_in_any_candidate(term, corpus) for term in terms)
+    ]
+    has_time_dimension = bool(constraints and constraints.time_range)
+    if has_time_dimension and not any(
+        _paper_in_time_range(paper, constraints) for paper in unique
+    ):
+        missing_dimensions.append("time_range")
+    dimension_count = len(dimensions) + int(has_time_dimension)
+    constraint_coverage = (
+        (dimension_count - len(missing_dimensions)) / dimension_count
+        if dimension_count
+        else 1.0
+    )
+    metadata_coverage = (
+        sum(bool(paper.title.strip() and paper.abstract.strip()) for paper in unique)
+        / candidate_count
+        if candidate_count
+        else 0.0
+    )
+    required_candidates = min(
+        ADAPTIVE_MIN_UNIQUE_CANDIDATES,
+        max(1, round(limit_per_source * ADAPTIVE_MIN_CANDIDATE_RATIO)),
+    )
+    complex_query = (
+        len(core_terms) >= ADAPTIVE_COMPLEX_CORE_TERM_COUNT
+        or dimension_count >= ADAPTIVE_COMPLEX_DIMENSION_COUNT
+    )
+    reasons: list[str] = []
+    if not source_succeeded:
+        reasons.append("adaptive_source_failed")
+    if candidate_count == 0:
+        reasons.append("adaptive_empty_results")
+    elif candidate_count < required_candidates:
+        reasons.append("adaptive_low_candidate_count")
+    for dimension in ("must_have_terms", "methods", "datasets"):
+        if dimension in missing_dimensions:
+            reasons.append(f"adaptive_missing_{dimension}")
+    if complex_query and core_coverage < ADAPTIVE_MIN_CORE_TERM_COVERAGE:
+        reasons.append("adaptive_low_core_term_coverage")
+    if (
+        complex_query
+        and constraint_coverage < ADAPTIVE_MIN_CONSTRAINT_COVERAGE
+    ):
+        reasons.append("adaptive_low_constraint_coverage")
+    if candidate_count and metadata_coverage < ADAPTIVE_MIN_METADATA_COVERAGE:
+        reasons.append("adaptive_low_metadata_coverage")
+    if safe_original_truncated:
+        reasons.append("adaptive_safe_original_truncated")
+    return RetrievalSufficiency(
+        sufficient=not reasons,
+        unique_candidate_count=candidate_count,
+        core_term_coverage=core_coverage,
+        constraint_coverage=constraint_coverage,
+        metadata_coverage=metadata_coverage,
+        missing_dimensions=missing_dimensions,
+        reasons=reasons or ["adaptive_sufficient_results"],
+    )
+
+
+def _retrieve_adaptive_source(
+    *,
+    original_query: str,
+    source: str,
+    adapted_queries: list[AdaptedQuery],
+    constraints: QueryConstraint | None,
+    limit_per_source: int,
+    search: Callable[[str, int], ConnectorSearchResult],
+    run_context: RetrievalRunContext | None,
+    remaining_subquery_count: int,
+    query_purpose: str | None,
+    connector_event_callback: Callable[[str, dict[str, object]], None] | None,
+    adaptive_budget_check: Callable[[list[Paper]], str | None] | None,
+) -> list[SourceStats]:
+    if not adapted_queries:
+        return []
+    safe = adapted_queries[0]
+    _emit_connector_started(connector_event_callback, source, safe)
+    safe_stats = _retrieve_adapted_query(
+        original_query=original_query,
+        source=source,
+        adapted=safe,
+        limit_per_source=limit_per_source,
+        search=search,
+        run_context=run_context,
+        remaining_subquery_count=remaining_subquery_count,
+        query_purpose=query_purpose,
+    )
+    _emit_connector_completed(connector_event_callback, safe_stats)
+    if len(adapted_queries) < 2:
+        return [safe_stats]
+
+    compact = adapted_queries[1]
+    safe_papers = list(safe_stats.diagnostic_papers)
+    sufficiency = evaluate_retrieval_sufficiency(
+        safe_papers,
+        compact_query=compact,
+        constraints=constraints,
+        limit_per_source=limit_per_source,
+        source_succeeded=safe_stats.error_message is None,
+        safe_original_truncated="safe_original_truncated" in safe.warnings,
+    )
+    budget_reason = (
+        adaptive_budget_check(safe_papers)
+        if adaptive_budget_check is not None
+        else None
+    )
+    guard = run_context.source_lock(source) if run_context is not None else nullcontext()
+    with guard:
+        skip_reason = _adaptive_compact_skip_reason(
+            source=source,
+            safe=safe,
+            compact=compact,
+            safe_stats=safe_stats,
+            sufficiency=sufficiency,
+            budget_reason=budget_reason,
+            limit_per_source=limit_per_source,
+            run_context=run_context,
+        )
+        triggered_by = list(sufficiency.reasons)
+        if budget_reason:
+            triggered_by.append(budget_reason)
+        if skip_reason is not None:
+            skipped = _adaptive_skipped_stats(
+                original_query=original_query,
+                source=source,
+                compact=compact,
+                query_purpose=query_purpose,
+                run_context=run_context,
+                remaining_subquery_count=remaining_subquery_count,
+                sufficiency=sufficiency,
+                triggered_by=triggered_by,
+                skip_reason=skip_reason,
+                limit_per_source=limit_per_source,
+            )
+            _emit_adaptive_decision(connector_event_callback, skipped)
+            return [safe_stats, skipped]
+
+        _emit_adaptive_decision_payload(
+            connector_event_callback,
+            source=source,
+            compact=compact,
+            sufficiency=sufficiency,
+            triggered_by=triggered_by,
+            executed=True,
+            skip_reason=None,
+        )
+        _emit_connector_started(connector_event_callback, source, compact)
+        compact_stats = _retrieve_adapted_query(
+            original_query=original_query,
+            source=source,
+            adapted=compact,
+            limit_per_source=limit_per_source,
+            search=search,
+            run_context=run_context,
+            remaining_subquery_count=remaining_subquery_count,
+            query_purpose=query_purpose,
+        ).model_copy(
+            update=_adaptive_stats_update(
+                sufficiency,
+                triggered_by=triggered_by,
+                executed=True,
+                skip_reason=None,
+            )
+        )
+        _emit_connector_completed(connector_event_callback, compact_stats)
+        if adaptive_budget_check is not None:
+            adaptive_budget_check(list(compact_stats.diagnostic_papers))
+        return [safe_stats, compact_stats]
+
+
+def _adaptive_compact_skip_reason(
+    *,
+    source: str,
+    safe: AdaptedQuery,
+    compact: AdaptedQuery,
+    safe_stats: SourceStats,
+    sufficiency: RetrievalSufficiency,
+    budget_reason: str | None,
+    limit_per_source: int,
+    run_context: RetrievalRunContext | None,
+) -> str | None:
+    if not compact.query or compact.retention_ratio < MIN_COMPACT_RETENTION_RATIO:
+        return "adaptive_low_information_retention"
+    if "compact_query_protected_terms_removed" in compact.warnings:
+        return "adaptive_low_information_retention"
+    if _cache_key(source, safe.query, limit_per_source) == _cache_key(
+        source, compact.query, limit_per_source
+    ):
+        return "adaptive_equivalent_query"
+    if run_context is not None:
+        key = _cache_key(source, compact.query, limit_per_source)
+        if run_context.reused_result(key) is not None:
+            return "adaptive_equivalent_query"
+        if run_context.blocked_reason(source) is not None:
+            return "adaptive_source_cooldown"
+    if _is_source_in_cooldown(source):
+        return "adaptive_source_cooldown"
+    if safe_stats.error_message is not None:
+        return "adaptive_source_failed"
+    if budget_reason is not None:
+        return "adaptive_budget_exhausted"
+    if sufficiency.sufficient:
+        return "adaptive_sufficient_results"
+    return None
+
+
+def _adaptive_skipped_stats(
+    *,
+    original_query: str,
+    source: str,
+    compact: AdaptedQuery,
+    query_purpose: str | None,
+    run_context: RetrievalRunContext | None,
+    remaining_subquery_count: int,
+    sufficiency: RetrievalSufficiency,
+    triggered_by: list[str],
+    skip_reason: str,
+    limit_per_source: int,
+) -> SourceStats:
+    provenance = [
+        QueryAdaptationProvenance(
+            origin_subquery=original_query,
+            adaptation_strategy=compact.strategy,
+            purpose=query_purpose,
+        )
+    ]
+    if run_context is not None and compact.query:
+        provenance = run_context.register_query_provenance(
+            _cache_key(source, compact.query, limit_per_source),
+            provenance,
+        )
+    return SourceStats(
+        source=source,
+        query=original_query,
+        adapted_query=compact.query,
+        adaptation_strategy=compact.strategy,
+        query_provenance=provenance,
+        dropped_terms=list(compact.dropped_terms),
+        original_information_terms=list(compact.original_information_terms),
+        retained_information_terms=list(compact.retained_information_terms),
+        retention_ratio=compact.retention_ratio,
+        protected_terms=list(compact.protected_terms),
+        logical_call_executed=False,
+        source_skipped_reason=skip_reason,
+        remaining_subquery_count=max(0, remaining_subquery_count),
+        **_adaptive_stats_update(
+            sufficiency,
+            triggered_by=triggered_by,
+            executed=False,
+            skip_reason=skip_reason,
+        ),
+    )
+
+
+def _adaptive_stats_update(
+    sufficiency: RetrievalSufficiency,
+    *,
+    triggered_by: list[str],
+    executed: bool,
+    skip_reason: str | None,
+) -> dict[str, object]:
+    return {
+        "triggered_by": _stable_strings(triggered_by),
+        "safe_original_candidate_count": sufficiency.unique_candidate_count,
+        "safe_original_core_term_coverage": sufficiency.core_term_coverage,
+        "safe_original_constraint_coverage": sufficiency.constraint_coverage,
+        "sufficiency_reasons": list(sufficiency.reasons),
+        "compact_query_executed": executed,
+        "compact_query_skipped_reason": skip_reason,
+    }
+
+
+def _emit_connector_started(
+    callback: Callable[[str, dict[str, object]], None] | None,
+    source: str,
+    adapted: AdaptedQuery,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        "connector_started",
+        {
+            "connector": source,
+            "source": source,
+            "adapted_query": adapted.query,
+            "adaptation_strategy": adapted.strategy,
+        },
+    )
+
+
+def _emit_adaptive_decision(
+    callback: Callable[[str, dict[str, object]], None] | None,
+    stats: SourceStats,
+) -> None:
+    _emit_adaptive_decision_payload(
+        callback,
+        source=stats.source,
+        compact=AdaptedQuery(
+            original_query=stats.query or "",
+            source=stats.source,
+            query=stats.adapted_query or "",
+            strategy=stats.adaptation_strategy or "compact_core",
+        ),
+        sufficiency=RetrievalSufficiency(
+            sufficient=stats.compact_query_skipped_reason
+            == "adaptive_sufficient_results",
+            unique_candidate_count=stats.safe_original_candidate_count or 0,
+            core_term_coverage=stats.safe_original_core_term_coverage or 0.0,
+            constraint_coverage=stats.safe_original_constraint_coverage or 0.0,
+            reasons=list(stats.sufficiency_reasons),
+        ),
+        triggered_by=list(stats.triggered_by),
+        executed=False,
+        skip_reason=stats.compact_query_skipped_reason,
+    )
+
+
+def _emit_adaptive_decision_payload(
+    callback: Callable[[str, dict[str, object]], None] | None,
+    *,
+    source: str,
+    compact: AdaptedQuery,
+    sufficiency: RetrievalSufficiency,
+    triggered_by: list[str],
+    executed: bool,
+    skip_reason: str | None,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        "adaptive_query_decision",
+        {
+            "connector": source,
+            "source": source,
+            "adapted_query": compact.query,
+            "adaptation_strategy": compact.strategy,
+            "triggered_by": list(triggered_by),
+            "safe_original_candidate_count": sufficiency.unique_candidate_count,
+            "safe_original_core_term_coverage": sufficiency.core_term_coverage,
+            "safe_original_constraint_coverage": sufficiency.constraint_coverage,
+            "sufficiency_reasons": list(sufficiency.reasons),
+            "compact_query_executed": executed,
+            "compact_query_skipped_reason": skip_reason,
+        },
+    )
+
+
+def _constraint_dimensions(
+    constraints: QueryConstraint | None,
+) -> dict[str, list[str]]:
+    if constraints is None:
+        return {}
+    candidates = {
+        "must_have_terms": constraints.must_include_terms,
+        "methods": constraints.methods,
+        "datasets": constraints.datasets,
+        "paper_types": list(constraints.paper_types),
+        "venues": constraints.venues,
+        "domains": [value.replace("_", " ") for value in constraints.domains],
+    }
+    return {
+        name: _stable_strings(values)
+        for name, values in candidates.items()
+        if values
+    }
+
+
+def _paper_in_time_range(paper: Paper, constraints: QueryConstraint) -> bool:
+    time_range = constraints.time_range
+    if time_range is None or paper.year is None:
+        return False
+    if time_range.start_year is not None and paper.year < time_range.start_year:
+        return False
+    if time_range.end_year is not None and paper.year > time_range.end_year:
+        return False
+    return True
+
+
+def _paper_search_text(paper: Paper) -> str:
+    return _normalize_match_text(
+        " ".join(
+            [
+                paper.title,
+                paper.abstract,
+                paper.venue or "",
+                " ".join(paper.authors),
+            ]
+        )
+    )
+
+
+def _term_in_any_candidate(term: str, corpus: list[str]) -> bool:
+    normalized = _normalize_match_text(term)
+    return bool(normalized and any(normalized in text for text in corpus))
+
+
+def _normalize_match_text(value: str) -> str:
+    return " ".join(
+        re.sub(r"[^\w\u4e00-\u9fff]+", " ", value.casefold()).split()
     )
 
 
@@ -407,6 +884,18 @@ def _emit_connector_completed(
             "retention_ratio": stats.retention_ratio,
             "protected_terms": list(stats.protected_terms),
             "run_dedupe_hit": stats.run_dedupe_hit,
+            "logical_call_executed": stats.logical_call_executed,
+            "triggered_by": list(stats.triggered_by),
+            "safe_original_candidate_count": stats.safe_original_candidate_count,
+            "safe_original_core_term_coverage": (
+                stats.safe_original_core_term_coverage
+            ),
+            "safe_original_constraint_coverage": (
+                stats.safe_original_constraint_coverage
+            ),
+            "sufficiency_reasons": list(stats.sufficiency_reasons),
+            "compact_query_executed": stats.compact_query_executed,
+            "compact_query_skipped_reason": stats.compact_query_skipped_reason,
             "source_skipped_reason": stats.source_skipped_reason,
             "remaining_subquery_count": stats.remaining_subquery_count,
             "error_message": stats.error_message,

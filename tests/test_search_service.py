@@ -1125,6 +1125,7 @@ def test_query_evolution_adapted_duplicate_does_not_repeat_external_call(
         enable_query_evolution=True,
         enable_synthesis=False,
         collect_diagnostics=True,
+        query_adapter_policy="hybrid",
     )
 
     assert len(calls) == len(set(calls))

@@ -63,6 +63,25 @@ def test_query_adapter_policy_is_recorded_and_passed_to_search_service(
     assert service.kwargs[0]["query_adapter_policy"] == "safe_original"
 
 
+def test_benchmark_default_and_cli_support_adaptive(tmp_path: Path) -> None:
+    dataset = _dataset(tmp_path, count=1)
+
+    assert _options(
+        tmp_path, dataset, run_id="adaptive-default"
+    ).query_adapter_policy == "adaptive"
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "adaptive-cli",
+            "--query-adapter-policy",
+            "adaptive",
+        ]
+    )
+    assert parsed.query_adapter_policy == "adaptive"
+
+
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
     tmp_path: Path,
 ) -> None:

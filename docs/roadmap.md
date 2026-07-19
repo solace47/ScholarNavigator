@@ -12,6 +12,7 @@
 - 已完成原始顺序前 5 条、单一 arXiv 源的真实 smoke；该结果只验证运行链路，不代表完整 Benchmark 性能。
 - 阶段快照、gold drop reason、Judgement/Reranking 错误、来源独占贡献和规则瓶颈标签已接入 Benchmark Runner；固定前 10 条完成两组基线，剩余配置因公共源持续 429/超时暂停。
 - 查询适配已改为安全原查询保底和核心查询补充，信息保留保护、精确 run 去重和完整 provenance 已通过离线测试；固定前 10 条 arXiv 开发诊断恢复候选 Recall，独立 5 条验证未低于 safe-original，但三源运行仍受持续 429 限制。
+- 自适应查询策略已按候选充分性、预算和来源状态按需执行核心补充，并记录触发、跳过、成本和事后 gold 增量；固定开发集、独立验证集和无 Semantic Scholar 的双源结果仍需结合小样本限制解释。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0

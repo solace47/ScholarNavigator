@@ -1205,6 +1205,11 @@ def _filter_llm_sources(
         if not key or key in seen:
             continue
         seen.add(key)
+        if key == "semantic_scholar" and not os.getenv(
+            "SEMANTIC_SCHOLAR_API_KEY"
+        ):
+            warnings.append(f"{warning_prefix}_unavailable_without_key:{key}")
+            continue
         if key in {"openalex", "arxiv", "semantic_scholar", "pubmed"}:
             allowed.append(key)
         else:
