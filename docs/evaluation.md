@@ -67,6 +67,10 @@ PYTHONPATH=src python scripts/run_judgement_holdout.py \
 
 产物包含 `comparison.json`、`comparison.md`、`per_query_diagnostics.jsonl`、`error_summary.json` 和 `snapshot_coverage.json`。查询切片只使用规则解析出的结构、方法、数据集、必要词、论文类型和查询长度，不使用 gold 定义分组；本次样本与极低候选召回不支持总体显著性或真实性能声明。
 
+同一 holdout30 的事后 Retrieval 审计按 arXiv ID 冻结 65 个 gold 的标题、摘要、作者、年份、分类与 DOI，并对实际 adapted query、exact title、规范化标题和标题核心词分别 Record/Replay。ID 与 exact-title 可用率均为 65/65；当前查询扩到 Top-20/50/100 只找回 1/5/7，规范化标题找回 58/65，核心词在 Top-20/50/100 找回 60/64/64。64 个原始未召回 gold 的原因分布为：查询未匹配 25、过度约束 23、词汇错配 10、21–50 名截断 4、51–100 名低排位 2；adapter 术语丢失、元数据不匹配和 gold 级来源不可用均为 0。主导原因族是查询构造（48/64），只扩大候选深度最多额外恢复 6 个。
+
+审计快照的 274 个必需键包含 269 个成功和 5 个冻结失败，记录 286 次请求、12 次重试；纯离线 Replay 命中 274 个键，HTTP、重试和网络等待均为 0。oracle 只用于 SearchService 完成后的诊断，不进入生产查询。复现时依次运行 `scripts/audit_retrieval_recall.py --mode plan`、`--mode record-missing` 和 `--mode replay`；最终产物位于 `outputs/benchmark_runs/retrieval_recall_audit/`。
+
 ## 数据格式
 
 离线 fixture 的 `search_cases.jsonl` 每行包含 `query_id`、`query`、`gold_papers` 和 `top_k_values`。批量 qrels 每行包含 `case_id` 与 `relevant_papers`。gold 论文可提供上述任一稳定标识符；没有稳定标识符时必须同时提供标题和年份。`relevance_grade` 大于 0 表示相关，缺省为 1。
