@@ -1,17 +1,21 @@
-"""将逻辑子查询确定性适配为各公开检索源可接受的短查询。"""
+"""将逻辑子查询确定性适配为各公开检索源可接受的有界查询。"""
 
 from __future__ import annotations
 
 import re
 import unicodedata
 from collections.abc import Iterable
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from scholar_agent.core.search_schemas import QueryConstraint
 
 
+QueryAdapterPolicy = Literal["safe_original", "hybrid"]
+DEFAULT_QUERY_ADAPTER_POLICY: QueryAdapterPolicy = "hybrid"
 MAX_ADAPTED_QUERIES_PER_SOURCE = 2
+MIN_COMPACT_RETENTION_RATIO = 0.5
 MAX_OPENALEX_QUERY_LENGTH = 180
 MAX_OPENALEX_TERMS = 12
 MAX_SEMANTIC_SCHOLAR_QUERY_LENGTH = 180
@@ -25,83 +29,19 @@ _ARXIV_FIELD_EXPRESSION = re.compile(
     r"(?:^|[\s(])(?:all|ti|abs|au|cat|jr|id):",
     re.IGNORECASE,
 )
-_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[+#.][A-Za-z0-9]+)*|[\u4e00-\u9fff]+")
+_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[-_+#.][A-Za-z0-9]+)*|[\u4e00-\u9fff]+")
+_QUOTED_PHRASE_PATTERN = re.compile(r"[\"“”']([^\"“”']{2,})[\"“”']")
 _ACADEMIC_QUERY_STOPWORDS = {
-    "a",
-    "about",
-    "an",
-    "analysed",
-    "analyzed",
-    "and",
-    "any",
-    "are",
-    "attempt",
-    "attempts",
-    "automatic",
-    "automatically",
-    "based",
-    "can",
-    "case",
-    "cases",
-    "could",
-    "develop",
-    "developed",
-    "do",
-    "field",
-    "for",
-    "focused",
-    "give",
-    "have",
-    "identifying",
-    "in",
-    "information",
-    "into",
-    "is",
-    "issue",
-    "issues",
-    "list",
-    "literature",
-    "me",
-    "of",
-    "on",
-    "over",
-    "paper",
-    "papers",
-    "part",
-    "parts",
-    "please",
-    "present",
-    "proposed",
-    "provide",
-    "providing",
-    "related",
-    "representative",
-    "research",
-    "resource",
-    "resources",
-    "scenario",
-    "scenarios",
-    "show",
-    "some",
-    "suitable",
-    "studies",
-    "study",
-    "tell",
-    "that",
-    "the",
-    "there",
-    "through",
-    "to",
-    "use",
-    "used",
-    "using",
-    "what",
-    "where",
-    "which",
-    "with",
-    "works",
-    "you",
-    "your",
+    "a", "about", "an", "analysed", "analyzed", "and", "any", "are",
+    "attempt", "attempts", "automatic", "automatically", "based", "can",
+    "case", "cases", "could", "develop", "developed", "do", "field", "for",
+    "focused", "give", "have", "identifying", "in", "information", "into",
+    "is", "issue", "issues", "list", "literature", "me", "of", "on", "over",
+    "paper", "papers", "part", "parts", "please", "present", "proposed",
+    "provide", "providing", "related", "representative", "research", "resource",
+    "resources", "scenario", "scenarios", "show", "some", "suitable", "studies",
+    "study", "tell", "that", "the", "there", "through", "to", "use", "used",
+    "using", "what", "where", "which", "with", "works", "you", "your",
 }
 
 
@@ -110,8 +50,13 @@ class AdaptedQuery(BaseModel):
     source: str
     query: str
     strategy: str
+    equivalent_strategies: list[str] = Field(default_factory=list)
     dropped_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    original_information_terms: list[str] = Field(default_factory=list)
+    retained_information_terms: list[str] = Field(default_factory=list)
+    retention_ratio: float = 1.0
+    protected_terms: list[str] = Field(default_factory=list)
 
 
 def adapt_query_for_source(
@@ -120,65 +65,10 @@ def adapt_query_for_source(
     *,
     constraints: QueryConstraint | None = None,
 ) -> AdaptedQuery:
-    """返回单个来源的主查询；不访问外网，也不使用评测答案。"""
+    """返回只做必要安全处理的原始查询，供 connector 和保底检索使用。"""
 
-    source_key = _normalize_source(source)
-    original = _normalize_space(_strip_controls(query))
-    if source_key == "arxiv" and _ARXIV_FIELD_EXPRESSION.search(original):
-        return AdaptedQuery(
-            original_query=query,
-            source=source_key,
-            query=original[:MAX_ARXIV_QUERY_LENGTH],
-            strategy="arxiv_pre_adapted_expression",
-            warnings=(
-                ["adapted_query_truncated"]
-                if len(original) > MAX_ARXIV_QUERY_LENGTH
-                else []
-            ),
-        )
-
-    terms, dropped = _core_terms(original, constraints)
-    if source_key == "arxiv":
-        return _adapt_arxiv_primary(query, terms, dropped)
-    if source_key == "openalex":
-        return _adapt_plain_query(
-            query,
-            source_key,
-            terms,
-            dropped,
-            max_terms=MAX_OPENALEX_TERMS,
-            max_length=MAX_OPENALEX_QUERY_LENGTH,
-            strategy="openalex_sanitized_core_terms",
-        )
-    if source_key == "semantic_scholar":
-        return _adapt_plain_query(
-            query,
-            source_key,
-            terms,
-            dropped,
-            max_terms=MAX_SEMANTIC_SCHOLAR_TERMS,
-            max_length=MAX_SEMANTIC_SCHOLAR_QUERY_LENGTH,
-            strategy="semantic_scholar_core_terms",
-        )
-    if source_key == "pubmed":
-        return _adapt_plain_query(
-            query,
-            source_key,
-            terms,
-            dropped,
-            max_terms=MAX_PUBMED_TERMS,
-            max_length=MAX_PUBMED_QUERY_LENGTH,
-            strategy="pubmed_core_terms",
-        )
-    return _adapt_plain_query(
-        query,
-        source_key,
-        terms,
-        dropped,
-        max_terms=MAX_OPENALEX_TERMS,
-        max_length=MAX_OPENALEX_QUERY_LENGTH,
-        strategy="generic_core_terms",
-    )
+    del constraints  # 安全查询不得因推断约束而改变用户原始信息。
+    return _safe_original(query, _normalize_source(source))
 
 
 def adapt_queries_for_source(
@@ -187,120 +77,145 @@ def adapt_queries_for_source(
     *,
     constraints: QueryConstraint | None = None,
     max_queries: int = MAX_ADAPTED_QUERIES_PER_SOURCE,
+    policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
 ) -> list[AdaptedQuery]:
-    """生成有界查询变体；当前仅 arXiv 使用一个受控的补充形式。"""
+    """按策略生成“安全原查询保底 + 核心查询补充”的有界变体。"""
 
+    if policy not in ("safe_original", "hybrid"):
+        raise ValueError(f"unsupported query adapter policy: {policy}")
     limit = max(0, min(int(max_queries), MAX_ADAPTED_QUERIES_PER_SOURCE))
     if limit == 0:
         return []
-    primary = adapt_query_for_source(query, source, constraints=constraints)
-    if not primary.query or limit == 1 or primary.source != "arxiv":
-        return [primary]
-    if primary.strategy == "arxiv_pre_adapted_expression":
-        return [primary]
 
-    terms, dropped = _core_terms(_normalize_space(_strip_controls(query)), constraints)
-    fallback = _adapt_arxiv_fallback(query, terms, dropped)
-    if not fallback.query or _query_key(fallback.query) == _query_key(primary.query):
-        return [primary]
-    return [primary, fallback][:limit]
+    source_key = _normalize_source(source)
+    safe = _safe_original(query, source_key)
+    if policy == "safe_original" or limit == 1 or not safe.query:
+        return [safe]
+    if source_key == "arxiv" and _ARXIV_FIELD_EXPRESSION.search(
+        _normalize_space(_strip_controls(query))
+    ):
+        return [safe]
 
-
-def _adapt_arxiv_primary(
-    original_query: str,
-    terms: list[str],
-    dropped: list[str],
-) -> AdaptedQuery:
-    selected, omitted = _bounded_terms(terms, MAX_ARXIV_TERMS)
-    clauses = [
-        f"(ti:{_arxiv_value(term)} OR abs:{_arxiv_value(term)})"
-        for term in selected[:3]
-        if _arxiv_value(term)
-    ]
-    adapted = " AND ".join(clauses)
-    warnings = _adaptation_warnings(
-        original_query,
-        adapted,
-        omitted,
-        MAX_ARXIV_QUERY_LENGTH,
+    compact = _compact_core(query, source_key, constraints)
+    compact_unsafe = (
+        not compact.query
+        or compact.retention_ratio < MIN_COMPACT_RETENTION_RATIO
+        or "compact_query_protected_terms_removed" in compact.warnings
     )
-    return AdaptedQuery(
-        original_query=original_query,
-        source="arxiv",
-        query=adapted[:MAX_ARXIV_QUERY_LENGTH],
-        strategy="arxiv_title_abstract_core_terms",
-        dropped_terms=_stable([*dropped, *omitted]),
-        warnings=warnings,
-    )
-
-
-def _adapt_arxiv_fallback(
-    original_query: str,
-    terms: list[str],
-    dropped: list[str],
-) -> AdaptedQuery:
-    selected, omitted = _bounded_terms(terms, MAX_ARXIV_TERMS)
-    pairs = [selected[index : index + 2] for index in range(0, 4, 2)]
-    clauses = [
-        "("
-        + " AND ".join(
-            f"all:{_arxiv_value(term)}"
-            for term in pair
-            if _arxiv_value(term)
+    if compact_unsafe:
+        warnings = _stable(
+            [*safe.warnings, *compact.warnings, "compact_query_fallback_to_safe_original"]
         )
-        + ")"
-        for pair in pairs
-        if pair
-    ]
-    adapted = " OR ".join(clause for clause in clauses if clause != "()")
-    warnings = _adaptation_warnings(
-        original_query,
-        adapted,
-        omitted,
-        MAX_ARXIV_QUERY_LENGTH,
-    )
-    return AdaptedQuery(
-        original_query=original_query,
-        source="arxiv",
-        query=adapted[:MAX_ARXIV_QUERY_LENGTH],
-        strategy="arxiv_paired_core_terms",
-        dropped_terms=_stable([*dropped, *omitted]),
-        warnings=warnings,
-    )
+        return [safe.model_copy(update={"strategy": "fallback_original", "warnings": warnings})]
+
+    if _query_key(compact.query) == _query_key(safe.query):
+        return [
+            safe.model_copy(
+                update={
+                    "equivalent_strategies": ["safe_original", "compact_core"],
+                }
+            )
+        ]
+    return [safe, compact][:limit]
 
 
-def _adapt_plain_query(
-    original_query: str,
-    source: str,
-    terms: list[str],
-    dropped: list[str],
-    *,
-    max_terms: int,
-    max_length: int,
-    strategy: str,
-) -> AdaptedQuery:
-    selected, omitted = _bounded_terms(terms, max_terms)
-    adapted_terms: list[str] = []
-    for term in selected:
-        candidate = " ".join([*adapted_terms, term]).strip()
-        if len(candidate) > max_length:
-            omitted.append(term)
-            continue
-        adapted_terms.append(term)
-    adapted = " ".join(adapted_terms)
-    warnings = _adaptation_warnings(
-        original_query,
-        adapted,
-        omitted,
-        max_length,
-    )
+def _safe_original(original_query: str, source: str) -> AdaptedQuery:
+    normalized = _normalize_space(unicodedata.normalize("NFKC", _strip_controls(original_query)))
+    information_terms = _information_terms(normalized)
+    protected_terms = _protected_terms(normalized, None)
+    warnings: list[str] = []
+
+    if source == "arxiv" and _ARXIV_FIELD_EXPRESSION.search(normalized):
+        adapted = _truncate_at_boundary(normalized, MAX_ARXIV_QUERY_LENGTH)
+    else:
+        cleaned = _safe_plain_text(normalized)
+        max_length = _source_max_length(source)
+        prefix = "all:" if source == "arxiv" and cleaned else ""
+        adapted = prefix + _truncate_at_boundary(cleaned, max_length - len(prefix))
+    if len(adapted) < len(("all:" if source == "arxiv" else "") + _safe_plain_text(normalized)):
+        warnings.append("safe_original_truncated")
+    if not adapted:
+        warnings.append("empty_adapted_query")
+
+    retained = _retained_terms(information_terms, adapted)
     return AdaptedQuery(
         original_query=original_query,
         source=source,
         query=adapted,
-        strategy=strategy,
+        strategy="safe_original",
+        warnings=warnings,
+        original_information_terms=information_terms,
+        retained_information_terms=retained,
+        retention_ratio=_retention_ratio(information_terms, retained),
+        protected_terms=protected_terms,
+    )
+
+
+def _compact_core(
+    original_query: str,
+    source: str,
+    constraints: QueryConstraint | None,
+) -> AdaptedQuery:
+    normalized = _normalize_space(_strip_controls(original_query))
+    terms, dropped = _core_terms(normalized, constraints)
+    information_terms = _information_terms(normalized, constraints)
+    protected_terms = _protected_terms(normalized, constraints)
+    max_terms, max_length = _source_bounds(source)
+    selected, omitted = _bounded_terms(terms, max_terms)
+
+    if source == "arxiv":
+        omitted.extend(selected[4:])
+        term_clauses = [
+            f"(ti:{value} OR abs:{value})"
+            for term in selected[:4]
+            if (value := _arxiv_value(term))
+        ]
+        candidate_clauses = [
+            "(" + " AND ".join(term_clauses[index : index + 2]) + ")"
+            for index in range(0, len(term_clauses), 2)
+            if term_clauses[index : index + 2]
+        ]
+        clauses: list[str] = []
+        for index, clause in enumerate(candidate_clauses):
+            candidate = " OR ".join([*clauses, clause])
+            if len(candidate) > max_length:
+                omitted.extend(selected[index * 2 :])
+                break
+            clauses.append(clause)
+        adapted = " OR ".join(clauses)
+    else:
+        adapted_terms: list[str] = []
+        for term in selected:
+            candidate = " ".join([*adapted_terms, term]).strip()
+            if len(candidate) > max_length:
+                omitted.append(term)
+                continue
+            adapted_terms.append(term)
+        adapted = " ".join(adapted_terms)
+    adapted = _truncate_at_boundary(adapted, max_length)
+    retained = _retained_terms(information_terms, adapted)
+    ratio = _retention_ratio(information_terms, retained)
+    warnings: list[str] = []
+    if omitted or len(adapted) >= max_length:
+        warnings.append("compact_query_truncated")
+    if not adapted:
+        warnings.append("empty_adapted_query")
+    if ratio < MIN_COMPACT_RETENTION_RATIO:
+        warnings.append("compact_query_low_information_retention")
+    if protected_terms and not _retained_terms(protected_terms, adapted):
+        warnings.append("compact_query_protected_terms_removed")
+
+    return AdaptedQuery(
+        original_query=original_query,
+        source=source,
+        query=adapted,
+        strategy="compact_core",
         dropped_terms=_stable([*dropped, *omitted]),
         warnings=warnings,
+        original_information_terms=information_terms,
+        retained_information_terms=retained,
+        retention_ratio=ratio,
+        protected_terms=protected_terms,
     )
 
 
@@ -310,12 +225,11 @@ def _core_terms(
 ) -> tuple[list[str], list[str]]:
     prioritized = _constraint_terms(constraints, explicit_only=True)
     supplemental = _constraint_terms(constraints, explicit_only=False)
-    query_tokens = _TOKEN_PATTERN.findall(
-        unicodedata.normalize("NFKC", query).replace("-", " ")
-    )
+    quoted = [_normalize_term(value) for value in _QUOTED_PHRASE_PATTERN.findall(query)]
+    query_tokens = _TOKEN_PATTERN.findall(unicodedata.normalize("NFKC", query))
     kept: list[str] = []
     dropped: list[str] = []
-    for token in [*prioritized, *query_tokens, *supplemental]:
+    for token in [*prioritized, *quoted, *query_tokens, *supplemental]:
         normalized = _normalize_term(token)
         if not normalized:
             continue
@@ -324,6 +238,37 @@ def _core_terms(
             continue
         kept.append(normalized)
     return _stable(kept), _stable(dropped)
+
+
+def _information_terms(
+    query: str,
+    constraints: QueryConstraint | None = None,
+) -> list[str]:
+    terms, _ = _core_terms(query, constraints)
+    return terms
+
+
+def _protected_terms(
+    query: str,
+    constraints: QueryConstraint | None,
+) -> list[str]:
+    protected = _constraint_terms(constraints, explicit_only=True)
+    protected.extend(_normalize_term(value) for value in _QUOTED_PHRASE_PATTERN.findall(query))
+    for token in _TOKEN_PATTERN.findall(query):
+        normalized = _normalize_term(token)
+        if not normalized:
+            continue
+        has_letter = any(character.isalpha() for character in normalized)
+        has_digit = any(character.isdigit() for character in normalized)
+        if (
+            re.fullmatch(r"[A-Z][A-Z0-9._+-]{1,}", normalized)
+            or has_letter and has_digit
+            or normalized.isascii()
+            and len(normalized) >= 9
+            and normalized.casefold() not in _ACADEMIC_QUERY_STOPWORDS
+        ):
+            protected.append(normalized)
+    return _stable(protected)
 
 
 def _constraint_terms(
@@ -360,34 +305,68 @@ def _constraint_terms(
     return [value for value in values if value.casefold() not in explicit_values]
 
 
+def _source_bounds(source: str) -> tuple[int, int]:
+    if source == "arxiv":
+        return MAX_ARXIV_TERMS, MAX_ARXIV_QUERY_LENGTH
+    if source == "semantic_scholar":
+        return MAX_SEMANTIC_SCHOLAR_TERMS, MAX_SEMANTIC_SCHOLAR_QUERY_LENGTH
+    if source == "pubmed":
+        return MAX_PUBMED_TERMS, MAX_PUBMED_QUERY_LENGTH
+    return MAX_OPENALEX_TERMS, MAX_OPENALEX_QUERY_LENGTH
+
+
+def _source_max_length(source: str) -> int:
+    return _source_bounds(source)[1]
+
+
 def _bounded_terms(terms: list[str], limit: int) -> tuple[list[str], list[str]]:
     return list(terms[:limit]), list(terms[limit:])
 
 
-def _adaptation_warnings(
-    original_query: str,
-    adapted_query: str,
-    omitted: list[str],
-    max_length: int,
-) -> list[str]:
-    warnings: list[str] = []
-    if omitted or len(original_query) > max_length:
-        warnings.append("adapted_query_truncated")
-    if not adapted_query:
-        warnings.append("empty_adapted_query")
-    return warnings
+def _safe_plain_text(value: str) -> str:
+    text = re.sub(r"[(){}\[\]:;!?*^~\\\"'`,|&=<>]+", " ", value)
+    text = re.sub(r"[^\w\u4e00-\u9fff+#./\-\s]+", " ", text, flags=re.UNICODE)
+    return _normalize_space(text)
 
 
 def _escape_arxiv_phrase(value: str) -> str:
-    cleaned = re.sub(r"[(){}\[\]:!?*^~\\\"']+", " ", value)
-    return _normalize_space(cleaned)
+    return _safe_plain_text(value).replace("/", " ")
 
 
 def _arxiv_value(value: str) -> str:
-    safe = _escape_arxiv_phrase(value)
+    safe = _normalize_space(_escape_arxiv_phrase(value))
     if not safe:
         return ""
     return f'"{safe}"' if " " in safe else safe
+
+
+def _retained_terms(original_terms: list[str], adapted_query: str) -> list[str]:
+    normalized_query = _normalize_term(adapted_query).casefold()
+    query_tokens = set(_TOKEN_PATTERN.findall(normalized_query))
+    retained: list[str] = []
+    for term in original_terms:
+        normalized = _normalize_term(term).casefold()
+        tokens = _TOKEN_PATTERN.findall(normalized)
+        if normalized and tokens and all(token in query_tokens for token in tokens):
+            retained.append(term)
+    return _stable(retained)
+
+
+def _retention_ratio(original: list[str], retained: list[str]) -> float:
+    if not original:
+        return 1.0
+    return len({_normalize_term(value).casefold() for value in retained}) / len(
+        {_normalize_term(value).casefold() for value in original}
+    )
+
+
+def _truncate_at_boundary(value: str, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    shortened = value[:max_length].rstrip()
+    if " " in shortened:
+        shortened = shortened.rsplit(" ", 1)[0].rstrip()
+    return shortened
 
 
 def _strip_controls(value: str) -> str:
@@ -397,7 +376,7 @@ def _strip_controls(value: str) -> str:
 def _normalize_term(value: str) -> str:
     text = unicodedata.normalize("NFKC", str(value))
     text = re.sub(r"[\x00-\x1f\x7f]", " ", text)
-    text = re.sub(r"[^\w\u4e00-\u9fff+#.]+", " ", text, flags=re.UNICODE)
+    text = re.sub(r"[^\w\u4e00-\u9fff+#.\-/]+", " ", text, flags=re.UNICODE)
     return _normalize_space(text)
 
 

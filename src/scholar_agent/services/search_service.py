@@ -60,6 +60,10 @@ from scholar_agent.llm.provider import (
     OpenAICompatibleLLMClient,
     is_llm_enabled,
 )
+from scholar_agent.retrieval.query_adapter import (
+    DEFAULT_QUERY_ADAPTER_POLICY,
+    QueryAdapterPolicy,
+)
 from scholar_agent.services.search_budget import BudgetedLLMClient, SearchBudgetRuntime
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
@@ -239,6 +243,7 @@ class SearchService:
         event_callback: EventCallback | None = None,
         should_cancel: ShouldCancel | None = None,
         collect_diagnostics: bool = False,
+        query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
     ) -> SearchServiceOutput:
         signals = _ExecutionSignals(event_callback, should_cancel)
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
@@ -327,6 +332,7 @@ class SearchService:
                     subqueries=initial_subqueries,
                     signals=signals,
                     run_context=retrieval_run_context,
+                    query_adapter_policy=query_adapter_policy,
                 )
                 runtime.record_search_round()
             signals.check_cancelled("retrieval:after_initial_batch")
@@ -551,6 +557,7 @@ class SearchService:
                         evolved_queries,
                         signals=signals,
                         run_context=retrieval_run_context,
+                        query_adapter_policy=query_adapter_policy,
                     )
                     runtime.record_search_round()
                     signals.check_cancelled("retrieval:after_evolved_batch")
@@ -990,6 +997,7 @@ class SearchService:
         subqueries: list[SearchSubquery] | None = None,
         signals: _ExecutionSignals,
         run_context: RetrievalRunContext,
+        query_adapter_policy: QueryAdapterPolicy,
     ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
             search_plan.subqueries if subqueries is None else subqueries,
@@ -1000,6 +1008,7 @@ class SearchService:
             signals=signals,
             constraints=search_plan.query_analysis.constraints,
             run_context=run_context,
+            query_adapter_policy=query_adapter_policy,
         )
 
     def _judge_papers(
@@ -1029,6 +1038,7 @@ class SearchService:
         *,
         signals: _ExecutionSignals,
         run_context: RetrievalRunContext,
+        query_adapter_policy: QueryAdapterPolicy,
     ) -> list[RetrievalOutput]:
         subqueries = [
             SearchSubquery(
@@ -1051,6 +1061,7 @@ class SearchService:
             signals=signals,
             constraints=search_plan.query_analysis.constraints,
             run_context=run_context,
+            query_adapter_policy=query_adapter_policy,
         )
 
     def _retrieve_query_batch(
@@ -1064,6 +1075,7 @@ class SearchService:
         signals: _ExecutionSignals,
         constraints: QueryConstraint,
         run_context: RetrievalRunContext,
+        query_adapter_policy: QueryAdapterPolicy,
     ) -> list[RetrievalOutput]:
         if not subqueries:
             return []
@@ -1094,6 +1106,7 @@ class SearchService:
                         constraints,
                         run_context,
                         len(subqueries) - next_index - 1,
+                        query_adapter_policy,
                     )
                     pending[future] = next_index
                     next_index += 1
@@ -1122,6 +1135,7 @@ class SearchService:
         constraints: QueryConstraint,
         run_context: RetrievalRunContext,
         remaining_subquery_count: int,
+        query_adapter_policy: QueryAdapterPolicy,
     ) -> _RetrievalTaskResult:
         sources = subquery.source_hints or selected_sources
         signals.check_cancelled(f"{failure_source}:subquery:{index}:before")
@@ -1147,6 +1161,8 @@ class SearchService:
                     constraints=constraints,
                     run_context=run_context,
                     remaining_subquery_count=remaining_subquery_count,
+                    query_adapter_policy=query_adapter_policy,
+                    query_purpose=subquery.purpose,
                     connector_event_callback=lambda name, payload: (
                         self._handle_connector_event(
                             signals,

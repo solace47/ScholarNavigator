@@ -7,7 +7,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from scholar_agent.agents.retriever import RetrievalOutput
+from scholar_agent.agents.retriever import (
+    QueryAdaptationProvenance,
+    RetrievalOutput,
+)
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import JudgementResult, RankedPaper
@@ -29,6 +32,7 @@ class CandidateProvenance(BaseModel):
     source: str
     adapted_query: str | None = None
     adaptation_strategy: str | None = None
+    purpose: str | None = None
     cache_hit: bool = False
     source_skipped_reason: str | None = None
 
@@ -45,6 +49,7 @@ class RetrievalCallTrace(BaseModel):
     returned_count: int = 0
     request_count: int = 0
     error_count: int = 0
+    query_provenance: list[QueryAdaptationProvenance] = Field(default_factory=list)
 
 
 class DiagnosticCandidate(BaseModel):
@@ -121,23 +126,41 @@ class PipelineDiagnosticsCollector:
                         returned_count=stats.returned_count,
                         request_count=stats.diagnostics.request_count,
                         error_count=stats.diagnostics.error_count,
+                        query_provenance=list(stats.query_provenance),
                     )
                 )
                 for paper in stats.diagnostic_papers:
                     traced_paper = True
-                    self._register(
-                        paper,
-                        CandidateProvenance(
-                            origin_kind=origin_kind,
-                            origin_stage=stage,
+                    logical_provenance = stats.query_provenance or [
+                        QueryAdaptationProvenance(
                             origin_subquery=output.query,
-                            source=stats.source,
-                            adapted_query=stats.adapted_query,
-                            adaptation_strategy=stats.adaptation_strategy,
-                            cache_hit=stats.cache_hit,
-                            source_skipped_reason=stats.source_skipped_reason,
-                        ),
-                    )
+                            adaptation_strategy=stats.adaptation_strategy or "unknown",
+                        )
+                    ]
+                    for query_provenance in logical_provenance:
+                        self._register(
+                            paper,
+                            CandidateProvenance(
+                                origin_kind=origin_kind_by_query.get(
+                                    query_provenance.origin_subquery,
+                                    origin_kind,
+                                ),
+                                origin_stage=stage,
+                                origin_subquery=query_provenance.origin_subquery,
+                                source=stats.source,
+                                adapted_query=stats.adapted_query,
+                                adaptation_strategy=(
+                                    query_provenance.adaptation_strategy
+                                ),
+                                purpose=query_provenance.purpose,
+                                cache_hit=stats.cache_hit,
+                                source_skipped_reason=(
+                                    stats.source_skipped_reason
+                                    if query_provenance.origin_subquery == output.query
+                                    else None
+                                ),
+                            ),
+                        )
                     papers.append(paper)
             if not traced_paper:
                 for paper in output.papers:
@@ -316,7 +339,19 @@ def _stable_provenance(
     values: list[CandidateProvenance],
 ) -> list[CandidateProvenance]:
     result: list[CandidateProvenance] = []
-    seen: set[tuple[str, str, str, str, str | None, str | None, bool, str | None]] = set()
+    seen: set[
+        tuple[
+            str,
+            str,
+            str,
+            str,
+            str | None,
+            str | None,
+            str | None,
+            bool,
+            str | None,
+        ]
+    ] = set()
     for value in values:
         key = (
             value.origin_kind,
@@ -325,6 +360,7 @@ def _stable_provenance(
             value.source,
             value.adapted_query,
             value.adaptation_strategy,
+            value.purpose,
             value.cache_hit,
             value.source_skipped_reason,
         )

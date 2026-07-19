@@ -201,22 +201,25 @@ def test_search_openalex_detailed_retry_failure_keeps_diagnostics(
     assert result.diagnostics.error_count == 1
 
 
-def test_search_openalex_empty_adapted_query_does_not_request(monkeypatch) -> None:
+def test_search_openalex_safe_original_is_not_dropped_as_stopwords(monkeypatch) -> None:
     calls = 0
+    requested_url = ""
 
     def fake_urlopen(request, timeout):
-        nonlocal calls
+        nonlocal calls, requested_url
         calls += 1
+        requested_url = request.full_url
         return MockResponse({"results": []})
 
     monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
 
     result = search_openalex_detailed("Could you list some papers???")
 
-    assert calls == 0
+    assert calls == 1
+    assert "Could+you+list+some+papers" in requested_url
     assert result.papers == []
-    assert result.diagnostics.request_count == 0
-    assert "empty_adapted_query" in result.warnings
+    assert result.diagnostics.request_count == 1
+    assert result.error_message is None
 
 
 def test_search_openalex_400_is_not_retried(monkeypatch) -> None:

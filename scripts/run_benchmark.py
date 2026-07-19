@@ -45,6 +45,7 @@ from scholar_agent.evaluation.stage_diagnostics import (  # noqa: E402
 )
 from scholar_agent.llm.provider import get_llm_runtime_config  # noqa: E402
 from scholar_agent.prompts import load_manifest, load_prompt  # noqa: E402
+from scholar_agent.retrieval.query_adapter import QueryAdapterPolicy  # noqa: E402
 from scholar_agent.services.api_mapper import (  # noqa: E402
     map_search_service_output_to_api_result,
 )
@@ -83,6 +84,7 @@ class BenchmarkRunOptions(BaseModel):
     budgets: SearchBudget = Field(default_factory=SearchBudget)
     diagnostics: bool = False
     resume: bool = False
+    query_adapter_policy: QueryAdapterPolicy = "hybrid"
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -215,6 +217,7 @@ def _build_config(
         "max_workers": options.max_workers,
         "budgets": options.budgets.model_dump(mode="json"),
         "diagnostics": options.diagnostics,
+        "query_adapter_policy": options.query_adapter_policy,
         "llm": {
             "llm_enabled": bool(requested_llm and llm_runtime.available),
             "requested": requested_llm,
@@ -366,6 +369,7 @@ def _run_case(
             sources_override=list(options.sources),
             budget=options.budgets,
             collect_diagnostics=options.diagnostics,
+            query_adapter_policy=options.query_adapter_policy,
         )
         result = map_search_service_output_to_api_result(
             run_id=f"benchmark_{query.query_id}",
@@ -672,6 +676,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-total-tokens", type=int, default=None)
     parser.add_argument("--max-latency-seconds", type=float, default=None)
     parser.add_argument("--diagnostics", action="store_true")
+    parser.add_argument(
+        "--query-adapter-policy",
+        choices=["safe_original", "hybrid"],
+        default="hybrid",
+    )
     parser.add_argument("--resume", action="store_true")
     return parser
 
@@ -728,6 +737,7 @@ def main(argv: list[str] | None = None) -> int:
             max_workers=args.max_workers,
             budgets=budgets,
             diagnostics=args.diagnostics,
+            query_adapter_policy=args.query_adapter_policy,
             resume=args.resume,
         )
         result = run_benchmark(options)

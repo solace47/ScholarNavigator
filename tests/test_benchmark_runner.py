@@ -46,6 +46,23 @@ def test_limit_and_offset_follow_source_order(tmp_path: Path) -> None:
     assert result.config["case_ids"] == ["case-1", "case-2"]
 
 
+def test_query_adapter_policy_is_recorded_and_passed_to_search_service(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    service = FakeService()
+
+    result = run_benchmark.run_benchmark(
+        _options(tmp_path, dataset, run_id="adapter-policy").model_copy(
+            update={"query_adapter_policy": "safe_original"}
+        ),
+        service=service,
+    )
+
+    assert result.config["query_adapter_policy"] == "safe_original"
+    assert service.kwargs[0]["query_adapter_policy"] == "safe_original"
+
+
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
     tmp_path: Path,
 ) -> None:

@@ -648,12 +648,110 @@ def test_same_adapted_query_is_called_once_per_run(monkeypatch) -> None:
         run_context=context,
     )
 
-    assert calls == ["graph retrieval"]
+    assert calls == [
+        "Could you list papers about graph retrieval",
+        "graph retrieval",
+    ]
     assert first.papers[0].title == "Shared"
     assert second.papers == []
     assert second.source_stats[0].run_dedupe_hit is True
     assert second.source_stats[0].source_skipped_reason == "duplicate_adapted_query"
     assert second.source_stats[0].diagnostic_papers[0].title == "Shared"
+    assert {
+        (
+            item.origin_subquery,
+            item.adaptation_strategy,
+        )
+        for item in second.source_stats[0].query_provenance
+    } == {
+        (
+            "Could you list papers about graph retrieval?",
+            "compact_core",
+        ),
+        ("graph retrieval", "safe_original"),
+        ("graph retrieval", "compact_core"),
+    }
+
+
+def test_run_dedupe_preserves_word_order_and_arxiv_field_syntax(monkeypatch) -> None:
+    calls: list[str] = []
+    context = RetrievalRunContext()
+
+    def fake_arxiv(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult()
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_arxiv_detailed",
+        fake_arxiv,
+    )
+
+    retrieve_papers("graph retrieval", sources=["arxiv"], run_context=context)
+    retrieve_papers("retrieval graph", sources=["arxiv"], run_context=context)
+
+    assert len(calls) == 4
+    assert "all:graph retrieval" in calls
+    assert "all:retrieval graph" in calls
+    assert any(query.startswith("((ti:graph") for query in calls)
+    assert any(query.startswith("((ti:retrieval") for query in calls)
+
+
+def test_hybrid_retains_safe_original_candidate_when_compact_returns_none(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        if query.startswith("Could you list"):
+            return ConnectorSearchResult(
+                papers=[make_paper("Safe Original Target", sources=["openalex"])]
+            )
+        return ConnectorSearchResult()
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        fake_openalex,
+    )
+
+    output = retrieve_papers(
+        "Could you list papers about rare graph retrieval?",
+        sources=["openalex"],
+        query_adapter_policy="hybrid",
+    )
+
+    assert len(calls) == 2
+    assert [paper.title for paper in output.papers] == ["Safe Original Target"]
+    assert [item.adaptation_strategy for item in output.source_stats] == [
+        "safe_original",
+        "compact_core",
+    ]
+
+
+def test_query_adapter_policy_does_not_change_source_preferences(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_search(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult()
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_pubmed_detailed",
+        fake_search,
+    )
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        fake_search,
+    )
+
+    output = retrieve_papers(
+        "gene retrieval",
+        sources=["pubmed", "openalex"],
+        query_adapter_policy="safe_original",
+    )
+
+    assert output.requested_sources == ["pubmed", "openalex"]
+    assert calls == ["gene retrieval", "gene retrieval"]
 
 
 def test_semantic_scholar_final_429_skips_later_run_queries(monkeypatch) -> None:

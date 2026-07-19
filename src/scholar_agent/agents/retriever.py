@@ -24,7 +24,9 @@ from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import QueryConstraint
 from scholar_agent.retrieval.query_adapter import (
+    DEFAULT_QUERY_ADAPTER_POLICY,
     AdaptedQuery,
+    QueryAdapterPolicy,
     adapt_queries_for_source,
 )
 
@@ -47,6 +49,12 @@ _SOURCE_FAILURE_COOLDOWNS: dict[str, float] = {}
 _SOURCE_FAILURE_COOLDOWNS_LOCK = RLock()
 
 
+class QueryAdaptationProvenance(BaseModel):
+    origin_subquery: str
+    adaptation_strategy: str
+    purpose: str | None = None
+
+
 class SourceStats(BaseModel):
     source: str
     query: str | None = None
@@ -57,7 +65,12 @@ class SourceStats(BaseModel):
     run_dedupe_hit: bool = False
     adapted_query: str | None = None
     adaptation_strategy: str | None = None
+    query_provenance: list[QueryAdaptationProvenance] = Field(default_factory=list)
     dropped_terms: list[str] = Field(default_factory=list)
+    original_information_terms: list[str] = Field(default_factory=list)
+    retained_information_terms: list[str] = Field(default_factory=list)
+    retention_ratio: float | None = None
+    protected_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     source_skipped_reason: str | None = None
     remaining_subquery_count: int = 0
@@ -83,6 +96,9 @@ class RetrievalRunContext:
     _lock: RLock = field(default_factory=RLock)
     _source_locks: dict[str, RLock] = field(default_factory=dict)
     _results: dict[_CacheKey, ConnectorSearchResult] = field(default_factory=dict)
+    _query_provenance: dict[_CacheKey, list[QueryAdaptationProvenance]] = field(
+        default_factory=dict
+    )
     _blocked_sources: dict[str, str] = field(default_factory=dict)
     _transient_failure_counts: dict[str, int] = field(default_factory=dict)
 
@@ -98,6 +114,18 @@ class RetrievalRunContext:
     def store_result(self, key: _CacheKey, result: ConnectorSearchResult) -> None:
         with self._lock:
             self._results[key] = result.model_copy(deep=True)
+
+    def register_query_provenance(
+        self,
+        key: _CacheKey,
+        values: list[QueryAdaptationProvenance],
+    ) -> list[QueryAdaptationProvenance]:
+        with self._lock:
+            stored = self._query_provenance.setdefault(key, [])
+            for value in values:
+                if value not in stored:
+                    stored.append(value.model_copy(deep=True))
+            return [item.model_copy(deep=True) for item in stored]
 
     def block_source(self, source: str, reason: str) -> None:
         with self._lock:
@@ -132,6 +160,8 @@ def retrieve_papers(
     constraints: QueryConstraint | None = None,
     run_context: RetrievalRunContext | None = None,
     remaining_subquery_count: int = 0,
+    query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
+    query_purpose: str | None = None,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -167,6 +197,7 @@ def retrieve_papers(
             query,
             source,
             constraints=constraints,
+            policy=query_adapter_policy,
         )
         for adapted in adapted_queries:
             if connector_event_callback is not None:
@@ -187,6 +218,7 @@ def retrieve_papers(
                 search=search,
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
+                query_purpose=query_purpose,
             )
             source_stats.append(stats)
             if stats.source_skipped_reason and not stats.error_message:
@@ -227,6 +259,7 @@ def _retrieve_adapted_query(
     search: Callable[[str, int], ConnectorSearchResult],
     run_context: RetrievalRunContext | None,
     remaining_subquery_count: int,
+    query_purpose: str | None,
 ) -> SourceStats:
     source_start = time.perf_counter()
     base = {
@@ -235,6 +268,10 @@ def _retrieve_adapted_query(
         "adapted_query": adapted.query,
         "adaptation_strategy": adapted.strategy,
         "dropped_terms": list(adapted.dropped_terms),
+        "original_information_terms": list(adapted.original_information_terms),
+        "retained_information_terms": list(adapted.retained_information_terms),
+        "retention_ratio": adapted.retention_ratio,
+        "protected_terms": list(adapted.protected_terms),
         "remaining_subquery_count": max(0, remaining_subquery_count),
     }
     if not adapted.query:
@@ -246,6 +283,23 @@ def _retrieve_adapted_query(
     guard = run_context.source_lock(source) if run_context is not None else nullcontext()
     with guard:
         key = _cache_key(source, adapted.query, limit_per_source)
+        strategies = _stable_strings(
+            [adapted.strategy, *adapted.equivalent_strategies]
+        )
+        current_provenance = [
+            QueryAdaptationProvenance(
+                origin_subquery=original_query,
+                adaptation_strategy=strategy,
+                purpose=query_purpose,
+            )
+            for strategy in strategies
+        ]
+        query_provenance = (
+            run_context.register_query_provenance(key, current_provenance)
+            if run_context is not None
+            else current_provenance
+        )
+        base["query_provenance"] = query_provenance
         reused = run_context.reused_result(key) if run_context is not None else None
         if reused is not None:
             return SourceStats(
@@ -347,6 +401,11 @@ def _emit_connector_completed(
             "retry_after_seconds": stats.diagnostics.retry_after_seconds,
             "adapted_query": stats.adapted_query,
             "adaptation_strategy": stats.adaptation_strategy,
+            "query_provenance": [
+                item.model_dump(mode="json") for item in stats.query_provenance
+            ],
+            "retention_ratio": stats.retention_ratio,
+            "protected_terms": list(stats.protected_terms),
             "run_dedupe_hit": stats.run_dedupe_hit,
             "source_skipped_reason": stats.source_skipped_reason,
             "remaining_subquery_count": stats.remaining_subquery_count,
@@ -458,6 +517,19 @@ def _cache_key(source: str, query: str, limit_per_source: int) -> _CacheKey:
         " ".join(query.casefold().split()),
         int(limit_per_source),
     )
+
+
+def _stable_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = value.strip()
+        key = item.casefold()
+        if not item or key in seen:
+            continue
+        result.append(item)
+        seen.add(key)
+    return result
 
 
 def _get_cached_result(

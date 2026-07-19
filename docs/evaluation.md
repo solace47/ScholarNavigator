@@ -53,6 +53,7 @@ PYTHONPATH=src python scripts/run_benchmark.py \
   --run-id autoscholar_smoke \
   --run-profile balanced \
   --sources openalex,arxiv,semantic_scholar \
+  --query-adapter-policy hybrid \
   --result-policy highly_and_partial \
   --top-k 20
 ```
@@ -66,6 +67,10 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 两组完整结果都显示主要问题是初始检索召回：候选 Recall 分别为 0.150 和 0.170；三源 baseline 的端到端 F1@20 从 0.0179 增至 0.0259，但平均 API 请求从 2.7 增至 8.2、平均延迟从 4.01 秒增至 29.78 秒。10 条数据只用于开发诊断，不代表完整 Benchmark 或比赛成绩。
 
 加入来源查询适配、run 内去重和限流降级后，使用同一 10 条、同一预算完成 A2/B2。A2 相对 A：候选 Recall 0.150→0.025、F1@20 0.0179→0.0083、平均 API 2.7→2.4、来源错误率均为 0、平均延迟 4.01→10.57 秒；延迟增加主要来自 arXiv 的 3 秒请求间隔。B2 相对 B：候选 Recall 0.170→0.045、F1@20 0.0259→0.0163、平均 API 8.2→5.1、来源错误率 0.402→0.059、平均延迟 29.78→19.93 秒，OpenAlex 400 从 10 次降为 0，Semantic Scholar 请求从 51 次降为 8 次。可靠性和成本改善，但该固定小样本上的召回与 F1 下降，不能声明质量提升。
+
+查询适配回归修复后，A3 使用 `hybrid` 在相同前 10 条恢复候选 Recall 至 0.250，Recall@20 为 0.225、F1@20 为 0.0274，平均 API 3.6、平均延迟 32.73 秒、来源错误率为 0。三源 B3 因 Semantic Scholar 连续最终 429 在 9/10 安全停止；其部分指标不得与完整 B/B2 等同。独立原始顺序 10–14 的 5 条验证中，`safe_original` 与 `hybrid` 的候选 Recall 和 Recall@20 均为 0.200，F1@5/10/20 均为 0.0667/0.0364/0.0190；该小样本只说明 hybrid 未丢失 safe-original 候选，不代表总体提升。
+
+Runner 的 `--query-adapter-policy` 只支持 `safe_original` 与 `hybrid`，并写入 `config.json`；产品默认使用 `hybrid`。
 
 ## 运行命令
 
@@ -98,4 +103,4 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
 
-当前真实运行只覆盖 AutoScholarQuery 原始顺序前 5 条链路 smoke，以及固定前 10 条的开发诊断对比。这些样本都不能代表完整 Benchmark、比赛成绩或多源长期性能；完整 1000 条基线、重复运行、显著性检验和分领域切片尚未完成。
+当前真实运行覆盖原始顺序前 5 条链路 smoke、前 10 条开发诊断，以及 offset 10 的 5 条独立策略验证；三源 B3 仅完成 9/10。所有小样本都不能代表完整 Benchmark、比赛成绩或多源长期性能；完整 1000 条基线、重复运行、显著性检验和分领域切片尚未完成。

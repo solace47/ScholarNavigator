@@ -11,7 +11,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.compare_benchmark_runs import compare_runs  # noqa: E402
-from scholar_agent.agents.retriever import RetrievalOutput, SourceStats  # noqa: E402
+from scholar_agent.agents.retriever import (  # noqa: E402
+    QueryAdaptationProvenance,
+    RetrievalOutput,
+    SourceStats,
+)
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalGoldPaper, EvalQuery  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
@@ -79,6 +83,13 @@ def test_run_dedupe_preserves_adaptation_provenance() -> None:
                 query="long natural language query",
                 adapted_query="graph retrieval",
                 adaptation_strategy="openalex_sanitized_core_terms",
+                query_provenance=[
+                    QueryAdaptationProvenance(
+                        origin_subquery="long natural language query",
+                        adaptation_strategy="compact_core",
+                        purpose="original_query",
+                    )
+                ],
                 returned_count=1,
                 diagnostic_papers=[paper],
                 diagnostics=ConnectorDiagnostics(request_count=1),
@@ -96,6 +107,23 @@ def test_run_dedupe_preserves_adaptation_provenance() -> None:
                 query="graph retrieval",
                 adapted_query="graph retrieval",
                 adaptation_strategy="openalex_sanitized_core_terms",
+                query_provenance=[
+                    QueryAdaptationProvenance(
+                        origin_subquery="long natural language query",
+                        adaptation_strategy="compact_core",
+                        purpose="original_query",
+                    ),
+                    QueryAdaptationProvenance(
+                        origin_subquery="graph retrieval",
+                        adaptation_strategy="safe_original",
+                        purpose="generic_rephrasing",
+                    ),
+                    QueryAdaptationProvenance(
+                        origin_subquery="graph retrieval",
+                        adaptation_strategy="compact_core",
+                        purpose="generic_rephrasing",
+                    ),
+                ],
                 run_dedupe_hit=True,
                 source_skipped_reason="duplicate_adapted_query",
                 diagnostic_papers=[paper],
@@ -114,7 +142,7 @@ def test_run_dedupe_preserves_adaptation_provenance() -> None:
 
     snapshot = collector.snapshots[0]
     candidate = snapshot.candidates[0]
-    assert len(candidate.provenance) == 2
+    assert len(candidate.provenance) == 3
     assert {item.origin_subquery for item in candidate.provenance} == {
         "long natural language query",
         "graph retrieval",
@@ -122,6 +150,19 @@ def test_run_dedupe_preserves_adaptation_provenance() -> None:
     assert any(
         item.source_skipped_reason == "duplicate_adapted_query"
         for item in candidate.provenance
+    )
+    assert {
+        (item.adaptation_strategy, item.purpose)
+        for item in candidate.provenance
+        if item.origin_subquery == "graph retrieval"
+    } == {
+        ("safe_original", "generic_rephrasing"),
+        ("compact_core", "generic_rephrasing"),
+    }
+    assert all(
+        item.source_skipped_reason is None
+        for item in candidate.provenance
+        if item.origin_subquery == "long natural language query"
     )
     assert snapshot.retrieval_calls[1].run_dedupe_hit is True
     assert snapshot.retrieval_calls[1].adapted_query == "graph retrieval"

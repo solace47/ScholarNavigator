@@ -1127,15 +1127,19 @@ def test_query_evolution_adapted_duplicate_does_not_repeat_external_call(
         collect_diagnostics=True,
     )
 
-    assert calls == ["graph retrieval machine learning", "graph retrieval method machine learning"]
+    assert len(calls) == len(set(calls))
+    assert calls.count("graph retrieval machine learning") == 1
+    assert "Could you list some papers about graph retrieval" in calls
     evolved = next(
         item
         for item in output.stage_snapshots
         if item.stage == "query_evolution_retrieval"
     )
-    assert evolved.retrieval_calls[0].run_dedupe_hit is True
-    assert evolved.retrieval_calls[0].source_skipped_reason == (
-        "duplicate_adapted_query"
+    assert any(
+        call.run_dedupe_hit
+        and call.adapted_query == "graph retrieval machine learning"
+        and call.source_skipped_reason == "duplicate_adapted_query"
+        for call in evolved.retrieval_calls
     )
 
 
