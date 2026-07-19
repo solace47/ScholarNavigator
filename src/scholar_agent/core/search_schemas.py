@@ -33,6 +33,7 @@ ConstraintField = Literal[
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
 QueryPlanningPolicy = Literal["current_rules", "facet_balanced", "llm_semantic"]
+JudgementPolicy = Literal["current_rules", "calibrated_rules_v1"]
 QueryFacetType = Literal[
     "topic",
     "method",
@@ -365,6 +366,90 @@ class EvidenceItem(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class JudgementRuleConfig(BaseModel):
+    """版本化、来源无关的确定性相关性判断参数。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    config_version: str = Field(min_length=1, max_length=80)
+    title_topic_weight: float = Field(ge=0.0, le=1.0)
+    abstract_topic_weight: float = Field(ge=0.0, le=1.0)
+    topic_max_score: float = Field(ge=0.0, le=1.0)
+    title_must_have_weight: float = Field(ge=0.0, le=1.0)
+    abstract_must_have_weight: float = Field(ge=0.0, le=1.0)
+    must_have_max_score: float = Field(ge=0.0, le=1.0)
+    title_method_weight: float = Field(ge=0.0, le=1.0)
+    abstract_method_weight: float = Field(ge=0.0, le=1.0)
+    method_max_score: float = Field(ge=0.0, le=1.0)
+    title_dataset_weight: float = Field(ge=0.0, le=1.0)
+    abstract_dataset_weight: float = Field(ge=0.0, le=1.0)
+    dataset_max_score: float = Field(ge=0.0, le=1.0)
+    title_domain_weight: float = Field(ge=0.0, le=1.0)
+    abstract_domain_weight: float = Field(ge=0.0, le=1.0)
+    domain_max_score: float = Field(ge=0.0, le=1.0)
+    paper_type_match_weight: float = Field(ge=0.0, le=1.0)
+    paper_type_max_score: float = Field(ge=0.0, le=1.0)
+    paper_type_mismatch_penalty: float = Field(ge=0.0, le=1.0)
+    venue_match_weight: float = Field(ge=0.0, le=1.0)
+    venue_mismatch_penalty: float = Field(ge=0.0, le=1.0)
+    temporal_match_weight: float = Field(ge=0.0, le=1.0)
+    temporal_early_penalty: float = Field(ge=0.0, le=1.0)
+    temporal_near_penalty: float = Field(ge=0.0, le=1.0)
+    temporal_late_penalty: float = Field(ge=0.0, le=1.0)
+    multi_dimension_bonus: float = Field(ge=0.0, le=1.0)
+    multi_dimension_bonus_cap: float = Field(ge=0.0, le=1.0)
+    insufficient_coverage_penalty: float = Field(ge=0.0, le=1.0)
+    broad_topic_score_cap: float = Field(ge=0.0, le=1.0)
+    explicit_dataset_penalty: float = Field(ge=0.0, le=1.0)
+    missing_abstract_penalty: float = Field(ge=0.0, le=1.0)
+    missing_metadata_penalty: float = Field(ge=0.0, le=1.0)
+    highly_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    partially_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    weakly_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    minimum_evidence_count: int = Field(ge=0, le=20)
+
+    @model_validator(mode="after")
+    def validate_threshold_order(self) -> "JudgementRuleConfig":
+        if not (
+            self.weakly_relevant_threshold
+            <= self.partially_relevant_threshold
+            <= self.highly_relevant_threshold
+        ):
+            raise ValueError(
+                "judgement thresholds must satisfy weak <= partial <= high"
+            )
+        return self
+
+
+class JudgementFeatureVector(BaseModel):
+    """不含摘要正文的候选级规则特征与可加和分数组件。"""
+
+    config_version: str
+    config_hash: str
+    matched_topic_terms: list[str] = Field(default_factory=list)
+    matched_method_terms: list[str] = Field(default_factory=list)
+    matched_dataset_terms: list[str] = Field(default_factory=list)
+    matched_task_terms: list[str] = Field(default_factory=list)
+    matched_must_have_terms: list[str] = Field(default_factory=list)
+    matched_paper_types: list[str] = Field(default_factory=list)
+    title_matched_terms: list[str] = Field(default_factory=list)
+    abstract_matched_terms: list[str] = Field(default_factory=list)
+    title_match_score: float = 0.0
+    abstract_match_score: float = 0.0
+    venue_match: bool | None = None
+    temporal_match: bool | None = None
+    metadata_completeness: float = Field(ge=0.0, le=1.0)
+    constraint_results: dict[str, bool | None] = Field(default_factory=dict)
+    hard_constraint_failures: list[str] = Field(default_factory=list)
+    score_components: dict[str, float] = Field(default_factory=dict)
+    evidence_count: int = Field(default=0, ge=0)
+    final_score: float = Field(ge=0.0, le=1.0)
+    highly_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    partially_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    weakly_relevant_threshold: float = Field(ge=0.0, le=1.0)
+    category_reason: str
+
+
 class JudgementResult(BaseModel):
     paper: Paper
     score: float = Field(ge=0.0, le=1.0)
@@ -373,6 +458,7 @@ class JudgementResult(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    feature_vector: JudgementFeatureVector | None = None
 
 
 class RerankScoreBreakdown(BaseModel):

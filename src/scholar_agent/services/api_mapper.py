@@ -92,6 +92,8 @@ def map_search_service_output_to_api_result(
         retrieval_diagnostics=_retrieval_diagnostics(output),
         budget_status=output.budget_status,
         cost_report=_cost_report(output),
+        judgement_policy=output.judgement_policy,
+        judgement_config_hash=output.judgement_config_hash,
     )
 
 

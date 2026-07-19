@@ -35,6 +35,7 @@ from ...core.api_schemas import (
 from ...core.search_schemas import (
     QueryConstraint,
     QueryEvolutionPolicy,
+    JudgementPolicy,
     QueryPlanningPolicy,
     RunProfile,
     SearchBudget,
@@ -95,6 +96,7 @@ class InternalSearchPreviewRequest(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    judgement_policy: JudgementPolicy = "current_rules"
     enable_llm_query_understanding: bool | None = None
     enable_llm_judgement: bool | None = None
     current_year: int | None = Field(default=None, ge=1900, le=2200)
@@ -539,6 +541,11 @@ def internal_search_preview(
             enable_query_evolution=request.enable_query_evolution,
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
+            **(
+                {"judgement_policy": request.judgement_policy}
+                if request.judgement_policy != "current_rules"
+                else {}
+            ),
             enable_llm_query_understanding=request.enable_llm_query_understanding,
             enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
@@ -588,6 +595,11 @@ def internal_search_preview_api_result(
             enable_query_evolution=request.enable_query_evolution,
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
+            **(
+                {"judgement_policy": request.judgement_policy}
+                if request.judgement_policy != "current_rules"
+                else {}
+            ),
             enable_llm_query_understanding=request.enable_llm_query_understanding,
             enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
@@ -623,6 +635,11 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_query_evolution=request.options.enable_query_evolution,
             query_evolution_policy=request.options.query_evolution_policy,
             query_planning_policy=request.options.query_planning_policy,
+            **(
+                {"judgement_policy": request.options.judgement_policy}
+                if request.options.judgement_policy != "current_rules"
+                else {}
+            ),
             enable_synthesis=True,
             current_year=None,
             enable_llm_query_understanding=(

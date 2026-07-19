@@ -78,6 +78,10 @@ class SnapshotRuntime:
             "current_rules", "facet_balanced", "llm_semantic"
         ] = "current_rules",
         query_planner_version: str | None = None,
+        judgement_policy: Literal[
+            "current_rules", "calibrated_rules_v1"
+        ] = "current_rules",
+        judgement_config_hash: str | None = None,
     ) -> None:
         if mode == "live":
             raise ValueError("SnapshotRuntime does not handle live mode")
@@ -90,6 +94,8 @@ class SnapshotRuntime:
         self.query_evolution_policy = query_evolution_policy
         self.query_planning_policy = query_planning_policy
         self.query_planner_version = query_planner_version
+        self.judgement_policy = judgement_policy
+        self.judgement_config_hash = judgement_config_hash
         self._lock = RLock()
         self._case = SnapshotCostReport(mode=mode)
         self._case_id = ""
@@ -199,6 +205,8 @@ class SnapshotRuntime:
             observation = SnapshotGroupObservation(
                 query_planning_policy=self.query_planning_policy,
                 query_planner_version=self.query_planner_version,
+                judgement_policy=self.judgement_policy,
+                judgement_config_hash=self.judgement_config_hash,
                 query_evolution_policy=self.query_evolution_policy,
                 retrieval_keys=list(self._group_retrieval),
                 reference_keys=list(self._group_references),

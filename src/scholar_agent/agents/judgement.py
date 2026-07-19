@@ -11,11 +11,20 @@ from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
     JudgementCategory,
+    JudgementFeatureVector,
+    JudgementPolicy,
     JudgementResult,
+    JudgementRuleConfig,
     QueryAnalysis,
     QueryConstraint,
     ResearchDomain,
 )
+from scholar_agent.agents.judgement_config import (
+    CURRENT_RULES_CONFIG,
+    judgement_config_hash,
+    resolve_judgement_config,
+)
+from scholar_agent.agents.query_planning import identify_query_facets
 from scholar_agent.llm.provider import chat_json as provider_chat_json
 from scholar_agent.llm.provider import is_llm_enabled
 from scholar_agent.prompts.loader import PromptLoadError, render_messages
@@ -136,6 +145,8 @@ class _Signal:
     evidence: list[EvidenceItem]
     reasons: list[str]
     penalty: float = 0.0
+    title_score: float = 0.0
+    abstract_score: float = 0.0
 
 
 class LLMJsonClient(Protocol):
@@ -152,8 +163,16 @@ class LLMJsonClient(Protocol):
 class JudgementAgent:
     """Metadata-only relevance judgement with optional LLM JSON enhancement."""
 
-    def __init__(self, llm_client: LLMJsonClient | None = None) -> None:
+    def __init__(
+        self,
+        llm_client: LLMJsonClient | None = None,
+        *,
+        policy: JudgementPolicy = "current_rules",
+        config: JudgementRuleConfig | None = None,
+    ) -> None:
         self._llm_client = llm_client
+        self.policy = policy
+        self.config = resolve_judgement_config(policy, config)
         self.llm_call_count = 0
 
     def judge(
@@ -161,13 +180,21 @@ class JudgementAgent:
         query_analysis: QueryAnalysis,
         papers: list[Paper],
         *,
-        threshold_high: float = 0.72,
-        threshold_partial: float = 0.45,
-        threshold_weak: float = 0.25,
+        threshold_high: float | None = None,
+        threshold_partial: float | None = None,
+        threshold_weak: float | None = None,
         use_llm: bool | None = None,
         before_llm_batch: Callable[[], None] | None = None,
     ) -> list[JudgementResult]:
-        _validate_thresholds(threshold_high, threshold_partial, threshold_weak)
+        config = _config_with_threshold_overrides(
+            self.config,
+            threshold_high=threshold_high,
+            threshold_partial=threshold_partial,
+            threshold_weak=threshold_weak,
+        )
+        threshold_high = config.highly_relevant_threshold
+        threshold_partial = config.partially_relevant_threshold
+        threshold_weak = config.weakly_relevant_threshold
         if use_llm:
             results = self._judge_with_optional_llm(
                 query_analysis,
@@ -175,6 +202,7 @@ class JudgementAgent:
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
+                config=config,
                 before_llm_batch=before_llm_batch,
             )
         else:
@@ -184,6 +212,7 @@ class JudgementAgent:
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
+                config=config,
             )
         return [
             _enforce_constraint_outcomes(
@@ -192,6 +221,7 @@ class JudgementAgent:
                 threshold_high=threshold_high,
                 threshold_partial=threshold_partial,
                 threshold_weak=threshold_weak,
+                config=config,
             )
             for result in results
         ]
@@ -204,6 +234,7 @@ class JudgementAgent:
         threshold_high: float,
         threshold_partial: float,
         threshold_weak: float,
+        config: JudgementRuleConfig,
         before_llm_batch: Callable[[], None] | None,
     ) -> list[JudgementResult]:
         rule_results = _judge_papers_rules(
@@ -212,6 +243,7 @@ class JudgementAgent:
             threshold_high=threshold_high,
             threshold_partial=threshold_partial,
             threshold_weak=threshold_weak,
+            config=config,
         )
         if not papers:
             return []
@@ -273,16 +305,22 @@ def judge_papers(
     query_analysis: QueryAnalysis,
     papers: list[Paper],
     *,
-    threshold_high: float = 0.72,
-    threshold_partial: float = 0.45,
-    threshold_weak: float = 0.25,
+    threshold_high: float | None = None,
+    threshold_partial: float | None = None,
+    threshold_weak: float | None = None,
     use_llm: bool | None = None,
     llm_client: LLMJsonClient | None = None,
     before_llm_batch: Callable[[], None] | None = None,
+    policy: JudgementPolicy = "current_rules",
+    config: JudgementRuleConfig | None = None,
 ) -> list[JudgementResult]:
     """Judge paper relevance using metadata rules or optional LLM JSON."""
 
-    return JudgementAgent(llm_client=llm_client).judge(
+    return JudgementAgent(
+        llm_client=llm_client,
+        policy=policy,
+        config=config,
+    ).judge(
         query_analysis,
         papers,
         threshold_high=threshold_high,
@@ -339,6 +377,7 @@ def _judge_papers_rules(
     threshold_high: float,
     threshold_partial: float,
     threshold_weak: float,
+    config: JudgementRuleConfig,
 ) -> list[JudgementResult]:
     return [
         _judge_one_paper(
@@ -347,6 +386,7 @@ def _judge_papers_rules(
             threshold_high=threshold_high,
             threshold_partial=threshold_partial,
             threshold_weak=threshold_weak,
+            config=config,
         )
         for paper in papers
     ]
@@ -359,6 +399,7 @@ def _judge_one_paper(
     threshold_high: float,
     threshold_partial: float,
     threshold_weak: float,
+    config: JudgementRuleConfig,
 ) -> JudgementResult:
     warnings = _metadata_warnings(query_analysis.constraints, paper)
     if not paper.title.strip() and not paper.abstract.strip():
@@ -373,6 +414,12 @@ def _judge_one_paper(
             evidence=[],
             matched_terms=[],
             warnings=warnings,
+            feature_vector=_empty_feature_vector(
+                query_analysis,
+                paper,
+                config,
+                category_reason="missing_title_and_abstract",
+            ),
         )
 
     constraints = query_analysis.constraints
@@ -380,60 +427,67 @@ def _judge_one_paper(
     keyword_signal = _term_signal(
         terms=keyword_terms,
         paper=paper,
-        title_weight=0.12,
-        abstract_weight=0.06,
-        max_score=0.45,
+        title_weight=config.title_topic_weight,
+        abstract_weight=config.abstract_topic_weight,
+        max_score=config.topic_max_score,
         reason_label="query terms",
     )
     must_signal = _term_signal(
         terms=constraints.must_include_terms,
         paper=paper,
-        title_weight=0.09,
-        abstract_weight=0.045,
-        max_score=0.24,
+        title_weight=config.title_must_have_weight,
+        abstract_weight=config.abstract_must_have_weight,
+        max_score=config.must_have_max_score,
         reason_label="required terms",
     )
     method_signal = _term_signal(
         terms=constraints.methods,
         paper=paper,
-        title_weight=0.08,
-        abstract_weight=0.04,
-        max_score=0.18,
+        title_weight=config.title_method_weight,
+        abstract_weight=config.abstract_method_weight,
+        max_score=config.method_max_score,
         reason_label="method terms",
     )
     dataset_signal = _term_signal(
         terms=constraints.datasets,
         paper=paper,
-        title_weight=0.07,
-        abstract_weight=0.035,
-        max_score=0.12,
+        title_weight=config.title_dataset_weight,
+        abstract_weight=config.abstract_dataset_weight,
+        max_score=config.dataset_max_score,
         reason_label="dataset terms",
     )
-    paper_type_signal = _paper_type_signal(constraints, paper)
+    paper_type_signal = _paper_type_signal(constraints, paper, config)
     domain_signal = _term_signal(
         terms=list(DOMAIN_TERMS.get(query_analysis.domain, ())),
         paper=paper,
-        title_weight=0.05,
-        abstract_weight=0.025,
-        max_score=0.12,
+        title_weight=config.title_domain_weight,
+        abstract_weight=config.abstract_domain_weight,
+        max_score=config.domain_max_score,
         reason_label="domain terms",
     )
-    venue_signal = _venue_signal(constraints, paper)
-    time_signal = _time_signal(constraints, paper)
+    venue_signal = _venue_signal(constraints, paper, config)
+    time_signal = _time_signal(constraints, paper, config)
 
-    score = (
-        keyword_signal.score
-        + must_signal.score
-        + method_signal.score
-        + dataset_signal.score
-        + paper_type_signal.score
-        + domain_signal.score
-        + venue_signal.score
-        + time_signal.score
-        - venue_signal.penalty
-        - time_signal.penalty
-        - paper_type_signal.penalty
-    )
+    metadata_completeness = _metadata_completeness(paper)
+    score_components = {
+        "topic_match": keyword_signal.score,
+        "must_have_match": must_signal.score,
+        "method_match": method_signal.score,
+        "dataset_match": dataset_signal.score,
+        "paper_type_match": paper_type_signal.score,
+        "domain_match": domain_signal.score,
+        "venue_match": venue_signal.score,
+        "temporal_match": time_signal.score,
+        "venue_mismatch_penalty": -venue_signal.penalty,
+        "temporal_mismatch_penalty": -time_signal.penalty,
+        "paper_type_mismatch_penalty": -paper_type_signal.penalty,
+        "missing_abstract_penalty": (
+            -config.missing_abstract_penalty if not paper.abstract.strip() else 0.0
+        ),
+        "missing_metadata_penalty": -config.missing_metadata_penalty
+        * (1.0 - metadata_completeness),
+    }
+    score = sum(score_components.values())
     evidence = _dedupe_evidence(
         keyword_signal.evidence
         + must_signal.evidence
@@ -466,15 +520,101 @@ def _judge_one_paper(
         query_analysis,
         paper,
         score,
+        config,
+    )
+    score_components["constraint_coverage_adjustment"] = score - sum(
+        score_components.values()
     )
     reasons.extend(coverage_reasons)
-    score = round(_clamp(score), 4)
+    clamped_score = _clamp(score)
+    score_components["clamp_adjustment"] = clamped_score - score
+    score = round(clamped_score, 4)
 
     category = _category(
         score,
         threshold_high=threshold_high,
         threshold_partial=threshold_partial,
         threshold_weak=threshold_weak,
+    )
+    category_reason = f"score_threshold:{category}"
+    if len(evidence) < config.minimum_evidence_count:
+        category = "insufficient_evidence"
+        category_reason = "minimum_evidence_count_not_met"
+        reasons.append(category_reason)
+    topic_matches, _ = _matching_constraint_terms(keyword_terms, paper)
+    method_matches, _ = _matching_constraint_terms(constraints.methods, paper)
+    dataset_matches, _ = _matching_constraint_terms(constraints.datasets, paper)
+    must_matches, _ = _matching_constraint_terms(
+        constraints.must_include_terms,
+        paper,
+    )
+    paper_type_matches, _ = _matched_paper_types(constraints.paper_types, paper)
+    task_terms = _facet_terms(query_analysis, "task")
+    task_matches, _ = _matching_constraint_terms(task_terms, paper)
+    title_terms, abstract_terms = _matching_terms_by_field(
+        _dedupe_terms(
+            [
+                *keyword_terms,
+                *constraints.must_include_terms,
+                *constraints.methods,
+                *constraints.datasets,
+                *task_terms,
+            ]
+        ),
+        paper,
+    )
+    constraint_results = _constraint_results(query_analysis, paper)
+    feature_vector = JudgementFeatureVector(
+        config_version=config.config_version,
+        config_hash=judgement_config_hash(config),
+        matched_topic_terms=topic_matches,
+        matched_method_terms=method_matches,
+        matched_dataset_terms=dataset_matches,
+        matched_task_terms=task_matches,
+        matched_must_have_terms=must_matches,
+        matched_paper_types=paper_type_matches,
+        title_matched_terms=title_terms,
+        abstract_matched_terms=abstract_terms,
+        title_match_score=round(
+            sum(
+                signal.title_score
+                for signal in (
+                    keyword_signal,
+                    must_signal,
+                    method_signal,
+                    dataset_signal,
+                    domain_signal,
+                )
+            ),
+            6,
+        ),
+        abstract_match_score=round(
+            sum(
+                signal.abstract_score
+                for signal in (
+                    keyword_signal,
+                    must_signal,
+                    method_signal,
+                    dataset_signal,
+                    domain_signal,
+                )
+            ),
+            6,
+        ),
+        venue_match=constraint_results.get("venue"),
+        temporal_match=constraint_results.get("time"),
+        metadata_completeness=metadata_completeness,
+        constraint_results=constraint_results,
+        hard_constraint_failures=_hard_constraint_failures(constraint_results),
+        score_components={
+            key: round(value, 6) for key, value in score_components.items()
+        },
+        evidence_count=len(evidence),
+        final_score=score,
+        highly_relevant_threshold=threshold_high,
+        partially_relevant_threshold=threshold_partial,
+        weakly_relevant_threshold=threshold_weak,
+        category_reason=category_reason,
     )
     return JudgementResult(
         paper=paper,
@@ -484,6 +624,7 @@ def _judge_one_paper(
         evidence=evidence,
         matched_terms=matched_terms,
         warnings=warnings,
+        feature_vector=feature_vector,
     )
 
 
@@ -491,6 +632,7 @@ def _constraint_coverage_adjustment(
     query_analysis: QueryAnalysis,
     paper: Paper,
     score: float,
+    config: JudgementRuleConfig,
 ) -> tuple[float, list[str]]:
     constraints = query_analysis.constraints
     topic_terms = _tokenize(query_analysis.original_query)
@@ -561,14 +703,20 @@ def _constraint_coverage_adjustment(
     broad_topic_only = len(topic_terms) >= 3 and len(topic_matches) <= 1
 
     if len(coverages) >= 2 and strong_dimensions >= 2 and mean_coverage >= 0.6:
-        score += min(0.08, strong_dimensions * 0.02)
+        score += min(
+            config.multi_dimension_bonus_cap,
+            strong_dimensions * config.multi_dimension_bonus,
+        )
         reasons.append("multi_dimension_constraint_coverage")
     elif len(coverages) >= 2 and strong_dimensions <= 1:
-        score = min(score - 0.06, 0.5 + 0.25 * mean_coverage)
+        score = min(
+            score - config.insufficient_coverage_penalty,
+            0.5 + 0.25 * mean_coverage,
+        )
         reasons.append("insufficient_multi_dimension_coverage")
 
     if broad_topic_only and strong_dimensions <= 1:
-        score = min(score, 0.68)
+        score = min(score, config.broad_topic_score_cap)
         reasons.append("broad_topic_match_only")
     return score, reasons
 
@@ -615,6 +763,8 @@ def _term_signal(
     title_text = title.casefold()
     abstract_text = abstract.casefold()
     score = 0.0
+    title_score = 0.0
+    abstract_score = 0.0
     matched_terms: list[str] = []
     evidence: list[EvidenceItem] = []
 
@@ -624,12 +774,14 @@ def _term_signal(
             continue
         if _contains_term(title_text, normalized_term):
             score += title_weight
+            title_score += title_weight
             matched_terms.append(term)
             evidence.append(
                 EvidenceItem(source="title", text=_short_text(title), confidence=0.9)
             )
         elif _contains_term(abstract_text, normalized_term):
             score += abstract_weight
+            abstract_score += abstract_weight
             matched_terms.append(term)
             evidence.append(
                 EvidenceItem(
@@ -645,15 +797,22 @@ def _term_signal(
         reasons.append(
             f"matched {reason_label}: {', '.join(_dedupe_terms(matched_terms)[:8])}"
         )
+    scale = min(1.0, max_score / score) if score > 0 else 1.0
     return _Signal(
         score=capped_score,
         matched_terms=_dedupe_terms(matched_terms),
         evidence=evidence,
         reasons=reasons,
+        title_score=title_score * scale,
+        abstract_score=abstract_score * scale,
     )
 
 
-def _paper_type_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
+def _paper_type_signal(
+    constraints: QueryConstraint,
+    paper: Paper,
+    config: JudgementRuleConfig,
+) -> _Signal:
     if not constraints.paper_types:
         return _Signal(score=0.0, matched_terms=[], evidence=[], reasons=[])
     matched_types, evidence = _matched_paper_types(constraints.paper_types, paper)
@@ -666,17 +825,24 @@ def _paper_type_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
                 "paper type does not match requested types: "
                 + ", ".join(constraints.paper_types)
             ],
-            penalty=0.08,
+            penalty=config.paper_type_mismatch_penalty,
         )
     return _Signal(
-        score=min(0.08 * len(matched_types), 0.16),
+        score=min(
+            config.paper_type_match_weight * len(matched_types),
+            config.paper_type_max_score,
+        ),
         matched_terms=matched_types,
         evidence=evidence,
         reasons=["matched paper types: " + ", ".join(matched_types)],
     )
 
 
-def _venue_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
+def _venue_signal(
+    constraints: QueryConstraint,
+    paper: Paper,
+    config: JudgementRuleConfig,
+) -> _Signal:
     if not constraints.venues:
         return _Signal(score=0.0, matched_terms=[], evidence=[], reasons=[])
 
@@ -687,14 +853,14 @@ def _venue_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
             matched_terms=[],
             evidence=[],
             reasons=["venue constraint present but paper venue is missing"],
-            penalty=0.03,
+            penalty=config.venue_mismatch_penalty,
         )
 
     venue_key = _normalize_venue(venue)
     for expected in constraints.venues:
         if _normalize_venue(expected) in venue_key:
             return _Signal(
-                score=0.1,
+                score=config.venue_match_weight,
                 matched_terms=[],
                 evidence=[EvidenceItem(source="venue", text=venue, confidence=0.92)],
                 reasons=[f"venue matches constraint: {expected}"],
@@ -704,11 +870,15 @@ def _venue_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
         matched_terms=[],
         evidence=[],
         reasons=["paper venue does not match requested venues"],
-        penalty=0.03,
+        penalty=config.venue_mismatch_penalty,
     )
 
 
-def _time_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
+def _time_signal(
+    constraints: QueryConstraint,
+    paper: Paper,
+    config: JudgementRuleConfig,
+) -> _Signal:
     time_range = constraints.time_range
     if time_range is None:
         return _Signal(score=0.0, matched_terms=[], evidence=[], reasons=[])
@@ -724,7 +894,11 @@ def _time_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
     end_year = time_range.end_year
     if start_year is not None and paper.year < start_year:
         distance = start_year - paper.year
-        penalty = 0.15 if distance >= 2 else 0.08
+        penalty = (
+            config.temporal_early_penalty
+            if distance >= 2
+            else config.temporal_near_penalty
+        )
         return _Signal(
             score=0.0,
             matched_terms=[],
@@ -738,10 +912,10 @@ def _time_signal(constraints: QueryConstraint, paper: Paper) -> _Signal:
             matched_terms=[],
             evidence=[EvidenceItem(source="metadata", text=f"year={paper.year}", confidence=0.85)],
             reasons=[f"paper year {paper.year} is later than requested end year {end_year}"],
-            penalty=0.06,
+            penalty=config.temporal_late_penalty,
         )
     return _Signal(
-        score=0.08,
+        score=config.temporal_match_weight,
         matched_terms=[],
         evidence=[EvidenceItem(source="metadata", text=f"year={paper.year}", confidence=0.88)],
         reasons=[f"paper year {paper.year} satisfies time constraint"],
@@ -755,6 +929,7 @@ def _enforce_constraint_outcomes(
     threshold_high: float,
     threshold_partial: float,
     threshold_weak: float,
+    config: JudgementRuleConfig,
 ) -> JudgementResult:
     constraints = query_analysis.constraints
     score = result.score
@@ -763,6 +938,7 @@ def _enforce_constraint_outcomes(
     evidence = list(result.evidence)
     matched_terms = list(result.matched_terms)
     reasoning_additions: list[str] = []
+    rule_score = score
 
     excluded_matches, excluded_evidence = _matching_constraint_terms(
         constraints.exclude_terms,
@@ -787,6 +963,14 @@ def _enforce_constraint_outcomes(
                     [*matched_terms, *excluded_matches]
                 ),
                 "warnings": _dedupe_terms(warnings),
+                "feature_vector": _finalize_feature_vector(
+                    result.feature_vector,
+                    final_score=0.0,
+                    category="irrelevant",
+                    category_reason="excluded_term_hard_constraint",
+                    hard_constraint_adjustment=-rule_score,
+                    forced_failures=["excluded_terms"],
+                ),
             }
         )
 
@@ -830,7 +1014,7 @@ def _enforce_constraint_outcomes(
             reasoning_additions.append(
                 "requested datasets not matched: " + ", ".join(constraints.datasets)
             )
-            score = max(0.0, score - 0.08)
+            score = max(0.0, score - config.explicit_dataset_penalty)
             category = _worse_category(
                 category,
                 _category(
@@ -856,7 +1040,7 @@ def _enforce_constraint_outcomes(
                 "requested paper types not matched: "
                 + ", ".join(constraints.paper_types)
             )
-            score = max(0.0, score - 0.08)
+            score = max(0.0, score - config.paper_type_mismatch_penalty)
             category = _worse_category(
                 category,
                 _category(
@@ -875,14 +1059,31 @@ def _enforce_constraint_outcomes(
         score = min(score, max(0.0, threshold_high - 0.0001))
         category = _worse_category(category, "partially_relevant")
 
+    final_score = round(_clamp(score), 4)
     return result.model_copy(
         update={
-            "score": round(_clamp(score), 4),
+            "score": final_score,
             "category": category,
             "reasoning": _append_reasoning(result.reasoning, reasoning_additions),
             "evidence": _dedupe_evidence(evidence),
             "matched_terms": _dedupe_terms(matched_terms),
             "warnings": _dedupe_terms(warnings),
+            "feature_vector": _finalize_feature_vector(
+                result.feature_vector,
+                final_score=final_score,
+                category=category,
+                category_reason=(
+                    "constraint_guard_applied"
+                    if reasoning_additions
+                    else result.feature_vector.category_reason
+                    if result.feature_vector is not None
+                    else f"score_threshold:{category}"
+                ),
+                hard_constraint_adjustment=final_score - rule_score,
+                forced_failures=_hard_constraint_failures(
+                    _constraint_results(query_analysis, result.paper)
+                ),
+            ),
         }
     )
 
@@ -988,6 +1189,176 @@ def _validate_thresholds(
             "thresholds must satisfy "
             "0 <= threshold_weak <= threshold_partial <= threshold_high <= 1"
         )
+
+
+def _config_with_threshold_overrides(
+    config: JudgementRuleConfig,
+    *,
+    threshold_high: float | None,
+    threshold_partial: float | None,
+    threshold_weak: float | None,
+) -> JudgementRuleConfig:
+    updates: dict[str, float] = {}
+    if threshold_high is not None:
+        updates["highly_relevant_threshold"] = threshold_high
+    if threshold_partial is not None:
+        updates["partially_relevant_threshold"] = threshold_partial
+    if threshold_weak is not None:
+        updates["weakly_relevant_threshold"] = threshold_weak
+    resolved = config.model_copy(update=updates) if updates else config
+    _validate_thresholds(
+        resolved.highly_relevant_threshold,
+        resolved.partially_relevant_threshold,
+        resolved.weakly_relevant_threshold,
+    )
+    return resolved
+
+
+def _facet_terms(query_analysis: QueryAnalysis, facet_type: str) -> list[str]:
+    return _dedupe_terms(
+        [
+            term
+            for facet in identify_query_facets(query_analysis)
+            if facet.facet_type == facet_type
+            for term in facet.terms
+        ]
+    )
+
+
+def _matching_terms_by_field(
+    terms: list[str],
+    paper: Paper,
+) -> tuple[list[str], list[str]]:
+    title = (paper.title or "").casefold()
+    abstract = (paper.abstract or "").casefold()
+    title_terms: list[str] = []
+    abstract_terms: list[str] = []
+    for term in _dedupe_terms(terms):
+        normalized = term.casefold()
+        if _contains_term(title, normalized):
+            title_terms.append(term)
+        elif _contains_term(abstract, normalized):
+            abstract_terms.append(term)
+    return _dedupe_terms(title_terms), _dedupe_terms(abstract_terms)
+
+
+def _metadata_completeness(paper: Paper) -> float:
+    identifiers = paper.identifiers.model_dump(mode="json")
+    present = (
+        bool(paper.title.strip()),
+        bool(paper.abstract.strip()),
+        bool(paper.authors),
+        paper.year is not None,
+        any(bool(value) for value in identifiers.values()),
+    )
+    return round(sum(present) / len(present), 4)
+
+
+def _constraint_results(
+    query_analysis: QueryAnalysis,
+    paper: Paper,
+) -> dict[str, bool | None]:
+    constraints = query_analysis.constraints
+    results: dict[str, bool | None] = {}
+    if constraints.exclude_terms:
+        matches, _ = _matching_constraint_terms(constraints.exclude_terms, paper)
+        results["excluded_terms"] = not matches
+    if (
+        constraints.must_include_terms
+        and "must_include_terms" in constraints.explicit_fields
+    ):
+        matches, _ = _matching_constraint_terms(
+            constraints.must_include_terms,
+            paper,
+        )
+        matched = {item.casefold() for item in matches}
+        results["must_have"] = all(
+            term.casefold() in matched for term in constraints.must_include_terms
+        )
+    if constraints.datasets and "datasets" in constraints.explicit_fields:
+        matches, _ = _matching_constraint_terms(constraints.datasets, paper)
+        results["dataset"] = bool(matches)
+    if constraints.paper_types:
+        matches, _ = _matched_paper_types(constraints.paper_types, paper)
+        results["paper_type"] = bool(matches)
+    if constraints.venues:
+        venue_key = _normalize_venue(paper.venue or "")
+        results["venue"] = bool(venue_key) and any(
+            _normalize_venue(expected) in venue_key
+            for expected in constraints.venues
+        )
+    if constraints.time_range is not None:
+        results["time"] = paper.year is not None and not _outside_time_range(
+            constraints,
+            paper,
+        )
+    return results
+
+
+def _hard_constraint_failures(
+    results: dict[str, bool | None],
+) -> list[str]:
+    hard_fields = {"excluded_terms", "must_have", "time"}
+    return [
+        name
+        for name, passed in results.items()
+        if name in hard_fields and passed is False
+    ]
+
+
+def _empty_feature_vector(
+    query_analysis: QueryAnalysis,
+    paper: Paper,
+    config: JudgementRuleConfig,
+    *,
+    category_reason: str,
+) -> JudgementFeatureVector:
+    results = _constraint_results(query_analysis, paper)
+    return JudgementFeatureVector(
+        config_version=config.config_version,
+        config_hash=judgement_config_hash(config),
+        metadata_completeness=_metadata_completeness(paper),
+        constraint_results=results,
+        hard_constraint_failures=_hard_constraint_failures(results),
+        score_components={},
+        evidence_count=0,
+        final_score=0.0,
+        highly_relevant_threshold=config.highly_relevant_threshold,
+        partially_relevant_threshold=config.partially_relevant_threshold,
+        weakly_relevant_threshold=config.weakly_relevant_threshold,
+        category_reason=category_reason,
+    )
+
+
+def _finalize_feature_vector(
+    feature: JudgementFeatureVector | None,
+    *,
+    final_score: float,
+    category: str,
+    category_reason: str,
+    hard_constraint_adjustment: float,
+    forced_failures: list[str],
+) -> JudgementFeatureVector | None:
+    if feature is None:
+        return None
+    del hard_constraint_adjustment  # 分量由最终分数反算，避免累计舍入误差。
+    components = dict(feature.score_components)
+    components.pop("hard_constraint_adjustment", None)
+    components["hard_constraint_adjustment"] = final_score - sum(
+        components.values()
+    )
+    return feature.model_copy(
+        update={
+            "score_components": {
+                key: round(value, 6) for key, value in components.items()
+            },
+            "hard_constraint_failures": _dedupe_terms(
+                [*feature.hard_constraint_failures, *forced_failures]
+            ),
+            "final_score": final_score,
+            "category_reason": category_reason or f"score_threshold:{category}",
+        }
+    )
 
 
 def _reasoning(

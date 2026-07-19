@@ -72,6 +72,21 @@ def test_minimal_search_service_output_maps_successfully() -> None:
     assert response.retrieval_diagnostics.raw_count == 0
     assert response.retrieval_diagnostics.deduplicated_count == 0
     assert response.retrieval_diagnostics.source_stats == []
+    assert response.judgement_policy == "current_rules"
+    assert response.judgement_config_hash == ""
+
+
+def test_judgement_policy_and_config_hash_are_mapped() -> None:
+    output = SearchServiceOutput(
+        search_plan=_search_plan("graph retrieval"),
+        judgement_policy="calibrated_rules_v1",
+        judgement_config_hash="a" * 64,
+    )
+
+    response = map_search_service_output_to_api_result("run_rules", output)
+
+    assert response.judgement_policy == "calibrated_rules_v1"
+    assert response.judgement_config_hash == "a" * 64
 
 
 def test_adaptive_skipped_compact_does_not_count_as_logical_or_http_call() -> None:

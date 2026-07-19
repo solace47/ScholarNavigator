@@ -7,6 +7,11 @@ import pytest
 
 from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.query_understanding import analyze_query
+from scholar_agent.agents.judgement_config import (
+    CALIBRATED_RULES_V1_CONFIG,
+    CURRENT_RULES_CONFIG,
+    judgement_config_hash,
+)
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
     SourceStats,
@@ -128,6 +133,33 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     assert all(seconds >= 0 for seconds in output.stage_latencies.values())
     assert all(call[1] == output.search_plan.limit_per_source for call in calls)
     assert all(call[2] == ["arxiv", "openalex"] for call in calls)
+
+
+def test_per_run_judgement_policy_does_not_inherit_other_policy_config() -> None:
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(query, [make_paper("Graph Retrieval", doi="10.123/policy")])
+
+    service = SearchService(
+        retriever=fake_retriever,
+        judgement_policy="calibrated_rules_v1",
+        judgement_config=CALIBRATED_RULES_V1_CONFIG,
+    )
+
+    output = service.run_search(
+        "graph retrieval",
+        judgement_policy="current_rules",
+        enable_refchain=False,
+        enable_synthesis=False,
+    )
+
+    assert output.judgement_policy == "current_rules"
+    assert output.judgement_config_hash == judgement_config_hash(
+        CURRENT_RULES_CONFIG
+    )
 
 
 def test_run_search_respects_sources_override_and_filters_unimplemented_sources() -> None:

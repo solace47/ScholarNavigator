@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.search_schemas import (
     BudgetStatus,
+    JudgementPolicy,
     PaperType,
     QueryEvolutionPolicy,
     QueryPlanningPolicy,
@@ -110,6 +111,7 @@ class SearchBudgets(SearchBudget):
 
 class SearchOptions(BaseModel):
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    judgement_policy: JudgementPolicy = "current_rules"
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_refchain: bool = True
@@ -363,3 +365,5 @@ class SearchRunResultResponse(BaseModel):
     )
     budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
     cost_report: CostReport
+    judgement_policy: JudgementPolicy = "current_rules"
+    judgement_config_hash: str = ""

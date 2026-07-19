@@ -13,7 +13,11 @@ from scholar_agent.agents.retriever import (
 )
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
-from scholar_agent.core.search_schemas import JudgementResult, RankedPaper
+from scholar_agent.core.search_schemas import (
+    JudgementFeatureVector,
+    JudgementResult,
+    RankedPaper,
+)
 
 
 SnapshotStatus = Literal["completed", "skipped"]
@@ -80,6 +84,7 @@ class DiagnosticCandidate(BaseModel):
     final_score: float | None = None
     matched_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    judgement_features: JudgementFeatureVector | None = None
 
 
 class StageCandidateSnapshot(BaseModel):
@@ -295,6 +300,7 @@ class PipelineDiagnosticsCollector:
                         "category": judgement.category,
                         "matched_terms": list(judgement.matched_terms),
                         "warnings": list(judgement.warnings),
+                        "judgement_features": judgement.feature_vector,
                     }
                 )
             )

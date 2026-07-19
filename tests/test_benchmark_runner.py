@@ -12,6 +12,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import run_benchmark
+from scholar_agent.agents.judgement_config import (
+    CALIBRATED_RULES_V1_CONFIG,
+    judgement_config_hash,
+)
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
@@ -150,6 +154,62 @@ def test_query_planning_policy_is_recorded_passed_and_namespaced(
             }
         )
     ) == "facet_balanced_query_evolution_coverage_gap_plus_refchain"
+
+
+def test_judgement_policy_config_and_hash_are_recorded_and_passed(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    config_path = tmp_path / "judgement.json"
+    config_path.write_text(
+        CALIBRATED_RULES_V1_CONFIG.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+    service = FakeService()
+    options = _options(tmp_path, dataset, run_id="judgement-policy").model_copy(
+        update={
+            "judgement_policy": "calibrated_rules_v1",
+            "judgement_config_path": config_path,
+        }
+    )
+
+    result = run_benchmark.run_benchmark(options, service=service)
+
+    assert result.config["judgement_policy"] == "calibrated_rules_v1"
+    assert result.config["judgement_config"] == (
+        CALIBRATED_RULES_V1_CONFIG.model_dump(mode="json")
+    )
+    assert result.config["judgement_config_hash"] == judgement_config_hash(
+        CALIBRATED_RULES_V1_CONFIG
+    )
+    assert service.kwargs[0]["judgement_policy"] == "calibrated_rules_v1"
+    assert service.kwargs[0]["judgement_config"] == CALIBRATED_RULES_V1_CONFIG
+
+
+def test_resume_rejects_changed_judgement_config(tmp_path: Path) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    config_path = tmp_path / "judgement.json"
+    config_path.write_text(
+        CALIBRATED_RULES_V1_CONFIG.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+    options = _options(tmp_path, dataset, run_id="judgement-resume").model_copy(
+        update={
+            "judgement_policy": "calibrated_rules_v1",
+            "judgement_config_path": config_path,
+        }
+    )
+    run_benchmark.run_benchmark(options, service=FakeService())
+    changed = CALIBRATED_RULES_V1_CONFIG.model_copy(
+        update={"title_topic_weight": 0.11}
+    )
+    config_path.write_text(changed.model_dump_json(indent=2), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="resume config is incompatible"):
+        run_benchmark.run_benchmark(
+            options.model_copy(update={"resume": True}),
+            service=FakeService(),
+        )
 
 
 def test_llm_semantic_cli_is_supported_but_live_run_requires_configuration(

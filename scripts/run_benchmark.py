@@ -30,11 +30,18 @@ from scholar_agent.core.api_schemas import CostReport  # noqa: E402
 from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
+    JudgementPolicy,
+    JudgementRuleConfig,
     QUERY_PLANNER_VERSION,
     QueryEvolutionPolicy,
     QueryPlanningPolicy,
     SUPPORTED_SEARCH_SOURCES,
     SearchBudget,
+)
+from scholar_agent.agents.judgement_config import (  # noqa: E402
+    judgement_config_hash,
+    load_judgement_config,
+    resolve_judgement_config,
 )
 from scholar_agent.evaluation.datasets import (  # noqa: E402
     dataset_source_path,
@@ -105,6 +112,8 @@ class BenchmarkRunOptions(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    judgement_policy: JudgementPolicy = "current_rules"
+    judgement_config_path: Path | None = None
     enable_refchain: bool = False
     enable_llm_query_understanding: bool = False
     enable_llm_judgement: bool = False
@@ -408,6 +417,7 @@ def run_benchmark(
 ) -> BenchmarkRunResult:
     _validate_llm_planning_runtime(options, service=service)
     source_path = dataset_source_path(options.dataset, options.dataset_path)
+    judgement_config = _resolve_options_judgement_config(options)
     all_queries = load_dataset(options.dataset, path=source_path)
     selected = _select_queries(all_queries, options.offset, options.limit)
     dataset_report = inspect_dataset(options.dataset, path=source_path)
@@ -465,6 +475,8 @@ def run_benchmark(
             ),
             query_planning_policy=options.query_planning_policy,
             query_planner_version=QUERY_PLANNER_VERSION,
+            judgement_policy=options.judgement_policy,
+            judgement_config_hash=judgement_config_hash(judgement_config),
         )
         runner = SearchService(
             retriever=SnapshotAwareRetriever(snapshot_runtime),
@@ -474,11 +486,15 @@ def run_benchmark(
             ),
             max_workers=options.max_workers,
             llm_planning_runtime=llm_planning_runtime,
+            judgement_policy=options.judgement_policy,
+            judgement_config=judgement_config,
         )
     else:
         runner = service or SearchService(
             max_workers=options.max_workers,
             llm_planning_runtime=llm_planning_runtime,
+            judgement_policy=options.judgement_policy,
+            judgement_config=judgement_config,
         )
     selected_ids = [query.query_id for query in selected]
     for query in selected:
@@ -491,6 +507,7 @@ def run_benchmark(
             options,
             snapshot_runtime=snapshot_runtime,
             llm_planning_runtime=llm_planning_runtime,
+            judgement_config=judgement_config,
         )
         _write_result_artifacts(run_dir, selected_ids, existing_rows)
 
@@ -559,6 +576,17 @@ def _validate_llm_planning_runtime(
             raise ValueError("llm_planning_snapshot_identity_unavailable")
 
 
+def _resolve_options_judgement_config(
+    options: BenchmarkRunOptions,
+) -> JudgementRuleConfig:
+    explicit = (
+        load_judgement_config(options.judgement_config_path)
+        if options.judgement_config_path is not None
+        else None
+    )
+    return resolve_judgement_config(options.judgement_policy, explicit)
+
+
 def _select_queries(
     queries: list[EvalQuery],
     offset: int,
@@ -576,6 +604,7 @@ def _build_config(
     selected: list[EvalQuery],
 ) -> dict[str, Any]:
     llm_runtime = get_llm_runtime_config()
+    judgement_config = _resolve_options_judgement_config(options)
     requested_llm = (
         options.enable_llm_query_understanding
         or options.enable_llm_judgement
@@ -603,6 +632,9 @@ def _build_config(
         ),
         "query_planning_policy": options.query_planning_policy,
         "query_planner_version": QUERY_PLANNER_VERSION,
+        "judgement_policy": options.judgement_policy,
+        "judgement_config": judgement_config.model_dump(mode="json"),
+        "judgement_config_hash": judgement_config_hash(judgement_config),
         "enable_refchain": options.enable_refchain,
         "current_year": options.current_year,
         "max_workers": options.max_workers,
@@ -771,6 +803,7 @@ def _run_case(
     options: BenchmarkRunOptions,
     snapshot_runtime: SnapshotRuntime | None = None,
     llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None,
+    judgement_config: JudgementRuleConfig | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     if snapshot_runtime is not None:
@@ -778,6 +811,15 @@ def _run_case(
     if llm_planning_runtime is not None:
         llm_planning_runtime.begin_case(query.query_id)
     try:
+        judgement_kwargs: dict[str, Any] = {}
+        if (
+            options.judgement_policy != "current_rules"
+            or options.judgement_config_path is not None
+        ):
+            judgement_kwargs = {
+                "judgement_policy": options.judgement_policy,
+                "judgement_config": judgement_config,
+            }
         output = service.run_search(
             query.query,
             top_k=options.top_k,
@@ -794,6 +836,7 @@ def _run_case(
             budget=options.budgets,
             collect_diagnostics=options.diagnostics,
             query_adapter_policy=options.query_adapter_policy,
+            **judgement_kwargs,
         )
         result = map_search_service_output_to_api_result(
             run_id=f"benchmark_{query.query_id}",
@@ -1119,6 +1162,12 @@ def _parser() -> argparse.ArgumentParser:
         choices=["current_rules", "facet_balanced", "llm_semantic"],
         default="current_rules",
     )
+    parser.add_argument(
+        "--judgement-policy",
+        choices=["current_rules", "calibrated_rules_v1"],
+        default="current_rules",
+    )
+    parser.add_argument("--judgement-config", default=None)
     parser.add_argument("--enable-refchain", action="store_true")
     parser.add_argument("--enable-llm-query-understanding", action="store_true")
     parser.add_argument("--enable-llm-judgement", action="store_true")
@@ -1202,6 +1251,10 @@ def main(argv: list[str] | None = None) -> int:
             enable_query_evolution=args.enable_query_evolution,
             query_evolution_policy=args.query_evolution_policy,
             query_planning_policy=args.query_planning_policy,
+            judgement_policy=args.judgement_policy,
+            judgement_config_path=(
+                Path(args.judgement_config) if args.judgement_config else None
+            ),
             enable_refchain=args.enable_refchain,
             enable_llm_query_understanding=args.enable_llm_query_understanding,
             enable_llm_judgement=args.enable_llm_judgement,

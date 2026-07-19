@@ -21,11 +21,13 @@ from scholar_agent.services.api_mapper import (  # noqa: E402
 )
 from scholar_agent.core.env_loader import load_env_file  # noqa: E402
 from scholar_agent.services.search_service import SearchService  # noqa: E402
+from scholar_agent.agents.judgement_config import load_judgement_config  # noqa: E402
 
 
 SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar", "pubmed"}
 QUERY_EVOLUTION_POLICIES = {"off", "seed_expansion", "coverage_gap"}
 QUERY_PLANNING_POLICIES = {"current_rules", "facet_balanced", "llm_semantic"}
+JUDGEMENT_POLICIES = {"current_rules", "calibrated_rules_v1"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,6 +68,13 @@ def main(argv: list[str] | None = None) -> int:
         default="current_rules",
         help="Initial subquery planning strategy.",
     )
+    parser.add_argument(
+        "--judgement-policy",
+        choices=sorted(JUDGEMENT_POLICIES),
+        default="current_rules",
+        help="Deterministic relevance judgement strategy.",
+    )
+    parser.add_argument("--judgement-config", default=None)
     parser.add_argument(
         "--enable-refchain",
         action="store_true",
@@ -126,7 +135,17 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    service = SearchService(max_workers=args.max_workers)
+    service_kwargs: dict[str, Any] = {"max_workers": args.max_workers}
+    if args.judgement_policy != "current_rules" or args.judgement_config:
+        service_kwargs.update(
+            judgement_policy=args.judgement_policy,
+            judgement_config=(
+                load_judgement_config(args.judgement_config)
+                if args.judgement_config
+                else None
+            ),
+        )
+    service = SearchService(**service_kwargs)
     had_failure = False
 
     ranked_candidates_path = output_path.parent / "ranked_candidates.jsonl"
@@ -147,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
                     default_enable_query_evolution=args.enable_query_evolution,
                     default_query_evolution_policy=args.query_evolution_policy,
                     default_query_planning_policy=args.query_planning_policy,
+                    default_judgement_policy=args.judgement_policy,
                     default_enable_refchain=args.enable_refchain,
                     default_sources=default_sources,
                 )
@@ -214,6 +234,7 @@ def _run_case(
     default_query_planning_policy: str,
     default_enable_refchain: bool,
     default_sources: list[str] | None,
+    default_judgement_policy: str = "current_rules",
 ) -> dict[str, Any]:
     start = time.perf_counter()
     case_id = str(case["case_id"])
@@ -249,6 +270,11 @@ def _run_case(
             raise ValueError(
                 f"unsupported query_planning_policy: {query_planning_policy}"
             )
+        judgement_policy = str(
+            case.get("judgement_policy", default_judgement_policy)
+        )
+        if judgement_policy not in JUDGEMENT_POLICIES:
+            raise ValueError(f"unsupported judgement_policy: {judgement_policy}")
         enable_refchain = bool(case.get("enable_refchain", default_enable_refchain))
         sources_override = _case_sources(case, default_sources)
 
@@ -263,6 +289,7 @@ def _run_case(
             enable_synthesis=True,
             current_year=current_year,
             sources_override=sources_override,
+            judgement_policy=judgement_policy,  # type: ignore[arg-type]
         )
         api_result = map_search_service_output_to_api_result(
             run_id=f"batch_{case_id}",

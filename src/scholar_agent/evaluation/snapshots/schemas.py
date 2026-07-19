@@ -72,6 +72,10 @@ class SnapshotGroupObservation(BaseModel):
         "current_rules", "facet_balanced", "llm_semantic"
     ] | None = None
     query_planner_version: str | None = None
+    judgement_policy: Literal["current_rules", "calibrated_rules_v1"] = (
+        "current_rules"
+    )
+    judgement_config_hash: str | None = None
     query_evolution_policy: Literal[
         "off", "seed_expansion", "coverage_gap"
     ] | None = None

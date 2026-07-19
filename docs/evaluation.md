@@ -32,6 +32,25 @@
 
 2026-07-19 的开发集 baseline 完成，候选 Recall、Recall@20、F1@5/10/20 分别为 0.150、0.125、0.0222/0.0143/0.0179，平均 API 3.1、平均延迟 32.81 秒。OpenAlex 0 次成功，TLS timeout 重试后出现 HTTP 429，随后 9 个 case 进入 cooldown；按实验协议停止其余开发组和全部验证组。当前没有可比较的模块增量，不得据此声明 Query Evolution、RefChain 或组合有效。
 
+## Judgement 小样本校准
+
+规则校准只在冻结的 arXiv Retrieval Snapshot 候选上重算 Judgement 与既有 Reranker，不重新查询、不读取 gold 生成规则。开发集固定为 offset 0、limit 10；运行前冻结 128 个通用参数组合，以 F1@20、Recall@20、gold Judgement false negative、Precision@20、MRR、默认参数距离和配置哈希依次稳定选型。配置冻结后，验证集 offset 10、limit 5 只运行一次。
+
+开发集选出的 `calibrated_rules_v1` 将高度相关阈值由 0.72 调为 0.68、标题主题权重由 0.12 调为 0.10。开发集 F1@20、Precision@20、Recall@20 和 gold false negative 均不变，MRR 为 0.027692→0.045000，平均返回量为 11.4→10.2；独立验证集全部排名指标和 gold false negative 均不变，平均返回量为 11.2→9.4。候选召回完全一致，Replay 的 HTTP、重试和网络等待均为 0。该结果只通过“无回归、返回量受控”的候选门槛，不证明 F1 或 false negative 已改善，产品默认保持 `current_rules`。
+
+复现命令：
+
+```bash
+PYTHONPATH=src python scripts/calibrate_judgement.py \
+  --dataset auto_scholar_query --offset 0 --limit 10 \
+  --validation-offset 10 --validation-limit 5 \
+  --snapshot-dir outputs/benchmark_snapshots/autoscholar_qe_gap_dev10_20260720 \
+  --validation-snapshot-dir outputs/benchmark_snapshots/autoscholar_qe_gap_val5_20260720 \
+  --output outputs/benchmark_runs/judgement_calibration --resume
+```
+
+输出包含 manifest、冻结配置、开发网格、阈值敏感性、开发/验证对比和候选级诊断。Benchmark 非 gold 候选只标为“非 gold 候选”，不能视为真实负例。
+
 ## 数据格式
 
 离线 fixture 的 `search_cases.jsonl` 每行包含 `query_id`、`query`、`gold_papers` 和 `top_k_values`。批量 qrels 每行包含 `case_id` 与 `relevant_papers`。gold 论文可提供上述任一稳定标识符；没有稳定标识符时必须同时提供标题和年份。`relevance_grade` 大于 0 表示相关，缺省为 1。

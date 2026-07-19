@@ -6,6 +6,7 @@ export type QueryPlanningPolicy =
   | "current_rules"
   | "facet_balanced"
   | "llm_semantic";
+export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";
 export type QueryFacetType =
   | "topic"
   | "method"
@@ -94,6 +95,7 @@ export interface SearchRunCreateRequest {
   };
   options?: {
     query_planning_policy?: QueryPlanningPolicy;
+    judgement_policy?: JudgementPolicy;
     enable_query_evolution?: boolean;
     query_evolution_policy?: QueryEvolutionPolicy;
     enable_refchain?: boolean;
@@ -114,6 +116,7 @@ export interface InternalSearchPreviewRequest {
   enable_query_evolution?: boolean;
   query_evolution_policy?: QueryEvolutionPolicy;
   query_planning_policy?: QueryPlanningPolicy;
+  judgement_policy?: JudgementPolicy;
   enable_llm_query_understanding?: boolean | null;
   enable_llm_judgement?: boolean | null;
   current_year?: number | null;
@@ -421,6 +424,8 @@ export interface SearchRunResultResponse {
   retrieval_diagnostics: RetrievalDiagnostics;
   budget_status: BudgetStatus;
   cost_report: CostReport;
+  judgement_policy: JudgementPolicy;
+  judgement_config_hash: string;
 }
 
 export interface StreamEvent {

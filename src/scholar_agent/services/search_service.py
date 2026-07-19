@@ -16,6 +16,10 @@ from typing import Any, Protocol
 from pydantic import BaseModel, Field, model_validator
 
 from scholar_agent.agents.judgement import JudgementAgent
+from scholar_agent.agents.judgement_config import (
+    judgement_config_hash,
+    resolve_judgement_config,
+)
 from scholar_agent.agents.query_evolution import (
     evolve_queries,
     filter_evolved_candidates,
@@ -44,6 +48,8 @@ from scholar_agent.core.search_schemas import (
     BudgetStatus,
     EvolvedSubquery,
     JudgementResult,
+    JudgementPolicy,
+    JudgementRuleConfig,
     QueryAnalysis,
     QueryConstraint,
     QueryEvolutionOptions,
@@ -212,6 +218,8 @@ class SearchServiceOutput(BaseModel):
     )
     budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
     stage_snapshots: list[StageCandidateSnapshot] = Field(default_factory=list)
+    judgement_policy: JudgementPolicy = "current_rules"
+    judgement_config_hash: str = ""
 
     @model_validator(mode="after")
     def derive_connector_diagnostics(self) -> "SearchServiceOutput":
@@ -244,6 +252,8 @@ class SearchService:
         max_workers: int = 4,
         llm_client: Any | None = None,
         llm_planning_runtime: Any | None = None,
+        judgement_policy: JudgementPolicy = "current_rules",
+        judgement_config: JudgementRuleConfig | None = None,
     ) -> None:
         self._retriever = retriever
         self._retriever_emits_connector_events = bool(
@@ -254,6 +264,8 @@ class SearchService:
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
         self._llm_planning_runtime = llm_planning_runtime
+        self._judgement_policy = judgement_policy
+        self._judgement_config = judgement_config
 
     def run_search(
         self,
@@ -268,6 +280,8 @@ class SearchService:
         current_year: int | None = None,
         enable_llm_query_understanding: bool | None = None,
         enable_llm_judgement: bool | None = None,
+        judgement_policy: JudgementPolicy | None = None,
+        judgement_config: JudgementRuleConfig | None = None,
         sources_override: list[str] | None = None,
         explicit_constraints: QueryConstraint | None = None,
         budget: SearchBudget | None = None,
@@ -293,6 +307,16 @@ class SearchService:
             ),
         )
         adaptive_budget_tracker = _AdaptiveBudgetTracker(runtime)
+        effective_judgement_policy = judgement_policy or self._judgement_policy
+        inherited_judgement_config = (
+            self._judgement_config
+            if effective_judgement_policy == self._judgement_policy
+            else None
+        )
+        effective_judgement_config = resolve_judgement_config(
+            effective_judgement_policy,
+            judgement_config or inherited_judgement_config,
+        )
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
         use_llm_query_understanding = (
@@ -461,6 +485,8 @@ class SearchService:
                 use_llm=judgement_use_llm,
                 llm_client=llm_client,
                 signals=signals,
+                judgement_policy=effective_judgement_policy,
+                judgement_config=effective_judgement_config,
             )
             diagnostics.snapshot_judgements("initial_judged", judgements)
             signals.check_cancelled("judgement:after")
@@ -712,6 +738,8 @@ class SearchService:
                         use_llm=judgement_use_llm,
                         llm_client=llm_client,
                         signals=signals,
+                        judgement_policy=effective_judgement_policy,
+                        judgement_config=effective_judgement_config,
                     )
                     diagnostics.snapshot_judgements(
                         "post_evolution_judged",
@@ -918,6 +946,8 @@ class SearchService:
                     use_llm=judgement_use_llm,
                     llm_client=llm_client,
                     signals=signals,
+                    judgement_policy=effective_judgement_policy,
+                    judgement_config=effective_judgement_config,
                 )
                 diagnostics.snapshot_judgements(
                     "post_refchain_judged",
@@ -1049,6 +1079,10 @@ class SearchService:
                 else ConnectorDiagnostics()
             ),
             stage_snapshots=diagnostics.snapshots,
+            judgement_policy=effective_judgement_policy,
+            judgement_config_hash=judgement_config_hash(
+                effective_judgement_config
+            ),
         )
         if enable_synthesis and runtime.latency_stop_reason() is None:
             signals.check_cancelled("synthesis:before")
@@ -1123,8 +1157,14 @@ class SearchService:
         use_llm: bool,
         llm_client: Any | None,
         signals: _ExecutionSignals,
+        judgement_policy: JudgementPolicy,
+        judgement_config: JudgementRuleConfig,
     ) -> tuple[list[JudgementResult], int]:
-        agent = JudgementAgent(llm_client=llm_client)
+        agent = JudgementAgent(
+            llm_client=llm_client,
+            policy=judgement_policy,
+            config=judgement_config,
+        )
         judgements = agent.judge(
             search_plan.query_analysis,
             papers,

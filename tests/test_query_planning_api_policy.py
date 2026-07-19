@@ -42,3 +42,30 @@ def test_api_rejects_unknown_planning_policy() -> None:
                 "options": {"query_planning_policy": "unknown"},
             }
         )
+
+
+def test_api_defaults_to_current_judgement_rules() -> None:
+    request = SearchRunCreateRequest(query="graph retrieval")
+
+    assert request.options.judgement_policy == "current_rules"
+
+
+def test_api_accepts_calibrated_judgement_rules() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"judgement_policy": "calibrated_rules_v1"},
+        }
+    )
+
+    assert request.options.judgement_policy == "calibrated_rules_v1"
+
+
+def test_api_rejects_unknown_judgement_policy() -> None:
+    with pytest.raises(ValidationError):
+        SearchRunCreateRequest.model_validate(
+            {
+                "query": "graph retrieval",
+                "options": {"judgement_policy": "unknown"},
+            }
+        )

@@ -258,6 +258,34 @@ def test_manifest_group_records_query_evolution_policy(tmp_path: Path) -> None:
     assert stored.query_evolution_policy == "coverage_gap"
 
 
+def test_judgement_config_is_audited_without_changing_retrieval_keys(
+    tmp_path: Path,
+) -> None:
+    observations = []
+    for name, policy, config_hash in (
+        ("current", "current_rules", "a" * 64),
+        ("calibrated", "calibrated_rules_v1", "b" * 64),
+    ):
+        root = tmp_path / name
+        store = SnapshotStore(root)
+        store.ensure_manifest(_manifest(root))
+        runtime = SnapshotRuntime(
+            store,
+            mode="record",
+            group_name="baseline",
+            judgement_policy=policy,
+            judgement_config_hash=config_hash,
+        )
+        _record_search(runtime)
+        observations.append(runtime.finish_group(completed=True))
+
+    current, calibrated = observations
+    assert current.retrieval_keys == calibrated.retrieval_keys
+    assert current.judgement_policy == "current_rules"
+    assert calibrated.judgement_policy == "calibrated_rules_v1"
+    assert current.judgement_config_hash != calibrated.judgement_config_hash
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

@@ -320,6 +320,84 @@ def test_cli_sources_are_used_as_default(tmp_path: Path, monkeypatch) -> None:
     assert captured[0]["sources_override"] == ["arxiv", "pubmed"]
 
 
+def test_row_judgement_policy_is_passed_to_search_service(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: list[dict[str, Any]] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [
+            {
+                "case_id": "calibrated",
+                "query": "graph retrieval",
+                "judgement_policy": "calibrated_rules_v1",
+            }
+        ],
+    )
+    output_path = tmp_path / "results.jsonl"
+    monkeypatch.setattr(
+        run_search_batch,
+        "SearchService",
+        _fake_service_class(captured=captured),
+    )
+
+    code = run_search_batch.main(
+        ["--input", str(input_path), "--output", str(output_path)]
+    )
+
+    assert code == 0
+    assert captured[0]["judgement_policy"] == "calibrated_rules_v1"
+
+
+def test_row_current_rules_overrides_calibrated_cli_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    received: list[str | None] = []
+    input_path = _write_jsonl(
+        tmp_path / "queries.jsonl",
+        [
+            {
+                "case_id": "current",
+                "query": "graph retrieval",
+                "judgement_policy": "current_rules",
+            }
+        ],
+    )
+    output_path = tmp_path / "results.jsonl"
+
+    class CapturingService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_search(
+            self,
+            query: str,
+            *,
+            judgement_policy: str | None = None,
+            **kwargs,
+        ) -> SearchServiceOutput:
+            received.append(judgement_policy)
+            return SearchServiceOutput(search_plan=_search_plan(query))
+
+    monkeypatch.setattr(run_search_batch, "SearchService", CapturingService)
+
+    code = run_search_batch.main(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--judgement-policy",
+            "calibrated_rules_v1",
+        ]
+    )
+
+    assert code == 0
+    assert received == ["current_rules"]
+
+
 def test_sleep_between_cases_sleeps_only_between_rows(
     tmp_path: Path,
     monkeypatch,
@@ -654,6 +732,7 @@ def _fake_service_class(
             enable_query_evolution: bool = False,
             query_evolution_policy: str = "coverage_gap",
             query_planning_policy: str = "current_rules",
+            judgement_policy: str = "current_rules",
             enable_synthesis: bool = True,
             current_year: int | None = None,
             sources_override: list[str] | None = None,
@@ -673,6 +752,8 @@ def _fake_service_class(
                     "sources_override": sources_override,
                 }
             )
+            if judgement_policy != "current_rules":
+                captured[-1]["judgement_policy"] = judgement_policy
             if query in fail_queries:
                 raise RuntimeError("forced failure")
             ranked_papers = _ranked_papers(query)
