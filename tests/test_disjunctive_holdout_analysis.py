@@ -58,6 +58,15 @@ def test_holdout_analysis_accepts_frozen_candidate_and_attributes_or(
     assert contribution["exclusive_candidate_count"] == 120
     assert contribution["post_run_unique_gold_hit_count"] == 2
     assert (tmp_path / "analysis" / "comparison.json").is_file()
+    status = json.loads(
+        (tmp_path / "analysis" / "experiment_status.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert status["evaluation_status"] == "completed"
+    assert status["metrics_available"] is True
+    assert status["acceptance"] == "passed"
+    assert status["gold_metrics_read"] is True
     assert (tmp_path / "analysis" / "per_query_diagnostics.jsonl").is_file()
     assert (tmp_path / "analysis" / "summary.md").is_file()
 

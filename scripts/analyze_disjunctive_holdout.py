@@ -119,6 +119,23 @@ def build_disjunctive_holdout_analysis(
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     _write_json(output_dir / "comparison.json", comparison)
+    _write_json(
+        output_dir / "experiment_status.json",
+        {
+            "evaluation_status": "completed",
+            "metrics_available": True,
+            "final_replay_executed": True,
+            "gold_metrics_read": True,
+            "acceptance": (
+                "passed" if acceptance["accepted"] else "failed"
+            ),
+            "high_recall_profile_candidate": acceptance["accepted"],
+            "product_default": "current_rules",
+            "product_default_changed": False,
+            "production_rules_frozen": True,
+            "decision": acceptance["decision"],
+        },
+    )
     _write_jsonl(output_dir / "per_query_diagnostics.jsonl", per_query)
     (output_dir / "summary.md").write_text(
         _summary_markdown(comparison),
