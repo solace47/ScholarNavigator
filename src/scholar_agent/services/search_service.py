@@ -1296,6 +1296,7 @@ class SearchService:
                         "stage": "retrieval",
                         "query_index": index,
                         "query": subquery.query,
+                        "combination_mode": subquery.combination_mode,
                         "connector": source,
                         "source": source,
                     },
@@ -1312,6 +1313,7 @@ class SearchService:
                     remaining_subquery_count=remaining_subquery_count,
                     query_adapter_policy=query_adapter_policy,
                     query_purpose=subquery.purpose,
+                    combination_mode=subquery.combination_mode,
                     adaptive_budget_check=adaptive_budget_check,
                     connector_event_callback=lambda name, payload: (
                         self._handle_connector_event(
@@ -1346,6 +1348,7 @@ class SearchService:
                     SourceStats(
                         source=failure_source,
                         query=subquery.query,
+                        combination_mode=subquery.combination_mode,
                         returned_count=0,
                         latency_seconds=latency_seconds,
                         error_message=message,
@@ -1377,6 +1380,7 @@ class SearchService:
                         "retry_after_seconds": stats.diagnostics.retry_after_seconds,
                         "adapted_query": stats.adapted_query,
                         "adaptation_strategy": stats.adaptation_strategy,
+                        "combination_mode": stats.combination_mode,
                         "run_dedupe_hit": stats.run_dedupe_hit,
                         "source_skipped_reason": stats.source_skipped_reason,
                         "remaining_subquery_count": stats.remaining_subquery_count,

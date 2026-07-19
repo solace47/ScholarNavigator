@@ -35,9 +35,11 @@ QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
 QueryPlanningPolicy = Literal[
     "current_rules",
     "controlled_relaxation",
+    "disjunctive_facets",
     "facet_balanced",
     "llm_semantic",
 ]
+CombinationMode = Literal["all", "any"]
 JudgementPolicy = Literal["current_rules", "calibrated_rules_v1"]
 QueryFacetType = Literal[
     "topic",
@@ -99,7 +101,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.4.0"
+QUERY_PLANNER_VERSION = "1.5.0"
 LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 
@@ -224,6 +226,7 @@ class QueryAnalysis(BaseModel):
 
 class SearchSubquery(BaseModel):
     query: str = Field(..., min_length=1)
+    combination_mode: CombinationMode = "all"
     source_hints: list[SourceName] = Field(
         default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
     )

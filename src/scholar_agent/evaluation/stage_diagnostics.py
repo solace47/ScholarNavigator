@@ -749,6 +749,7 @@ def _initial_query_planning_diagnostics(
         query_rows.append(
             {
                 "query": subquery.query,
+                "combination_mode": subquery.combination_mode,
                 "purpose": subquery.purpose,
                 "facet_types": list(subquery.facet_types),
                 "provenance": list(subquery.provenance),

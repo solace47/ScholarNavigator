@@ -34,6 +34,17 @@ def test_api_accepts_controlled_relaxation_planning() -> None:
     assert request.options.query_planning_policy == "controlled_relaxation"
 
 
+def test_api_accepts_disjunctive_facets_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "disjunctive_facets"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "disjunctive_facets"
+
+
 def test_api_accepts_llm_semantic_planning() -> None:
     request = SearchRunCreateRequest.model_validate(
         {

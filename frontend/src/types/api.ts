@@ -5,6 +5,7 @@ export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
 export type QueryPlanningPolicy =
   | "current_rules"
   | "controlled_relaxation"
+  | "disjunctive_facets"
   | "facet_balanced"
   | "llm_semantic";
 export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";
@@ -290,6 +291,7 @@ export interface SearchPlan {
     }>;
     selected_subqueries: Array<{
       query: string;
+      combination_mode: "all" | "any";
       source_hints: string[];
       priority: number;
       purpose: string;

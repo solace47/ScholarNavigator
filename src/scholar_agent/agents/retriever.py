@@ -23,7 +23,7 @@ from scholar_agent.connectors import (
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
-from scholar_agent.core.search_schemas import QueryConstraint
+from scholar_agent.core.search_schemas import CombinationMode, QueryConstraint
 from scholar_agent.retrieval.query_adapter import (
     DEFAULT_QUERY_ADAPTER_POLICY,
     MIN_COMPACT_RETENTION_RATIO,
@@ -62,6 +62,7 @@ class QueryAdaptationProvenance(BaseModel):
     origin_subquery: str
     adaptation_strategy: str
     purpose: str | None = None
+    combination_mode: CombinationMode = "all"
 
 
 class RetrievalSufficiency(BaseModel):
@@ -84,6 +85,7 @@ class SourceStats(BaseModel):
     run_dedupe_hit: bool = False
     adapted_query: str | None = None
     adaptation_strategy: str | None = None
+    combination_mode: CombinationMode = "all"
     query_provenance: list[QueryAdaptationProvenance] = Field(default_factory=list)
     dropped_terms: list[str] = Field(default_factory=list)
     original_information_terms: list[str] = Field(default_factory=list)
@@ -194,6 +196,7 @@ def retrieve_papers(
     remaining_subquery_count: int = 0,
     query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
     query_purpose: str | None = None,
+    combination_mode: CombinationMode = "all",
     adaptive_budget_check: Callable[[list[Paper]], str | None] | None = None,
     connector_result_provider: Callable[
         [str, str, int, QueryAdapterPolicy, Callable[[str, int], ConnectorSearchResult]],
@@ -224,6 +227,7 @@ def retrieve_papers(
                     returned_count=0,
                     latency_seconds=0.0,
                     error_message=message,
+                    combination_mode=combination_mode,
                     source_skipped_reason="unsupported_source",
                     remaining_subquery_count=remaining_subquery_count,
                 )
@@ -248,6 +252,7 @@ def retrieve_papers(
             source,
             constraints=constraints,
             policy=query_adapter_policy,
+            combination_mode=combination_mode,
         )
         if query_adapter_policy == "adaptive":
             adaptive_stats = _retrieve_adaptive_source(
@@ -260,6 +265,7 @@ def retrieve_papers(
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
                 query_purpose=query_purpose,
+                combination_mode=combination_mode,
                 connector_event_callback=connector_event_callback,
                 adaptive_budget_check=adaptive_budget_check,
             )
@@ -293,6 +299,7 @@ def retrieve_papers(
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
                 query_purpose=query_purpose,
+                combination_mode=combination_mode,
             )
             source_stats.append(stats)
             if stats.source_skipped_reason and not stats.error_message:
@@ -417,6 +424,7 @@ def _retrieve_adaptive_source(
     run_context: RetrievalRunContext | None,
     remaining_subquery_count: int,
     query_purpose: str | None,
+    combination_mode: CombinationMode,
     connector_event_callback: Callable[[str, dict[str, object]], None] | None,
     adaptive_budget_check: Callable[[list[Paper]], str | None] | None,
 ) -> list[SourceStats]:
@@ -433,6 +441,7 @@ def _retrieve_adaptive_source(
         run_context=run_context,
         remaining_subquery_count=remaining_subquery_count,
         query_purpose=query_purpose,
+        combination_mode=combination_mode,
     )
     _emit_connector_completed(connector_event_callback, safe_stats)
     if len(adapted_queries) < 2:
@@ -474,6 +483,7 @@ def _retrieve_adaptive_source(
                 source=source,
                 compact=compact,
                 query_purpose=query_purpose,
+                combination_mode=combination_mode,
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
                 sufficiency=sufficiency,
@@ -503,6 +513,7 @@ def _retrieve_adaptive_source(
             run_context=run_context,
             remaining_subquery_count=remaining_subquery_count,
             query_purpose=query_purpose,
+            combination_mode=combination_mode,
         ).model_copy(
             update=_adaptive_stats_update(
                 sufficiency,
@@ -559,6 +570,7 @@ def _adaptive_skipped_stats(
     source: str,
     compact: AdaptedQuery,
     query_purpose: str | None,
+    combination_mode: CombinationMode,
     run_context: RetrievalRunContext | None,
     remaining_subquery_count: int,
     sufficiency: RetrievalSufficiency,
@@ -571,6 +583,7 @@ def _adaptive_skipped_stats(
             origin_subquery=original_query,
             adaptation_strategy=compact.strategy,
             purpose=query_purpose,
+            combination_mode=combination_mode,
         )
     ]
     if run_context is not None and compact.query:
@@ -583,6 +596,7 @@ def _adaptive_skipped_stats(
         query=original_query,
         adapted_query=compact.query,
         adaptation_strategy=compact.strategy,
+        combination_mode=combination_mode,
         query_provenance=provenance,
         dropped_terms=list(compact.dropped_terms),
         original_information_terms=list(compact.original_information_terms),
@@ -759,6 +773,7 @@ def _retrieve_adapted_query(
     run_context: RetrievalRunContext | None,
     remaining_subquery_count: int,
     query_purpose: str | None,
+    combination_mode: CombinationMode,
 ) -> SourceStats:
     source_start = time.perf_counter()
     base = {
@@ -766,6 +781,7 @@ def _retrieve_adapted_query(
         "query": original_query,
         "adapted_query": adapted.query,
         "adaptation_strategy": adapted.strategy,
+        "combination_mode": combination_mode,
         "dropped_terms": list(adapted.dropped_terms),
         "original_information_terms": list(adapted.original_information_terms),
         "retained_information_terms": list(adapted.retained_information_terms),
@@ -790,6 +806,7 @@ def _retrieve_adapted_query(
                 origin_subquery=original_query,
                 adaptation_strategy=strategy,
                 purpose=query_purpose,
+                combination_mode=combination_mode,
             )
             for strategy in strategies
         ]
@@ -905,6 +922,7 @@ def _emit_connector_completed(
             "retry_after_seconds": stats.diagnostics.retry_after_seconds,
             "adapted_query": stats.adapted_query,
             "adaptation_strategy": stats.adaptation_strategy,
+            "combination_mode": stats.combination_mode,
             "query_provenance": [
                 item.model_dump(mode="json") for item in stats.query_provenance
             ],

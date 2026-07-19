@@ -1162,6 +1162,7 @@ def _parser() -> argparse.ArgumentParser:
         choices=[
             "current_rules",
             "controlled_relaxation",
+            "disjunctive_facets",
             "facet_balanced",
             "llm_semantic",
         ],

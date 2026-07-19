@@ -29,6 +29,7 @@ QUERY_EVOLUTION_POLICIES = {"off", "seed_expansion", "coverage_gap"}
 QUERY_PLANNING_POLICIES = {
     "current_rules",
     "controlled_relaxation",
+    "disjunctive_facets",
     "facet_balanced",
     "llm_semantic",
 }

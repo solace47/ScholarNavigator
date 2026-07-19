@@ -91,6 +91,7 @@ def retrieval_snapshot_key(
     # current_rules 保留历史键；候选 planner 使用独立版本化命名空间。
     if query_planning_policy in {
         "controlled_relaxation",
+        "disjunctive_facets",
         "facet_balanced",
         "llm_semantic",
     }:

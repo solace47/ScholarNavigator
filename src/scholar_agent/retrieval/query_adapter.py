@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from scholar_agent.core.search_schemas import QueryConstraint
+from scholar_agent.core.search_schemas import CombinationMode, QueryConstraint
 
 
 QueryAdapterPolicy = Literal["safe_original", "hybrid", "adaptive"]
@@ -24,6 +24,7 @@ MAX_PUBMED_QUERY_LENGTH = 180
 MAX_PUBMED_TERMS = 10
 MAX_ARXIV_QUERY_LENGTH = 240
 MAX_ARXIV_TERMS = 6
+MAX_ARXIV_DISJUNCTIVE_TERMS = 8
 
 _ARXIV_FIELD_EXPRESSION = re.compile(
     r"(?:^|[\s(])(?:all|ti|abs|au|cat|jr|id):",
@@ -64,9 +65,12 @@ def adapt_query_for_source(
     source: str,
     *,
     constraints: QueryConstraint | None = None,
+    combination_mode: CombinationMode = "all",
 ) -> AdaptedQuery:
     """返回只做必要安全处理的原始查询，供 connector 和保底检索使用。"""
 
+    if combination_mode == "any":
+        return _safe_disjunctive(query, _normalize_source(source), constraints)
     del constraints  # 安全查询不得因推断约束而改变用户原始信息。
     return _safe_original(query, _normalize_source(source))
 
@@ -78,6 +82,7 @@ def adapt_queries_for_source(
     constraints: QueryConstraint | None = None,
     max_queries: int = MAX_ADAPTED_QUERIES_PER_SOURCE,
     policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
+    combination_mode: CombinationMode = "all",
 ) -> list[AdaptedQuery]:
     """按策略生成“安全原查询保底 + 核心查询补充”的有界变体。"""
 
@@ -88,6 +93,9 @@ def adapt_queries_for_source(
         return []
 
     source_key = _normalize_source(source)
+    if combination_mode == "any":
+        disjunctive = _safe_disjunctive(query, source_key, constraints)
+        return [disjunctive] if disjunctive.query else []
     safe = _safe_original(query, source_key)
     if policy == "safe_original" or limit == 1 or not safe.query:
         return [safe]
@@ -148,6 +156,77 @@ def _safe_original(original_query: str, source: str) -> AdaptedQuery:
         retained_information_terms=retained,
         retention_ratio=_retention_ratio(information_terms, retained),
         protected_terms=protected_terms,
+    )
+
+
+def _safe_disjunctive(
+    original_query: str,
+    source: str,
+    constraints: QueryConstraint | None,
+) -> AdaptedQuery:
+    """将来源无关的 any 术语安全转换为有界 arXiv OR 表达式。"""
+
+    terms = _logical_terms(original_query)[:MAX_ARXIV_DISJUNCTIVE_TERMS]
+    required = _explicit_must_include_terms(constraints)
+    required_keys = {_normalize_term(value).casefold() for value in required}
+    alternatives = [
+        term
+        for term in terms
+        if _normalize_term(term).casefold() not in required_keys
+    ]
+    removed_required_count = len(terms) - len(alternatives)
+    warnings: list[str] = []
+    if source != "arxiv":
+        fallback = _safe_original(original_query, source)
+        return fallback.model_copy(
+            update={
+                "strategy": "disjunctive_any_fallback",
+                "warnings": _stable(
+                    [*fallback.warnings, f"combination_mode_any_unsupported:{source}"]
+                ),
+                "protected_terms": _stable(
+                    [*fallback.protected_terms, *required]
+                ),
+            }
+        )
+
+    any_clauses = [
+        f"all:{value}"
+        for term in alternatives
+        if (value := _arxiv_value(term))
+    ]
+    required_clauses = [
+        f"all:{value}"
+        for term in required
+        if (value := _arxiv_value(term))
+    ]
+    selected_any: list[str] = []
+    for clause in any_clauses:
+        candidate_any = [*selected_any, clause]
+        candidate = _arxiv_disjunctive_expression(candidate_any, required_clauses)
+        if len(candidate) > MAX_ARXIV_QUERY_LENGTH:
+            warnings.append("disjunctive_query_truncated")
+            break
+        selected_any.append(clause)
+    adapted = _arxiv_disjunctive_expression(selected_any, required_clauses)
+    if removed_required_count:
+        warnings.append("disjunctive_duplicate_required_term_removed")
+    if not adapted:
+        warnings.append("empty_adapted_query")
+
+    information_terms = _stable([*alternatives, *required])
+    retained = _retained_terms(information_terms, adapted)
+    return AdaptedQuery(
+        original_query=original_query,
+        source=source,
+        query=adapted,
+        strategy="disjunctive_any",
+        dropped_terms=alternatives[len(selected_any) :],
+        warnings=_stable(warnings),
+        original_information_terms=information_terms,
+        retained_information_terms=retained,
+        retention_ratio=_retention_ratio(information_terms, retained),
+        protected_terms=_stable(required),
     )
 
 
@@ -238,6 +317,36 @@ def _core_terms(
             continue
         kept.append(normalized)
     return _stable(kept), _stable(dropped)
+
+
+def _logical_terms(query: str) -> list[str]:
+    normalized = unicodedata.normalize("NFKC", _strip_controls(query))
+    values: list[str] = []
+    for match in re.finditer(r'"([^"\n]+)"|“([^”\n]+)”|([^\s]+)', normalized):
+        raw = next((value for value in match.groups() if value is not None), "")
+        term = _normalize_term(raw)
+        if term:
+            values.append(term)
+    return _stable(values)
+
+
+def _explicit_must_include_terms(
+    constraints: QueryConstraint | None,
+) -> list[str]:
+    if constraints is None or "must_include_terms" not in constraints.explicit_fields:
+        return []
+    return _stable(_normalize_term(value) for value in constraints.must_include_terms)
+
+
+def _arxiv_disjunctive_expression(
+    alternatives: list[str],
+    required: list[str],
+) -> str:
+    clauses: list[str] = []
+    if alternatives:
+        clauses.append("(" + " OR ".join(alternatives) + ")")
+    clauses.extend(required)
+    return " AND ".join(clauses)
 
 
 def _information_terms(

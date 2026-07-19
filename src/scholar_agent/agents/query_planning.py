@@ -137,6 +137,9 @@ PURPOSE_FACETS: dict[str, tuple[QueryFacetType, ...]] = {
 }
 CONTROLLED_RELAXATION_MAX_SUPPLEMENTAL_QUERIES = 2
 CONTROLLED_RELAXATION_MAX_CORE_TERMS = 8
+DISJUNCTIVE_FACETS_MAX_SUPPLEMENTAL_QUERIES = 2
+DISJUNCTIVE_FACETS_MIN_ANY_TERMS = 4
+DISJUNCTIVE_FACETS_MAX_ANY_TERMS = 8
 CONTROLLED_RELAXATION_STOPWORDS = PLANNER_STOPWORDS | {
     "advancement",
     "any",
@@ -329,6 +332,120 @@ def plan_controlled_relaxation(
 
     return selected, _planning_result(
         policy="controlled_relaxation",
+        facets=facets,
+        selected=selected,
+        skipped_facets=skipped,
+        duplicate_count=duplicate_count,
+    )
+
+
+def plan_disjunctive_facets(
+    query_analysis: QueryAnalysis,
+    *,
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> tuple[list[SearchSubquery], QueryPlanningResult]:
+    """保留原查询，并用有界、来源无关的析取分面补充召回。"""
+
+    facets = identify_query_facets(query_analysis)
+    original = SearchSubquery(
+        query=query_analysis.original_query,
+        combination_mode="all",
+        source_hints=selected_sources,
+        priority=1,
+        purpose="original_query",
+        facet_types=["topic"],
+        provenance=["original_query"],
+    )
+    maximum = min(
+        max(1, max_subqueries),
+        1 + DISJUNCTIVE_FACETS_MAX_SUPPLEMENTAL_QUERIES,
+    )
+    if maximum == 1:
+        return [original], _planning_result(
+            policy="disjunctive_facets",
+            facets=facets,
+            selected=[original],
+            skipped_facets=["budget:disjunctive_facet_any"],
+            duplicate_count=0,
+        )
+
+    explicit_must = _explicit_must_have(query_analysis)
+    any_terms, any_types, any_provenance = _disjunctive_facet_terms(
+        query_analysis,
+        facets,
+        explicit_must,
+    )
+    candidates: list[SearchSubquery] = []
+    skipped: list[str] = []
+    if len(any_terms) >= DISJUNCTIVE_FACETS_MIN_ANY_TERMS:
+        candidates.append(
+            SearchSubquery(
+                query=_render_logical_terms(any_terms),
+                combination_mode="any",
+                source_hints=selected_sources,
+                priority=2,
+                purpose="disjunctive_facet_any",
+                facet_types=any_types,
+                provenance=_dedupe(
+                    [
+                        *any_provenance,
+                        *("must_have:explicit_hard" for _ in explicit_must[:1]),
+                    ]
+                ),
+            )
+        )
+    else:
+        skipped.append("insufficient_high_confidence_terms:disjunctive_facet_any")
+
+    topic = next((item for item in facets if item.facet_type == "topic"), None)
+    topic_terms = _reliable_facet_terms(
+        query_analysis,
+        topic,
+        excluded=explicit_must,
+    )[:4]
+    reliable_facet = _most_reliable_relaxation_facet(
+        facets,
+        " ".join(topic_terms),
+        query_analysis.original_query,
+    )
+    if topic_terms and reliable_facet is not None:
+        all_terms = _dedupe(
+            [*explicit_must, *topic_terms, *reliable_facet.terms[:2]]
+        )
+        candidates.append(
+            SearchSubquery(
+                query=" ".join(all_terms),
+                combination_mode="all",
+                source_hints=selected_sources,
+                priority=3,
+                purpose=f"disjunctive_topic_plus_{reliable_facet.facet_type}",
+                facet_types=["topic", reliable_facet.facet_type],
+                provenance=_dedupe(
+                    [
+                        "topic:disjunctive_facets",
+                        f"{reliable_facet.facet_type}:{reliable_facet.source}",
+                        *("must_have:explicit_hard" for _ in explicit_must[:1]),
+                    ]
+                ),
+            )
+        )
+
+    selected = [original]
+    duplicate_count = 0
+    for candidate in candidates:
+        duplicate = _similar_subquery(selected, candidate)
+        if duplicate is not None:
+            duplicate_count += 1
+            skipped.append(f"duplicate:{candidate.purpose}")
+            continue
+        if len(selected) >= maximum:
+            skipped.append(f"budget:{candidate.purpose}")
+            continue
+        selected.append(candidate.model_copy(update={"priority": len(selected) + 1}))
+
+    return selected, _planning_result(
+        policy="disjunctive_facets",
         facets=facets,
         selected=selected,
         skipped_facets=skipped,
@@ -650,6 +767,8 @@ def _similar_subquery(
     candidate_key = _query_key(candidate.query)
     candidate_primary = _primary_facet(candidate)
     for current in selected:
+        if current.combination_mode != candidate.combination_mode:
+            continue
         if _query_key(current.query) == candidate_key:
             return current
         if (
@@ -685,6 +804,88 @@ def _explicit_must_have(query_analysis: QueryAnalysis) -> list[str]:
     if "must_include_terms" not in constraints.explicit_fields:
         return []
     return list(constraints.must_include_terms)
+
+
+def _disjunctive_facet_terms(
+    query_analysis: QueryAnalysis,
+    facets: list[QueryFacet],
+    explicit_must: list[str],
+) -> tuple[list[str], list[QueryFacetType], list[str]]:
+    """按 facet 稳定轮转，避免 topic 独占 4～8 个析取名额。"""
+
+    by_type: list[tuple[QueryFacetType, QueryFacet, list[str]]] = []
+    for facet_type in ("topic", "method", "dataset", "task"):
+        facet = next((item for item in facets if item.facet_type == facet_type), None)
+        values = _reliable_facet_terms(
+            query_analysis,
+            facet,
+            excluded=explicit_must,
+        )
+        if facet is not None and values:
+            by_type.append((facet_type, facet, values))
+
+    selected: list[str] = []
+    selected_types: list[QueryFacetType] = []
+    provenance: list[str] = []
+    for offset in range(DISJUNCTIVE_FACETS_MAX_ANY_TERMS):
+        added = False
+        for facet_type, facet, values in by_type:
+            if offset >= len(values):
+                continue
+            selected = _dedupe([*selected, values[offset]])
+            if facet_type not in selected_types:
+                selected_types.append(facet_type)
+                provenance.append(f"{facet_type}:{facet.source}")
+            added = True
+            if len(selected) >= DISJUNCTIVE_FACETS_MAX_ANY_TERMS:
+                break
+        if len(selected) >= DISJUNCTIVE_FACETS_MAX_ANY_TERMS or not added:
+            break
+    return selected, selected_types, provenance
+
+
+def _reliable_facet_terms(
+    query_analysis: QueryAnalysis,
+    facet: QueryFacet | None,
+    *,
+    excluded: list[str],
+) -> list[str]:
+    if facet is None or facet.confidence < 0.75:
+        return []
+    excluded_keys = _casefold_set(excluded)
+    original = query_analysis.original_query.casefold()
+    values: list[str] = []
+    for term in facet.terms:
+        normalized = " ".join(str(term).split()).strip()
+        key = normalized.casefold()
+        tokens = _query_terms(normalized)
+        if (
+            not normalized
+            or len(normalized) > 80
+            or key in excluded_keys
+            or key in GENERIC_PAPER_TERMS
+            or all(
+                token.casefold() in _UNRELIABLE_INFERRED_FACET_TERMS
+                for token in tokens
+            )
+            or (
+                facet.source != "explicit"
+                and not _contains_term(original, normalized)
+            )
+        ):
+            continue
+        values.append(normalized)
+    return _dedupe(values)
+
+
+def _render_logical_terms(terms: list[str]) -> str:
+    rendered: list[str] = []
+    for term in terms:
+        normalized = " ".join(str(term).replace('"', " ").split())
+        if not normalized:
+            continue
+        rendered.append(f'"{normalized}"' if " " in normalized else normalized)
+    return " ".join(rendered)
 
 
 def _controlled_core_terms(
