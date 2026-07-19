@@ -136,6 +136,8 @@ PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
 
 `disjunctive_facets` v1.5 在来源无关的规划层保留原查询，再生成最多一条 4–8 个可靠 topic/method/dataset/task 词的 `any` 查询及一条可选的“topic + 最佳分面”查询；显式 must-have 始终在 OR 组外保持硬约束。规则在 AutoScholarQuery `offset=130, limit=20` 开发集冻结，并在 `offset=150, limit=20` 独立验证集只回放一次。验证集相对 `current_rules` 的候选 Recall 为 0.0750→0.1000、唯一 gold 为 2→3，F1@20 与 R@20 分别保持 0.0093 和 0.0750，平均记录 API 为 2.40→2.50，弱相关与无关候选占比为 0.5377→0.5254；全部预设门槛通过。OR 子查询产生 153 个独占候选但事后独占 gold 为 0，新增 gold 来自整体规划组合，故策略仍保持实验状态且产品默认继续使用 `current_rules`。四次最终 Replay 的 HTTP、重试和网络等待均为 0；分析产物位于 `outputs/benchmark_runs/disjunctive_facets_analysis/`，20+20 小样本不代表完整 Benchmark。
 
+随后预注册的 AutoScholarQuery `offset=170, limit=40` 保留集复核没有进入指标阶段。`current_rules` 首轮 101 个必需快照键在前两项均经重试失败：4 次记录请求出现读取超时与 HTTP 429，采集器在 35.01 秒以 `snapshot_collection_source_cooldown` 安全停止，冻结 2 个 failed 键并保留 99 个缺口。按协议未启动 `disjunctive_facets` 采集、未执行最终 Replay、未读取 gold 指标，也未生成 bootstrap 或替代分数；验收状态为未评估，不能建议进入 high_recall profile，产品默认仍为 `current_rules`。状态产物位于 `outputs/benchmark_runs/disjunctive_holdout40/`。
+
 `llm_semantic` 评测固定使用同一 arXiv-only、adaptive、balanced、Top-20 配置，开发集为 offset 0 的 10 条，独立验证集为 offset 10 的 5 条；每例最多一次温度为 0 的 LLM 调用和两条补充查询。LLM 规划快照与检索快照独立冻结，动态计划先补 LLM 键再发现检索键；最终比较必须同时使用 LLM replay 与 retrieval replay，执行期两类网络请求、重试和网络等待均为 0。当前进程的 LLM provider 为 disabled，因此只重放了 `current_rules` 基线，未运行或伪造 LLM 指标。开发/验证基线的候选 Recall、F1@20、Recall@20 分别为 0.1500/0.0179/0.1250 和 0.2000/0.0190/0.2000；分析产物位于 `outputs/benchmark_runs/llm_query_planning_analysis/`，验收状态为未执行。
 
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
