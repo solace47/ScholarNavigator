@@ -6,6 +6,8 @@ import os
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from contextlib import nullcontext
+from dataclasses import dataclass, field
 from threading import RLock
 
 from pydantic import BaseModel, Field
@@ -20,13 +22,19 @@ from scholar_agent.connectors import (
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.search_schemas import QueryConstraint
+from scholar_agent.retrieval.query_adapter import (
+    AdaptedQuery,
+    adapt_queries_for_source,
+)
 
 
 SUPPORTED_SOURCES = ("openalex", "arxiv", "semantic_scholar", "pubmed")
 DEFAULT_CACHE_TTL_SECONDS = 15 * 60
 DEFAULT_CACHE_MAX_ENTRIES = 256
 DEFAULT_SOURCE_COOLDOWN_SECONDS = 60
-DEFAULT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS = 2
+DEFAULT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS = 60
+RUN_TRANSIENT_FAILURE_THRESHOLD = 2
 CACHE_DISABLED_VALUES = {"0", "false", "False", "no", "NO", "off", "OFF"}
 
 
@@ -46,6 +54,14 @@ class SourceStats(BaseModel):
     latency_seconds: float = 0.0
     error_message: str | None = None
     cache_hit: bool = False
+    run_dedupe_hit: bool = False
+    adapted_query: str | None = None
+    adaptation_strategy: str | None = None
+    dropped_terms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    source_skipped_reason: str | None = None
+    remaining_subquery_count: int = 0
+    diagnostic_papers: list[Paper] = Field(default_factory=list, exclude=True)
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
 
 
@@ -60,11 +76,62 @@ class RetrievalOutput(BaseModel):
     latency_seconds: float = 0.0
 
 
+@dataclass
+class RetrievalRunContext:
+    """一次 SearchRun 内共享的调用去重、结果复用与来源降级状态。"""
+
+    _lock: RLock = field(default_factory=RLock)
+    _source_locks: dict[str, RLock] = field(default_factory=dict)
+    _results: dict[_CacheKey, ConnectorSearchResult] = field(default_factory=dict)
+    _blocked_sources: dict[str, str] = field(default_factory=dict)
+    _transient_failure_counts: dict[str, int] = field(default_factory=dict)
+
+    def source_lock(self, source: str) -> RLock:
+        with self._lock:
+            return self._source_locks.setdefault(source, RLock())
+
+    def reused_result(self, key: _CacheKey) -> ConnectorSearchResult | None:
+        with self._lock:
+            result = self._results.get(key)
+            return result.model_copy(deep=True) if result is not None else None
+
+    def store_result(self, key: _CacheKey, result: ConnectorSearchResult) -> None:
+        with self._lock:
+            self._results[key] = result.model_copy(deep=True)
+
+    def block_source(self, source: str, reason: str) -> None:
+        with self._lock:
+            self._blocked_sources[source] = reason
+
+    def blocked_reason(self, source: str) -> str | None:
+        with self._lock:
+            return self._blocked_sources.get(source)
+
+    def record_transient_outcome(
+        self,
+        source: str,
+        error_message: str | None,
+    ) -> None:
+        with self._lock:
+            if not error_message:
+                self._transient_failure_counts.pop(source, None)
+                return
+            if not _is_transient_error_message(error_message):
+                return
+            count = self._transient_failure_counts.get(source, 0) + 1
+            self._transient_failure_counts[source] = count
+            if count >= RUN_TRANSIENT_FAILURE_THRESHOLD:
+                self._blocked_sources[source] = "run_transient_failure_circuit_open"
+
+
 def retrieve_papers(
     query: str,
     limit_per_source: int = 20,
     sources: list[str] | None = None,
     connector_event_callback: Callable[[str, dict[str, object]], None] | None = None,
+    constraints: QueryConstraint | None = None,
+    run_context: RetrievalRunContext | None = None,
+    remaining_subquery_count: int = 0,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -78,11 +145,6 @@ def retrieve_papers(
         warnings.append("empty_query")
 
     for source in requested_sources:
-        if connector_event_callback is not None:
-            connector_event_callback(
-                "connector_started",
-                {"connector": source, "source": source},
-            )
         search = _source_registry().get(source)
         if search is None:
             message = f"unsupported_source:{source}"
@@ -94,72 +156,54 @@ def retrieve_papers(
                     returned_count=0,
                     latency_seconds=0.0,
                     error_message=message,
+                    source_skipped_reason="unsupported_source",
+                    remaining_subquery_count=remaining_subquery_count,
                 )
             )
             _emit_connector_completed(connector_event_callback, source_stats[-1])
             continue
 
-        if _is_source_in_cooldown(source):
-            message = f"source_cooldown_skip:{source}"
-            warnings.append(message)
-            source_stats.append(
-                SourceStats(
-                    source=source,
-                    query=query,
-                    returned_count=0,
-                    latency_seconds=0.0,
-                    error_message=message,
+        adapted_queries = adapt_queries_for_source(
+            query,
+            source,
+            constraints=constraints,
+        )
+        for adapted in adapted_queries:
+            if connector_event_callback is not None:
+                connector_event_callback(
+                    "connector_started",
+                    {
+                        "connector": source,
+                        "source": source,
+                        "adapted_query": adapted.query,
+                        "adaptation_strategy": adapted.strategy,
+                    },
                 )
+            stats = _retrieve_adapted_query(
+                original_query=query,
+                source=source,
+                adapted=adapted,
+                limit_per_source=limit_per_source,
+                search=search,
+                run_context=run_context,
+                remaining_subquery_count=remaining_subquery_count,
             )
-            _emit_connector_completed(connector_event_callback, source_stats[-1])
-            continue
-
-        source_start = time.perf_counter()
-        try:
-            result, cache_hit = _search_with_cache(
-                source,
-                query,
-                limit_per_source,
-                search,
-            )
-            raw_papers.extend(result.papers)
-            warnings.extend(result.warnings)
-            if cache_hit:
+            source_stats.append(stats)
+            if stats.source_skipped_reason and not stats.error_message:
+                message = (
+                    f"source_skipped:{source}:{stats.source_skipped_reason}:"
+                    f"remaining={remaining_subquery_count}"
+                )
+                warnings.append(message)
+            if not stats.run_dedupe_hit:
+                raw_papers.extend(stats.diagnostic_papers)
+            warnings.extend(adapted.warnings)
+            warnings.extend(stats.warnings)
+            if stats.cache_hit:
                 warnings.append(f"retrieval_cache_hit:{source}")
-            if result.error_message and result.error_message not in warnings:
-                warnings.append(result.error_message)
-            if _has_cooldown_trigger(result.error_message, result.warnings):
-                _record_source_cooldown(source)
-            source_stats.append(
-                SourceStats(
-                    source=source,
-                    query=query,
-                    returned_count=len(result.papers),
-                    latency_seconds=time.perf_counter() - source_start,
-                    error_message=result.error_message,
-                    cache_hit=cache_hit,
-                    diagnostics=result.diagnostics,
-                )
-            )
-        except Exception as exc:  # noqa: BLE001 - isolate connector failures
-            message = f"{source} failed: {exc}"
-            warnings.append(message)
-            if _is_cooldown_error_message(message):
-                _record_source_cooldown(source)
-            source_stats.append(
-                SourceStats(
-                    source=source,
-                    query=query,
-                    returned_count=0,
-                    latency_seconds=time.perf_counter() - source_start,
-                    error_message=str(exc),
-                    diagnostics=ConnectorDiagnostics(
-                        error_count=1,
-                        latency_seconds=time.perf_counter() - source_start,
-                    ),
-                )
-            )
-        _emit_connector_completed(connector_event_callback, source_stats[-1])
+            if stats.error_message and stats.error_message not in warnings:
+                warnings.append(stats.error_message)
+            _emit_connector_completed(connector_event_callback, stats)
 
     deduplicated = deduplicate_papers(raw_papers)
     return RetrievalOutput(
@@ -172,6 +216,113 @@ def retrieve_papers(
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
     )
+
+
+def _retrieve_adapted_query(
+    *,
+    original_query: str,
+    source: str,
+    adapted: AdaptedQuery,
+    limit_per_source: int,
+    search: Callable[[str, int], ConnectorSearchResult],
+    run_context: RetrievalRunContext | None,
+    remaining_subquery_count: int,
+) -> SourceStats:
+    source_start = time.perf_counter()
+    base = {
+        "source": source,
+        "query": original_query,
+        "adapted_query": adapted.query,
+        "adaptation_strategy": adapted.strategy,
+        "dropped_terms": list(adapted.dropped_terms),
+        "remaining_subquery_count": max(0, remaining_subquery_count),
+    }
+    if not adapted.query:
+        return SourceStats(
+            **base,
+            source_skipped_reason="empty_adapted_query",
+        )
+
+    guard = run_context.source_lock(source) if run_context is not None else nullcontext()
+    with guard:
+        key = _cache_key(source, adapted.query, limit_per_source)
+        reused = run_context.reused_result(key) if run_context is not None else None
+        if reused is not None:
+            return SourceStats(
+                **base,
+                run_dedupe_hit=True,
+                source_skipped_reason="duplicate_adapted_query",
+                diagnostic_papers=list(reused.papers),
+                latency_seconds=time.perf_counter() - source_start,
+            )
+
+        blocked_reason = (
+            run_context.blocked_reason(source) if run_context is not None else None
+        )
+        if blocked_reason is not None:
+            return SourceStats(
+                **base,
+                error_message=f"source_cooldown_skip:{source}",
+                source_skipped_reason=blocked_reason,
+                latency_seconds=time.perf_counter() - source_start,
+            )
+        if _is_source_in_cooldown(source):
+            return SourceStats(
+                **base,
+                error_message=f"source_cooldown_skip:{source}",
+                source_skipped_reason="source_cooldown",
+                latency_seconds=time.perf_counter() - source_start,
+            )
+
+        try:
+            result, cache_hit = _search_with_cache(
+                source,
+                adapted.query,
+                limit_per_source,
+                search,
+            )
+        except Exception as exc:  # noqa: BLE001 - isolate connector failures
+            message = f"{source} failed: {exc}"
+            if _is_final_rate_limit(message):
+                _record_source_cooldown(source)
+                if run_context is not None:
+                    run_context.block_source(source, "run_rate_limit_cooldown")
+            elif run_context is not None:
+                run_context.record_transient_outcome(source, message)
+            return SourceStats(
+                **base,
+                error_message=str(exc),
+                warnings=[message],
+                latency_seconds=time.perf_counter() - source_start,
+                diagnostics=ConnectorDiagnostics(
+                    error_count=1,
+                    latency_seconds=time.perf_counter() - source_start,
+                ),
+            )
+
+        if run_context is not None:
+            run_context.store_result(key, result)
+        if _has_cooldown_trigger(result.error_message, result.warnings):
+            _record_source_cooldown(
+                source,
+                minimum_seconds=result.diagnostics.retry_after_seconds,
+            )
+            if run_context is not None and _is_final_rate_limit(
+                result.error_message
+            ):
+                run_context.block_source(source, "run_rate_limit_cooldown")
+        elif run_context is not None:
+            run_context.record_transient_outcome(source, result.error_message)
+        return SourceStats(
+            **base,
+            returned_count=len(result.papers),
+            latency_seconds=time.perf_counter() - source_start,
+            error_message=result.error_message,
+            cache_hit=cache_hit,
+            warnings=list(result.warnings),
+            diagnostic_papers=list(result.papers),
+            diagnostics=result.diagnostics,
+        )
 
 
 def _emit_connector_completed(
@@ -193,6 +344,12 @@ def _emit_connector_completed(
             "cache_hit": stats.cache_hit,
             "cache_hit_count": stats.diagnostics.cache_hit_count,
             "rate_limit_wait_seconds": stats.diagnostics.rate_limit_wait_seconds,
+            "retry_after_seconds": stats.diagnostics.retry_after_seconds,
+            "adapted_query": stats.adapted_query,
+            "adaptation_strategy": stats.adaptation_strategy,
+            "run_dedupe_hit": stats.run_dedupe_hit,
+            "source_skipped_reason": stats.source_skipped_reason,
+            "remaining_subquery_count": stats.remaining_subquery_count,
             "error_message": stats.error_message,
         },
     )
@@ -296,7 +453,11 @@ def _cache_config() -> _CacheConfig:
 
 
 def _cache_key(source: str, query: str, limit_per_source: int) -> _CacheKey:
-    return (source.strip().lower(), query.strip(), int(limit_per_source))
+    return (
+        source.strip().lower(),
+        " ".join(query.casefold().split()),
+        int(limit_per_source),
+    )
 
 
 def _get_cached_result(
@@ -346,8 +507,15 @@ def _is_source_in_cooldown(source: str) -> bool:
         return True
 
 
-def _record_source_cooldown(source: str) -> None:
-    cooldown_seconds = _source_cooldown_seconds(source)
+def _record_source_cooldown(
+    source: str,
+    *,
+    minimum_seconds: float | None = None,
+) -> None:
+    cooldown_seconds = max(
+        _source_cooldown_seconds(source),
+        float(minimum_seconds or 0.0),
+    )
     if cooldown_seconds <= 0:
         return
 
@@ -378,18 +546,25 @@ def _has_cooldown_trigger(
     # "HTTP Error 429; retried" followed by a successful response. Cooldown must
     # only be recorded for final connector failures, which are surfaced through
     # error_message.
-    return bool(error_message and _is_cooldown_error_message(error_message))
+    return bool(error_message and _is_final_rate_limit(error_message))
 
 
-def _is_cooldown_error_message(message: str) -> bool:
+def _is_transient_error_message(message: str) -> bool:
     normalized = message.casefold()
     return (
-        "http error 429" in normalized
-        or " 429" in normalized
-        or _has_5xx_status(normalized)
+        _has_5xx_status(normalized)
         or "timeout" in normalized
         or "timed out" in normalized
+        or "connection reset" in normalized
+        or "ssl" in normalized
     )
+
+
+def _is_final_rate_limit(message: str | None) -> bool:
+    if not message:
+        return False
+    normalized = message.casefold()
+    return "http error 429" in normalized or "status: 429" in normalized
 
 
 def _has_5xx_status(normalized_message: str) -> bool:

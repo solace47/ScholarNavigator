@@ -15,6 +15,7 @@ class ConnectorDiagnostics(BaseModel):
     error_count: int = Field(default=0, ge=0)
     cache_hit_count: int = Field(default=0, ge=0)
     rate_limit_wait_seconds: float = Field(default=0.0, ge=0.0)
+    retry_after_seconds: float | None = Field(default=None, ge=0.0, exclude=True)
     latency_seconds: float = Field(default=0.0, ge=0.0)
 
 
@@ -31,6 +32,14 @@ def merge_connector_diagnostics(
         cache_hit_count=sum(item.cache_hit_count for item in items),
         rate_limit_wait_seconds=sum(
             item.rate_limit_wait_seconds for item in items
+        ),
+        retry_after_seconds=max(
+            (
+                item.retry_after_seconds
+                for item in items
+                if item.retry_after_seconds is not None
+            ),
+            default=None,
         ),
         latency_seconds=sum(item.latency_seconds for item in items),
     )

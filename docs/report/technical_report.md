@@ -18,6 +18,8 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 - OpenAlex、arXiv、Semantic Scholar、PubMed connector 均已实现字段转换、超时或限速处理、错误诊断，并有隔离外网的测试。
 - 去重保留 DOI、arXiv、OpenAlex、Semantic Scholar、PubMed 等标识符，并支持 title+year 后备键。
 - 单个 connector 或子查询失败时保留其他来源结果，同时输出来源统计和 warning。
+- 逻辑子查询在 connector 前按来源确定性清理、限长并生成有界变体；同一 run 的等价外部调用只执行一次，缓存复用和跳过原因保留在阶段 provenance 中。
+- Semantic Scholar 429、arXiv 请求间隔、OpenAlex 非法查询、瞬态失败重试与 run 内连续失败熔断均有隔离外网的行为测试。
 
 ### LLM 边界
 
@@ -58,6 +60,8 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 AutoScholarQuery 原始顺序前 5 条已用 balanced、单一 arXiv 源完成真实 smoke：成功率 1.0，端到端 F1@5/10/20 为 0.0444/0.0286/0.0357，平均 API 请求 2.4、平均 Token 0、平均延迟 0.78 秒。样本很小且只使用单一来源，不能替代完整 Benchmark 或比赛成绩。
 
 固定前 10 条的阶段诊断完成 arXiv-only 和三源 baseline。三源配置把初始候选 Recall 从 0.150 提高到 0.170、F1@20 从 0.0179 提高到 0.0259，但平均 API 请求由 2.7 增至 8.2、平均延迟由 4.01 秒增至 29.78 秒，并出现 0.402 的来源错误率。规则标签指向检索召回、Judgement false negative 和来源可靠性；没有发现已保留 gold 被排到 Top 20 外的 Reranking 瓶颈。其余三组因持续 429/超时安全中止，不能声明 Query Evolution 或 RefChain 的收益。
+
+同一固定前 10 条上的 A2/B2 只改变来源查询适配与可靠性策略。A2 相对 A 的平均 API 由 2.7 降至 2.4、错误率保持 0，但候选 Recall 由 0.150 降至 0.025、F1@20 由 0.0179 降至 0.0083，arXiv 礼貌间隔使平均延迟增至 10.57 秒。B2 相对 B 的平均 API 由 8.2 降至 5.1、错误率由 0.402 降至 0.059、平均延迟由 29.78 降至 19.93 秒，OpenAlex 未再出现 400，Semantic Scholar 请求由 51 次降至 8 次；候选 Recall 由 0.170 降至 0.045、F1@20 由 0.0259 降至 0.0163。该结果只支持可靠性改善，不支持召回质量提升。
 
 ## 未实现
 

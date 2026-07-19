@@ -256,7 +256,7 @@ def test_benchmark_gold_does_not_appear_in_production_search_strategy() -> None:
     root = Path(__file__).resolve().parents[1] / "src" / "scholar_agent"
     strategy_text = "\n".join(
         path.read_text(encoding="utf-8")
-        for directory in ("agents", "services", "connectors")
+        for directory in ("agents", "services", "connectors", "retrieval")
         for path in (root / directory).rglob("*.py")
     )
 

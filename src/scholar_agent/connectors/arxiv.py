@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -16,6 +18,7 @@ from urllib.request import Request, urlopen
 from scholar_agent.connectors.schemas import ConnectorSearchResult
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
+from scholar_agent.retrieval.query_adapter import adapt_query_for_source
 
 
 logger = logging.getLogger(__name__)
@@ -24,8 +27,13 @@ ARXIV_QUERY_URL = "https://export.arxiv.org/api/query"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
+ARXIV_MIN_INTERVAL_SECONDS_ENV = "SCHOLAR_AGENT_ARXIV_MIN_INTERVAL_SECONDS"
+DEFAULT_MIN_INTERVAL_SECONDS = 3.0
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"
+
+_REQUEST_THROTTLE_LOCK = threading.Lock()
+_LAST_REQUEST_MONOTONIC: float | None = None
 
 
 def search_arxiv(query: str, limit: int = 20) -> list[Paper]:
@@ -40,20 +48,24 @@ def search_arxiv_detailed(
     *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
 ) -> ConnectorSearchResult:
     """Search papers from the arXiv public API with diagnostic details."""
 
     start = time.perf_counter()
-    query = query.strip()
+    adapted = adapt_query_for_source(query, "arxiv")
+    query = adapted.query
     if not query or limit <= 0:
         return ConnectorSearchResult(
+            warnings=list(adapted.warnings),
             diagnostics=ConnectorDiagnostics(
                 latency_seconds=time.perf_counter() - start
             )
         )
 
     params = {
-        "search_query": f"all:{query}",
+        "search_query": query,
         "start": "0",
         "max_results": str(limit),
     }
@@ -66,11 +78,13 @@ def search_arxiv_detailed(
         request,
         max_retries=max_retries,
         retry_sleep=retry_sleep,
+        throttle_sleep=throttle_sleep,
+        monotonic=monotonic,
     )
     if payload is None:
         return ConnectorSearchResult(
             error_message=error_message,
-            warnings=warnings,
+            warnings=[*adapted.warnings, *warnings],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(diagnostics, start),
         )
@@ -82,7 +96,7 @@ def search_arxiv_detailed(
         logger.warning(message)
         return ConnectorSearchResult(
             error_message=message,
-            warnings=warnings + [message],
+            warnings=[*adapted.warnings, *warnings, message],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(
                 diagnostics.model_copy(
@@ -106,7 +120,7 @@ def search_arxiv_detailed(
 
     return ConnectorSearchResult(
         papers=papers,
-        warnings=warnings,
+        warnings=[*adapted.warnings, *warnings],
         latency_seconds=time.perf_counter() - start,
         diagnostics=_with_total_latency(diagnostics, start),
     )
@@ -117,6 +131,8 @@ def _request_feed_detailed(
     *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
 ) -> tuple[bytes | None, str | None, list[str], ConnectorDiagnostics]:
     started_at = time.perf_counter()
     warnings: list[str] = []
@@ -125,7 +141,13 @@ def _request_feed_detailed(
 
     request_count = 0
     retry_count = 0
+    rate_limit_wait_seconds = 0.0
+    retry_after_seen: float | None = None
     for attempt in range(attempts):
+        rate_limit_wait_seconds += _throttle_arxiv_request(
+            sleep=throttle_sleep,
+            monotonic=monotonic,
+        )
         request_count += 1
         retry_count += int(attempt > 0)
         try:
@@ -133,6 +155,10 @@ def _request_feed_detailed(
                 status = getattr(response, "status", getattr(response, "code", 200))
                 if status < 200 or status >= 300:
                     message = f"arXiv search returned non-2xx status: {status}"
+                    retry_after_seen = _max_optional(
+                        retry_after_seen,
+                        _retry_after_seconds(response),
+                    )
                     if _should_retry_status(status) and attempt < attempts - 1:
                         _record_retry_warning(
                             warnings,
@@ -140,21 +166,29 @@ def _request_feed_detailed(
                             attempts=attempts,
                             reason=message,
                         )
-                        sleep(_retry_backoff_seconds(attempt))
+                        sleep(_retry_backoff_seconds(attempt, response))
                         continue
                     logger.warning(message)
                     return None, message, warnings + [message], ConnectorDiagnostics(
                         request_count=request_count,
                         retry_count=retry_count,
                         error_count=1,
+                        rate_limit_wait_seconds=rate_limit_wait_seconds,
+                        retry_after_seconds=retry_after_seen,
                         latency_seconds=time.perf_counter() - started_at,
                     )
                 return response.read(), None, warnings, ConnectorDiagnostics(
                     request_count=request_count,
                     retry_count=retry_count,
+                    rate_limit_wait_seconds=rate_limit_wait_seconds,
+                    retry_after_seconds=retry_after_seen,
                     latency_seconds=time.perf_counter() - started_at,
                 )
         except HTTPError as exc:
+            retry_after_seen = _max_optional(
+                retry_after_seen,
+                _retry_after_seconds(exc),
+            )
             if _should_retry_status(exc.code) and attempt < attempts - 1:
                 _record_retry_warning(
                     warnings,
@@ -162,7 +196,7 @@ def _request_feed_detailed(
                     attempts=attempts,
                     reason=str(exc),
                 )
-                sleep(_retry_backoff_seconds(attempt))
+                sleep(_retry_backoff_seconds(attempt, exc))
                 continue
             message = f"arXiv search failed: {exc}"
             logger.warning(message)
@@ -170,6 +204,8 @@ def _request_feed_detailed(
                 request_count=request_count,
                 retry_count=retry_count,
                 error_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                retry_after_seconds=retry_after_seen,
                 latency_seconds=time.perf_counter() - started_at,
             )
         except (URLError, TimeoutError, OSError) as exc:
@@ -188,6 +224,8 @@ def _request_feed_detailed(
                 request_count=request_count,
                 retry_count=retry_count,
                 error_count=1,
+                rate_limit_wait_seconds=rate_limit_wait_seconds,
+                retry_after_seconds=retry_after_seen,
                 latency_seconds=time.perf_counter() - started_at,
             )
 
@@ -197,6 +235,8 @@ def _request_feed_detailed(
         request_count=request_count,
         retry_count=retry_count,
         error_count=1,
+        rate_limit_wait_seconds=rate_limit_wait_seconds,
+        retry_after_seconds=retry_after_seen,
         latency_seconds=time.perf_counter() - started_at,
     )
 
@@ -225,8 +265,77 @@ def _record_retry_warning(
     warnings.append(message)
 
 
-def _retry_backoff_seconds(attempt: int) -> float:
+def _retry_backoff_seconds(
+    attempt: int,
+    response_or_error: Any | None = None,
+) -> float:
+    retry_after = _retry_after_seconds(response_or_error)
+    if retry_after is not None:
+        return retry_after
     return DEFAULT_RETRY_BACKOFF_SECONDS * (attempt + 1)
+
+
+def _arxiv_min_interval_seconds() -> float:
+    raw_value = os.getenv(ARXIV_MIN_INTERVAL_SECONDS_ENV)
+    if raw_value is None:
+        return DEFAULT_MIN_INTERVAL_SECONDS
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return DEFAULT_MIN_INTERVAL_SECONDS
+    return value if value > 0 else 0.0
+
+
+def _throttle_arxiv_request(
+    *,
+    sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
+) -> float:
+    min_interval = _arxiv_min_interval_seconds()
+    if min_interval <= 0:
+        return 0.0
+    sleep_fn = sleep or time.sleep
+    monotonic_fn = monotonic or time.monotonic
+    global _LAST_REQUEST_MONOTONIC
+    waited = 0.0
+    with _REQUEST_THROTTLE_LOCK:
+        now = monotonic_fn()
+        if _LAST_REQUEST_MONOTONIC is not None:
+            wait_seconds = min_interval - (now - _LAST_REQUEST_MONOTONIC)
+            if wait_seconds > 0:
+                sleep_fn(wait_seconds)
+                waited = wait_seconds
+                now = monotonic_fn()
+        _LAST_REQUEST_MONOTONIC = now
+    return waited
+
+
+def _reset_arxiv_throttle_for_tests() -> None:
+    global _LAST_REQUEST_MONOTONIC
+    with _REQUEST_THROTTLE_LOCK:
+        _LAST_REQUEST_MONOTONIC = None
+
+
+def _retry_after_seconds(response_or_error: Any | None) -> float | None:
+    headers = getattr(response_or_error, "headers", None)
+    if headers is None:
+        return None
+    try:
+        raw_value = headers.get("Retry-After")
+    except AttributeError:
+        return None
+    if raw_value is None:
+        return None
+    try:
+        value = float(str(raw_value).strip())
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _max_optional(left: float | None, right: float | None) -> float | None:
+    values = [value for value in (left, right) if value is not None]
+    return max(values) if values else None
 
 
 def _should_retry_status(status: int | None) -> bool:

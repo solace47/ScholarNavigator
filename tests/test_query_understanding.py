@@ -19,7 +19,7 @@ def test_chinese_long_query_generates_search_plan() -> None:
     assert plan.query_analysis.domain == "machine_learning"
     assert plan.query_analysis.constraints.time_range is not None
     assert plan.query_analysis.constraints.venues == ["ACL", "SIGIR"]
-    assert plan.selected_sources == ["openalex", "arxiv"]
+    assert plan.selected_sources == ["arxiv", "openalex"]
     assert 1 <= len(plan.subqueries) <= 5
     assert all(subquery.purpose for subquery in plan.subqueries)
 
@@ -67,7 +67,7 @@ def test_chinese_recent_three_years_uses_current_year() -> None:
 def test_llm_reranking_retrieval_query_selects_openalex_and_arxiv() -> None:
     plan = analyze_query("LLM reranking for retrieval", current_year=2026)
 
-    assert plan.selected_sources == ["openalex", "arxiv"]
+    assert plan.selected_sources == ["arxiv", "openalex"]
     assert plan.query_analysis.domain == "machine_learning"
     assert all(
         set(subquery.source_hints).issubset({"openalex", "arxiv"})

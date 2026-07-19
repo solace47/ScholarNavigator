@@ -64,6 +64,69 @@ def test_provenance_merges_across_sources_and_subqueries() -> None:
     }
 
 
+def test_run_dedupe_preserves_adaptation_provenance() -> None:
+    collector = PipelineDiagnosticsCollector(True)
+    paper = _paper("Shared", "2401.00001", source="openalex")
+    first = RetrievalOutput(
+        query="long natural language query",
+        requested_sources=["openalex"],
+        raw_count=1,
+        deduplicated_count=1,
+        papers=[paper],
+        source_stats=[
+            SourceStats(
+                source="openalex",
+                query="long natural language query",
+                adapted_query="graph retrieval",
+                adaptation_strategy="openalex_sanitized_core_terms",
+                returned_count=1,
+                diagnostic_papers=[paper],
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            )
+        ],
+    )
+    duplicate = RetrievalOutput(
+        query="graph retrieval",
+        requested_sources=["openalex"],
+        raw_count=0,
+        deduplicated_count=0,
+        source_stats=[
+            SourceStats(
+                source="openalex",
+                query="graph retrieval",
+                adapted_query="graph retrieval",
+                adaptation_strategy="openalex_sanitized_core_terms",
+                run_dedupe_hit=True,
+                source_skipped_reason="duplicate_adapted_query",
+                diagnostic_papers=[paper],
+            )
+        ],
+    )
+
+    collector.register_retrieval(
+        "initial_retrieval",
+        [first, duplicate],
+        origin_kind_by_query={
+            "long natural language query": "initial_query",
+            "graph retrieval": "initial_generated_subquery",
+        },
+    )
+
+    snapshot = collector.snapshots[0]
+    candidate = snapshot.candidates[0]
+    assert len(candidate.provenance) == 2
+    assert {item.origin_subquery for item in candidate.provenance} == {
+        "long natural language query",
+        "graph retrieval",
+    }
+    assert any(
+        item.source_skipped_reason == "duplicate_adapted_query"
+        for item in candidate.provenance
+    )
+    assert snapshot.retrieval_calls[1].run_dedupe_hit is True
+    assert snapshot.retrieval_calls[1].adapted_query == "graph retrieval"
+
+
 def test_gold_first_found_stage_is_query_evolution() -> None:
     gold = _gold("Gold", "2401.00001")
     candidate = _candidate("Gold", "2401.00001", category="partially_relevant", rank=2)

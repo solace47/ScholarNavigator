@@ -201,6 +201,62 @@ def test_search_openalex_detailed_retry_failure_keeps_diagnostics(
     assert result.diagnostics.error_count == 1
 
 
+def test_search_openalex_empty_adapted_query_does_not_request(monkeypatch) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        return MockResponse({"results": []})
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("Could you list some papers???")
+
+    assert calls == 0
+    assert result.papers == []
+    assert result.diagnostics.request_count == 0
+    assert "empty_adapted_query" in result.warnings
+
+
+def test_search_openalex_400_is_not_retried(monkeypatch) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        raise HTTPError(request.full_url, 400, "Bad Request", hdrs=None, fp=None)
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("query with unsafe? punctuation", max_retries=3)
+
+    assert calls == 1
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.retry_count == 0
+    assert "HTTP Error 400" in (result.error_message or "")
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_search_openalex_transient_statuses_still_retry(monkeypatch, status: int) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(request.full_url, status, "transient", hdrs=None, fp=None)
+        return MockResponse({"results": []})
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+
+    result = search_openalex_detailed("stable retrieval query")
+
+    assert calls == 2
+    assert result.error_message is None
+    assert result.diagnostics.retry_count == 1
+
+
 def test_search_openalex_exception_returns_empty(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         raise URLError("timeout")

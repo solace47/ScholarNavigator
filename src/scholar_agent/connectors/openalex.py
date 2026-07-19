@@ -18,6 +18,7 @@ from scholar_agent.core.diagnostics_schemas import (
     merge_connector_diagnostics,
 )
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
+from scholar_agent.retrieval.query_adapter import adapt_query_for_source
 
 
 logger = logging.getLogger(__name__)
@@ -51,9 +52,11 @@ def search_openalex_detailed(
     """Search papers from OpenAlex Works with diagnostic details."""
 
     start = time.perf_counter()
-    query = query.strip()
+    adapted = adapt_query_for_source(query, "openalex")
+    query = adapted.query
     if not query or limit <= 0:
         return ConnectorSearchResult(
+            warnings=list(adapted.warnings),
             diagnostics=ConnectorDiagnostics(
                 latency_seconds=time.perf_counter() - start
             )
@@ -76,7 +79,7 @@ def search_openalex_detailed(
     if payload is None:
         return ConnectorSearchResult(
             error_message=error_message,
-            warnings=warnings,
+            warnings=[*adapted.warnings, *warnings],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(diagnostics, start),
         )
@@ -86,7 +89,7 @@ def search_openalex_detailed(
         message = "OpenAlex search response missing list results"
         return ConnectorSearchResult(
             error_message=message,
-            warnings=warnings + [message],
+            warnings=[*adapted.warnings, *warnings, message],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(
                 diagnostics.model_copy(
@@ -112,7 +115,7 @@ def search_openalex_detailed(
 
     return ConnectorSearchResult(
         papers=papers,
-        warnings=warnings,
+        warnings=[*adapted.warnings, *warnings],
         latency_seconds=time.perf_counter() - start,
         diagnostics=_with_total_latency(diagnostics, start),
     )

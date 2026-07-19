@@ -4,6 +4,7 @@ import pytest
 
 from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.retriever import (
+    RetrievalRunContext,
     clear_retrieval_cache,
     clear_source_cooldowns,
     retrieve_papers,
@@ -86,18 +87,23 @@ def test_retrieve_papers_aggregates_and_deduplicates(monkeypatch) -> None:
 
     assert output.query == "llm reranking"
     assert output.requested_sources == ["openalex", "arxiv"]
-    assert output.raw_count == 4
+    assert output.raw_count == 6
     assert output.deduplicated_count == 3
     assert len(output.papers) == 3
     assert output.papers[0].sources == ["openalex", "arxiv"]
     assert output.papers[0].citation_count == 9
     assert output.papers[0].abstract == "This abstract is longer and should be retained."
-    assert [stat.source for stat in output.source_stats] == ["openalex", "arxiv"]
+    assert [stat.source for stat in output.source_stats] == [
+        "openalex",
+        "arxiv",
+        "arxiv",
+    ]
     assert [stat.query for stat in output.source_stats] == [
         "llm reranking",
         "llm reranking",
+        "llm reranking",
     ]
-    assert [stat.returned_count for stat in output.source_stats] == [2, 2]
+    assert [stat.returned_count for stat in output.source_stats] == [2, 2, 2]
     assert all(stat.error_message is None for stat in output.source_stats)
     assert all(stat.cache_hit is False for stat in output.source_stats)
     assert output.warnings == []
@@ -139,6 +145,9 @@ def test_connector_events_wrap_each_actual_connector_call(monkeypatch) -> None:
         ("connector_started", "arxiv"),
         ("call", "arxiv"),
         ("connector_completed", "arxiv"),
+        ("connector_started", "arxiv"),
+        ("call", "arxiv"),
+        ("connector_completed", "arxiv"),
     ]
 
 
@@ -159,10 +168,10 @@ def test_retrieve_papers_single_source_error_keeps_other_results(monkeypatch) ->
 
     output = retrieve_papers("llm reranking", sources=["openalex", "arxiv"])
 
-    assert output.raw_count == 1
+    assert output.raw_count == 2
     assert output.deduplicated_count == 1
     assert output.papers[0].title == "arXiv Result"
-    assert len(output.source_stats) == 2
+    assert len(output.source_stats) == 3
     assert output.source_stats[0].source == "openalex"
     assert output.source_stats[0].query == "llm reranking"
     assert output.source_stats[0].returned_count == 0
@@ -269,7 +278,7 @@ def test_retrieve_papers_unknown_source_warning(monkeypatch) -> None:
     output = retrieve_papers("llm reranking", sources=["unknown", "arxiv"])
 
     assert output.requested_sources == ["unknown", "arxiv"]
-    assert output.raw_count == 1
+    assert output.raw_count == 2
     assert output.deduplicated_count == 1
     assert output.source_stats[0].source == "unknown"
     assert output.source_stats[0].query == "llm reranking"
@@ -408,10 +417,10 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = {"semantic_scholar": 0}
-    monotonic_values = iter([0.0, 0.1, 0.2, 1.0, 3.0, 3.1, 3.2])
+    clock = [0.0]
 
     def fake_monotonic() -> float:
-        return next(monotonic_values, 10.0)
+        return clock[0]
 
     def rate_limited_then_recovered_semantic_scholar(
         query: str,
@@ -428,6 +437,7 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
         )
 
     monkeypatch.setattr("scholar_agent.agents.retriever.time.monotonic", fake_monotonic)
+    monkeypatch.setenv("SCHOLAR_AGENT_SEMANTIC_SCHOLAR_COOLDOWN_SECONDS", "2")
     monkeypatch.setattr(
         "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
         rate_limited_then_recovered_semantic_scholar,
@@ -435,6 +445,7 @@ def test_retrieve_papers_cooldown_skips_source_after_429(
 
     first = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
     second = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
+    clock[0] = 3.0
     third = retrieve_papers("llm reranking cooldown", sources=["semantic_scholar"])
 
     assert calls["semantic_scholar"] == 2
@@ -491,7 +502,7 @@ def test_retrieve_papers_recovered_429_warning_does_not_trigger_cooldown(
     assert second.papers[0].title == "Recovered S2 Result 2"
 
 
-def test_retrieve_papers_cooldown_skips_source_after_5xx_failure(
+def test_retrieve_papers_does_not_global_cooldown_after_one_5xx_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = {"semantic_scholar": 0}
@@ -514,17 +525,16 @@ def test_retrieve_papers_cooldown_skips_source_after_5xx_failure(
     first = retrieve_papers("llm reranking 5xx", sources=["semantic_scholar"])
     second = retrieve_papers("llm reranking 5xx", sources=["semantic_scholar"])
 
-    assert calls["semantic_scholar"] == 1
+    assert calls["semantic_scholar"] == 2
     assert first.source_stats[0].error_message == (
         "Semantic Scholar search failed: HTTP Error 503: "
     )
     assert second.source_stats[0].error_message == (
-        "source_cooldown_skip:semantic_scholar"
+        "Semantic Scholar search failed: HTTP Error 503: "
     )
-    assert second.warnings == ["source_cooldown_skip:semantic_scholar"]
 
 
-def test_retrieve_papers_cooldown_skips_source_after_timeout_warning(
+def test_retrieve_papers_does_not_global_cooldown_after_one_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = {"arxiv": 0}
@@ -541,10 +551,42 @@ def test_retrieve_papers_cooldown_skips_source_after_timeout_warning(
     first = retrieve_papers("llm reranking timeout", sources=["arxiv"])
     second = retrieve_papers("llm reranking timeout", sources=["arxiv"])
 
-    assert calls["arxiv"] == 1
+    assert calls["arxiv"] == 4
     assert first.source_stats[0].error_message == "arXiv search failed: request timed out"
-    assert second.source_stats[0].error_message == "source_cooldown_skip:arxiv"
-    assert second.warnings == ["source_cooldown_skip:arxiv"]
+    assert second.source_stats[0].error_message == "arXiv search failed: request timed out"
+
+
+def test_run_circuit_opens_after_two_consecutive_transient_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    context = RetrievalRunContext()
+
+    def timeout_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult(
+            error_message="OpenAlex search failed: request timed out",
+            warnings=["OpenAlex search failed: request timed out"],
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        timeout_openalex,
+    )
+
+    retrieve_papers("first graph query", sources=["openalex"], run_context=context)
+    retrieve_papers("second graph query", sources=["openalex"], run_context=context)
+    third = retrieve_papers(
+        "third graph query",
+        sources=["openalex"],
+        run_context=context,
+    )
+
+    assert calls == ["first graph query", "second graph query"]
+    assert third.source_stats[0].source_skipped_reason == (
+        "run_transient_failure_circuit_open"
+    )
+    assert third.source_stats[0].diagnostics.request_count == 0
 
 
 def test_retrieve_papers_source_cooldown_can_be_disabled(
@@ -578,3 +620,79 @@ def test_retrieve_papers_source_cooldown_can_be_disabled(
     )
     assert second.source_stats[0].error_message is None
     assert second.papers[0].title == "Recovered S2 Result"
+
+
+def test_same_adapted_query_is_called_once_per_run(monkeypatch) -> None:
+    calls: list[str] = []
+    context = RetrievalRunContext()
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult(
+            papers=[make_paper("Shared", sources=["openalex"])]
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        fake_openalex,
+    )
+
+    first = retrieve_papers(
+        "Could you list papers about graph retrieval?",
+        sources=["openalex"],
+        run_context=context,
+    )
+    second = retrieve_papers(
+        "graph retrieval",
+        sources=["openalex"],
+        run_context=context,
+    )
+
+    assert calls == ["graph retrieval"]
+    assert first.papers[0].title == "Shared"
+    assert second.papers == []
+    assert second.source_stats[0].run_dedupe_hit is True
+    assert second.source_stats[0].source_skipped_reason == "duplicate_adapted_query"
+    assert second.source_stats[0].diagnostic_papers[0].title == "Shared"
+
+
+def test_semantic_scholar_final_429_skips_later_run_queries(monkeypatch) -> None:
+    calls: list[str] = []
+    context = RetrievalRunContext()
+
+    def rate_limited(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar search failed: HTTP Error 429: ",
+            warnings=["Semantic Scholar search failed: HTTP Error 429:"],
+            diagnostics=ConnectorDiagnostics(
+                request_count=2,
+                retry_count=1,
+                error_count=1,
+                retry_after_seconds=120,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_semantic_scholar_detailed",
+        rate_limited,
+    )
+
+    first = retrieve_papers(
+        "first semantic query",
+        sources=["semantic_scholar"],
+        run_context=context,
+        remaining_subquery_count=2,
+    )
+    second = retrieve_papers(
+        "different semantic query",
+        sources=["semantic_scholar"],
+        run_context=context,
+        remaining_subquery_count=1,
+    )
+
+    assert len(calls) == 1
+    assert first.source_stats[0].diagnostics.retry_after_seconds == 120
+    assert second.source_stats[0].source_skipped_reason == "run_rate_limit_cooldown"
+    assert second.source_stats[0].remaining_subquery_count == 1
+    assert second.source_stats[0].diagnostics.request_count == 0

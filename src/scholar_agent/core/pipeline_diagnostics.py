@@ -27,6 +27,24 @@ class CandidateProvenance(BaseModel):
     origin_stage: str
     origin_subquery: str
     source: str
+    adapted_query: str | None = None
+    adaptation_strategy: str | None = None
+    cache_hit: bool = False
+    source_skipped_reason: str | None = None
+
+
+class RetrievalCallTrace(BaseModel):
+    origin_subquery: str
+    source: str
+    adapted_query: str | None = None
+    adaptation_strategy: str | None = None
+    cache_hit: bool = False
+    run_dedupe_hit: bool = False
+    source_skipped_reason: str | None = None
+    remaining_subquery_count: int = 0
+    returned_count: int = 0
+    request_count: int = 0
+    error_count: int = 0
 
 
 class DiagnosticCandidate(BaseModel):
@@ -48,6 +66,7 @@ class StageCandidateSnapshot(BaseModel):
     status: SnapshotStatus = "completed"
     skipped_reason: str | None = None
     candidates: list[DiagnosticCandidate] = Field(default_factory=list)
+    retrieval_calls: list[RetrievalCallTrace] = Field(default_factory=list)
 
 
 @dataclass
@@ -81,25 +100,68 @@ class PipelineDiagnosticsCollector:
         if not self.enabled:
             return
         papers: list[Paper] = []
+        retrieval_calls: list[RetrievalCallTrace] = []
         for output in outputs:
             origin_kind = origin_kind_by_query.get(
                 output.query,
                 "initial_generated_subquery",
             )
-            for paper in output.papers:
-                sources = _stable_strings(paper.sources or output.requested_sources)
-                for source in sources:
+            traced_paper = False
+            for stats in output.source_stats:
+                retrieval_calls.append(
+                    RetrievalCallTrace(
+                        origin_subquery=output.query,
+                        source=stats.source,
+                        adapted_query=stats.adapted_query,
+                        adaptation_strategy=stats.adaptation_strategy,
+                        cache_hit=stats.cache_hit,
+                        run_dedupe_hit=stats.run_dedupe_hit,
+                        source_skipped_reason=stats.source_skipped_reason,
+                        remaining_subquery_count=stats.remaining_subquery_count,
+                        returned_count=stats.returned_count,
+                        request_count=stats.diagnostics.request_count,
+                        error_count=stats.diagnostics.error_count,
+                    )
+                )
+                for paper in stats.diagnostic_papers:
+                    traced_paper = True
                     self._register(
                         paper,
                         CandidateProvenance(
                             origin_kind=origin_kind,
                             origin_stage=stage,
                             origin_subquery=output.query,
-                            source=source,
+                            source=stats.source,
+                            adapted_query=stats.adapted_query,
+                            adaptation_strategy=stats.adaptation_strategy,
+                            cache_hit=stats.cache_hit,
+                            source_skipped_reason=stats.source_skipped_reason,
                         ),
                     )
-                papers.append(paper)
-        self.snapshot_papers(stage, papers)
+                    papers.append(paper)
+            if not traced_paper:
+                for paper in output.papers:
+                    sources = _stable_strings(
+                        paper.sources or output.requested_sources
+                    )
+                    for source in sources:
+                        self._register(
+                            paper,
+                            CandidateProvenance(
+                                origin_kind=origin_kind,
+                                origin_stage=stage,
+                                origin_subquery=output.query,
+                                source=source,
+                            ),
+                        )
+                    papers.append(paper)
+        self.snapshots.append(
+            StageCandidateSnapshot(
+                stage=stage,
+                candidates=[self._paper_candidate(paper) for paper in papers],
+                retrieval_calls=retrieval_calls,
+            )
+        )
 
     def register_refchain(
         self,
@@ -254,13 +316,17 @@ def _stable_provenance(
     values: list[CandidateProvenance],
 ) -> list[CandidateProvenance]:
     result: list[CandidateProvenance] = []
-    seen: set[tuple[str, str, str, str]] = set()
+    seen: set[tuple[str, str, str, str, str | None, str | None, bool, str | None]] = set()
     for value in values:
         key = (
             value.origin_kind,
             value.origin_stage,
             value.origin_subquery,
             value.source,
+            value.adapted_query,
+            value.adaptation_strategy,
+            value.cache_hit,
+            value.source_skipped_reason,
         )
         if key in seen:
             continue

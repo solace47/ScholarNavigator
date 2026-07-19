@@ -20,6 +20,7 @@ from scholar_agent.core.diagnostics_schemas import (
     merge_connector_diagnostics,
 )
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
+from scholar_agent.retrieval.query_adapter import adapt_query_for_source
 
 
 logger = logging.getLogger(__name__)
@@ -53,10 +54,12 @@ def search_pubmed_detailed(
     """Search papers from PubMed with diagnostic details."""
 
     start = time.perf_counter()
-    query = query.strip()
+    adapted = adapt_query_for_source(query, "pubmed")
+    query = adapted.query
     if not query or limit <= 0:
         latency = time.perf_counter() - start
         return ConnectorSearchResult(
+            warnings=list(adapted.warnings),
             latency_seconds=latency,
             diagnostics=ConnectorDiagnostics(latency_seconds=latency),
         )
@@ -70,13 +73,13 @@ def search_pubmed_detailed(
     if search_error is not None:
         return ConnectorSearchResult(
             error_message=search_error,
-            warnings=search_warnings,
+            warnings=[*adapted.warnings, *search_warnings],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(search_diagnostics, start),
         )
     if not ids:
         return ConnectorSearchResult(
-            warnings=search_warnings,
+            warnings=[*adapted.warnings, *search_warnings],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(search_diagnostics, start),
         )
@@ -86,7 +89,7 @@ def search_pubmed_detailed(
         throttle_sleep=throttle_sleep,
         monotonic=monotonic,
     )
-    warnings = [*search_warnings, *fetch_warnings]
+    warnings = [*adapted.warnings, *search_warnings, *fetch_warnings]
     diagnostics = merge_connector_diagnostics(
         [search_diagnostics, fetch_diagnostics]
     )

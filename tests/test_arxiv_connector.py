@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
+import scholar_agent.connectors.arxiv as arxiv_connector
 from scholar_agent.connectors.arxiv import search_arxiv, search_arxiv_detailed
 
 
@@ -45,7 +47,11 @@ ARXIV_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 
 @pytest.fixture(autouse=True)
 def no_retry_sleep(monkeypatch) -> None:
+    arxiv_connector._reset_arxiv_throttle_for_tests()
     monkeypatch.setattr("scholar_agent.connectors.arxiv.time.sleep", lambda _: None)
+    monkeypatch.delenv("SCHOLAR_AGENT_ARXIV_MIN_INTERVAL_SECONDS", raising=False)
+    yield
+    arxiv_connector._reset_arxiv_throttle_for_tests()
 
 
 def test_search_arxiv_parses_normal_response(monkeypatch) -> None:
@@ -90,6 +96,55 @@ def test_search_arxiv_detailed_normal_response_has_no_error(monkeypatch) -> None
     assert result.warnings == []
     assert result.diagnostics.request_count == 1
     assert result.diagnostics.retry_count == 0
+
+
+def test_search_arxiv_preserves_pre_adapted_expression(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        return MockResponse(ARXIV_FEED)
+
+    monkeypatch.setattr("scholar_agent.connectors.arxiv.urlopen", fake_urlopen)
+    expression = '(ti:"graph retrieval" OR abs:"graph retrieval")'
+
+    search_arxiv_detailed(expression, limit=2)
+
+    params = parse_qs(urlparse(captured["url"]).query)
+    assert params["search_query"] == [expression]
+    assert "all:" not in params["search_query"][0]
+
+
+def test_arxiv_throttle_uses_official_three_second_default(monkeypatch) -> None:
+    clock = [100.0]
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+
+    monkeypatch.setattr(
+        "scholar_agent.connectors.arxiv.urlopen",
+        lambda request, timeout: MockResponse(ARXIV_FEED),
+    )
+
+    first = search_arxiv_detailed(
+        "first query",
+        max_retries=0,
+        throttle_sleep=fake_sleep,
+        monotonic=lambda: clock[0],
+    )
+    second = search_arxiv_detailed(
+        "second query",
+        max_retries=0,
+        throttle_sleep=fake_sleep,
+        monotonic=lambda: clock[0],
+    )
+
+    assert first.error_message is None
+    assert second.error_message is None
+    assert sleeps == [3.0]
+    assert second.diagnostics.rate_limit_wait_seconds == pytest.approx(3.0)
 
 
 def test_search_arxiv_detailed_retries_transient_error_then_succeeds(

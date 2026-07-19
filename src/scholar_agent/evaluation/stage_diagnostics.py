@@ -91,6 +91,12 @@ def analyze_search_stages(
         snapshots,
         output,
     )
+    retrieval_diagnostics = _retrieval_query_diagnostics(output)
+    query_strategy_contribution = _query_strategy_gold_contribution(
+        eval_query,
+        snapshots,
+        output,
+    )
     return {
         "snapshots": [item.model_dump(mode="json") for item in snapshots],
         "gold_diagnostics": [item.model_dump(mode="json") for item in gold_diagnostics],
@@ -98,6 +104,8 @@ def analyze_search_stages(
         "judgement": judgement,
         "reranking": reranking,
         "source_contribution": source_contribution,
+        "retrieval_diagnostics": retrieval_diagnostics,
+        "query_strategy_contribution": query_strategy_contribution,
         "budget_stopped": bool(output.budget_status.stop_reasons),
         "budget_stop_reasons": list(output.budget_status.stop_reasons),
     }
@@ -154,6 +162,10 @@ def aggregate_stage_diagnostics(
     judgement = _aggregate_judgement(case_diagnostics)
     reranking = _aggregate_reranking(case_diagnostics)
     sources = _aggregate_sources(case_diagnostics, len(gold_rows))
+    retrieval_diagnostics = _aggregate_retrieval_diagnostics(case_diagnostics)
+    query_strategy_contribution = _aggregate_strategy_contribution(
+        case_diagnostics
+    )
     drop_reasons = dict(
         sorted(Counter(str(row.get("drop_reason")) for row in gold_rows).items())
     )
@@ -186,6 +198,8 @@ def aggregate_stage_diagnostics(
         "judgement": judgement,
         "reranking": reranking,
         "source_contribution": sources,
+        "retrieval_diagnostics": retrieval_diagnostics,
+        "query_strategy_contribution": query_strategy_contribution,
         "budget_stop_rate": budget_stop_rate,
     }
     bottlenecks = classify_bottlenecks(stage_metrics)
@@ -517,7 +531,10 @@ def _source_contribution(
             stats[source] = _empty_source_stats()
         diagnostics = source_stat.diagnostics
         stats[source]["request_count"] += diagnostics.request_count
-        stats[source]["success_count"] += int(source_stat.error_message is None)
+        stats[source]["success_count"] += int(
+            source_stat.error_message is None
+            and source_stat.source_skipped_reason is None
+        )
         stats[source]["error_count"] += diagnostics.error_count
         stats[source]["returned_candidate_count"] += source_stat.returned_count
         stats[source]["latency_seconds"] += source_stat.latency_seconds
@@ -557,6 +574,168 @@ def _source_contribution(
         "overlap": overlap,
         "source_error_rate": error_count / request_count if request_count else 0.0,
     }
+
+
+def _retrieval_query_diagnostics(output: SearchServiceOutput) -> dict[str, Any]:
+    stats = list(output.source_stats)
+    adapted = [item.adapted_query for item in stats if item.adapted_query]
+    actual = [item for item in stats if item.diagnostics.request_count > 0]
+    empty = [
+        item
+        for item in actual
+        if item.returned_count == 0 and item.error_message is None
+    ]
+    errors: Counter[str] = Counter()
+    skipped: Counter[str] = Counter()
+    by_source: dict[str, dict[str, Any]] = {}
+    for item in stats:
+        source = item.source
+        bucket = by_source.setdefault(
+            source,
+            {
+                "logical_call_count": 0,
+                "request_count": 0,
+                "empty_result_count": 0,
+                "error_count": 0,
+                "skipped_count": 0,
+                "strategies": {},
+            },
+        )
+        bucket["logical_call_count"] += 1
+        bucket["request_count"] += item.diagnostics.request_count
+        bucket["empty_result_count"] += int(
+            item.diagnostics.request_count > 0
+            and item.returned_count == 0
+            and item.error_message is None
+        )
+        bucket["error_count"] += item.diagnostics.error_count
+        bucket["skipped_count"] += int(item.source_skipped_reason is not None)
+        if item.adaptation_strategy:
+            strategies = bucket["strategies"]
+            strategies[item.adaptation_strategy] = (
+                int(strategies.get(item.adaptation_strategy, 0)) + 1
+            )
+        if item.source_skipped_reason:
+            skipped[item.source_skipped_reason] += 1
+            continue
+        message = (item.error_message or "").casefold()
+        if "400" in message:
+            errors["http_400"] += 1
+        elif "429" in message:
+            errors["http_429"] += 1
+        elif "timed out" in message or "timeout" in message:
+            errors["timeout"] += 1
+        elif item.error_message:
+            errors["other"] += 1
+    return {
+        "logical_call_count": len(stats),
+        "actual_request_count": sum(
+            item.diagnostics.request_count for item in stats
+        ),
+        "unique_adapted_query_count": len(
+            {_normalized_query(item) for item in adapted}
+        ),
+        "average_adapted_query_length": (
+            sum(len(item) for item in adapted) / len(adapted) if adapted else 0.0
+        ),
+        "average_adapted_keyword_count": (
+            sum(len(item.split()) for item in adapted) / len(adapted)
+            if adapted
+            else 0.0
+        ),
+        "empty_result_count": len(empty),
+        "empty_result_rate": len(empty) / len(actual) if actual else 0.0,
+        "errors": dict(sorted(errors.items())),
+        "skipped": dict(sorted(skipped.items())),
+        "by_source": by_source,
+    }
+
+
+def _query_strategy_gold_contribution(
+    eval_query: EvalQuery,
+    snapshots: list[StageCandidateSnapshot],
+    output: SearchServiceOutput,
+) -> dict[str, Any]:
+    purposes = {
+        item.query: item.purpose for item in output.search_plan.subqueries
+    }
+    purpose_hits: dict[str, set[str]] = {}
+    adaptation_hits: dict[str, set[str]] = {}
+    initial = next(
+        (item for item in snapshots if item.stage == "initial_retrieval"),
+        None,
+    )
+    if initial is None:
+        return {"subquery_purposes": {}, "adaptation_strategies": {}}
+    for candidate in initial.candidates:
+        matched = {
+            f"{eval_query.query_id}:{index}"
+            for index, gold in enumerate(eval_query.gold_papers)
+            if _candidate_matches(candidate, gold)
+        }
+        if not matched:
+            continue
+        for provenance in candidate.provenance:
+            purpose = purposes.get(provenance.origin_subquery, "unknown")
+            purpose_hits.setdefault(purpose, set()).update(matched)
+            strategy = provenance.adaptation_strategy or "unadapted"
+            adaptation_hits.setdefault(strategy, set()).update(matched)
+    return {
+        "subquery_purposes": {
+            key: len(value) for key, value in sorted(purpose_hits.items())
+        },
+        "adaptation_strategies": {
+            key: len(value) for key, value in sorted(adaptation_hits.items())
+        },
+    }
+
+
+def _aggregate_retrieval_diagnostics(
+    cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    diagnostics = [case.get("retrieval_diagnostics", {}) for case in cases]
+    logical = sum(int(item.get("logical_call_count") or 0) for item in diagnostics)
+    actual = sum(int(item.get("actual_request_count") or 0) for item in diagnostics)
+    empty = sum(int(item.get("empty_result_count") or 0) for item in diagnostics)
+    errors = Counter()
+    skipped = Counter()
+    for item in diagnostics:
+        errors.update(item.get("errors") or {})
+        skipped.update(item.get("skipped") or {})
+    return {
+        "logical_call_count": logical,
+        "actual_request_count": actual,
+        "average_actual_requests_per_case": actual / len(cases) if cases else 0.0,
+        "empty_result_count": empty,
+        "empty_result_rate": empty / actual if actual else 0.0,
+        "errors": dict(sorted(errors.items())),
+        "skipped": dict(sorted(skipped.items())),
+        "average_adapted_query_length": _average_optional(
+            [item.get("average_adapted_query_length") for item in diagnostics]
+        ),
+        "average_adapted_keyword_count": _average_optional(
+            [item.get("average_adapted_keyword_count") for item in diagnostics]
+        ),
+    }
+
+
+def _aggregate_strategy_contribution(
+    cases: list[dict[str, Any]],
+) -> dict[str, dict[str, int]]:
+    purposes: Counter[str] = Counter()
+    adaptations: Counter[str] = Counter()
+    for case in cases:
+        contribution = case.get("query_strategy_contribution") or {}
+        purposes.update(contribution.get("subquery_purposes") or {})
+        adaptations.update(contribution.get("adaptation_strategies") or {})
+    return {
+        "subquery_purposes": dict(sorted(purposes.items())),
+        "adaptation_strategies": dict(sorted(adaptations.items())),
+    }
+
+
+def _normalized_query(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 def _aggregate_judgement(cases: list[dict[str, Any]]) -> dict[str, Any]:

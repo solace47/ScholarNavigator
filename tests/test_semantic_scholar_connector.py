@@ -200,6 +200,23 @@ def test_search_semantic_scholar_detailed_429_respects_retry_after(
     assert result.diagnostics.rate_limit_wait_seconds >= 3.5
 
 
+def test_final_429_exposes_retry_after_for_run_cooldown(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse({}, status=429, headers={"Retry-After": "45"})
+
+    monkeypatch.setenv("SCHOLAR_AGENT_SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS", "0")
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = search_semantic_scholar_detailed(
+        "rate limited query",
+        max_retries=0,
+    )
+
+    assert result.error_message is not None
+    assert "429" in result.error_message
+    assert result.diagnostics.retry_after_seconds == 45
+
+
 def test_search_semantic_scholar_detailed_retry_failure_keeps_diagnostics(
     monkeypatch,
 ) -> None:
@@ -429,3 +446,17 @@ def test_semantic_scholar_retry_after_still_overrides_rate_limit_backoff(
     assert retry_sleeps == [4.25]
     assert result.error_message is None
     assert result.papers[0].identifiers.semantic_scholar_id == "S2RETRYAFTERPRIORITY"
+
+
+def test_semantic_scholar_default_throttle_differs_with_api_key(monkeypatch) -> None:
+    monkeypatch.delenv(
+        "SCHOLAR_AGENT_SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS",
+        raising=False,
+    )
+    monkeypatch.delenv("SEMANTIC_SCHOLAR_API_KEY", raising=False)
+    without_key = semantic_scholar_connector._semantic_scholar_min_interval_seconds()
+
+    monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "test-key")
+    with_key = semantic_scholar_connector._semantic_scholar_min_interval_seconds()
+
+    assert without_key > with_key > 0

@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 from scholar_agent.connectors.schemas import ConnectorSearchResult
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
+from scholar_agent.retrieval.query_adapter import adapt_query_for_source
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ DEFAULT_MAX_RETRIES = 1
 DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
 DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 2.0
 DEFAULT_MIN_INTERVAL_SECONDS = 1.5
+DEFAULT_MIN_INTERVAL_WITH_KEY_SECONDS = 0.1
 MAX_SEMANTIC_SCHOLAR_LIMIT = 100
 SEARCH_FIELDS = ",".join(
     [
@@ -69,10 +71,12 @@ def search_semantic_scholar_detailed(
     """Search papers from Semantic Scholar with diagnostic details."""
 
     start = time.perf_counter()
-    query = query.strip()
+    adapted = adapt_query_for_source(query, "semantic_scholar")
+    query = adapted.query
     if not query or limit <= 0:
         latency = time.perf_counter() - start
         return ConnectorSearchResult(
+            warnings=list(adapted.warnings),
             latency_seconds=latency,
             diagnostics=ConnectorDiagnostics(latency_seconds=latency),
         )
@@ -97,7 +101,7 @@ def search_semantic_scholar_detailed(
     if payload is None:
         return ConnectorSearchResult(
             error_message=error_message,
-            warnings=warnings,
+            warnings=[*adapted.warnings, *warnings],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(diagnostics, start),
         )
@@ -107,7 +111,7 @@ def search_semantic_scholar_detailed(
         message = "Semantic Scholar search response missing list data"
         return ConnectorSearchResult(
             error_message=message,
-            warnings=warnings + [message],
+            warnings=[*adapted.warnings, *warnings, message],
             latency_seconds=time.perf_counter() - start,
             diagnostics=_with_total_latency(
                 diagnostics.model_copy(
@@ -133,7 +137,7 @@ def search_semantic_scholar_detailed(
 
     return ConnectorSearchResult(
         papers=papers,
-        warnings=warnings,
+        warnings=[*adapted.warnings, *warnings],
         latency_seconds=time.perf_counter() - start,
         diagnostics=_with_total_latency(diagnostics, start),
     )
@@ -167,6 +171,7 @@ def _request_json_detailed(
     request_count = 0
     retry_count = 0
     rate_limit_wait_seconds = 0.0
+    retry_after_seen: float | None = None
 
     for attempt in range(attempts):
         try:
@@ -180,6 +185,10 @@ def _request_json_detailed(
                 status = getattr(response, "status", getattr(response, "code", 200))
                 if status < 200 or status >= 300:
                     message = f"Semantic Scholar search returned non-2xx status: {status}"
+                    retry_after_seen = _max_optional(
+                        retry_after_seen,
+                        _retry_after_seconds(response),
+                    )
                     if _should_retry_status(status) and attempt < attempts - 1:
                         _record_retry_warning(
                             warnings,
@@ -198,6 +207,7 @@ def _request_json_detailed(
                         retry_count=retry_count,
                         error_count=1,
                         rate_limit_wait_seconds=rate_limit_wait_seconds,
+                        retry_after_seconds=retry_after_seen,
                         latency_seconds=time.perf_counter() - started_at,
                     )
                 return (
@@ -208,10 +218,15 @@ def _request_json_detailed(
                         request_count=request_count,
                         retry_count=retry_count,
                         rate_limit_wait_seconds=rate_limit_wait_seconds,
+                        retry_after_seconds=retry_after_seen,
                         latency_seconds=time.perf_counter() - started_at,
                     ),
                 )
         except HTTPError as exc:
+            retry_after_seen = _max_optional(
+                retry_after_seen,
+                _retry_after_seconds(exc),
+            )
             if _should_retry_status(exc.code) and attempt < attempts - 1:
                 _record_retry_warning(
                     warnings,
@@ -231,6 +246,7 @@ def _request_json_detailed(
                 retry_count=retry_count,
                 error_count=1,
                 rate_limit_wait_seconds=rate_limit_wait_seconds,
+                retry_after_seconds=retry_after_seen,
                 latency_seconds=time.perf_counter() - started_at,
             )
         except (URLError, TimeoutError, OSError) as exc:
@@ -277,12 +293,24 @@ def _request_json_detailed(
 def _semantic_scholar_min_interval_seconds() -> float:
     raw_value = os.getenv(SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS_ENV)
     if raw_value is None:
-        return DEFAULT_MIN_INTERVAL_SECONDS
+        return (
+            DEFAULT_MIN_INTERVAL_WITH_KEY_SECONDS
+            if _semantic_scholar_has_api_key()
+            else DEFAULT_MIN_INTERVAL_SECONDS
+        )
     try:
         value = float(raw_value)
     except ValueError:
-        return DEFAULT_MIN_INTERVAL_SECONDS
+        return (
+            DEFAULT_MIN_INTERVAL_WITH_KEY_SECONDS
+            if _semantic_scholar_has_api_key()
+            else DEFAULT_MIN_INTERVAL_SECONDS
+        )
     return value if value > 0 else 0.0
+
+
+def _semantic_scholar_has_api_key() -> bool:
+    return bool(os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip())
 
 
 def _throttle_semantic_scholar_request(
@@ -363,6 +391,11 @@ def _is_rate_limit_wait(
     response_or_error: Any | None,
 ) -> bool:
     return status == 429 or _retry_after_seconds(response_or_error) is not None
+
+
+def _max_optional(left: float | None, right: float | None) -> float | None:
+    values = [value for value in (left, right) if value is not None]
+    return max(values) if values else None
 
 
 def _with_total_latency(

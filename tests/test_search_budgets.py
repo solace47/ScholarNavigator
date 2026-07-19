@@ -129,7 +129,7 @@ def test_candidate_truncation_is_source_covering_and_stable() -> None:
 
     first_titles = [result.paper.title for result in first.judgements]
     second_titles = [result.paper.title for result in second.judgements]
-    assert first_titles == ["OpenAlex A", "arXiv A", "Semantic A"]
+    assert first_titles == ["arXiv A", "OpenAlex A", "Semantic A"]
     assert second_titles == first_titles
     truncation = first.budget_status.candidate_truncations[0]
     assert (truncation.before_count, truncation.after_count, truncation.truncated_count) == (

@@ -568,6 +568,8 @@ def _select_sources(query: str, domain: ResearchDomain) -> tuple[list[str], list
     lowered = query.casefold()
     if domain == "biomedical" or "pubmed" in lowered:
         return ["pubmed", "openalex"], warnings
+    if domain in {"computer_science", "machine_learning"}:
+        return ["arxiv", "openalex"], warnings
     return ["openalex", "arxiv"], warnings
 
 

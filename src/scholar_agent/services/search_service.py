@@ -22,6 +22,7 @@ from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.reranker import rerank_papers
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
+    RetrievalRunContext,
     SourceStats,
     retrieve_papers,
 )
@@ -241,6 +242,7 @@ class SearchService:
     ) -> SearchServiceOutput:
         signals = _ExecutionSignals(event_callback, should_cancel)
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
+        retrieval_run_context = RetrievalRunContext()
         runtime = SearchBudgetRuntime(budget)
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
@@ -324,6 +326,7 @@ class SearchService:
                     search_plan,
                     subqueries=initial_subqueries,
                     signals=signals,
+                    run_context=retrieval_run_context,
                 )
                 runtime.record_search_round()
             signals.check_cancelled("retrieval:after_initial_batch")
@@ -547,6 +550,7 @@ class SearchService:
                         search_plan,
                         evolved_queries,
                         signals=signals,
+                        run_context=retrieval_run_context,
                     )
                     runtime.record_search_round()
                     signals.check_cancelled("retrieval:after_evolved_batch")
@@ -985,6 +989,7 @@ class SearchService:
         *,
         subqueries: list[SearchSubquery] | None = None,
         signals: _ExecutionSignals,
+        run_context: RetrievalRunContext,
     ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
             search_plan.subqueries if subqueries is None else subqueries,
@@ -993,6 +998,8 @@ class SearchService:
             failure_prefix="subquery_failed",
             failure_source="subquery",
             signals=signals,
+            constraints=search_plan.query_analysis.constraints,
+            run_context=run_context,
         )
 
     def _judge_papers(
@@ -1021,6 +1028,7 @@ class SearchService:
         evolved_queries: list[EvolvedSubquery],
         *,
         signals: _ExecutionSignals,
+        run_context: RetrievalRunContext,
     ) -> list[RetrievalOutput]:
         subqueries = [
             SearchSubquery(
@@ -1041,6 +1049,8 @@ class SearchService:
             failure_prefix="evolved_query_failed",
             failure_source="evolved_query",
             signals=signals,
+            constraints=search_plan.query_analysis.constraints,
+            run_context=run_context,
         )
 
     def _retrieve_query_batch(
@@ -1052,6 +1062,8 @@ class SearchService:
         failure_prefix: str,
         failure_source: str,
         signals: _ExecutionSignals,
+        constraints: QueryConstraint,
+        run_context: RetrievalRunContext,
     ) -> list[RetrievalOutput]:
         if not subqueries:
             return []
@@ -1079,6 +1091,9 @@ class SearchService:
                         failure_prefix,
                         failure_source,
                         signals,
+                        constraints,
+                        run_context,
+                        len(subqueries) - next_index - 1,
                     )
                     pending[future] = next_index
                     next_index += 1
@@ -1104,6 +1119,9 @@ class SearchService:
         failure_prefix: str,
         failure_source: str,
         signals: _ExecutionSignals,
+        constraints: QueryConstraint,
+        run_context: RetrievalRunContext,
+        remaining_subquery_count: int,
     ) -> _RetrievalTaskResult:
         sources = subquery.source_hints or selected_sources
         signals.check_cancelled(f"{failure_source}:subquery:{index}:before")
@@ -1126,6 +1144,9 @@ class SearchService:
                     subquery.query,
                     limit_per_source=limit_per_source,
                     sources=sources,
+                    constraints=constraints,
+                    run_context=run_context,
+                    remaining_subquery_count=remaining_subquery_count,
                     connector_event_callback=lambda name, payload: (
                         self._handle_connector_event(
                             signals,
@@ -1187,6 +1208,12 @@ class SearchService:
                         "rate_limit_wait_seconds": (
                             stats.diagnostics.rate_limit_wait_seconds
                         ),
+                        "retry_after_seconds": stats.diagnostics.retry_after_seconds,
+                        "adapted_query": stats.adapted_query,
+                        "adaptation_strategy": stats.adaptation_strategy,
+                        "run_dedupe_hit": stats.run_dedupe_hit,
+                        "source_skipped_reason": stats.source_skipped_reason,
+                        "remaining_subquery_count": stats.remaining_subquery_count,
                         "error_message": stats.error_message,
                     },
                 )

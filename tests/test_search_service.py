@@ -7,7 +7,12 @@ import pytest
 
 from scholar_agent.connectors import ConnectorDiagnostics, ConnectorSearchResult
 from scholar_agent.agents.query_understanding import analyze_query
-from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
+from scholar_agent.agents.retriever import (
+    RetrievalOutput,
+    SourceStats,
+    clear_retrieval_cache,
+    clear_source_cooldowns,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import (
     EvolvedSubquery,
@@ -121,7 +126,7 @@ def test_run_search_complete_pipeline_with_injected_retriever() -> None:
     }
     assert all(seconds >= 0 for seconds in output.stage_latencies.values())
     assert all(call[1] == output.search_plan.limit_per_source for call in calls)
-    assert all(call[2] == ["openalex", "arxiv"] for call in calls)
+    assert all(call[2] == ["arxiv", "openalex"] for call in calls)
 
 
 def test_run_search_respects_sources_override_and_filters_unimplemented_sources() -> None:
@@ -1067,6 +1072,71 @@ def test_query_evolution_used_queries_skip_duplicate_retrieval(monkeypatch) -> N
     assert calls.count(duplicate_query) == 1
     assert "unique evolved LLM reranking retrieval query" in calls
     assert "duplicate_evolved_query_skipped" in output.warnings
+
+
+def test_query_evolution_adapted_duplicate_does_not_repeat_external_call(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+    clear_retrieval_cache()
+    clear_source_cooldowns()
+
+    def fake_openalex(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult(
+            papers=[
+                make_paper(
+                    "Graph Retrieval Paper",
+                    doi="10.123/graph-retrieval",
+                    sources=["openalex"],
+                )
+            ],
+            diagnostics=ConnectorDiagnostics(request_count=1),
+        )
+
+    def fake_evolve_queries(
+        query_analysis,
+        search_plan,
+        judgements,
+        ranked_papers,
+        used_queries,
+    ) -> QueryEvolutionRecord:
+        return QueryEvolutionRecord(
+            seed_count=1,
+            generated_queries=[
+                EvolvedSubquery(
+                    query="Could you list some papers about graph retrieval?",
+                    source_hints=["openalex"],
+                    priority=1,
+                    purpose="generic_rephrasing",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        "scholar_agent.agents.retriever.search_openalex_detailed",
+        fake_openalex,
+    )
+    monkeypatch.setattr(search_service, "evolve_queries", fake_evolve_queries)
+
+    output = SearchService().run_search(
+        "graph retrieval papers",
+        sources_override=["openalex"],
+        enable_query_evolution=True,
+        enable_synthesis=False,
+        collect_diagnostics=True,
+    )
+
+    assert calls == ["graph retrieval machine learning", "graph retrieval method machine learning"]
+    evolved = next(
+        item
+        for item in output.stage_snapshots
+        if item.stage == "query_evolution_retrieval"
+    )
+    assert evolved.retrieval_calls[0].run_dedupe_hit is True
+    assert evolved.retrieval_calls[0].source_skipped_reason == (
+        "duplicate_adapted_query"
+    )
 
 
 def test_run_search_with_refchain_calls_reference_fetcher() -> None:
