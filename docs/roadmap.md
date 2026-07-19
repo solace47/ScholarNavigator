@@ -19,6 +19,7 @@
 - 初始查询规划已增加 `facet_balanced` v1.2、facet provenance、版本化快照键和逐查询成本诊断；固定开发集质量持平且重复率下降，独立验证未新增 gold 且请求略增，因此产品默认保持 `current_rules`。
 - 已实现默认关闭的 `llm_semantic`：外置版本化 Prompt、严格输出 Schema、确定性质量门、规则回退、独立 Record/Replay 和动态快照依赖均有离线测试；当前无可用 LLM 配置，尚未产生开发/验证收益证据。
 - 规则 Judgement 已集中为版本化配置并输出可加和特征向量；冻结候选上的 128 组开发校准与一次独立验证均为零网络执行，候选配置只达到无回归，产品默认保持 `current_rules`。
+- 固定 `offset=20, limit=30` 保留集已复用同一 arXiv Snapshot 比较两种 Judgement；校准配置未复现优势且过滤唯一召回 gold，默认保持 `current_rules`，64/65 gold 在初始 Retrieval 缺失。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
@@ -33,7 +34,7 @@
 2. **增加误差切片**：按领域、查询意图和失败类型汇总；验收标准是所有切片沿用同一论文匹配与失败聚合口径。
 3. **扩大初始规划验证**：在冻结版本和相同预算下扩大 `current_rules`/`facet_balanced` 对比；验收标准是验证集新增可复现 gold，且 F1@20、Recall@20 不退化、API 不超过旧策略 1.5 倍。
 4. **执行 LLM 规划消融**：在固定模型、Prompt 与双重 replay 下完成开发/独立验证对比；验收标准是验证集质量不退化、产生新增 gold 或明确排序提升，且检索 API 不超过规则基线 1.5 倍。
-5. **扩大 Judgement 校准**：在预注册参数网格和更大冻结开发/验证集上复核；验收标准是独立验证 F1@20 或 gold false negative 可复现改善，且 Precision@20、Recall@20 和返回量不退化。
+5. **暂缓 Judgement 再校准**：先提高冻结候选的 gold 覆盖再复核；验收标准是预注册保留集上的 F1@20 或 gold false negative 可复现改善，且 Precision@20、Recall@20 和返回量不退化。
 
 ## P2
 

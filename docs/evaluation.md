@@ -51,6 +51,22 @@ PYTHONPATH=src python scripts/calibrate_judgement.py \
 
 输出包含 manifest、冻结配置、开发网格、阈值敏感性、开发/验证对比和候选级诊断。Benchmark 非 gold 候选只标为“非 gold 候选”，不能视为真实负例。
 
+### 固定保留集复核
+
+2026-07-20 又在未参与选参的 AutoScholarQuery `offset=20, limit=30` 上进行一次固定复核。实验使用 arXiv、`current_rules` 初始规划、adaptive、关闭 Query Evolution/RefChain/LLM、balanced、Top-20 和 `highly_and_partial`；两种 Judgement 复用同一 Retrieval Snapshot，候选指纹与 candidate Recall 完全一致，回放 HTTP、重试和网络等待均为 0。
+
+65 个 gold 中只有 1 个进入初始候选，candidate Recall 为 0.008333。`current_rules` 的 F1@5/10/20 为 0.007407/0.004762/0.002778，Recall@20 为 0.008333、MRR 为 0.016667、nDCG@20 为 0.008210；`calibrated_rules_v1` 将唯一召回的 gold 判为弱相关，各项最终排名指标均为 0，gold Judgement false negative 为 1/1。30 条查询的配对 bootstrap 使用固定 seed 20260720 和 5000 次重采样，F1@20 差值为 -0.002778，95% 区间 `[-0.008333, 0]`；Recall@20、MRR、nDCG@20 的区间也都包含 0。该保留集不支持校准配置具有稳定优势，产品默认继续使用 `current_rules`；64/65 gold 在 Judgement 前已缺失，下一瓶颈是 Retrieval。
+
+复现命令：
+
+```bash
+PYTHONPATH=src python scripts/run_judgement_holdout.py \
+  --snapshot-dir outputs/benchmark_snapshots/autoscholar_holdout30_20260720 \
+  --output outputs/benchmark_runs/holdout30_baseline
+```
+
+产物包含 `comparison.json`、`comparison.md`、`per_query_diagnostics.jsonl`、`error_summary.json` 和 `snapshot_coverage.json`。查询切片只使用规则解析出的结构、方法、数据集、必要词、论文类型和查询长度，不使用 gold 定义分组；本次样本与极低候选召回不支持总体显著性或真实性能声明。
+
 ## 数据格式
 
 离线 fixture 的 `search_cases.jsonl` 每行包含 `query_id`、`query`、`gold_papers` 和 `top_k_values`。批量 qrels 每行包含 `case_id` 与 `relevant_papers`。gold 论文可提供上述任一稳定标识符；没有稳定标识符时必须同时提供标题和年份。`relevance_grade` 大于 0 表示相关，缺省为 1。
@@ -163,4 +179,4 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
 
-当前真实运行覆盖原始顺序前 5 条链路 smoke、前 10 条开发诊断，以及 offset 10 的 5 条独立策略验证；三源 B3 仅完成 9/10。所有小样本都不能代表完整 Benchmark、比赛成绩或多源长期性能；完整 1000 条基线、重复运行、显著性检验和分领域切片尚未完成。
+当前真实运行还包括一次 offset 20 的 30 条固定保留集复核，但只使用 arXiv，且候选阶段只召回 1/65 gold。所有子集都不能代表完整 Benchmark、比赛成绩或多源长期性能；完整 1000 条基线、重复运行和稳定的多领域统计尚未完成。
