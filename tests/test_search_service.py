@@ -1636,6 +1636,39 @@ def test_budget_stop_event_is_emitted_at_actual_stop() -> None:
     assert any(name == "query_evolution_skipped" for name, _ in events)
 
 
+def test_run_search_collects_compact_stage_snapshots_only_when_requested() -> None:
+    paper = make_paper("Diagnostic Paper", doi="10.123/diagnostic")
+
+    def retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        return make_output(query, [paper], sources=sources)
+
+    without = SearchService(retriever=retriever).run_search(
+        "diagnostic query",
+        enable_synthesis=False,
+    )
+    with_diagnostics = SearchService(retriever=retriever).run_search(
+        "diagnostic query",
+        enable_synthesis=False,
+        collect_diagnostics=True,
+    )
+
+    assert without.stage_snapshots == []
+    snapshots = {item.stage: item for item in with_diagnostics.stage_snapshots}
+    assert snapshots["initial_retrieval"].status == "completed"
+    assert snapshots["initial_deduplicated"].status == "completed"
+    assert snapshots["initial_judged"].status == "completed"
+    assert snapshots["initial_reranked"].status == "completed"
+    assert snapshots["query_evolution_retrieval"].status == "skipped"
+    assert snapshots["refchain_retrieval"].status == "skipped"
+    assert snapshots["final_ranked"].status == "completed"
+    serialized = str(with_diagnostics.stage_snapshots)
+    assert paper.abstract not in serialized
+
+
 class FakeLLMClient:
     def __init__(self) -> None:
         self.calls = 0

@@ -39,6 +39,10 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
     supported_datasets,
 )
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
+from scholar_agent.evaluation.stage_diagnostics import (  # noqa: E402
+    aggregate_stage_diagnostics,
+    analyze_search_stages,
+)
 from scholar_agent.llm.provider import get_llm_runtime_config  # noqa: E402
 from scholar_agent.prompts import load_manifest, load_prompt  # noqa: E402
 from scholar_agent.services.api_mapper import (  # noqa: E402
@@ -77,6 +81,7 @@ class BenchmarkRunOptions(BaseModel):
     current_year: int | None = Field(default=None, ge=1900, le=2200)
     max_workers: int = Field(default=4, ge=1, le=32)
     budgets: SearchBudget = Field(default_factory=SearchBudget)
+    diagnostics: bool = False
     resume: bool = False
 
     @field_validator("sources", mode="before")
@@ -104,6 +109,7 @@ class BenchmarkRunResult(BaseModel):
     config: dict[str, Any]
     metrics: dict[str, Any]
     result_rows: list[dict[str, Any]]
+    stage_metrics: dict[str, Any] | None = None
 
 
 def run_benchmark(
@@ -143,13 +149,30 @@ def run_benchmark(
     ordered_rows = [existing_rows[case_id] for case_id in selected_ids]
     metrics = _evaluate_rows(ordered_rows, selected, options.result_policy)
     _atomic_write_json(run_dir / "metrics.json", metrics)
-    _atomic_write_text(run_dir / "summary.md", _summary_markdown(config, metrics))
+    stage_metrics: dict[str, Any] | None = None
+    if options.diagnostics:
+        case_diagnostics = [
+            row["stage_diagnostics"]
+            for row in ordered_rows
+            if isinstance(row.get("stage_diagnostics"), dict)
+        ]
+        stage_metrics, error_analysis, gold_diagnostics = (
+            aggregate_stage_diagnostics(case_diagnostics)
+        )
+        _atomic_write_json(run_dir / "stage_metrics.json", stage_metrics)
+        _atomic_write_json(run_dir / "error_analysis.json", error_analysis)
+        _atomic_write_jsonl(run_dir / "gold_diagnostics.jsonl", gold_diagnostics)
+    _atomic_write_text(
+        run_dir / "summary.md",
+        _summary_markdown(config, metrics, stage_metrics),
+    )
     _write_failures(run_dir / "failures.jsonl", ordered_rows)
     return BenchmarkRunResult(
         run_dir=run_dir,
         config=config,
         metrics=metrics,
         result_rows=ordered_rows,
+        stage_metrics=stage_metrics,
     )
 
 
@@ -191,6 +214,7 @@ def _build_config(
         "current_year": options.current_year,
         "max_workers": options.max_workers,
         "budgets": options.budgets.model_dump(mode="json"),
+        "diagnostics": options.diagnostics,
         "llm": {
             "llm_enabled": bool(requested_llm and llm_runtime.available),
             "requested": requested_llm,
@@ -341,6 +365,7 @@ def _run_case(
             enable_llm_judgement=options.enable_llm_judgement,
             sources_override=list(options.sources),
             budget=options.budgets,
+            collect_diagnostics=options.diagnostics,
         )
         result = map_search_service_output_to_api_result(
             run_id=f"benchmark_{query.query_id}",
@@ -349,7 +374,7 @@ def _run_case(
             partial=False,
         ).model_dump(mode="json")
         cost_report = dict(result.get("cost_report") or {})
-        return {
+        row = {
             "case_id": query.query_id,
             "query": query.query,
             "status": "succeeded",
@@ -358,6 +383,13 @@ def _run_case(
             "latency_seconds": time.perf_counter() - started,
             "cost_report": cost_report,
         }
+        if options.diagnostics:
+            row["stage_diagnostics"] = analyze_search_stages(
+                query,
+                output,
+                result_policy=options.result_policy,
+            )
+        return row
     except Exception as exc:  # noqa: BLE001 - isolate benchmark cases
         return {
             "case_id": query.query_id,
@@ -441,7 +473,11 @@ def _write_failures(path: Path, rows: list[dict[str, Any]]) -> None:
     _atomic_write_jsonl(path, failures)
 
 
-def _summary_markdown(config: dict[str, Any], metrics: dict[str, Any]) -> str:
+def _summary_markdown(
+    config: dict[str, Any],
+    metrics: dict[str, Any],
+    stage_metrics: dict[str, Any] | None = None,
+) -> str:
     stats = metrics["case_statistics"]
     efficiency = metrics["benchmark_statistics"]
     lines = [
@@ -461,10 +497,38 @@ def _summary_markdown(config: dict[str, Any], metrics: dict[str, Any]) -> str:
         _summary_metric_row("仅成功案例", metrics["success_only_metrics"]),
         _summary_metric_row("端到端", metrics["end_to_end_metrics"]),
         "",
-        "> 小规模 smoke 只验证真实 Benchmark 运行链路，不代表最终比赛成绩或完整 Benchmark 性能。",
-        "",
     ]
+    if stage_metrics is not None:
+        judgement = stage_metrics.get("judgement", {})
+        reranking = stage_metrics.get("reranking", {})
+        lines.extend(
+            [
+                "## 阶段诊断",
+                "",
+                "| 初始候选 Recall | 最终返回 Recall@20 | Judgement FN 率 | 平均 gold rank | 瓶颈标签 |",
+                "| ---: | ---: | ---: | ---: | --- |",
+                (
+                    f"| {_format_optional(stage_metrics.get('initial_retrieval_recall'))} "
+                    "| "
+                    f"{_format_optional((stage_metrics.get('final_returned_recall') or {}).get('20'))} "
+                    f"| {float(judgement.get('gold_false_negative_rate') or 0.0):.3f} "
+                    f"| {_format_optional(reranking.get('average_gold_rank'))} "
+                    f"| {', '.join(stage_metrics.get('bottleneck_labels') or []) or '-'} |"
+                ),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "> 小规模 smoke 只验证真实 Benchmark 运行链路，不代表最终比赛成绩或完整 Benchmark 性能。",
+            "",
+        ]
+    )
     return "\n".join(lines)
+
+
+def _format_optional(value: Any) -> str:
+    return f"{float(value):.3f}" if value is not None else "-"
 
 
 def _summary_metric_row(label: str, metrics: dict[str, Any]) -> str:
@@ -607,6 +671,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-llm-calls", type=int, default=None)
     parser.add_argument("--max-total-tokens", type=int, default=None)
     parser.add_argument("--max-latency-seconds", type=float, default=None)
+    parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument("--resume", action="store_true")
     return parser
 
@@ -662,6 +727,7 @@ def main(argv: list[str] | None = None) -> int:
             current_year=args.current_year,
             max_workers=args.max_workers,
             budgets=budgets,
+            diagnostics=args.diagnostics,
             resume=args.resume,
         )
         result = run_benchmark(options)

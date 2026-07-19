@@ -10,12 +10,14 @@
 - SearchService 真实阶段事件、SSE 顺序回放、协作式取消和唯一终止事件已通过离线测试；已开始的单次 HTTP 请求仍需自然结束。
 - AutoScholarQuery 的 1000 条查询和 2403 条 arXiv gold 已接入统一 Adapter；inspect、原始顺序子集、原子输出和 resume 已有离线测试。
 - 已完成原始顺序前 5 条、单一 arXiv 源的真实 smoke；该结果只验证运行链路，不代表完整 Benchmark 性能。
+- 阶段快照、gold drop reason、Judgement/Reranking 错误、来源独占贡献和规则瓶颈标签已接入 Benchmark Runner；固定前 10 条完成两组基线，剩余配置因公共源持续 429/超时暂停。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
 
 1. **完成正式基线**：在固定代码、数据、来源和预算下运行完整 AutoScholarQuery；验收标准是一条命令复现 1000 条逐查询 F1@5/10/20、端到端汇总和效率报告。
 2. **校准官方口径**：核对 gold 转换、K 值和官方计分器差异；验收标准是共享样例与官方输出逐项一致。
+3. **补齐固定子集矩阵**：上游服务恢复后以相同案例和预算完成 Query Evolution、RefChain 与 full；验收标准是五组均有完整诊断文件且来源错误率可解释。
 
 ## P1
 

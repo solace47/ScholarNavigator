@@ -38,6 +38,7 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 - fake fixture 离线 evaluator 可比较 baseline、查询演化和 RefChain。
 - AutoScholarQuery Adapter 可确定性加载 1000 条 test 查询和 2403 条 arXiv gold；只读检查报告确认没有空 gold、无效案例或重复 qid。
 - Benchmark Runner 复用真实 SearchService、统一结果选择、全标识符匹配、F1/Precision/Recall/MRR/nDCG 与 success-only/end-to-end 聚合，并支持原子输出和 resume。
+- 可选阶段诊断追踪初始检索、去重、Judgement、Reranking、查询演化、RefChain 和最终返回，输出 gold 丢失原因、来源贡献和可测试的瓶颈标签；诊断不反向影响搜索。
 - 当前分支通过后端 pytest、前端 lint 和前端生产构建。
 
 上述“测试”指单元测试、集成测试、mock connector 测试和构建检查，不代表外部检索质量或比赛指标已经验证。
@@ -55,6 +56,8 @@ ScholarNavigator 面向复杂学术查询，将自然语言问题转换为多子
 | 运行效率 | 记录来源调用、缓存命中、LLM 用量和延迟 | 未按比赛口径形成可复现效率报告 |
 
 AutoScholarQuery 原始顺序前 5 条已用 balanced、单一 arXiv 源完成真实 smoke：成功率 1.0，端到端 F1@5/10/20 为 0.0444/0.0286/0.0357，平均 API 请求 2.4、平均 Token 0、平均延迟 0.78 秒。样本很小且只使用单一来源，不能替代完整 Benchmark 或比赛成绩。
+
+固定前 10 条的阶段诊断完成 arXiv-only 和三源 baseline。三源配置把初始候选 Recall 从 0.150 提高到 0.170、F1@20 从 0.0179 提高到 0.0259，但平均 API 请求由 2.7 增至 8.2、平均延迟由 4.01 秒增至 29.78 秒，并出现 0.402 的来源错误率。规则标签指向检索召回、Judgement false negative 和来源可靠性；没有发现已保留 gold 被排到 Top 20 外的 Reranking 瓶颈。其余三组因持续 429/超时安全中止，不能声明 Query Evolution 或 RefChain 的收益。
 
 ## 未实现
 

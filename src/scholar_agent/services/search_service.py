@@ -32,6 +32,10 @@ from scholar_agent.core.diagnostics_schemas import (
     merge_connector_diagnostics,
 )
 from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.pipeline_diagnostics import (
+    PipelineDiagnosticsCollector,
+    StageCandidateSnapshot,
+)
 from scholar_agent.core.search_schemas import (
     BudgetStatus,
     EvolvedSubquery,
@@ -178,6 +182,7 @@ class SearchServiceOutput(BaseModel):
         default_factory=ConnectorDiagnostics
     )
     budget_status: BudgetStatus = Field(default_factory=BudgetStatus)
+    stage_snapshots: list[StageCandidateSnapshot] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def derive_connector_diagnostics(self) -> "SearchServiceOutput":
@@ -232,8 +237,10 @@ class SearchService:
         budget: SearchBudget | None = None,
         event_callback: EventCallback | None = None,
         should_cancel: ShouldCancel | None = None,
+        collect_diagnostics: bool = False,
     ) -> SearchServiceOutput:
         signals = _ExecutionSignals(event_callback, should_cancel)
+        diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
         runtime = SearchBudgetRuntime(budget)
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
@@ -330,6 +337,18 @@ class SearchService:
             raw_papers, source_stats, retrieval_warnings = _collect_retrieval_outputs(
                 retrieval_outputs
             )
+            diagnostics.register_retrieval(
+                "initial_retrieval",
+                retrieval_outputs,
+                origin_kind_by_query={
+                    subquery.query: (
+                        "initial_query"
+                        if subquery.purpose == "original_query"
+                        else "initial_generated_subquery"
+                    )
+                    for subquery in initial_subqueries
+                },
+            )
             warnings.extend(retrieval_warnings)
             signals.emit_warnings(retrieval_warnings, "retrieval")
             signals.emit(
@@ -347,6 +366,7 @@ class SearchService:
                 stage="initial_retrieval",
                 source_order=search_plan.selected_sources,
             )
+            diagnostics.snapshot_papers("initial_deduplicated", deduplicated)
             signals.emit(
                 "deduplication_completed",
                 {
@@ -376,6 +396,7 @@ class SearchService:
                 llm_client=llm_client,
                 signals=signals,
             )
+            diagnostics.snapshot_judgements("initial_judged", judgements)
             signals.check_cancelled("judgement:after")
             judgement_latency = time.perf_counter() - stage_start
             _add_stage_latency(
@@ -407,6 +428,7 @@ class SearchService:
                 judgements,
                 top_k,
             )
+            diagnostics.snapshot_ranked("initial_reranked", all_ranked_papers)
             signals.check_cancelled("reranking:after")
             reranking_latency = time.perf_counter() - stage_start
             _add_stage_latency(
@@ -424,6 +446,13 @@ class SearchService:
             )
         else:
             signals.emit_budget_stops(runtime, "query_understanding")
+            for stage in (
+                "initial_retrieval",
+                "initial_deduplicated",
+                "initial_judged",
+                "initial_reranked",
+            ):
+                diagnostics.skip(stage, "budget_stopped_before_retrieval")
 
         if enable_query_evolution:
             signals.check_cancelled("query_evolution:before")
@@ -447,6 +476,13 @@ class SearchService:
                         "reason": evolution_stop_reason,
                     },
                 )
+                for stage in (
+                    "query_evolution_retrieval",
+                    "post_evolution_deduplicated",
+                    "post_evolution_judged",
+                    "post_evolution_reranked",
+                ):
+                    diagnostics.skip(stage, evolution_stop_reason)
             else:
                 signals.emit(
                     "query_evolution_started",
@@ -489,6 +525,13 @@ class SearchService:
                         [*evolution_record.warnings, retrieval_stop_reason]
                     )
                     signals.emit_budget_stops(runtime, "query_evolution")
+                    for stage in (
+                        "query_evolution_retrieval",
+                        "post_evolution_deduplicated",
+                        "post_evolution_judged",
+                        "post_evolution_reranked",
+                    ):
+                        diagnostics.skip(stage, retrieval_stop_reason)
                 elif evolved_queries:
                     signals.check_cancelled("retrieval:before_evolved_batch")
                     signals.emit(
@@ -519,6 +562,13 @@ class SearchService:
                         evolved_source_stats,
                         evolved_warnings,
                     ) = _collect_retrieval_outputs(evolved_outputs)
+                    diagnostics.register_retrieval(
+                        "query_evolution_retrieval",
+                        evolved_outputs,
+                        origin_kind_by_query={
+                            item.query: "query_evolution" for item in evolved_queries
+                        },
+                    )
                     raw_papers.extend(evolved_papers)
                     source_stats.extend(evolved_source_stats)
                     warnings.extend(evolved_warnings)
@@ -538,6 +588,10 @@ class SearchService:
                         runtime,
                         stage="query_evolution",
                         source_order=search_plan.selected_sources,
+                    )
+                    diagnostics.snapshot_papers(
+                        "post_evolution_deduplicated",
+                        deduplicated,
                     )
                     signals.emit(
                         "deduplication_completed",
@@ -569,6 +623,10 @@ class SearchService:
                         use_llm=judgement_use_llm,
                         llm_client=llm_client,
                         signals=signals,
+                    )
+                    diagnostics.snapshot_judgements(
+                        "post_evolution_judged",
+                        judgements,
                     )
                     signals.check_cancelled("judgement:after_evolved")
                     evolved_judgement_latency = time.perf_counter() - stage_start
@@ -603,6 +661,10 @@ class SearchService:
                         judgements,
                         top_k,
                     )
+                    diagnostics.snapshot_ranked(
+                        "post_evolution_reranked",
+                        all_ranked_papers,
+                    )
                     signals.check_cancelled("reranking:after_evolved")
                     evolved_reranking_latency = time.perf_counter() - stage_start
                     _add_stage_latency(
@@ -619,6 +681,14 @@ class SearchService:
                             "latency_seconds": evolved_reranking_latency,
                         },
                     )
+                else:
+                    for stage in (
+                        "query_evolution_retrieval",
+                        "post_evolution_deduplicated",
+                        "post_evolution_judged",
+                        "post_evolution_reranked",
+                    ):
+                        diagnostics.skip(stage, "no_evolved_queries")
                 signals.check_cancelled("query_evolution:after")
                 signals.emit(
                     "query_evolution_completed",
@@ -635,6 +705,13 @@ class SearchService:
                 "query_evolution_skipped",
                 {"stage": "query_evolution", "reason": "disabled"},
             )
+            for stage in (
+                "query_evolution_retrieval",
+                "post_evolution_deduplicated",
+                "post_evolution_judged",
+                "post_evolution_reranked",
+            ):
+                diagnostics.skip(stage, "disabled")
 
         if enable_refchain:
             signals.check_cancelled("refchain:before")
@@ -663,6 +740,10 @@ class SearchService:
             )
             signals.check_cancelled("refchain:after")
             raw_papers.extend(refchain_output.references)
+            diagnostics.register_refchain(
+                "refchain_retrieval",
+                refchain_output.references,
+            )
             warnings.extend(refchain_output.warnings)
             signals.emit_warnings(refchain_output.warnings, "refchain")
             source_stats.append(
@@ -703,6 +784,10 @@ class SearchService:
                     stage="refchain",
                     source_order=search_plan.selected_sources,
                 )
+                diagnostics.snapshot_papers(
+                    "post_refchain_deduplicated",
+                    deduplicated,
+                )
                 signals.emit(
                     "deduplication_completed",
                     {
@@ -732,6 +817,10 @@ class SearchService:
                     use_llm=judgement_use_llm,
                     llm_client=llm_client,
                     signals=signals,
+                )
+                diagnostics.snapshot_judgements(
+                    "post_refchain_judged",
+                    judgements,
                 )
                 signals.check_cancelled("judgement:after_refchain")
                 refchain_judgement_latency = time.perf_counter() - stage_start
@@ -766,6 +855,10 @@ class SearchService:
                     judgements,
                     top_k,
                 )
+                diagnostics.snapshot_ranked(
+                    "post_refchain_reranked",
+                    all_ranked_papers,
+                )
                 signals.check_cancelled("reranking:after_refchain")
                 refchain_reranking_latency = time.perf_counter() - stage_start
                 _add_stage_latency(
@@ -782,17 +875,32 @@ class SearchService:
                         "latency_seconds": refchain_reranking_latency,
                     },
                 )
+            else:
+                for stage in (
+                    "post_refchain_deduplicated",
+                    "post_refchain_judged",
+                    "post_refchain_reranked",
+                ):
+                    diagnostics.skip(stage, "no_refchain_candidates")
         else:
             signals.emit(
                 "refchain_skipped",
                 {"stage": "refchain", "reason": "disabled"},
             )
+            for stage in (
+                "refchain_retrieval",
+                "post_refchain_deduplicated",
+                "post_refchain_judged",
+                "post_refchain_reranked",
+            ):
+                diagnostics.skip(stage, "disabled")
 
         judgement_warnings = _judgement_warnings(judgements)
         warnings.extend(judgement_warnings)
         signals.emit_warnings(judgement_warnings, "judgement")
         signals.emit_budget_stops(runtime, "finalization")
         signals.check_cancelled("finalization:before_output")
+        diagnostics.snapshot_ranked("final_ranked", all_ranked_papers)
         refchain_raw_count = (
             refchain_output.record.raw_reference_count
             if refchain_output is not None
@@ -827,6 +935,7 @@ class SearchService:
                 if refchain_output is not None
                 else ConnectorDiagnostics()
             ),
+            stage_snapshots=diagnostics.snapshots,
         )
         if enable_synthesis and runtime.latency_stop_reason() is None:
             signals.check_cancelled("synthesis:before")
@@ -1138,6 +1247,7 @@ def run_search(
     budget: SearchBudget | None = None,
     event_callback: EventCallback | None = None,
     should_cancel: ShouldCancel | None = None,
+    collect_diagnostics: bool = False,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -1156,6 +1266,7 @@ def run_search(
         budget=budget,
         event_callback=event_callback,
         should_cancel=should_cancel,
+        collect_diagnostics=collect_diagnostics,
     )
 
 

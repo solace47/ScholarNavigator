@@ -15,6 +15,11 @@ from scripts import run_benchmark
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
+from scholar_agent.core.pipeline_diagnostics import (
+    CandidateProvenance,
+    DiagnosticCandidate,
+    StageCandidateSnapshot,
+)
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
     JudgementResult,
@@ -200,6 +205,53 @@ def test_search_service_receives_query_and_runtime_options_but_not_gold(
     assert "gold_papers" not in service.kwargs[0]
 
 
+def test_diagnostics_outputs_and_resume_do_not_duplicate_gold_rows(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=2)
+    options = _options(tmp_path, dataset, run_id="diagnostics").model_copy(
+        update={"diagnostics": True}
+    )
+    first = run_benchmark.run_benchmark(options, service=FakeService())
+
+    assert first.stage_metrics is not None
+    assert {
+        "stage_metrics.json",
+        "error_analysis.json",
+        "gold_diagnostics.jsonl",
+    }.issubset({path.name for path in first.run_dir.iterdir()})
+    assert len(_read_jsonl(first.run_dir / "gold_diagnostics.jsonl")) == 2
+
+    resumed = run_benchmark.run_benchmark(
+        options.model_copy(update={"resume": True}),
+        service=FakeService(),
+    )
+    assert len(_read_jsonl(resumed.run_dir / "gold_diagnostics.jsonl")) == 2
+    assert "阶段诊断" in (resumed.run_dir / "summary.md").read_text()
+
+
+def test_diagnostics_do_not_store_abstract_prompt_or_api_key(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    secret = "diagnostic-secret-value"
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_API_KEY", secret)
+    dataset = _dataset(tmp_path, count=1)
+    result = run_benchmark.run_benchmark(
+        _options(tmp_path, dataset, run_id="safe-diagnostics").model_copy(
+            update={"diagnostics": True}
+        ),
+        service=FakeService(),
+    )
+
+    row = _read_jsonl(result.run_dir / "results.jsonl")[0]
+    diagnostic_text = json.dumps(row["stage_diagnostics"], ensure_ascii=False)
+    assert secret not in diagnostic_text
+    assert "offline benchmark fixture" not in diagnostic_text
+    assert "abstract" not in diagnostic_text.casefold()
+    assert "prompt" not in diagnostic_text.casefold()
+
+
 def test_benchmark_gold_does_not_appear_in_production_search_strategy() -> None:
     root = Path(__file__).resolve().parents[1] / "src" / "scholar_agent"
     strategy_text = "\n".join(
@@ -319,7 +371,64 @@ def _output(
         all_ranked_papers=[ranked],
         source_stats=[stats],
         search_diagnostics=stats.diagnostics,
+        stage_snapshots=_stage_snapshots(ranked, judgement),
     )
+
+
+def _stage_snapshots(
+    ranked: RankedPaper,
+    judgement: JudgementResult,
+) -> list[StageCandidateSnapshot]:
+    provenance = [
+        CandidateProvenance(
+            origin_kind="initial_query",
+            origin_stage="initial_retrieval",
+            origin_subquery="fixture query",
+            source="openalex",
+        )
+    ]
+    base = DiagnosticCandidate(
+        identifiers=ranked.paper.identifiers,
+        title=ranked.paper.title,
+        year=ranked.paper.year,
+        sources=["openalex"],
+        provenance=provenance,
+    )
+    judged = base.model_copy(
+        update={
+            "judgement_score": judgement.score,
+            "category": judgement.category,
+        }
+    )
+    ranked_candidate = judged.model_copy(
+        update={
+            "rank": ranked.rank,
+            "final_score": ranked.final_score,
+        }
+    )
+    snapshots = [
+        StageCandidateSnapshot(stage="initial_retrieval", candidates=[base]),
+        StageCandidateSnapshot(stage="initial_deduplicated", candidates=[base]),
+        StageCandidateSnapshot(stage="initial_judged", candidates=[judged]),
+        StageCandidateSnapshot(stage="initial_reranked", candidates=[ranked_candidate]),
+    ]
+    snapshots.extend(
+        StageCandidateSnapshot(stage=stage, status="skipped", skipped_reason="disabled")
+        for stage in (
+            "query_evolution_retrieval",
+            "post_evolution_deduplicated",
+            "post_evolution_judged",
+            "post_evolution_reranked",
+            "refchain_retrieval",
+            "post_refchain_deduplicated",
+            "post_refchain_judged",
+            "post_refchain_reranked",
+        )
+    )
+    snapshots.append(
+        StageCandidateSnapshot(stage="final_ranked", candidates=[ranked_candidate])
+    )
+    return snapshots
 
 
 def _dataset(tmp_path: Path, *, count: int) -> Path:
