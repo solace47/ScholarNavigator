@@ -11,6 +11,7 @@ from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.search_schemas import (
     BudgetStatus,
     PaperType,
+    QueryEvolutionPolicy,
     SearchBudget,
     SourceName,
     TimeRange,
@@ -106,7 +107,8 @@ class SearchBudgets(SearchBudget):
 
 
 class SearchOptions(BaseModel):
-    enable_query_evolution: bool = True
+    enable_query_evolution: bool = False
+    query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_refchain: bool = True
     enable_llm_query_understanding: bool | None = None
     enable_llm_judgement: bool | None = None
@@ -279,6 +281,7 @@ class SearchPlan(BaseModel):
     expanded_queries: list[str] = Field(default_factory=list)
     source_preferences: list[str] = Field(default_factory=list)
     max_rounds: int = 1
+    query_evolution_policy: QueryEvolutionPolicy = "off"
 
 
 class MethodCluster(BaseModel):

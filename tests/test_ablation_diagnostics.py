@@ -116,6 +116,10 @@ def test_query_evolution_counts_seeds_queries_candidates_and_posthoc_gold() -> N
     assert qe["evolved_new_unique_gold_count"] == 1
     assert qe["queries"][0]["seed_titles"] == ["Initial"]
     assert qe["queries"][0]["new_unique_candidate_count"] == 1
+    assert qe["queries"][0]["partially_relevant_count"] == 1
+    assert qe["queries"][0]["post_run_gold_hit_count"] == 1
+    assert qe["queries"][0]["post_run_unique_gold_hit_count"] == 1
+    assert qe["queries"][0]["ineffective_reasons"] == []
     assert result["stage_costs"]["query_evolution_api_calls"] == 1
     assert result["stage_costs"]["query_evolution_latency_seconds"] == 0.8
     assert qe["gold_filtered_by_judgement_count"] == 0

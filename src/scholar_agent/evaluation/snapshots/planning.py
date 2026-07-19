@@ -189,9 +189,11 @@ def _all_group_coverage(observed: dict[str, Any]) -> dict[str, Any]:
         "missing_keys_by_source": {},
         "failed_keys_by_source": {},
     }
+    groups = list(ABLATION_GROUPS)
+    groups.extend(group for group in observed if group not in groups)
     return {
         group: dict(observed.get(group) or empty)
-        for group in ABLATION_GROUPS
+        for group in groups
     }
 
 

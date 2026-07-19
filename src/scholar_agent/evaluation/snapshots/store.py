@@ -70,6 +70,7 @@ def retrieval_snapshot_key(
     adapter_policy: str,
     query_adapter_version: str = QUERY_ADAPTER_VERSION,
     connector_version: str,
+    query_evolution_policy: str | None = None,
     schema_version: str = SNAPSHOT_SCHEMA_VERSION,
 ) -> tuple[str, str]:
     normalized_query = normalize_snapshot_query(adapted_query)
@@ -82,6 +83,9 @@ def retrieval_snapshot_key(
         "schema_version": schema_version,
         "source": source.strip().casefold(),
     }
+    # 旧 seed_expansion 与初始检索继续使用历史键；新策略单独命名空间化。
+    if query_evolution_policy == "coverage_gap":
+        payload["query_evolution_policy"] = query_evolution_policy
     return _stable_hash(payload), normalized_query
 
 

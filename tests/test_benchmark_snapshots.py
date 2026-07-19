@@ -98,6 +98,7 @@ def _runtime(
     *,
     group: str = "baseline",
     retry_failed: bool = False,
+    query_evolution_policy: str = "off",
 ) -> SnapshotRuntime:
     store = SnapshotStore(root)
     if not store.manifest_path.exists():
@@ -107,6 +108,7 @@ def _runtime(
         mode=mode,  # type: ignore[arg-type]
         group_name=group,
         retry_failed_snapshots=retry_failed,
+        query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
     )
 
 
@@ -160,6 +162,47 @@ def test_retrieval_key_is_stable_and_has_no_case_or_gold_input() -> None:
     assert len(first[0]) == 64
     assert "qid" not in json.dumps(kwargs).casefold()
     assert "gold" not in json.dumps(kwargs).casefold()
+
+
+def test_coverage_gap_has_distinct_key_while_seed_keeps_legacy_key() -> None:
+    kwargs = {
+        "source": "arxiv",
+        "adapted_query": "graph neural networks QM9",
+        "limit": 20,
+        "adapter_policy": "adaptive",
+        "connector_version": connector_version("arxiv"),
+    }
+
+    legacy = retrieval_snapshot_key(**kwargs)[0]
+    seed = retrieval_snapshot_key(
+        **kwargs,
+        query_evolution_policy="seed_expansion",
+    )[0]
+    gap = retrieval_snapshot_key(
+        **kwargs,
+        query_evolution_policy="coverage_gap",
+    )[0]
+
+    assert seed == legacy
+    assert gap != legacy
+
+
+def test_manifest_group_records_query_evolution_policy(tmp_path: Path) -> None:
+    runtime = _runtime(
+        tmp_path / "snapshot",
+        "record",
+        group="query_evolution_coverage_gap",
+        query_evolution_policy="coverage_gap",
+    )
+    _record_search(runtime)
+
+    observation = runtime.finish_group(completed=True)
+
+    assert observation.query_evolution_policy == "coverage_gap"
+    stored = runtime.store.read_manifest().groups[
+        "query_evolution_coverage_gap"
+    ]
+    assert stored.query_evolution_policy == "coverage_gap"
 
 
 @pytest.mark.parametrize(
@@ -466,9 +509,10 @@ def test_four_ablation_groups_can_share_one_manifest(tmp_path: Path) -> None:
         run_benchmark._ablation_group_name(  # noqa: SLF001
             run_benchmark.BenchmarkRunOptions(
                 dataset="auto_scholar_query",
-                run_id=f"group-{qe}-{ref}",
-                enable_query_evolution=qe,
-                enable_refchain=ref,
+                    run_id=f"group-{qe}-{ref}",
+                    enable_query_evolution=qe,
+                    query_evolution_policy="seed_expansion",
+                    enable_refchain=ref,
             )
         )
         for qe in (False, True)

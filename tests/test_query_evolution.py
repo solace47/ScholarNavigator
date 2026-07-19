@@ -16,6 +16,9 @@ from scholar_agent.core.search_schemas import (
 )
 
 
+SEED_EXPANSION = QueryEvolutionOptions(policy="seed_expansion")
+
+
 def make_query_analysis(intent: str = "recent_progress") -> QueryAnalysis:
     return QueryAnalysis(
         original_query="latest LLM reranking methods for scientific literature retrieval",
@@ -132,6 +135,7 @@ def test_relevant_seed_generates_evolved_queries() -> None:
         [judgement],
         [make_ranked(judgement)],
         used_queries=set(),
+        options=SEED_EXPANSION,
     )
 
     assert record.seed_count == 1
@@ -163,6 +167,7 @@ def test_no_relevant_seed_returns_warning() -> None:
         [irrelevant, insufficient],
         [make_ranked(irrelevant), make_ranked(insufficient)],
         used_queries=set(),
+        options=SEED_EXPANSION,
     )
 
     assert record.generated_queries == []
@@ -187,6 +192,7 @@ def test_used_queries_are_deduplicated() -> None:
         [judgement],
         [make_ranked(judgement)],
         used_queries=used_queries,
+        options=SEED_EXPANSION,
     )
 
     normalized_used = {query.casefold() for query in used_queries}
@@ -213,7 +219,10 @@ def test_max_evolved_queries_is_respected() -> None:
         [first, second],
         [make_ranked(first, rank=1), make_ranked(second, rank=2)],
         used_queries=set(),
-        options=QueryEvolutionOptions(max_evolved_queries=1),
+        options=QueryEvolutionOptions(
+            policy="seed_expansion",
+            max_evolved_queries=1,
+        ),
     )
 
     assert len(record.generated_queries) == 1
@@ -232,6 +241,7 @@ def test_source_hints_only_include_supported_sources() -> None:
         [judgement],
         [make_ranked(judgement)],
         used_queries=set(),
+        options=SEED_EXPANSION,
     )
 
     assert record.generated_queries
@@ -254,6 +264,7 @@ def test_output_is_stable_without_llm_or_network() -> None:
         [judgement],
         ranked,
         used_queries=set(),
+        options=SEED_EXPANSION,
     )
     second = evolve_queries(
         query_analysis,
@@ -261,6 +272,7 @@ def test_output_is_stable_without_llm_or_network() -> None:
         [judgement],
         ranked,
         used_queries=set(),
+        options=SEED_EXPANSION,
     )
 
     assert first.model_dump() == second.model_dump()

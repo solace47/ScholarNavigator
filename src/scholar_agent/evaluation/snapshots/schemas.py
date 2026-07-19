@@ -62,6 +62,9 @@ class ReferenceSnapshotEntry(BaseModel):
 
 
 class SnapshotGroupObservation(BaseModel):
+    query_evolution_policy: Literal[
+        "off", "seed_expansion", "coverage_gap"
+    ] | None = None
     retrieval_keys: list[str] = Field(default_factory=list)
     reference_keys: list[str] = Field(default_factory=list)
     missing_retrieval_keys: list[str] = Field(default_factory=list)
@@ -95,6 +98,9 @@ class SnapshotPlanEntry(BaseModel):
     stage: str
     origin_subquery: str | None = None
     generated_by: SnapshotGeneratedBy
+    query_evolution_policy: Literal[
+        "off", "seed_expansion", "coverage_gap"
+    ] | None = None
     dependency_keys: list[str] = Field(default_factory=list)
     priority: int = Field(ge=1)
     already_present: bool = False

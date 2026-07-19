@@ -110,6 +110,7 @@ def _plan_entry(
     source: str = "arxiv",
     priority: int = 1,
     present: bool = False,
+    query_evolution_policy: str | None = None,
 ) -> SnapshotPlanEntry:
     adapted_query = f"query-{token[:4]}"
     key, _ = retrieval_snapshot_key(
@@ -118,6 +119,7 @@ def _plan_entry(
         limit=5,
         adapter_policy="adaptive",
         connector_version=connector_version(source),
+        query_evolution_policy=query_evolution_policy,
     )
     return SnapshotPlanEntry(
         key=key,
@@ -132,6 +134,7 @@ def _plan_entry(
         stage="query_evolution",
         origin_subquery="graph molecular prediction",
         generated_by="query_evolution",
+        query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
         dependency_keys=[],
         priority=priority,
         already_present=present,
@@ -186,6 +189,34 @@ def _observe_missing_plan(root: Path, entries: list[SnapshotPlanEntry]) -> None:
             generated_by="query_evolution",
         )
     runtime.finish_group(completed=True)
+
+
+def test_collector_preserves_coverage_gap_policy_and_key(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    _store(root)
+    entry = _plan_entry(
+        "coverage-gap",
+        query_evolution_policy="coverage_gap",
+    )
+    path = _write_plan(
+        root,
+        [entry],
+        group="query_evolution_coverage_gap",
+    )
+
+    result = collect_plan(
+        path,
+        root,
+        searchers={
+            "arxiv": lambda query, limit: ConnectorSearchResult(
+                papers=[_paper()],
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            )
+        },
+    )
+
+    assert result["coverage"]["query_evolution_policy"] == "coverage_gap"
+    assert SnapshotStore(root).read_retrieval(entry.key).status == "success"
 
 
 def _success(title: str = "Collected Paper") -> ConnectorSearchResult:
@@ -618,6 +649,7 @@ def test_real_pipeline_discovers_qe_and_refchain_keys_without_network(
                 "run_id": "qe-plan",
                 "retrieval_mode": "plan",
                 "enable_query_evolution": True,
+                "query_evolution_policy": "seed_expansion",
             }
         )
     )
@@ -694,8 +726,9 @@ def test_combined_discovers_refchain_only_after_qe_snapshots_are_collected(
         update={
             "run_id": "combined-plan-1",
             "retrieval_mode": "plan",
-            "enable_query_evolution": True,
-            "enable_refchain": True,
+                "enable_query_evolution": True,
+                "query_evolution_policy": "seed_expansion",
+                "enable_refchain": True,
             "plan_round": 1,
         }
     )

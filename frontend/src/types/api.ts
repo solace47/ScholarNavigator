@@ -1,6 +1,7 @@
 export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
 export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
+export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
 
 export type RelevanceCategory =
   | "highly_relevant"
@@ -81,6 +82,7 @@ export interface SearchRunCreateRequest {
   };
   options?: {
     enable_query_evolution?: boolean;
+    query_evolution_policy?: QueryEvolutionPolicy;
     enable_refchain?: boolean;
     enable_llm_query_understanding?: boolean | null;
     enable_llm_judgement?: boolean | null;
@@ -97,6 +99,7 @@ export interface InternalSearchPreviewRequest {
   run_profile?: RunProfile;
   enable_refchain?: boolean;
   enable_query_evolution?: boolean;
+  query_evolution_policy?: QueryEvolutionPolicy;
   enable_llm_query_understanding?: boolean | null;
   enable_llm_judgement?: boolean | null;
   current_year?: number | null;
@@ -255,6 +258,7 @@ export interface SearchPlan {
   expanded_queries: string[];
   source_preferences: string[];
   max_rounds: number;
+  query_evolution_policy: QueryEvolutionPolicy;
 }
 
 export interface MethodCluster {

@@ -32,7 +32,13 @@ from ...core.api_schemas import (
     SearchRunResultResponse,
     SearchRunStatusResponse,
 )
-from ...core.search_schemas import QueryConstraint, RunProfile, SearchBudget, TimeRange
+from ...core.search_schemas import (
+    QueryConstraint,
+    QueryEvolutionPolicy,
+    RunProfile,
+    SearchBudget,
+    TimeRange,
+)
 from ...llm.provider import get_llm_runtime_config
 from ...services.api_mapper import map_search_service_output_to_api_result
 from ...services.search_service import (
@@ -86,6 +92,7 @@ class InternalSearchPreviewRequest(BaseModel):
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
     enable_query_evolution: bool = False
+    query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_llm_query_understanding: bool | None = None
     enable_llm_judgement: bool | None = None
     current_year: int | None = Field(default=None, ge=1900, le=2200)
@@ -528,6 +535,7 @@ def internal_search_preview(
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
+            query_evolution_policy=request.query_evolution_policy,
             enable_llm_query_understanding=request.enable_llm_query_understanding,
             enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
@@ -575,6 +583,7 @@ def internal_search_preview_api_result(
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
             enable_query_evolution=request.enable_query_evolution,
+            query_evolution_policy=request.query_evolution_policy,
             enable_llm_query_understanding=request.enable_llm_query_understanding,
             enable_llm_judgement=request.enable_llm_judgement,
             current_year=request.current_year,
@@ -608,6 +617,7 @@ def _execute_real_search_run(run_id: str) -> None:
             run_profile=request.run_profile,
             enable_refchain=request.options.enable_refchain,
             enable_query_evolution=request.options.enable_query_evolution,
+            query_evolution_policy=request.options.query_evolution_policy,
             enable_synthesis=True,
             current_year=None,
             enable_llm_query_understanding=(

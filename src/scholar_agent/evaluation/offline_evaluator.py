@@ -112,6 +112,7 @@ class OfflineSearchEvaluator:
                 top_k=top_k,
                 run_profile=eval_query.run_profile,
                 enable_query_evolution=enable_query_evolution,
+                query_evolution_policy="seed_expansion",
                 enable_refchain=enable_refchain,
                 current_year=eval_query.current_year,
             )

@@ -31,6 +31,7 @@ ConstraintField = Literal[
     "paper_types",
 ]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
+QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
 QueryLanguage = Literal["zh", "en", "mixed", "unknown"]
 QueryIntent = Literal[
     "survey",
@@ -217,6 +218,7 @@ class SearchPlan(BaseModel):
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
     enable_query_evolution: bool = False
+    query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     warnings: list[str] = Field(default_factory=list)
 
     @field_validator("selected_sources", mode="before")
@@ -277,9 +279,41 @@ class RankedPaper(BaseModel):
 
 
 class QueryEvolutionOptions(BaseModel):
-    max_evolved_queries: int = Field(default=3, ge=0, le=10)
-    max_seed_papers: int = Field(default=5, ge=0, le=20)
+    policy: QueryEvolutionPolicy = "coverage_gap"
+    max_evolved_queries: int | None = Field(default=None, ge=0, le=10)
+    max_seed_papers: int | None = Field(default=None, ge=0, le=20)
     min_seed_score: float = Field(default=0.45, ge=0.0, le=1.0)
+
+
+class QueryCoverageGap(BaseModel):
+    topic_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    method_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    dataset_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    must_have_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    paper_type_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    venue_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    temporal_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    missing_topics: list[str] = Field(default_factory=list)
+    missing_methods: list[str] = Field(default_factory=list)
+    missing_datasets: list[str] = Field(default_factory=list)
+    missing_must_have_terms: list[str] = Field(default_factory=list)
+    missing_paper_types: list[str] = Field(default_factory=list)
+    missing_venues: list[str] = Field(default_factory=list)
+    needs_evolution: bool = False
+    reasons: list[str] = Field(default_factory=list)
+
+
+class QueryEvolutionQualityGate(BaseModel):
+    raw_candidate_count: int = Field(default=0, ge=0)
+    unique_candidate_count: int = Field(default=0, ge=0)
+    duplicate_candidate_count: int = Field(default=0, ge=0)
+    duplicate_with_initial_count: int = Field(default=0, ge=0)
+    accepted_candidate_count: int = Field(default=0, ge=0)
+    filtered_candidate_count: int = Field(default=0, ge=0)
+    core_dimension_match_count: int = Field(default=0, ge=0)
+    filtered_reason_counts: dict[str, int] = Field(default_factory=dict)
+    source_candidate_counts: dict[str, int] = Field(default_factory=dict)
+    accepted_source_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class EvolvedSubquery(BaseModel):
@@ -291,6 +325,8 @@ class EvolvedSubquery(BaseModel):
     purpose: str = Field(..., min_length=1)
     seed_paper_titles: list[str] = Field(default_factory=list)
     generated_by: Literal["rules", "llm"] = "rules"
+    generation_policy: QueryEvolutionPolicy = "coverage_gap"
+    gap_dimensions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
     @field_validator("source_hints", mode="before")
@@ -301,8 +337,16 @@ class EvolvedSubquery(BaseModel):
 
 class QueryEvolutionRecord(BaseModel):
     round_index: int = Field(default=1, ge=1)
+    policy: QueryEvolutionPolicy = "coverage_gap"
+    eligible_seed_count: int = Field(default=0, ge=0)
+    eligible_seed_titles: list[str] = Field(default_factory=list)
     seed_count: int = Field(default=0, ge=0)
+    seed_paper_titles: list[str] = Field(default_factory=list)
+    coverage_gap: QueryCoverageGap | None = None
     generated_queries: list[EvolvedSubquery] = Field(default_factory=list)
+    quality_gate: QueryEvolutionQualityGate = Field(
+        default_factory=QueryEvolutionQualityGate
+    )
     skipped_reasons: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = Field(default=0.0, ge=0.0)

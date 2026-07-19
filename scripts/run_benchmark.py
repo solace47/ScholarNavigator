@@ -30,6 +30,7 @@ from scholar_agent.core.api_schemas import CostReport  # noqa: E402
 from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
+    QueryEvolutionPolicy,
     SUPPORTED_SEARCH_SOURCES,
     SearchBudget,
 )
@@ -96,6 +97,7 @@ class BenchmarkRunOptions(BaseModel):
     result_policy: ResultPolicy = "highly_and_partial"
     top_k: int = Field(default=20, ge=1, le=100)
     enable_query_evolution: bool = False
+    query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_refchain: bool = False
     enable_llm_query_understanding: bool = False
     enable_llm_judgement: bool = False
@@ -142,9 +144,21 @@ class BenchmarkRunResult(BaseModel):
 
 
 def _ablation_group_name(options: BenchmarkRunOptions) -> str:
-    if options.enable_query_evolution and options.enable_refchain:
+    evolution_enabled = (
+        options.enable_query_evolution
+        and options.query_evolution_policy != "off"
+    )
+    if (
+        evolution_enabled
+        and options.query_evolution_policy == "coverage_gap"
+        and options.enable_refchain
+    ):
+        return "query_evolution_coverage_gap_plus_refchain"
+    if evolution_enabled and options.query_evolution_policy == "coverage_gap":
+        return "query_evolution_coverage_gap"
+    if evolution_enabled and options.enable_refchain:
         return "query_evolution_plus_refchain"
-    if options.enable_query_evolution:
+    if evolution_enabled:
         return "query_evolution_only"
     if options.enable_refchain:
         return "refchain_only"
@@ -353,6 +367,11 @@ def run_benchmark(
             retry_failed_snapshots=options.retry_failed_snapshots,
             overwrite_snapshots=options.overwrite_snapshots,
             plan_round=options.plan_round,
+            query_evolution_policy=(
+                options.query_evolution_policy
+                if options.enable_query_evolution
+                else "off"
+            ),
         )
         runner = SearchService(
             retriever=SnapshotAwareRetriever(snapshot_runtime),
@@ -452,6 +471,11 @@ def _build_config(
         "run_profile": options.run_profile,
         "top_k": options.top_k,
         "enable_query_evolution": options.enable_query_evolution,
+        "query_evolution_policy": (
+            options.query_evolution_policy
+            if options.enable_query_evolution
+            else "off"
+        ),
         "enable_refchain": options.enable_refchain,
         "current_year": options.current_year,
         "max_workers": options.max_workers,
@@ -617,6 +641,7 @@ def _run_case(
             top_k=options.top_k,
             run_profile=options.run_profile,
             enable_query_evolution=options.enable_query_evolution,
+            query_evolution_policy=options.query_evolution_policy,
             enable_refchain=options.enable_refchain,
             enable_synthesis=True,
             current_year=options.current_year,
@@ -933,6 +958,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--enable-query-evolution", action="store_true")
+    parser.add_argument(
+        "--query-evolution-policy",
+        choices=["off", "seed_expansion", "coverage_gap"],
+        default="coverage_gap",
+    )
     parser.add_argument("--enable-refchain", action="store_true")
     parser.add_argument("--enable-llm-query-understanding", action="store_true")
     parser.add_argument("--enable-llm-judgement", action="store_true")
@@ -1008,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
             result_policy=args.result_policy,
             top_k=args.top_k,
             enable_query_evolution=args.enable_query_evolution,
+            query_evolution_policy=args.query_evolution_policy,
             enable_refchain=args.enable_refchain,
             enable_llm_query_understanding=args.enable_llm_query_understanding,
             enable_llm_judgement=args.enable_llm_judgement,

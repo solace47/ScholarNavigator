@@ -240,6 +240,7 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
                 "run_profile": "high_recall",
                 "current_year": 2026,
                 "enable_query_evolution": False,
+                "query_evolution_policy": "seed_expansion",
                 "enable_refchain": True,
                 "source_preferences": ["semantic_scholar"],
             }
@@ -266,6 +267,8 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
             "--current-year",
             "2024",
             "--enable-query-evolution",
+            "--query-evolution-policy",
+            "coverage_gap",
             "--sources",
             "arxiv,openalex",
             "--max-workers",
@@ -279,6 +282,7 @@ def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> No
     assert captured[0]["run_profile"] == "high_recall"
     assert captured[0]["current_year"] == 2026
     assert captured[0]["enable_query_evolution"] is False
+    assert captured[0]["query_evolution_policy"] == "seed_expansion"
     assert captured[0]["enable_refchain"] is True
     assert captured[0]["sources_override"] == ["semantic_scholar"]
 
@@ -422,6 +426,7 @@ def test_invalid_row_source_outputs_failed_row_by_default(
             "run_profile": "balanced",
             "enable_refchain": False,
             "enable_query_evolution": False,
+            "query_evolution_policy": "coverage_gap",
             "enable_synthesis": True,
             "current_year": None,
             "sources_override": ["arxiv"],
@@ -644,6 +649,7 @@ def _fake_service_class(
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            query_evolution_policy: str = "coverage_gap",
             enable_synthesis: bool = True,
             current_year: int | None = None,
             sources_override: list[str] | None = None,
@@ -656,6 +662,7 @@ def _fake_service_class(
                     "run_profile": run_profile,
                     "enable_refchain": enable_refchain,
                     "enable_query_evolution": enable_query_evolution,
+                    "query_evolution_policy": query_evolution_policy,
                     "enable_synthesis": enable_synthesis,
                     "current_year": current_year,
                     "sources_override": sources_override,

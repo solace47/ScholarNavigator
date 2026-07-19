@@ -50,6 +50,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            query_evolution_policy: str = "coverage_gap",
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
             current_year: int | None = None,
@@ -61,6 +62,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
                     "run_profile": run_profile,
                     "enable_refchain": enable_refchain,
                     "enable_query_evolution": enable_query_evolution,
+                    "query_evolution_policy": query_evolution_policy,
                     "enable_llm_query_understanding": enable_llm_query_understanding,
                     "enable_llm_judgement": enable_llm_judgement,
                     "current_year": current_year,
@@ -78,6 +80,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
             "run_profile": "high_recall",
             "enable_refchain": False,
             "enable_query_evolution": False,
+            "query_evolution_policy": "coverage_gap",
             "current_year": 2026,
         },
     )
@@ -90,6 +93,7 @@ def test_internal_search_preview_maps_search_service_output(monkeypatch) -> None
         "run_profile": "high_recall",
             "enable_refchain": False,
             "enable_query_evolution": False,
+            "query_evolution_policy": "coverage_gap",
             "enable_llm_query_understanding": None,
             "enable_llm_judgement": None,
             "current_year": 2026,
@@ -122,11 +126,13 @@ def test_internal_search_preview_includes_query_evolution_records(monkeypatch) -
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            query_evolution_policy: str = "coverage_gap",
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
             current_year: int | None = None,
         ) -> SearchServiceOutput:
             assert enable_query_evolution is True
+            assert query_evolution_policy == "coverage_gap"
             assert enable_refchain is False
             assert enable_llm_query_understanding is None
             assert enable_llm_judgement is None
@@ -167,6 +173,7 @@ def test_internal_search_preview_includes_refchain_output(monkeypatch) -> None:
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            query_evolution_policy: str = "coverage_gap",
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
             current_year: int | None = None,
@@ -239,6 +246,7 @@ def test_internal_search_preview_uses_real_preview_max_workers_env(
             run_profile: str = "balanced",
             enable_refchain: bool = False,
             enable_query_evolution: bool = False,
+            query_evolution_policy: str = "coverage_gap",
             enable_llm_query_understanding: bool | None = None,
             enable_llm_judgement: bool | None = None,
             current_year: int | None = None,

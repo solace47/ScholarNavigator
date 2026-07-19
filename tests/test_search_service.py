@@ -16,6 +16,7 @@ from scholar_agent.agents.retriever import (
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import (
     EvolvedSubquery,
+    QueryConstraint,
     QueryEvolutionRecord,
     SearchBudget,
 )
@@ -950,6 +951,7 @@ def test_run_search_with_query_evolution_retrieves_evolved_queries() -> None:
         query,
         top_k=5,
         enable_query_evolution=True,
+        query_evolution_policy="seed_expansion",
         current_year=2026,
     )
 
@@ -999,6 +1001,7 @@ def test_query_evolution_results_participate_in_final_ranking() -> None:
         query,
         top_k=3,
         enable_query_evolution=True,
+        query_evolution_policy="seed_expansion",
         current_year=2026,
     )
 
@@ -1021,6 +1024,7 @@ def test_query_evolution_used_queries_skip_duplicate_retrieval(monkeypatch) -> N
         judgements,
         ranked_papers,
         used_queries,
+        options=None,
     ) -> QueryEvolutionRecord:
         captured_used_queries.update(used_queries)
         duplicate_query = search_plan.subqueries[0].query
@@ -1100,6 +1104,7 @@ def test_query_evolution_adapted_duplicate_does_not_repeat_external_call(
         judgements,
         ranked_papers,
         used_queries,
+        options=None,
     ) -> QueryEvolutionRecord:
         return QueryEvolutionRecord(
             seed_count=1,
@@ -1141,6 +1146,94 @@ def test_query_evolution_adapted_duplicate_does_not_repeat_external_call(
         and call.adapted_query == "graph retrieval machine learning"
         and call.source_skipped_reason == "duplicate_adapted_query"
         for call in evolved.retrieval_calls
+    )
+
+
+def test_coverage_gap_policy_applies_candidate_quality_gate(monkeypatch) -> None:
+    query = "graph neural networks for molecular prediction"
+    expected_plan = analyze_query(
+        query,
+        explicit_constraints=QueryConstraint(
+            methods=["message passing"],
+            explicit_fields=["methods"],
+        ),
+    )
+    initial_queries = {item.query for item in expected_plan.subqueries}
+
+    def fake_evolve_queries(
+        query_analysis,
+        search_plan,
+        judgements,
+        ranked_papers,
+        used_queries,
+        options=None,
+    ) -> QueryEvolutionRecord:
+        assert options.policy == "coverage_gap"
+        return QueryEvolutionRecord(
+            policy="coverage_gap",
+            seed_count=1,
+            generated_queries=[
+                EvolvedSubquery(
+                    query="graph neural networks message passing molecular",
+                    source_hints=["arxiv"],
+                    priority=1,
+                    purpose="query_evolution_coverage_gap_method",
+                    generation_policy="coverage_gap",
+                    gap_dimensions=["method"],
+                )
+            ],
+        )
+
+    def fake_retriever(
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        if query in initial_queries:
+            return make_output(
+                query,
+                [
+                    make_paper(
+                        "Graph Neural Networks for Molecular Prediction",
+                        doi="10.123/quality-initial",
+                    )
+                ],
+            )
+        return make_output(
+            query,
+            [
+                make_paper(
+                    "Message Passing for Molecular Graphs",
+                    doi="10.123/quality-accepted",
+                ),
+                make_paper(
+                    "Message Passing for Road Traffic Forecasting",
+                    doi="10.123/quality-filtered",
+                ),
+            ],
+        )
+
+    monkeypatch.setattr(search_service, "evolve_queries", fake_evolve_queries)
+    output = SearchService(retriever=fake_retriever).run_search(
+        query,
+        enable_query_evolution=True,
+        query_evolution_policy="coverage_gap",
+        sources_override=["arxiv"],
+        explicit_constraints=QueryConstraint(
+            methods=["message passing"],
+            explicit_fields=["methods"],
+        ),
+        enable_synthesis=False,
+    )
+
+    record = output.query_evolution_records[0]
+    assert output.search_plan.query_evolution_policy == "coverage_gap"
+    assert record.quality_gate.raw_candidate_count == 2
+    assert record.quality_gate.accepted_candidate_count == 1
+    assert record.quality_gate.filtered_reason_counts == {"no_topic_match": 1}
+    assert all(
+        ranked.paper.identifiers.doi != "10.123/quality-filtered"
+        for ranked in output.all_ranked_papers
     )
 
 
@@ -1337,6 +1430,7 @@ def test_query_evolution_and_refchain_can_run_together() -> None:
     ).run_search(
         query,
         enable_query_evolution=True,
+        query_evolution_policy="seed_expansion",
         enable_refchain=True,
         current_year=2026,
     )

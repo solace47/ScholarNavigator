@@ -33,6 +33,35 @@ FALSE_NEGATIVE_CATEGORIES = {
     "irrelevant",
     "insufficient_evidence",
 }
+DIAGNOSTIC_QUERY_BOILERPLATE = {
+    "a",
+    "an",
+    "about",
+    "can",
+    "could",
+    "find",
+    "for",
+    "from",
+    "give",
+    "in",
+    "latest",
+    "list",
+    "looking",
+    "me",
+    "of",
+    "on",
+    "paper",
+    "papers",
+    "please",
+    "show",
+    "some",
+    "tell",
+    "the",
+    "to",
+    "want",
+    "with",
+    "you",
+}
 RETRIEVAL_STAGES = (
     "initial_retrieval",
     "query_evolution_retrieval",
@@ -651,6 +680,9 @@ def _query_evolution_diagnostics(
         generated,
         retrieval_calls,
         evolved,
+        snapshots.get("post_evolution_judged"),
+        eval_query=eval_query,
+        query_analysis=output.search_plan.query_analysis,
         initial_ids=initial_ids,
         stage_skip=stage_skip,
     )
@@ -668,8 +700,11 @@ def _query_evolution_diagnostics(
             if item["skip_reason"] == "duplicate_query"
         }
     )
-    eligible_seeds = _eligible_query_evolution_seed_count(
-        snapshots.get("initial_reranked")
+    eligible_seeds = max(
+        sum(record.eligible_seed_count for record in records),
+        _eligible_query_evolution_seed_count(
+            snapshots.get("initial_reranked")
+        ),
     )
     selected_seeds = sum(record.seed_count for record in records)
     skipped_reasons = _stable_reasons(
@@ -698,10 +733,33 @@ def _query_evolution_diagnostics(
     )
     prior_recall = _candidate_recall_value(initial, eval_query.gold_papers)
     post_recall = _candidate_recall_value(post_evolved or initial, eval_query.gold_papers)
+    quality_gates = [record.quality_gate for record in records]
+    coverage_gaps = [
+        record.coverage_gap.model_dump(mode="json")
+        for record in records
+        if record.coverage_gap is not None
+    ]
     return {
         "enabled": output.search_plan.enable_query_evolution,
+        "policy": output.search_plan.query_evolution_policy,
+        "triggered": bool(generated),
+        "original_query": output.search_plan.query_analysis.original_query,
+        "query_intent": output.search_plan.query_analysis.intent,
+        "constraints": output.search_plan.query_analysis.constraints.model_dump(
+            mode="json"
+        ),
         "eligible_seed_count": eligible_seeds,
+        "eligible_seed_titles": _stable_reasons(
+            title
+            for record in records
+            for title in record.eligible_seed_titles
+        ),
         "selected_seed_count": selected_seeds,
+        "selected_seed_titles": _stable_reasons(
+            title
+            for record in records
+            for title in record.seed_paper_titles
+        ),
         "generated_query_count": len(generated),
         "executed_query_count": len(executed_queries),
         "duplicate_query_count": max(0, duplicate_queries),
@@ -725,6 +783,44 @@ def _query_evolution_diagnostics(
         "gold_filtered_by_judgement_count": judgement_filtered,
         "gold_lost_by_top_k_count": top_k_lost,
         "candidate_recall_gain": max(0.0, post_recall - prior_recall),
+        "coverage_gaps": coverage_gaps,
+        "quality_gate": {
+            "raw_candidate_count": sum(
+                gate.raw_candidate_count for gate in quality_gates
+            ),
+            "unique_candidate_count": sum(
+                gate.unique_candidate_count for gate in quality_gates
+            ),
+            "duplicate_candidate_count": sum(
+                gate.duplicate_candidate_count for gate in quality_gates
+            ),
+            "duplicate_with_initial_count": sum(
+                gate.duplicate_with_initial_count for gate in quality_gates
+            ),
+            "accepted_candidate_count": sum(
+                gate.accepted_candidate_count for gate in quality_gates
+            ),
+            "filtered_candidate_count": sum(
+                gate.filtered_candidate_count for gate in quality_gates
+            ),
+            "filtered_reason_counts": dict(
+                sorted(
+                    Counter(
+                        {
+                            reason: sum(
+                                gate.filtered_reason_counts.get(reason, 0)
+                                for gate in quality_gates
+                            )
+                            for reason in {
+                                item
+                                for gate in quality_gates
+                                for item in gate.filtered_reason_counts
+                            }
+                        }
+                    ).items()
+                )
+            ),
+        },
         "new_candidate_categories": category_stats,
         "queries": query_details,
         "skipped_reasons": skipped_reasons,
@@ -1017,7 +1113,10 @@ def _evolved_query_details(
     generated: list[Any],
     calls: list[Any],
     snapshot: StageCandidateSnapshot | None,
+    judged: StageCandidateSnapshot | None,
     *,
+    eval_query: EvalQuery,
+    query_analysis: Any,
     initial_ids: set[str],
     stage_skip: str | None,
 ) -> list[dict[str, Any]]:
@@ -1033,25 +1132,171 @@ def _evolved_query_details(
             executed = any(call.logical_call_executed for call in matching_calls)
             returned = sum(call.returned_count for call in matching_calls)
             candidate_ids = _query_candidate_ids(snapshot, evolved.query, source)
+            judged_candidates = _query_candidates(judged, evolved.query, source)
+            categories = Counter(
+                candidate.category or "unjudged"
+                for candidate in judged_candidates
+            )
             skip_reason = _query_execution_skip_reason(
                 matching_calls,
                 executed=executed,
                 returned_count=returned,
                 stage_skip=stage_skip,
             )
+            scores = [
+                float(candidate.judgement_score)
+                for candidate in judged_candidates
+                if candidate.judgement_score is not None
+            ]
+            raw_candidates = _query_candidates(snapshot, evolved.query, source)
+            raw_gold_hits = sum(
+                _candidate_matches(candidate, gold)
+                for candidate in raw_candidates
+                for gold in eval_query.gold_papers
+            )
+            unique_gold_hits = {
+                index
+                for index, gold in enumerate(eval_query.gold_papers)
+                if any(
+                    _candidate_matches(candidate, gold)
+                    for candidate in raw_candidates
+                )
+            }
+            duplicate_ratio = (
+                max(0, returned - len(candidate_ids)) / returned
+                if returned
+                else None
+            )
+            ineffective_reasons = _evolved_query_ineffective_reasons(
+                evolved,
+                query_analysis,
+                categories,
+                returned_count=returned,
+                duplicate_ratio=duplicate_ratio,
+                unique_gold_hit_count=len(unique_gold_hits),
+                skip_reason=skip_reason,
+            )
             details.append(
                 {
                     "query": evolved.query,
                     "seed_titles": list(evolved.seed_paper_titles),
+                    "generation_policy": evolved.generation_policy,
+                    "gap_dimensions": list(evolved.gap_dimensions),
                     "source": source,
                     "executed": executed,
                     "skip_reason": skip_reason,
                     "request_count": sum(call.request_count for call in matching_calls),
+                    "recorded_request_count": sum(
+                        call.recorded_request_count for call in matching_calls
+                    ),
+                    "recorded_retry_count": sum(
+                        call.recorded_retry_count for call in matching_calls
+                    ),
+                    "recorded_error_count": sum(
+                        call.recorded_error_count for call in matching_calls
+                    ),
+                    "recorded_latency_seconds": sum(
+                        call.recorded_latency_seconds for call in matching_calls
+                    ),
                     "returned_count": returned,
+                    "unique_candidate_count": len(candidate_ids),
+                    "duplicate_ratio": duplicate_ratio,
                     "new_unique_candidate_count": len(candidate_ids - initial_ids),
+                    "judgement_categories": dict(sorted(categories.items())),
+                    "average_judgement_score": (
+                        sum(scores) / len(scores) if scores else None
+                    ),
+                    "highly_relevant_count": categories["highly_relevant"],
+                    "partially_relevant_count": categories[
+                        "partially_relevant"
+                    ],
+                    "weak_or_irrelevant_count": sum(
+                        categories[category]
+                        for category in FALSE_NEGATIVE_CATEGORIES
+                    ),
+                    "post_run_gold_hit_count": raw_gold_hits,
+                    "post_run_unique_gold_hit_count": len(unique_gold_hits),
+                    "ineffective_reasons": ineffective_reasons,
                 }
             )
     return details
+
+
+def _evolved_query_ineffective_reasons(
+    evolved: Any,
+    query_analysis: Any,
+    categories: Counter[str],
+    *,
+    returned_count: int,
+    duplicate_ratio: float | None,
+    unique_gold_hit_count: int,
+    skip_reason: str | None,
+) -> list[str]:
+    reasons: list[str] = []
+    skip_mapping = {
+        "duplicate_query": "duplicates_existing_query",
+        "budget_stop": "budget_stop",
+        "source_cooldown": "source_failure",
+        "source_failure": "source_failure",
+    }
+    if skip_reason in skip_mapping:
+        reasons.append(skip_mapping[skip_reason])
+    original_terms = _diagnostic_query_terms(query_analysis.original_query)
+    query_terms = _diagnostic_query_terms(evolved.query)
+    if original_terms and len(original_terms & query_terms) / len(original_terms) < 0.4:
+        reasons.append("missing_original_core_terms")
+    constraints = query_analysis.constraints
+    required = (
+        list(constraints.must_include_terms)
+        if "must_include_terms" in constraints.explicit_fields
+        else []
+    )
+    if any(
+        normalize_title(term) not in normalize_title(evolved.query)
+        for term in required
+    ):
+        reasons.append("missing_required_constraint")
+    if any(
+        _token_overlap(evolved.query, title) >= 0.8
+        for title in evolved.seed_paper_titles
+        if title.strip()
+    ):
+        reasons.append("dominated_by_seed_title")
+    if evolved.generation_policy == "seed_expansion" and not evolved.gap_dimensions:
+        suffixes = {"survey", "review", "benchmark", "evaluation", "comparison"}
+        if query_terms & suffixes and len(query_terms - suffixes) <= 2:
+            reasons.append("generic_suffix_only")
+    invalid = sum(categories[category] for category in FALSE_NEGATIVE_CATEGORIES)
+    total = sum(categories.values())
+    if total and invalid / total >= 0.5:
+        reasons.extend(["over_broad_query", "candidates_mostly_irrelevant"])
+    if returned_count == 0 and skip_reason is None:
+        reasons.append("over_restrictive_query")
+    if duplicate_ratio is not None and duplicate_ratio >= 0.5:
+        reasons.append("candidates_mostly_duplicate")
+    if returned_count and unique_gold_hit_count == 0:
+        reasons.append("no_unique_gold")
+    if "low_information_retention" in (skip_reason or ""):
+        reasons.append("low_information_retention")
+    if not reasons and (skip_reason is not None or unique_gold_hit_count == 0):
+        reasons.append("unknown")
+    return _stable_reasons(reasons)
+
+
+def _diagnostic_query_terms(value: str) -> set[str]:
+    return {
+        term
+        for term in normalize_title(value).split()
+        if len(term) > 1 and term not in DIAGNOSTIC_QUERY_BOILERPLATE
+    }
+
+
+def _token_overlap(left: str, right: str) -> float:
+    left_terms = set(normalize_title(left).split())
+    right_terms = set(normalize_title(right).split())
+    if not left_terms or not right_terms:
+        return 0.0
+    return len(left_terms & right_terms) / len(left_terms | right_terms)
 
 
 def _refchain_seed_details(record: Any, prior: StageCandidateSnapshot | None) -> list[dict[str, Any]]:
@@ -1146,13 +1391,33 @@ def _aggregate_module_diagnostics(
     )
     categories = Counter()
     skip_reasons = Counter()
+    policies = Counter()
+    quality_gate_counts = Counter()
+    quality_gate_reasons = Counter()
     for module in modules:
         categories.update((module.get("new_candidate_categories") or {}).get("counts") or {})
         skip_reasons.update(module.get("skipped_reasons") or [])
+        if module.get("policy"):
+            policies[str(module["policy"])] += 1
+        quality_gate = module.get("quality_gate") or {}
+        for key in (
+            "raw_candidate_count",
+            "unique_candidate_count",
+            "duplicate_candidate_count",
+            "duplicate_with_initial_count",
+            "accepted_candidate_count",
+            "filtered_candidate_count",
+        ):
+            quality_gate_counts[key] += int(quality_gate.get(key) or 0)
+        quality_gate_reasons.update(
+            quality_gate.get("filtered_reason_counts") or {}
+        )
     category_total = sum(categories.values())
     result: dict[str, Any] = {
         "enabled": any(module.get("enabled") for module in modules),
         "enabled_case_count": sum(bool(module.get("enabled")) for module in modules),
+        "triggered_case_count": sum(bool(module.get("triggered")) for module in modules),
+        "policies": dict(sorted(policies.items())),
         **{
             key: sum(int(module.get(key) or 0) for module in modules)
             for key in count_keys
@@ -1168,6 +1433,16 @@ def _aggregate_module_diagnostics(
             },
         },
         "skipped_reasons": dict(sorted(skip_reasons.items())),
+        "quality_gate": {
+            **dict(quality_gate_counts),
+            "filtered_reason_counts": dict(sorted(quality_gate_reasons.items())),
+            "invalid_candidate_share": (
+                quality_gate_counts["filtered_candidate_count"]
+                / quality_gate_counts["raw_candidate_count"]
+                if quality_gate_counts["raw_candidate_count"]
+                else None
+            ),
+        },
     }
     return result
 
@@ -1265,6 +1540,25 @@ def _query_candidate_ids(
         )
         if (identifier := canonical_paper_id(candidate))
     }
+
+
+def _query_candidates(
+    snapshot: StageCandidateSnapshot | None,
+    query: str,
+    source: str,
+) -> list[Any]:
+    if snapshot is None:
+        return []
+    return [
+        candidate
+        for candidate in snapshot.candidates
+        if any(
+            provenance.origin_stage == "query_evolution_retrieval"
+            and provenance.origin_subquery == query
+            and provenance.source == source
+            for provenance in candidate.provenance
+        )
+    ]
 
 
 def _gold_match_keys(

@@ -16,7 +16,10 @@ from typing import Any, Protocol
 from pydantic import BaseModel, Field, model_validator
 
 from scholar_agent.agents.judgement import JudgementAgent
-from scholar_agent.agents.query_evolution import evolve_queries
+from scholar_agent.agents.query_evolution import (
+    evolve_queries,
+    filter_evolved_candidates,
+)
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.reranker import rerank_papers
@@ -43,6 +46,8 @@ from scholar_agent.core.search_schemas import (
     JudgementResult,
     QueryAnalysis,
     QueryConstraint,
+    QueryEvolutionOptions,
+    QueryEvolutionPolicy,
     QueryEvolutionRecord,
     RankedPaper,
     RefChainOptions,
@@ -254,6 +259,7 @@ class SearchService:
         run_profile: RunProfile = "balanced",
         enable_refchain: bool = False,
         enable_query_evolution: bool = False,
+        query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
         enable_synthesis: bool = True,
         current_year: int | None = None,
         enable_llm_query_understanding: bool | None = None,
@@ -321,6 +327,15 @@ class SearchService:
             explicit_constraints=explicit_constraints,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)
+        effective_query_evolution_policy: QueryEvolutionPolicy = (
+            query_evolution_policy if enable_query_evolution else "off"
+        )
+        search_plan = search_plan.model_copy(
+            update={
+                "enable_query_evolution": enable_query_evolution,
+                "query_evolution_policy": effective_query_evolution_policy,
+            }
+        )
         signals.check_cancelled("query_understanding:after")
         query_understanding_latency = time.perf_counter() - stage_start
         _add_stage_latency(
@@ -498,6 +513,7 @@ class SearchService:
                 diagnostics.skip(stage, "budget_stopped_before_retrieval")
 
         if enable_query_evolution:
+            initial_deduplicated = list(deduplicated)
             signals.check_cancelled("query_evolution:before")
             evolution_stop_reason = _query_evolution_budget_stop_reason(
                 runtime,
@@ -507,6 +523,7 @@ class SearchService:
                 query_evolution_records.append(
                     QueryEvolutionRecord(
                         round_index=2,
+                        policy=effective_query_evolution_policy,
                         skipped_reasons=[evolution_stop_reason],
                         warnings=[evolution_stop_reason],
                     )
@@ -539,6 +556,9 @@ class SearchService:
                     judgements,
                     ranked_papers,
                     used_queries,
+                    options=QueryEvolutionOptions(
+                        policy=effective_query_evolution_policy,
+                    ),
                 )
                 evolution_record.round_index = 2
                 query_evolution_records.append(evolution_record)
@@ -616,6 +636,13 @@ class SearchService:
                         evolved_source_stats,
                         evolved_warnings,
                     ) = _collect_retrieval_outputs(evolved_outputs)
+                    if effective_query_evolution_policy == "coverage_gap":
+                        evolved_papers, quality_gate = filter_evolved_candidates(
+                            search_plan.query_analysis,
+                            initial_deduplicated,
+                            evolved_papers,
+                        )
+                        evolution_record.quality_gate = quality_gate
                     diagnostics.register_retrieval(
                         "query_evolution_retrieval",
                         evolved_outputs,
@@ -1356,6 +1383,7 @@ def run_search(
     run_profile: RunProfile = "balanced",
     enable_refchain: bool = False,
     enable_query_evolution: bool = False,
+    query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
     enable_synthesis: bool = True,
     current_year: int | None = None,
     enable_llm_query_understanding: bool | None = None,
@@ -1375,6 +1403,7 @@ def run_search(
         run_profile=run_profile,
         enable_refchain=enable_refchain,
         enable_query_evolution=enable_query_evolution,
+        query_evolution_policy=query_evolution_policy,
         enable_synthesis=enable_synthesis,
         current_year=current_year,
         enable_llm_query_understanding=enable_llm_query_understanding,

@@ -277,6 +277,7 @@ def map_search_plan(
         expanded_queries=_dedupe(expanded_queries),
         source_preferences=list(search_plan.selected_sources),
         max_rounds=_search_rounds(output, search_plan),
+        query_evolution_policy=search_plan.query_evolution_policy,
     )
 
 

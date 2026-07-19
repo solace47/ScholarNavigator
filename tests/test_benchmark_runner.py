@@ -82,6 +82,39 @@ def test_benchmark_default_and_cli_support_adaptive(tmp_path: Path) -> None:
     assert parsed.query_adapter_policy == "adaptive"
 
 
+def test_query_evolution_policy_is_recorded_and_passed_to_service(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    service = FakeService()
+    options = _options(tmp_path, dataset, run_id="coverage-gap").model_copy(
+        update={
+            "enable_query_evolution": True,
+            "query_evolution_policy": "coverage_gap",
+        }
+    )
+
+    result = run_benchmark.run_benchmark(options, service=service)
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "policy-cli",
+            "--enable-query-evolution",
+            "--query-evolution-policy",
+            "seed_expansion",
+        ]
+    )
+
+    assert result.config["query_evolution_policy"] == "coverage_gap"
+    assert service.kwargs[0]["query_evolution_policy"] == "coverage_gap"
+    assert parsed.query_evolution_policy == "seed_expansion"
+    assert run_benchmark._ablation_group_name(options) == (  # noqa: SLF001
+        "query_evolution_coverage_gap"
+    )
+
+
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
     tmp_path: Path,
 ) -> None:

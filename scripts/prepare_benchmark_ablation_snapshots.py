@@ -36,6 +36,11 @@ from scholar_agent.evaluation.snapshots.schemas import SnapshotPlanRound  # noqa
 
 
 DYNAMIC_GROUPS = ABLATION_GROUPS[1:]
+SUPPORTED_GROUPS = (
+    *ABLATION_GROUPS,
+    "query_evolution_coverage_gap",
+    "query_evolution_coverage_gap_plus_refchain",
+)
 
 
 def iterate_group(
@@ -176,11 +181,19 @@ def prepare_groups(
         query_evolution = group in {
             "query_evolution_only",
             "query_evolution_plus_refchain",
+            "query_evolution_coverage_gap",
+            "query_evolution_coverage_gap_plus_refchain",
         }
         refchain = group in {
             "refchain_only",
             "query_evolution_plus_refchain",
+            "query_evolution_coverage_gap_plus_refchain",
         }
+        query_evolution_policy = (
+            "coverage_gap"
+            if "coverage_gap" in group
+            else "seed_expansion"
+        )
         run_id = _available_run_id(
             output,
             f"{run_id_prefix}_plan_{group}_r{round_index}",
@@ -198,6 +211,7 @@ def prepare_groups(
                 result_policy="highly_and_partial",
                 top_k=20,
                 enable_query_evolution=query_evolution,
+                query_evolution_policy=query_evolution_policy,
                 enable_refchain=refchain,
                 enable_llm_query_understanding=False,
                 enable_llm_judgement=False,
@@ -274,7 +288,7 @@ def _parse_groups(value: str) -> list[str]:
         group = raw.strip()
         if not group or group in groups:
             continue
-        if group not in ABLATION_GROUPS:
+        if group not in SUPPORTED_GROUPS:
             raise ValueError(f"unsupported snapshot group: {group}")
         groups.append(group)
     if not groups:

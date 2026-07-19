@@ -71,6 +71,9 @@ class SnapshotRuntime:
         retry_failed_snapshots: bool = False,
         overwrite_snapshots: bool = False,
         plan_round: int = 1,
+        query_evolution_policy: Literal[
+            "off", "seed_expansion", "coverage_gap"
+        ] = "off",
     ) -> None:
         if mode == "live":
             raise ValueError("SnapshotRuntime does not handle live mode")
@@ -80,6 +83,7 @@ class SnapshotRuntime:
         self.retry_failed_snapshots = retry_failed_snapshots
         self.overwrite_snapshots = overwrite_snapshots
         self.plan_round = plan_round
+        self.query_evolution_policy = query_evolution_policy
         self._lock = RLock()
         self._case = SnapshotCostReport(mode=mode)
         self._case_id = ""
@@ -187,6 +191,7 @@ class SnapshotRuntime:
             )
             replay_ready = bool(required_count and missing_count == 0)
             observation = SnapshotGroupObservation(
+                query_evolution_policy=self.query_evolution_policy,
                 retrieval_keys=list(self._group_retrieval),
                 reference_keys=list(self._group_references),
                 missing_retrieval_keys=list(self._group_missing_retrieval),
@@ -232,6 +237,9 @@ class SnapshotRuntime:
         generated_by: Literal[
             "initial_retrieval", "query_evolution", "refchain"
         ] = "initial_retrieval",
+        query_evolution_policy: Literal[
+            "off", "seed_expansion", "coverage_gap"
+        ] | None = None,
     ) -> ConnectorSearchResult:
         version = connector_version(source)
         key, normalized_query = retrieval_snapshot_key(
@@ -240,6 +248,7 @@ class SnapshotRuntime:
             limit=limit,
             adapter_policy=adapter_policy,
             connector_version=version,
+            query_evolution_policy=query_evolution_policy,
         )
         self._observe("retrieval", key)
         try:
@@ -262,6 +271,7 @@ class SnapshotRuntime:
                     stage=stage,
                     origin_subquery=origin_subquery,
                     generated_by=generated_by,
+                    query_evolution_policy=query_evolution_policy,
                     dependency_keys=self._dependency_keys(key, generated_by),
                     priority=1 if source == "arxiv" else 2,
                     already_present=existing is not None,
@@ -681,6 +691,11 @@ class SnapshotAwareRetriever:
             if generated_by == "query_evolution"
             else "initial_retrieval"
         )
+        query_evolution_policy = (
+            "coverage_gap"
+            if purpose.startswith("query_evolution_coverage_gap")
+            else "seed_expansion" if generated_by == "query_evolution" else None
+        )
         provider = lambda source, adapted_query, limit, policy, live_search: (
             self.runtime.search(
                 source,
@@ -691,6 +706,7 @@ class SnapshotAwareRetriever:
                 stage=stage,
                 origin_subquery=query,
                 generated_by=generated_by,
+                query_evolution_policy=query_evolution_policy,
             )
         )
         return retrieve_papers(

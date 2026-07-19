@@ -24,6 +24,7 @@ from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 
 SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar", "pubmed"}
+QUERY_EVOLUTION_POLICIES = {"off", "seed_expansion", "coverage_gap"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
         "--enable-query-evolution",
         action="store_true",
         help="Enable Query Evolution by default for rows that do not override it.",
+    )
+    parser.add_argument(
+        "--query-evolution-policy",
+        choices=sorted(QUERY_EVOLUTION_POLICIES),
+        default="coverage_gap",
+        help="Query Evolution strategy used when the feature is enabled.",
     )
     parser.add_argument(
         "--enable-refchain",
@@ -131,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
                     default_run_profile=args.run_profile,
                     default_current_year=args.current_year,
                     default_enable_query_evolution=args.enable_query_evolution,
+                    default_query_evolution_policy=args.query_evolution_policy,
                     default_enable_refchain=args.enable_refchain,
                     default_sources=default_sources,
                 )
@@ -194,6 +202,7 @@ def _run_case(
     default_run_profile: str,
     default_current_year: int | None,
     default_enable_query_evolution: bool,
+    default_query_evolution_policy: str,
     default_enable_refchain: bool,
     default_sources: list[str] | None,
 ) -> dict[str, Any]:
@@ -211,6 +220,16 @@ def _run_case(
         enable_query_evolution = bool(
             case.get("enable_query_evolution", default_enable_query_evolution)
         )
+        query_evolution_policy = str(
+            case.get(
+                "query_evolution_policy",
+                default_query_evolution_policy,
+            )
+        )
+        if query_evolution_policy not in QUERY_EVOLUTION_POLICIES:
+            raise ValueError(
+                f"unsupported query_evolution_policy: {query_evolution_policy}"
+            )
         enable_refchain = bool(case.get("enable_refchain", default_enable_refchain))
         sources_override = _case_sources(case, default_sources)
 
@@ -219,6 +238,7 @@ def _run_case(
             top_k=top_k,
             run_profile=run_profile,  # type: ignore[arg-type]
             enable_query_evolution=enable_query_evolution,
+            query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
             enable_refchain=enable_refchain,
             enable_synthesis=True,
             current_year=current_year,

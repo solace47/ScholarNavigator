@@ -67,12 +67,14 @@ def collect_plan(
     path = Path(plan_path).expanduser().resolve()
     plan = SnapshotPlanRound.model_validate_json(path.read_text(encoding="utf-8"))
     store = SnapshotStore(snapshot_dir)
+    query_evolution_policy = _plan_query_evolution_policy(plan, store)
     runtime = SnapshotRuntime(
         store,
         mode="record-missing",
         group_name=plan.group,
         retry_failed_snapshots=retry_failed_snapshots,
         plan_round=plan.round_index,
+        query_evolution_policy=query_evolution_policy,
     )
     registry = searchers or {
         "arxiv": search_arxiv_detailed,
@@ -206,6 +208,7 @@ def _collect_entry(
             stage=entry.stage,
             origin_subquery=entry.origin_subquery,
             generated_by=entry.generated_by,
+            query_evolution_policy=entry.query_evolution_policy,
         )
     if entry.seed_identifier is None:
         raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
@@ -224,6 +227,25 @@ def _seed_paper(identifier: str) -> Paper:
         else PaperIdentifiers(doi=value) if prefix == "doi" else PaperIdentifiers()
     )
     return Paper(title=f"snapshot-seed:{prefix}", identifiers=identifiers)
+
+
+def _plan_query_evolution_policy(
+    plan: SnapshotPlanRound,
+    store: SnapshotStore,
+) -> str:
+    policies = {
+        entry.query_evolution_policy
+        for entry in plan.entries
+        if entry.query_evolution_policy is not None
+    }
+    if len(policies) > 1:
+        raise ValueError("snapshot_plan_mixed_query_evolution_policy")
+    if policies:
+        return policies.pop()
+    prior = store.read_manifest().groups.get(plan.group)
+    if prior is not None and prior.query_evolution_policy is not None:
+        return prior.query_evolution_policy
+    return "off"
 
 
 def _existing_status(store: SnapshotStore, entry: SnapshotPlanEntry) -> str | None:
