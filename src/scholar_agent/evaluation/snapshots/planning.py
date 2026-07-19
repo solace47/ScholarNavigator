@@ -98,7 +98,11 @@ def _dynamic_collection_totals(
             key = str(entry.get("key") or "")
             entry_type = str(entry.get("entry_type") or "")
             source = str(entry.get("source") or "unknown")
-            if len(key) == 64 and key not in baseline_keys:
+            if (
+                len(key) == 64
+                and key not in baseline_keys
+                and entry_type in {"retrieval", "reference"}
+            ):
                 planned[key] = (entry_type, source)
     request_count = 0
     retry_count = 0

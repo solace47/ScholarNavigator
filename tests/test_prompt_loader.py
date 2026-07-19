@@ -20,6 +20,7 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
 
     assert manifest["query_understanding"].runtime_enabled is True
     assert manifest["relevance_judgement"].runtime_enabled is True
+    assert manifest["llm_query_planning"].runtime_enabled is True
     assert manifest["query_evolution"].runtime_enabled is False
     assert manifest["reranking"].runtime_enabled is False
     assert manifest["synthesis"].runtime_enabled is False
@@ -27,7 +28,7 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["query_understanding", "relevance_judgement"],
+    ["query_understanding", "relevance_judgement", "llm_query_planning"],
 )
 def test_active_prompt_loads_with_version_and_hash(name: str) -> None:
     prompt = load_prompt(name)
@@ -135,6 +136,15 @@ def test_judgement_prompt_uses_batch_schema_and_evidence_sources() -> None:
     assert "insufficient_evidence" in text
     for source in ("title", "abstract", "venue", "metadata"):
         assert source in text
+
+
+def test_llm_query_planning_prompt_has_strict_bounded_schema() -> None:
+    text = load_prompt("llm_query_planning").system_text
+
+    assert "supplemental_queries" in text
+    assert "最多两条" in text
+    assert "不得猜测具体论文标题" in text
+    assert "DOI" in text
 
 
 def test_content_hash_changes_with_version_system_or_user(

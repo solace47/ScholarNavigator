@@ -91,6 +91,8 @@ PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
 
 初始查询规划另以 arXiv-only、adaptive、balanced、Top-20、关闭 Query Evolution/RefChain/LLM 的冻结快照比较 `current_rules` 与 `facet_balanced` v1.2。开发前 10 条中，两者候选 Recall/F1@20/Recall@20 同为 0.1500/0.0179/0.1250；新策略平均记录请求为 2.6（旧策略 2.7），重复率为 0.2538（旧策略 0.4167）。独立 offset 10 的 5 条验证中，两者为 0.2000/0.0190/0.2000；新策略平均记录请求为 2.6（旧策略 2.4），唯一 gold 均为 1。由于未新增 gold 且成本增加，验收不通过，默认保持 `current_rules`。
 
+`llm_semantic` 评测固定使用同一 arXiv-only、adaptive、balanced、Top-20 配置，开发集为 offset 0 的 10 条，独立验证集为 offset 10 的 5 条；每例最多一次温度为 0 的 LLM 调用和两条补充查询。LLM 规划快照与检索快照独立冻结，动态计划先补 LLM 键再发现检索键；最终比较必须同时使用 LLM replay 与 retrieval replay，执行期两类网络请求、重试和网络等待均为 0。当前进程的 LLM provider 为 disabled，因此只重放了 `current_rules` 基线，未运行或伪造 LLM 指标。开发/验证基线的候选 Recall、F1@20、Recall@20 分别为 0.1500/0.0179/0.1250 和 0.2000/0.0190/0.2000；分析产物位于 `outputs/benchmark_runs/llm_query_planning_analysis/`，验收状态为未执行。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。

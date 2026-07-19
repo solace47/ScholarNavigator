@@ -25,7 +25,7 @@ from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar", "pubmed"}
 QUERY_EVOLUTION_POLICIES = {"off", "seed_expansion", "coverage_gap"}
-QUERY_PLANNING_POLICIES = {"current_rules", "facet_balanced"}
+QUERY_PLANNING_POLICIES = {"current_rules", "facet_balanced", "llm_semantic"}
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -11,6 +11,12 @@
     "system": "relevance_judgement/system.md",
     "user": "relevance_judgement/user.md"
   },
+  "llm_query_planning": {
+    "version": "1.0.0",
+    "runtime_enabled": true,
+    "system": "llm_query_planning/system.md",
+    "user": "llm_query_planning/user.md"
+  },
   "query_evolution": {
     "version": "0.1.0",
     "runtime_enabled": false,

@@ -75,7 +75,7 @@ class SnapshotRuntime:
             "off", "seed_expansion", "coverage_gap"
         ] = "off",
         query_planning_policy: Literal[
-            "current_rules", "facet_balanced"
+            "current_rules", "facet_balanced", "llm_semantic"
         ] = "current_rules",
         query_planner_version: str | None = None,
     ) -> None:
@@ -249,7 +249,7 @@ class SnapshotRuntime:
             "off", "seed_expansion", "coverage_gap"
         ] | None = None,
         query_planning_policy: Literal[
-            "current_rules", "facet_balanced"
+            "current_rules", "facet_balanced", "llm_semantic"
         ] | None = None,
         query_planner_version: str | None = None,
     ) -> ConnectorSearchResult:

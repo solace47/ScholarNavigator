@@ -137,7 +137,7 @@ def test_query_planning_policy_is_recorded_passed_and_namespaced(
     )
 
     assert result.config["query_planning_policy"] == "facet_balanced"
-    assert result.config["query_planner_version"] == "1.2.0"
+    assert result.config["query_planner_version"] == "1.3.0"
     assert service.kwargs[0]["query_planning_policy"] == "facet_balanced"
     assert parsed.query_planning_policy == "facet_balanced"
     assert run_benchmark._ablation_group_name(options) == "facet_balanced"  # noqa: SLF001
@@ -150,6 +150,36 @@ def test_query_planning_policy_is_recorded_passed_and_namespaced(
             }
         )
     ) == "facet_balanced_query_evolution_coverage_gap_plus_refchain"
+
+
+def test_llm_semantic_cli_is_supported_but_live_run_requires_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "llm-cli",
+            "--query-planning-policy",
+            "llm_semantic",
+            "--llm-mode",
+            "record",
+            "--llm-snapshot-dir",
+            str(tmp_path / "llm"),
+        ]
+    )
+    assert parsed.query_planning_policy == "llm_semantic"
+    assert parsed.llm_mode == "record"
+
+    monkeypatch.setenv("SCHOLAR_AGENT_LLM_PROVIDER", "disabled")
+    dataset = _dataset(tmp_path, count=1)
+    options = _options(tmp_path, dataset, run_id="llm-disabled").model_copy(
+        update={"query_planning_policy": "llm_semantic"}
+    )
+    with pytest.raises(ValueError, match="requires an available LLM provider"):
+        run_benchmark.run_benchmark(options)
 
 
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
@@ -266,6 +296,7 @@ def test_config_records_llm_prompt_budget_and_code_metadata(tmp_path: Path) -> N
     assert config["llm"]["llm_enabled"] is False
     assert config["llm"]["requested"] is False
     assert {item["name"] for item in config["prompts"]} == {
+        "llm_query_planning",
         "query_understanding",
         "relevance_judgement",
     }

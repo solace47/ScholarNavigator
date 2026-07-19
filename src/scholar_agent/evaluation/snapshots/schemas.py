@@ -21,8 +21,13 @@ CONNECTOR_VERSIONS = {
     "openalex_references": "references-v1",
 }
 SnapshotEntryStatus = Literal["success", "failed"]
-SnapshotEntryType = Literal["retrieval", "reference"]
-SnapshotGeneratedBy = Literal["initial_retrieval", "query_evolution", "refchain"]
+SnapshotEntryType = Literal["llm_planning", "retrieval", "reference"]
+SnapshotGeneratedBy = Literal[
+    "llm_query_planning",
+    "initial_retrieval",
+    "query_evolution",
+    "refchain",
+]
 
 
 class RetrievalSnapshotEntry(BaseModel):
@@ -63,7 +68,9 @@ class ReferenceSnapshotEntry(BaseModel):
 
 
 class SnapshotGroupObservation(BaseModel):
-    query_planning_policy: Literal["current_rules", "facet_balanced"] | None = None
+    query_planning_policy: Literal[
+        "current_rules", "facet_balanced", "llm_semantic"
+    ] | None = None
     query_planner_version: str | None = None
     query_evolution_policy: Literal[
         "off", "seed_expansion", "coverage_gap"
@@ -104,12 +111,15 @@ class SnapshotPlanEntry(BaseModel):
     query_evolution_policy: Literal[
         "off", "seed_expansion", "coverage_gap"
     ] | None = None
-    query_planning_policy: Literal["current_rules", "facet_balanced"] | None = None
+    query_planning_policy: Literal[
+        "current_rules", "facet_balanced", "llm_semantic"
+    ] | None = None
     query_planner_version: str | None = None
     dependency_keys: list[str] = Field(default_factory=list)
     priority: int = Field(ge=1)
     already_present: bool = False
     existing_status: SnapshotEntryStatus | None = None
+    llm_request: dict[str, object] | None = None
 
 
 class SnapshotPlanRound(BaseModel):
@@ -119,6 +129,7 @@ class SnapshotPlanRound(BaseModel):
     entries: list[SnapshotPlanEntry] = Field(default_factory=list)
     missing_retrieval_count: int = Field(default=0, ge=0)
     missing_reference_count: int = Field(default=0, ge=0)
+    missing_llm_planning_count: int = Field(default=0, ge=0)
     network_request_count: int = Field(default=0, ge=0)
     converged: bool = False
     stop_reason: str | None = None
@@ -140,6 +151,7 @@ class SnapshotManifest(BaseModel):
     budgets: dict[str, object]
     llm_enabled: bool
     query_understanding_prompt: dict[str, str | int | None]
+    llm_query_planning_prompt: dict[str, str | int | None] = Field(default_factory=dict)
     judgement_prompt: dict[str, str | int | None]
     connector_versions: dict[str, str]
     code_hash: str

@@ -50,6 +50,10 @@ from scholar_agent.evaluation.snapshots import (  # noqa: E402
     SnapshotRuntime,
     SnapshotStore,
 )
+from scholar_agent.evaluation.llm_planning_snapshots import (  # noqa: E402
+    LLMPlanningSnapshotRuntime,
+    LLMPlanningSnapshotStore,
+)
 from scholar_agent.evaluation.snapshots.schemas import CONNECTOR_VERSIONS  # noqa: E402
 from scholar_agent.evaluation.snapshots.schemas import QUERY_ADAPTER_VERSION  # noqa: E402
 from scholar_agent.evaluation.snapshots.schemas import SnapshotPlanRound  # noqa: E402
@@ -114,6 +118,8 @@ class BenchmarkRunOptions(BaseModel):
         "live", "record", "replay", "record-missing", "plan"
     ] = "live"
     snapshot_dir: Path | None = None
+    llm_mode: Literal["live", "record", "replay", "record-missing"] = "live"
+    llm_snapshot_dir: Path | None = None
     plan_round: int = Field(default=1, ge=1)
     retry_failed_snapshots: bool = False
     overwrite_snapshots: bool = False
@@ -169,11 +175,8 @@ def _ablation_group_name(options: BenchmarkRunOptions) -> str:
         base_group = "baseline"
     if options.query_planning_policy == "current_rules":
         return base_group
-    return (
-        "facet_balanced"
-        if base_group == "baseline"
-        else f"facet_balanced_{base_group}"
-    )
+    prefix = options.query_planning_policy
+    return prefix if base_group == "baseline" else f"{prefix}_{base_group}"
 
 
 def _snapshot_manifest(
@@ -210,6 +213,11 @@ def _snapshot_manifest(
         budgets=options.budgets.model_dump(mode="json"),
         llm_enabled=bool((config.get("llm") or {}).get("llm_enabled")),
         query_understanding_prompt=prompt("query_understanding"),
+        llm_query_planning_prompt=(
+            prompt("llm_query_planning")
+            if options.query_planning_policy == "llm_semantic"
+            else {}
+        ),
         judgement_prompt=prompt("relevance_judgement"),
         connector_versions=dict(CONNECTOR_VERSIONS),
         code_hash=str(config.get("runtime_code_hash") or ""),
@@ -271,13 +279,61 @@ def _aggregate_snapshot_costs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _aggregate_llm_planning_costs(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reports = [
+        row.get("llm_planning_cost_report")
+        for row in rows
+        if isinstance(row.get("llm_planning_cost_report"), dict)
+    ]
+    numeric_fields = (
+        "snapshot_hits",
+        "snapshot_writes",
+        "live_call_count",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "recorded_latency_seconds",
+        "replay_execution_request_count",
+        "replay_execution_retry_count",
+        "replay_execution_network_wait_seconds",
+    )
+    return {
+        "case_count": len(reports),
+        **{
+            field: sum(float(report.get(field) or 0) for report in reports)
+            for field in numeric_fields
+        },
+        "missing_keys": sorted(
+            {
+                key
+                for report in reports
+                for key in report.get("missing_keys") or []
+            }
+        ),
+    }
+
+
 def _write_snapshot_plan_artifacts(
     options: BenchmarkRunOptions,
     runtime: SnapshotRuntime,
+    llm_runtime: LLMPlanningSnapshotRuntime | None = None,
 ) -> None:
     if options.snapshot_dir is None:
         return
-    entries = runtime.plan_entries()
+    llm_entries = llm_runtime.plan_entries() if llm_runtime is not None else []
+    # LLM 规划键是检索查询键的上游依赖。缺失时本轮只计划 LLM，不能用
+    # fallback 查询猜测后续 adapted retrieval key。
+    if llm_entries:
+        entries = llm_entries
+    else:
+        entries = []
+        for entry in runtime.plan_entries():
+            dependency_keys = list(entry.dependency_keys)
+            if llm_runtime is not None:
+                for key in llm_runtime.dependency_keys(entry.case_id):
+                    if key not in dependency_keys:
+                        dependency_keys.insert(0, key)
+            entries.append(entry.model_copy(update={"dependency_keys": dependency_keys}))
     missing = [entry for entry in entries if not entry.already_present]
     group = _ablation_group_name(options)
     group_root = plan_group_root(options.snapshot_dir, group)
@@ -292,6 +348,9 @@ def _write_snapshot_plan_artifacts(
         ),
         missing_reference_count=sum(
             entry.entry_type == "reference" for entry in missing
+        ),
+        missing_llm_planning_count=sum(
+            entry.entry_type == "llm_planning" for entry in missing
         ),
         network_request_count=0,
         converged=not missing,
@@ -308,6 +367,14 @@ def _write_snapshot_plan_artifacts(
             entry.model_dump(mode="json")
             for entry in missing
             if entry.entry_type == "retrieval"
+        ],
+    )
+    _write_plan_jsonl(
+        round_root / "missing_llm_planning_keys.jsonl",
+        [
+            entry.model_dump(mode="json")
+            for entry in missing
+            if entry.entry_type == "llm_planning"
         ],
     )
     _write_plan_jsonl(
@@ -339,6 +406,7 @@ def run_benchmark(
     *,
     service: Any | None = None,
 ) -> BenchmarkRunResult:
+    _validate_llm_planning_runtime(options, service=service)
     source_path = dataset_source_path(options.dataset, options.dataset_path)
     all_queries = load_dataset(options.dataset, path=source_path)
     selected = _select_queries(all_queries, options.offset, options.limit)
@@ -360,6 +428,17 @@ def run_benchmark(
         )
 
     snapshot_runtime: SnapshotRuntime | None = None
+    llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None
+    if options.query_planning_policy == "llm_semantic" and options.llm_mode != "live":
+        if service is not None:
+            raise ValueError("LLM snapshot modes require the real SearchService")
+        if options.llm_snapshot_dir is None:
+            raise ValueError("--llm-snapshot-dir is required outside LLM live mode")
+        llm_planning_runtime = LLMPlanningSnapshotRuntime(
+            LLMPlanningSnapshotStore(options.llm_snapshot_dir),
+            mode=options.llm_mode,
+            group_name=_ablation_group_name(options),
+        )
     if options.retrieval_mode != "live":
         if service is not None:
             raise ValueError("snapshot modes require the real SearchService")
@@ -394,9 +473,13 @@ def run_benchmark(
                 fetch_openalex_references_detailed,
             ),
             max_workers=options.max_workers,
+            llm_planning_runtime=llm_planning_runtime,
         )
     else:
-        runner = service or SearchService(max_workers=options.max_workers)
+        runner = service or SearchService(
+            max_workers=options.max_workers,
+            llm_planning_runtime=llm_planning_runtime,
+        )
     selected_ids = [query.query_id for query in selected]
     for query in selected:
         previous = existing_rows.get(query.query_id)
@@ -407,12 +490,14 @@ def run_benchmark(
             query,
             options,
             snapshot_runtime=snapshot_runtime,
+            llm_planning_runtime=llm_planning_runtime,
         )
         _write_result_artifacts(run_dir, selected_ids, existing_rows)
 
     ordered_rows = [existing_rows[case_id] for case_id in selected_ids]
     metrics = _evaluate_rows(ordered_rows, selected, options.result_policy)
     metrics["snapshot_costs"] = _aggregate_snapshot_costs(ordered_rows)
+    metrics["llm_planning_costs"] = _aggregate_llm_planning_costs(ordered_rows)
     _atomic_write_json(run_dir / "metrics.json", metrics)
     stage_metrics: dict[str, Any] | None = None
     if options.diagnostics:
@@ -440,6 +525,7 @@ def run_benchmark(
             _write_snapshot_plan_artifacts(
                 options,
                 snapshot_runtime,
+                llm_planning_runtime,
             )
     return BenchmarkRunResult(
         run_dir=run_dir,
@@ -448,6 +534,29 @@ def run_benchmark(
         result_rows=ordered_rows,
         stage_metrics=stage_metrics,
     )
+
+
+def _validate_llm_planning_runtime(
+    options: BenchmarkRunOptions,
+    *,
+    service: Any | None,
+) -> None:
+    if options.query_planning_policy != "llm_semantic" or service is not None:
+        return
+    runtime = get_llm_runtime_config()
+    if options.llm_mode in {"live", "record"} and not runtime.available:
+        raise ValueError(
+            "llm_semantic requires an available LLM provider in live/record mode"
+        )
+    if options.llm_mode == "live":
+        return
+    if options.llm_snapshot_dir is None:
+        raise ValueError("--llm-snapshot-dir is required outside LLM live mode")
+    identity = LLMPlanningSnapshotStore(options.llm_snapshot_dir).identity()
+    has_config_identity = runtime.provider != "disabled" and bool(runtime.model)
+    if options.llm_mode in {"replay", "record-missing"} and identity is None:
+        if not has_config_identity:
+            raise ValueError("llm_planning_snapshot_identity_unavailable")
 
 
 def _select_queries(
@@ -468,7 +577,9 @@ def _build_config(
 ) -> dict[str, Any]:
     llm_runtime = get_llm_runtime_config()
     requested_llm = (
-        options.enable_llm_query_understanding or options.enable_llm_judgement
+        options.enable_llm_query_understanding
+        or options.enable_llm_judgement
+        or options.query_planning_policy == "llm_semantic"
     )
     semantic_config = {
         "dataset": options.dataset,
@@ -499,6 +610,15 @@ def _build_config(
         "diagnostics": options.diagnostics,
         "query_adapter_policy": options.query_adapter_policy,
         "retrieval_mode": options.retrieval_mode,
+        "llm_mode": options.llm_mode,
+        "llm_snapshot": (
+            {
+                "directory": str(options.llm_snapshot_dir.expanduser().resolve()),
+                "name": options.llm_snapshot_dir.name,
+            }
+            if options.llm_snapshot_dir is not None
+            else None
+        ),
         "snapshot": (
             {
                 "directory": str(options.snapshot_dir.expanduser().resolve()),
@@ -516,6 +636,9 @@ def _build_config(
             "requested": requested_llm,
             "query_understanding": options.enable_llm_query_understanding,
             "judgement": options.enable_llm_judgement,
+            "semantic_query_planning": (
+                options.query_planning_policy == "llm_semantic"
+            ),
             "provider": llm_runtime.provider,
             "model": llm_runtime.model,
             "runtime_available": llm_runtime.available,
@@ -647,10 +770,13 @@ def _run_case(
     query: EvalQuery,
     options: BenchmarkRunOptions,
     snapshot_runtime: SnapshotRuntime | None = None,
+    llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     if snapshot_runtime is not None:
         snapshot_runtime.begin_case(query.query_id)
+    if llm_planning_runtime is not None:
+        llm_planning_runtime.begin_case(query.query_id)
     try:
         output = service.run_search(
             query.query,
@@ -697,6 +823,10 @@ def _run_case(
             row["snapshot_cost_report"] = snapshot_runtime.finish_case().model_dump(
                 mode="json"
             )
+        if llm_planning_runtime is not None:
+            row["llm_planning_cost_report"] = (
+                llm_planning_runtime.finish_case().model_dump(mode="json")
+            )
         return row
     except Exception as exc:  # noqa: BLE001 - isolate benchmark cases
         row = {
@@ -712,6 +842,10 @@ def _run_case(
         if snapshot_runtime is not None:
             row["snapshot_cost_report"] = snapshot_runtime.finish_case().model_dump(
                 mode="json"
+            )
+        if llm_planning_runtime is not None:
+            row["llm_planning_cost_report"] = (
+                llm_planning_runtime.finish_case().model_dump(mode="json")
             )
         return row
 
@@ -982,7 +1116,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--query-planning-policy",
-        choices=["current_rules", "facet_balanced"],
+        choices=["current_rules", "facet_balanced", "llm_semantic"],
         default="current_rules",
     )
     parser.add_argument("--enable-refchain", action="store_true")
@@ -1008,6 +1142,12 @@ def _parser() -> argparse.ArgumentParser:
         default="live",
     )
     parser.add_argument("--snapshot-dir", default=None)
+    parser.add_argument(
+        "--llm-mode",
+        choices=["live", "record", "replay", "record-missing"],
+        default="live",
+    )
+    parser.add_argument("--llm-snapshot-dir", default=None)
     parser.add_argument("--plan-round", type=int, default=1)
     parser.add_argument("--retry-failed-snapshots", action="store_true")
     parser.add_argument("--overwrite-snapshots", action="store_true")
@@ -1073,6 +1213,10 @@ def main(argv: list[str] | None = None) -> int:
             resume=args.resume,
             retrieval_mode=args.retrieval_mode,
             snapshot_dir=(Path(args.snapshot_dir) if args.snapshot_dir else None),
+            llm_mode=args.llm_mode,
+            llm_snapshot_dir=(
+                Path(args.llm_snapshot_dir) if args.llm_snapshot_dir else None
+            ),
             plan_round=args.plan_round,
             retry_failed_snapshots=args.retry_failed_snapshots,
             overwrite_snapshots=args.overwrite_snapshots,

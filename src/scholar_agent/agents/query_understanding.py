@@ -11,6 +11,10 @@ from scholar_agent.agents.query_planning import (
     plan_facet_balanced,
     summarize_current_rules_planning,
 )
+from scholar_agent.agents.llm_query_planning import (
+    LLMPlanningRuntime,
+    plan_llm_semantic,
+)
 from scholar_agent.core.search_schemas import (
     QueryAnalysis,
     QueryConstraint,
@@ -227,8 +231,13 @@ class LLMJsonClient(Protocol):
 class QueryUnderstandingAgent:
     """Query analysis with optional LLM JSON enhancement and rule fallback."""
 
-    def __init__(self, llm_client: "LLMJsonClient | None" = None) -> None:
+    def __init__(
+        self,
+        llm_client: "LLMJsonClient | None" = None,
+        llm_planning_runtime: LLMPlanningRuntime | None = None,
+    ) -> None:
         self._llm_client = llm_client
+        self._llm_planning_runtime = llm_planning_runtime
 
     def analyze(
         self,
@@ -236,7 +245,9 @@ class QueryUnderstandingAgent:
         options: QueryUnderstandingOptions | None = None,
     ) -> SearchPlan:
         options = options or QueryUnderstandingOptions()
-        if options.use_llm:
+        # llm_semantic 独立消费规则解析结果，不能先调用通用 Query Understanding
+        # 再进行第二次 LLM 规划。
+        if options.use_llm and options.query_planning_policy != "llm_semantic":
             return self._analyze_with_optional_llm(query, options)
         return self._analyze_rules(query, options)
 
@@ -316,6 +327,21 @@ class QueryUnderstandingAgent:
                 query_analysis,
                 subqueries,
             )
+            if options.query_planning_policy == "llm_semantic":
+                outcome = plan_llm_semantic(
+                    query_analysis,
+                    current_subqueries=subqueries,
+                    current_result=query_planning,
+                    selected_sources=selected_sources,
+                    max_subqueries=max_subqueries,
+                    run_profile=options.run_profile,
+                    explicit_constraints=options.explicit_constraints,
+                    llm_client=self._llm_client,
+                    runtime=self._llm_planning_runtime,
+                )
+                subqueries = outcome.subqueries
+                query_planning = outcome.result
+                warnings = _dedupe([*warnings, *outcome.warnings])
 
         return SearchPlan(
             query_analysis=query_analysis,
@@ -388,6 +414,7 @@ def analyze_query(
     current_year: int | None = None,
     use_llm: bool | None = None,
     llm_client: "LLMJsonClient | None" = None,
+    llm_planning_runtime: LLMPlanningRuntime | None = None,
     explicit_constraints: QueryConstraint | None = None,
 ) -> SearchPlan:
     """Analyze a user query into a SearchPlan."""
@@ -402,7 +429,10 @@ def analyze_query(
         use_llm=use_llm,
         explicit_constraints=explicit_constraints,
     )
-    return QueryUnderstandingAgent(llm_client=llm_client).analyze(query, options)
+    return QueryUnderstandingAgent(
+        llm_client=llm_client,
+        llm_planning_runtime=llm_planning_runtime,
+    ).analyze(query, options)
 
 
 def _normalize_query(query: str) -> str:

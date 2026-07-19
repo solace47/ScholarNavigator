@@ -243,6 +243,7 @@ class SearchService:
         reference_fetcher: ReferenceFetcher = fetch_openalex_references_detailed,
         max_workers: int = 4,
         llm_client: Any | None = None,
+        llm_planning_runtime: Any | None = None,
     ) -> None:
         self._retriever = retriever
         self._retriever_emits_connector_events = bool(
@@ -252,6 +253,7 @@ class SearchService:
         self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
+        self._llm_planning_runtime = llm_planning_runtime
 
     def run_search(
         self,
@@ -304,7 +306,9 @@ class SearchService:
             else enable_llm_judgement
         )
         resolved_llm_client = self._resolve_llm_client(
-            use_llm_query_understanding or use_llm_judgement
+            use_llm_query_understanding
+            or use_llm_judgement
+            or query_planning_policy == "llm_semantic"
         )
         llm_client = (
             BudgetedLLMClient(resolved_llm_client, runtime)
@@ -327,6 +331,7 @@ class SearchService:
             current_year=current_year,
             use_llm=use_llm_query_understanding,
             llm_client=llm_client,
+            llm_planning_runtime=self._llm_planning_runtime,
             explicit_constraints=explicit_constraints,
         )
         search_plan = _apply_sources_override(search_plan, sources_override)

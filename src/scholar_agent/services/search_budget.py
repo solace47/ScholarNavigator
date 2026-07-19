@@ -154,6 +154,25 @@ class BudgetedLLMClient:
         self._client = client
         self._runtime = runtime
 
+    @property
+    def token_usage(self) -> Any:
+        return getattr(self._client, "token_usage", None)
+
+    @property
+    def model(self) -> str | None:
+        value = getattr(self._client, "model", None)
+        return str(value) if value else None
+
+    @property
+    def provider(self) -> str | None:
+        value = getattr(self._client, "provider", None)
+        return str(value) if value else None
+
+    @property
+    def base_url_host(self) -> str | None:
+        value = getattr(self._client, "base_url_host", None)
+        return str(value) if value else None
+
     def chat_json(
         self,
         messages: list[dict[str, str]],

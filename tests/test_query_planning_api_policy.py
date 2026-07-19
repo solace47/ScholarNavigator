@@ -23,6 +23,17 @@ def test_api_accepts_facet_balanced_planning() -> None:
     assert request.options.query_planning_policy == "facet_balanced"
 
 
+def test_api_accepts_llm_semantic_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "llm_semantic"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "llm_semantic"
+
+
 def test_api_rejects_unknown_planning_policy() -> None:
     with pytest.raises(ValidationError):
         SearchRunCreateRequest.model_validate(

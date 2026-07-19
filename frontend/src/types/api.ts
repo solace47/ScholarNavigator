@@ -2,7 +2,10 @@ export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancell
 
 export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
 export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
-export type QueryPlanningPolicy = "current_rules" | "facet_balanced";
+export type QueryPlanningPolicy =
+  | "current_rules"
+  | "facet_balanced"
+  | "llm_semantic";
 export type QueryFacetType =
   | "topic"
   | "method"
@@ -302,6 +305,29 @@ export interface SearchPlan {
     dataset_coverage: number;
     task_coverage: number;
     paper_type_coverage: number;
+    provider: string | null;
+    model: string | null;
+    prompt_name: string | null;
+    prompt_version: string | null;
+    prompt_hash: string | null;
+    snapshot_key: string | null;
+    snapshot_status: string | null;
+    llm_call_attempted: boolean;
+    replayed: boolean;
+    fallback_used: boolean;
+    fallback_reason: string | null;
+    output_valid: boolean;
+    original_query_retained: boolean;
+    generated_query_count: number;
+    accepted_query_count: number;
+    rejected_query_count: number;
+    rejection_reasons: Record<string, number>;
+    accepted_queries: string[];
+    terminology_expansions: string[];
+    llm_prompt_tokens: number;
+    llm_completion_tokens: number;
+    llm_total_tokens: number;
+    recorded_llm_latency_seconds: number;
   };
   query_evolution_policy: QueryEvolutionPolicy;
 }

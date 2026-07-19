@@ -28,6 +28,11 @@ from scholar_agent.connectors import (  # noqa: E402
 from scholar_agent.connectors.schemas import ConnectorSearchResult  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
 from scholar_agent.evaluation.snapshots import SnapshotRuntime, SnapshotStore  # noqa: E402
+from scholar_agent.evaluation.llm_planning_snapshots import (  # noqa: E402
+    LLMPlanningSnapshotStore,
+    collect_llm_plan_entry,
+)
+from scholar_agent.llm.provider import OpenAICompatibleLLMClient  # noqa: E402
 from scholar_agent.evaluation.snapshots.planning import (  # noqa: E402
     SnapshotCollectionLimits,
     atomic_write_json,
@@ -52,6 +57,8 @@ def collect_plan(
     plan_path: Path | str,
     snapshot_dir: Path | str,
     *,
+    llm_snapshot_dir: Path | str | None = None,
+    llm_client: Any | None = None,
     max_new_requests: int = DEFAULT_MAX_NEW_REQUESTS,
     max_new_failed_entries: int = DEFAULT_MAX_NEW_FAILED_ENTRIES,
     max_collection_seconds: float = DEFAULT_MAX_COLLECTION_SECONDS,
@@ -67,6 +74,7 @@ def collect_plan(
     path = Path(plan_path).expanduser().resolve()
     plan = SnapshotPlanRound.model_validate_json(path.read_text(encoding="utf-8"))
     store = SnapshotStore(snapshot_dir)
+    llm_store = LLMPlanningSnapshotStore(llm_snapshot_dir or snapshot_dir)
     query_evolution_policy = _plan_query_evolution_policy(plan, store)
     query_planning_policy, query_planner_version = _plan_query_planning(plan, store)
     runtime = SnapshotRuntime(
@@ -106,7 +114,7 @@ def collect_plan(
         if cancel_check():
             stop_reason = "snapshot_collection_cancelled"
             break
-        existing_status = _existing_status(store, entry)
+        existing_status = _existing_status(store, llm_store, entry)
         if existing_status == "success" or (
             existing_status == "failed" and not retry_failed_snapshots
         ):
@@ -124,18 +132,25 @@ def collect_plan(
             stop_reason = "snapshot_collection_time_limit"
             break
 
-        result = _collect_entry(
-            runtime,
-            entry,
-            registry,
-            reference_fetcher,
-        )
-        diagnostics = result.recorded_diagnostics or result.diagnostics
-        request_count += diagnostics.request_count
+        if entry.entry_type == "llm_planning":
+            planning_client = llm_client or OpenAICompatibleLLMClient.from_env()
+            execution = collect_llm_plan_entry(entry, llm_store, planning_client)
+            request_count += int(execution.llm_call_attempted)
+            error_message = None
+        else:
+            result = _collect_entry(
+                runtime,
+                entry,
+                registry,
+                reference_fetcher,
+            )
+            diagnostics = result.recorded_diagnostics or result.diagnostics
+            request_count += diagnostics.request_count
+            error_message = result.error_message
         collected_count += 1
         if entry.key not in completed_keys:
             completed_keys.append(entry.key)
-        if result.error_message:
+        if error_message:
             failed_count += 1
             source_failures[entry.source] = source_failures.get(entry.source, 0) + 1
             if source_failures[entry.source] >= source_failure_limit:
@@ -159,7 +174,7 @@ def collect_plan(
     remaining_sources = {
         entry.source
         for entry in entries
-        if _existing_status(store, entry) is None
+        if _existing_status(store, llm_store, entry) is None
     }
     if stop_reason is None and remaining_sources.intersection(blocked_sources):
         stop_reason = "snapshot_collection_source_cooldown"
@@ -215,7 +230,7 @@ def _collect_entry(
             query_planning_policy=entry.query_planning_policy,
             query_planner_version=entry.query_planner_version,
         )
-    if entry.seed_identifier is None:
+    if entry.entry_type != "reference" or entry.seed_identifier is None:
         raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
     return runtime.fetch_references(
         _seed_paper(entry.seed_identifier),
@@ -294,13 +309,18 @@ def _plan_query_planning(
     return policy, version
 
 
-def _existing_status(store: SnapshotStore, entry: SnapshotPlanEntry) -> str | None:
+def _existing_status(
+    store: SnapshotStore,
+    llm_store: LLMPlanningSnapshotStore,
+    entry: SnapshotPlanEntry,
+) -> str | None:
     try:
-        stored = (
-            store.read_retrieval(entry.key)
-            if entry.entry_type == "retrieval"
-            else store.read_reference(entry.key)
-        )
+        if entry.entry_type == "llm_planning":
+            stored = llm_store.read(entry.key)
+        elif entry.entry_type == "retrieval":
+            stored = store.read_retrieval(entry.key)
+        else:
+            stored = store.read_reference(entry.key)
     except SnapshotMissingError:
         return None
     return stored.status
@@ -349,6 +369,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="按离线计划有界补齐 Benchmark 快照。")
     parser.add_argument("--collect-plan", required=True)
     parser.add_argument("--snapshot-dir", required=True)
+    parser.add_argument("--llm-snapshot-dir", default=None)
     parser.add_argument("--max-new-requests", type=int, default=DEFAULT_MAX_NEW_REQUESTS)
     parser.add_argument(
         "--max-new-failed-entries",
@@ -375,13 +396,14 @@ def main(argv: list[str] | None = None) -> int:
         result = collect_plan(
             args.collect_plan,
             args.snapshot_dir,
+            llm_snapshot_dir=args.llm_snapshot_dir,
             max_new_requests=args.max_new_requests,
             max_new_failed_entries=args.max_new_failed_entries,
             max_collection_seconds=args.max_collection_seconds,
             retry_failed_snapshots=args.retry_failed_snapshots,
             source_failure_limit=args.source_failure_limit,
         )
-    except (OSError, ValueError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))

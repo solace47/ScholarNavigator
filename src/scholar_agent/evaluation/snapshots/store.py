@@ -89,7 +89,7 @@ def retrieval_snapshot_key(
     if query_evolution_policy == "coverage_gap":
         payload["query_evolution_policy"] = query_evolution_policy
     # current_rules 保留历史键；facet planner 使用独立版本化命名空间。
-    if query_planning_policy == "facet_balanced":
+    if query_planning_policy in {"facet_balanced", "llm_semantic"}:
         payload["query_planning_policy"] = query_planning_policy
         payload["query_planner_version"] = query_planner_version
     return _stable_hash(payload), normalized_query
@@ -179,6 +179,7 @@ class SnapshotStore:
                     "budgets",
                     "llm_enabled",
                     "query_understanding_prompt",
+                    "llm_query_planning_prompt",
                     "judgement_prompt",
                     "connector_versions",
                 )

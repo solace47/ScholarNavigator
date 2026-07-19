@@ -802,12 +802,40 @@ def _initial_query_planning_diagnostics(
     all_gold = set().union(*gold_sets.values()) if gold_sets else set()
     all_ids = set().union(*candidate_sets.values()) if candidate_sets else set()
     planning = output.search_plan.query_planning
+    planning_payload = planning.model_dump(mode="json")
+    if output.search_plan.query_planning_policy != "llm_semantic":
+        for field in (
+            "provider",
+            "model",
+            "prompt_name",
+            "prompt_version",
+            "prompt_hash",
+            "snapshot_key",
+            "snapshot_status",
+            "llm_call_attempted",
+            "replayed",
+            "fallback_used",
+            "fallback_reason",
+            "output_valid",
+            "original_query_retained",
+            "generated_query_count",
+            "accepted_query_count",
+            "rejected_query_count",
+            "rejection_reasons",
+            "accepted_queries",
+            "terminology_expansions",
+            "llm_prompt_tokens",
+            "llm_completion_tokens",
+            "llm_total_tokens",
+            "recorded_llm_latency_seconds",
+        ):
+            planning_payload.pop(field, None)
     return {
         "policy": output.search_plan.query_planning_policy,
         "planner_version": planning.planner_version,
         "original_query": original_query,
         "query_analysis": output.search_plan.query_analysis.model_dump(mode="json"),
-        "planning": planning.model_dump(mode="json"),
+        "planning": planning_payload,
         "subqueries": query_rows,
         "subquery_count": len(subqueries),
         "adapted_query_count": len(

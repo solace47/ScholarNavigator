@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
@@ -32,7 +32,7 @@ ConstraintField = Literal[
 ]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
-QueryPlanningPolicy = Literal["current_rules", "facet_balanced"]
+QueryPlanningPolicy = Literal["current_rules", "facet_balanced", "llm_semantic"]
 QueryFacetType = Literal[
     "topic",
     "method",
@@ -41,6 +41,16 @@ QueryFacetType = Literal[
     "paper_type",
     "venue",
     "temporal",
+]
+LLMSemanticFacetType = Literal[
+    "topic",
+    "method",
+    "dataset",
+    "task",
+    "paper_type",
+    "venue",
+    "temporal",
+    "synonym",
 ]
 QueryFacetSource = Literal["explicit", "llm", "rules"]
 QueryLanguage = Literal["zh", "en", "mixed", "unknown"]
@@ -83,7 +93,8 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.2.0"
+QUERY_PLANNER_VERSION = "1.3.0"
+LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 
 class SearchBudget(BaseModel):
@@ -230,6 +241,46 @@ class QueryFacet(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class LLMSemanticFacet(BaseModel):
+    """LLM 语义规划输出中的可审计术语映射。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    facet_type: LLMSemanticFacetType
+    original_terms: list[str] = Field(default_factory=list, max_length=12)
+    normalized_terms: list[str] = Field(default_factory=list, max_length=12)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class LLMSemanticQuery(BaseModel):
+    """一条来源无关、待本地校验的语义补充查询。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+    purpose: str = Field(min_length=1, max_length=120)
+    covered_facets: list[LLMSemanticFacetType] = Field(
+        default_factory=list,
+        max_length=8,
+    )
+    retained_must_have_terms: list[str] = Field(default_factory=list, max_length=12)
+    terminology_expansions: list[str] = Field(default_factory=list, max_length=12)
+
+
+class LLMQueryPlanningOutput(BaseModel):
+    """独立语义查询规划 Prompt 的严格 JSON 输出。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    intent_summary: str = Field(min_length=1, max_length=240)
+    facets: list[LLMSemanticFacet] = Field(default_factory=list, max_length=16)
+    supplemental_queries: list[LLMSemanticQuery] = Field(
+        default_factory=list,
+        max_length=2,
+    )
+    warnings: list[str] = Field(default_factory=list, max_length=12)
+
+
 class QueryPlanningResult(BaseModel):
     policy: QueryPlanningPolicy = "current_rules"
     planner_version: str = QUERY_PLANNER_VERSION
@@ -248,6 +299,29 @@ class QueryPlanningResult(BaseModel):
     dataset_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     task_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     paper_type_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    provider: str | None = None
+    model: str | None = None
+    prompt_name: str | None = None
+    prompt_version: str | None = None
+    prompt_hash: str | None = None
+    snapshot_key: str | None = None
+    snapshot_status: str | None = None
+    llm_call_attempted: bool = False
+    replayed: bool = False
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+    output_valid: bool = False
+    original_query_retained: bool = True
+    generated_query_count: int = Field(default=0, ge=0)
+    accepted_query_count: int = Field(default=0, ge=0)
+    rejected_query_count: int = Field(default=0, ge=0)
+    rejection_reasons: dict[str, int] = Field(default_factory=dict)
+    accepted_queries: list[str] = Field(default_factory=list)
+    terminology_expansions: list[str] = Field(default_factory=list)
+    llm_prompt_tokens: int = Field(default=0, ge=0)
+    llm_completion_tokens: int = Field(default=0, ge=0)
+    llm_total_tokens: int = Field(default=0, ge=0)
+    recorded_llm_latency_seconds: float = Field(default=0.0, ge=0.0)
 
 
 class SearchPlan(BaseModel):

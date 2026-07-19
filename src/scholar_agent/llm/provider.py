@@ -130,6 +130,15 @@ def get_llm_runtime_config() -> LLMRuntimeConfig:
     )
 
 
+def get_llm_request_options() -> dict[str, int | float]:
+    """返回可进入快照键的公开请求参数，不包含密钥或完整 URL。"""
+
+    return {
+        "timeout_seconds": _timeout_from_env(),
+        "max_tokens": _max_tokens_from_env(),
+    }
+
+
 def chat_json(
     messages: list[dict[str, str]],
     *,
