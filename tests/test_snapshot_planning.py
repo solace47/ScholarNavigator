@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import run_benchmark
+from scripts import collect_benchmark_snapshot_plan as collector_module
 from scripts.collect_benchmark_snapshot_plan import collect_plan
 from scripts.prepare_benchmark_ablation_snapshots import iterate_group
 from scholar_agent.agents import retriever as retriever_module
@@ -447,6 +448,33 @@ def test_collector_failure_limit_freezes_failure_and_stops(tmp_path: Path) -> No
     assert result["covered_failed"] == 1
     assert result["stop_reason"] == "snapshot_collection_failure_limit"
     assert result["missing_entries"] == 1
+
+
+def test_collector_can_disable_openalex_connector_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "snapshot"
+    _store(root)
+    entry = _plan_entry("a" * 64, source="openalex")
+    _observe_missing_plan(root, [entry])
+    observed_retries: list[int] = []
+
+    def search(query: str, limit: int, *, max_retries: int) -> ConnectorSearchResult:
+        del query, limit
+        observed_retries.append(max_retries)
+        return _failure()
+
+    monkeypatch.setattr(collector_module, "search_openalex_detailed", search)
+    result = collect_plan(
+        _write_plan(root, [entry]),
+        root,
+        openalex_max_retries=0,
+    )
+
+    assert observed_retries == [0]
+    assert result["covered_failed"] == 1
+    assert result["missing_entries"] == 0
 
 
 def test_collector_time_limit_prevents_first_request(tmp_path: Path) -> None:

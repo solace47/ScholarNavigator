@@ -8,6 +8,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,7 @@ def collect_plan(
     max_collection_seconds: float = DEFAULT_MAX_COLLECTION_SECONDS,
     retry_failed_snapshots: bool = False,
     source_failure_limit: int = DEFAULT_SOURCE_FAILURE_LIMIT,
+    openalex_max_retries: int | None = None,
     searchers: dict[str, Callable[[str, int], ConnectorSearchResult]] | None = None,
     reference_fetcher: Callable[[Paper, int], ConnectorSearchResult] = (
         fetch_openalex_references_detailed
@@ -87,12 +89,21 @@ def collect_plan(
         query_planning_policy=query_planning_policy,
         query_planner_version=query_planner_version,
     )
-    registry = searchers or {
-        "arxiv": search_arxiv_detailed,
-        "openalex": search_openalex_detailed,
-        "semantic_scholar": search_semantic_scholar_detailed,
-        "pubmed": search_pubmed_detailed,
-    }
+    if openalex_max_retries is not None and openalex_max_retries < 0:
+        raise ValueError("openalex_max_retries_must_be_nonnegative")
+    registry = searchers
+    if registry is None:
+        openalex_search = (
+            partial(search_openalex_detailed, max_retries=openalex_max_retries)
+            if openalex_max_retries is not None
+            else search_openalex_detailed
+        )
+        registry = {
+            "arxiv": search_arxiv_detailed,
+            "openalex": openalex_search,
+            "semantic_scholar": search_semantic_scholar_detailed,
+            "pubmed": search_pubmed_detailed,
+        }
     started = clock()
     request_count = 0
     failed_count = 0
@@ -387,6 +398,12 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_SOURCE_FAILURE_LIMIT,
     )
+    parser.add_argument(
+        "--openalex-max-retries",
+        type=int,
+        default=None,
+        help="仅为 OpenAlex 快照采集设置连接器重试上限。",
+    )
     return parser
 
 
@@ -402,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
             max_collection_seconds=args.max_collection_seconds,
             retry_failed_snapshots=args.retry_failed_snapshots,
             source_failure_limit=args.source_failure_limit,
+            openalex_max_retries=args.openalex_max_retries,
         )
     except (OSError, RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
