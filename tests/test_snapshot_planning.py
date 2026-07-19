@@ -111,6 +111,8 @@ def _plan_entry(
     priority: int = 1,
     present: bool = False,
     query_evolution_policy: str | None = None,
+    query_planning_policy: str | None = None,
+    query_planner_version: str | None = None,
 ) -> SnapshotPlanEntry:
     adapted_query = f"query-{token[:4]}"
     key, _ = retrieval_snapshot_key(
@@ -120,6 +122,8 @@ def _plan_entry(
         adapter_policy="adaptive",
         connector_version=connector_version(source),
         query_evolution_policy=query_evolution_policy,
+        query_planning_policy=query_planning_policy,
+        query_planner_version=query_planner_version,
     )
     return SnapshotPlanEntry(
         key=key,
@@ -135,6 +139,8 @@ def _plan_entry(
         origin_subquery="graph molecular prediction",
         generated_by="query_evolution",
         query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
+        query_planning_policy=query_planning_policy,  # type: ignore[arg-type]
+        query_planner_version=query_planner_version,
         dependency_keys=[],
         priority=priority,
         already_present=present,
@@ -216,6 +222,34 @@ def test_collector_preserves_coverage_gap_policy_and_key(tmp_path: Path) -> None
     )
 
     assert result["coverage"]["query_evolution_policy"] == "coverage_gap"
+    assert SnapshotStore(root).read_retrieval(entry.key).status == "success"
+
+
+def test_collector_preserves_facet_planning_policy_version_and_key(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshot"
+    _store(root)
+    entry = _plan_entry(
+        "facet-plan",
+        query_planning_policy="facet_balanced",
+        query_planner_version="1.0.0",
+    )
+    path = _write_plan(root, [entry], group="facet_balanced")
+
+    result = collect_plan(
+        path,
+        root,
+        searchers={
+            "arxiv": lambda query, limit: ConnectorSearchResult(
+                papers=[_paper()],
+                diagnostics=ConnectorDiagnostics(request_count=1),
+            )
+        },
+    )
+
+    assert result["coverage"]["query_planning_policy"] == "facet_balanced"
+    assert result["coverage"]["query_planner_version"] == "1.0.0"
     assert SnapshotStore(root).read_retrieval(entry.key).status == "success"
 
 

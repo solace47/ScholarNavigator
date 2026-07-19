@@ -30,7 +30,9 @@ from scholar_agent.core.api_schemas import CostReport  # noqa: E402
 from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
+    QUERY_PLANNER_VERSION,
     QueryEvolutionPolicy,
+    QueryPlanningPolicy,
     SUPPORTED_SEARCH_SOURCES,
     SearchBudget,
 )
@@ -98,6 +100,7 @@ class BenchmarkRunOptions(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
+    query_planning_policy: QueryPlanningPolicy = "current_rules"
     enable_refchain: bool = False
     enable_llm_query_understanding: bool = False
     enable_llm_judgement: bool = False
@@ -153,16 +156,24 @@ def _ablation_group_name(options: BenchmarkRunOptions) -> str:
         and options.query_evolution_policy == "coverage_gap"
         and options.enable_refchain
     ):
-        return "query_evolution_coverage_gap_plus_refchain"
-    if evolution_enabled and options.query_evolution_policy == "coverage_gap":
-        return "query_evolution_coverage_gap"
-    if evolution_enabled and options.enable_refchain:
-        return "query_evolution_plus_refchain"
-    if evolution_enabled:
-        return "query_evolution_only"
-    if options.enable_refchain:
-        return "refchain_only"
-    return "baseline"
+        base_group = "query_evolution_coverage_gap_plus_refchain"
+    elif evolution_enabled and options.query_evolution_policy == "coverage_gap":
+        base_group = "query_evolution_coverage_gap"
+    elif evolution_enabled and options.enable_refchain:
+        base_group = "query_evolution_plus_refchain"
+    elif evolution_enabled:
+        base_group = "query_evolution_only"
+    elif options.enable_refchain:
+        base_group = "refchain_only"
+    else:
+        base_group = "baseline"
+    if options.query_planning_policy == "current_rules":
+        return base_group
+    return (
+        "facet_balanced"
+        if base_group == "baseline"
+        else f"facet_balanced_{base_group}"
+    )
 
 
 def _snapshot_manifest(
@@ -194,6 +205,7 @@ def _snapshot_manifest(
         sources=list(options.sources),
         adapter_policy=options.query_adapter_policy,
         query_adapter_version=QUERY_ADAPTER_VERSION,
+        query_planner_version=QUERY_PLANNER_VERSION,
         run_profile=options.run_profile,
         budgets=options.budgets.model_dump(mode="json"),
         llm_enabled=bool((config.get("llm") or {}).get("llm_enabled")),
@@ -372,6 +384,8 @@ def run_benchmark(
                 if options.enable_query_evolution
                 else "off"
             ),
+            query_planning_policy=options.query_planning_policy,
+            query_planner_version=QUERY_PLANNER_VERSION,
         )
         runner = SearchService(
             retriever=SnapshotAwareRetriever(snapshot_runtime),
@@ -476,6 +490,8 @@ def _build_config(
             if options.enable_query_evolution
             else "off"
         ),
+        "query_planning_policy": options.query_planning_policy,
+        "query_planner_version": QUERY_PLANNER_VERSION,
         "enable_refchain": options.enable_refchain,
         "current_year": options.current_year,
         "max_workers": options.max_workers,
@@ -642,6 +658,7 @@ def _run_case(
             run_profile=options.run_profile,
             enable_query_evolution=options.enable_query_evolution,
             query_evolution_policy=options.query_evolution_policy,
+            query_planning_policy=options.query_planning_policy,
             enable_refchain=options.enable_refchain,
             enable_synthesis=True,
             current_year=options.current_year,
@@ -963,6 +980,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=["off", "seed_expansion", "coverage_gap"],
         default="coverage_gap",
     )
+    parser.add_argument(
+        "--query-planning-policy",
+        choices=["current_rules", "facet_balanced"],
+        default="current_rules",
+    )
     parser.add_argument("--enable-refchain", action="store_true")
     parser.add_argument("--enable-llm-query-understanding", action="store_true")
     parser.add_argument("--enable-llm-judgement", action="store_true")
@@ -1039,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
             top_k=args.top_k,
             enable_query_evolution=args.enable_query_evolution,
             query_evolution_policy=args.query_evolution_policy,
+            query_planning_policy=args.query_planning_policy,
             enable_refchain=args.enable_refchain,
             enable_llm_query_understanding=args.enable_llm_query_understanding,
             enable_llm_judgement=args.enable_llm_judgement,

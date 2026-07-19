@@ -71,6 +71,8 @@ def retrieval_snapshot_key(
     query_adapter_version: str = QUERY_ADAPTER_VERSION,
     connector_version: str,
     query_evolution_policy: str | None = None,
+    query_planning_policy: str | None = None,
+    query_planner_version: str | None = None,
     schema_version: str = SNAPSHOT_SCHEMA_VERSION,
 ) -> tuple[str, str]:
     normalized_query = normalize_snapshot_query(adapted_query)
@@ -86,6 +88,10 @@ def retrieval_snapshot_key(
     # 旧 seed_expansion 与初始检索继续使用历史键；新策略单独命名空间化。
     if query_evolution_policy == "coverage_gap":
         payload["query_evolution_policy"] = query_evolution_policy
+    # current_rules 保留历史键；facet planner 使用独立版本化命名空间。
+    if query_planning_policy == "facet_balanced":
+        payload["query_planning_policy"] = query_planning_policy
+        payload["query_planner_version"] = query_planner_version
     return _stable_hash(payload), normalized_query
 
 
@@ -182,6 +188,14 @@ class SnapshotStore:
                 raise SnapshotConflictError(
                     "snapshot_manifest_incompatible:" + ",".join(mismatched)
                 )
+            if existing.query_planner_version != manifest.query_planner_version:
+                existing = existing.model_copy(
+                    update={
+                        "query_planner_version": manifest.query_planner_version,
+                        "updated_at": utc_now(),
+                    }
+                )
+                self._write_manifest(self._with_entry_counts(existing))
             return existing
         self._write_manifest(self._with_entry_counts(manifest))
         return manifest

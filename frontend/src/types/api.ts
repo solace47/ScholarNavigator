@@ -2,6 +2,15 @@ export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancell
 
 export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
 export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
+export type QueryPlanningPolicy = "current_rules" | "facet_balanced";
+export type QueryFacetType =
+  | "topic"
+  | "method"
+  | "dataset"
+  | "task"
+  | "paper_type"
+  | "venue"
+  | "temporal";
 
 export type RelevanceCategory =
   | "highly_relevant"
@@ -81,6 +90,7 @@ export interface SearchRunCreateRequest {
     max_latency_seconds?: number;
   };
   options?: {
+    query_planning_policy?: QueryPlanningPolicy;
     enable_query_evolution?: boolean;
     query_evolution_policy?: QueryEvolutionPolicy;
     enable_refchain?: boolean;
@@ -100,6 +110,7 @@ export interface InternalSearchPreviewRequest {
   enable_refchain?: boolean;
   enable_query_evolution?: boolean;
   query_evolution_policy?: QueryEvolutionPolicy;
+  query_planning_policy?: QueryPlanningPolicy;
   enable_llm_query_understanding?: boolean | null;
   enable_llm_judgement?: boolean | null;
   current_year?: number | null;
@@ -258,6 +269,40 @@ export interface SearchPlan {
   expanded_queries: string[];
   source_preferences: string[];
   max_rounds: number;
+  query_planning_policy: QueryPlanningPolicy;
+  query_planning: {
+    policy: QueryPlanningPolicy;
+    planner_version: string;
+    facets: Array<{
+      facet_type: QueryFacetType;
+      terms: string[];
+      confidence: number;
+      source: "explicit" | "llm" | "rules";
+      required: boolean;
+      warnings: string[];
+    }>;
+    selected_subqueries: Array<{
+      query: string;
+      source_hints: string[];
+      priority: number;
+      purpose: string;
+      facet_types: QueryFacetType[];
+      provenance: string[];
+    }>;
+    skipped_facets: string[];
+    warnings: string[];
+    identified_facet_count: number;
+    selected_facet_count: number;
+    explicit_facet_count: number;
+    selected_subquery_count: number;
+    duplicate_subquery_count: number;
+    skipped_by_budget_count: number;
+    topic_coverage: number;
+    method_coverage: number;
+    dataset_coverage: number;
+    task_coverage: number;
+    paper_type_coverage: number;
+  };
   query_evolution_policy: QueryEvolutionPolicy;
 }
 

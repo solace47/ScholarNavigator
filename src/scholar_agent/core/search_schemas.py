@@ -32,6 +32,17 @@ ConstraintField = Literal[
 ]
 RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
+QueryPlanningPolicy = Literal["current_rules", "facet_balanced"]
+QueryFacetType = Literal[
+    "topic",
+    "method",
+    "dataset",
+    "task",
+    "paper_type",
+    "venue",
+    "temporal",
+]
+QueryFacetSource = Literal["explicit", "llm", "rules"]
 QueryLanguage = Literal["zh", "en", "mixed", "unknown"]
 QueryIntent = Literal[
     "survey",
@@ -72,6 +83,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
+QUERY_PLANNER_VERSION = "1.2.0"
 
 
 class SearchBudget(BaseModel):
@@ -200,11 +212,42 @@ class SearchSubquery(BaseModel):
     )
     priority: int = Field(default=1, ge=1, le=5)
     purpose: str = Field(..., min_length=1)
+    facet_types: list[QueryFacetType] = Field(default_factory=list)
+    provenance: list[str] = Field(default_factory=list)
 
     @field_validator("source_hints", mode="before")
     @classmethod
     def normalize_source_hints(cls, value: object) -> list[str]:
         return _normalize_sources(value)
+
+
+class QueryFacet(BaseModel):
+    facet_type: QueryFacetType
+    terms: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source: QueryFacetSource = "rules"
+    required: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class QueryPlanningResult(BaseModel):
+    policy: QueryPlanningPolicy = "current_rules"
+    planner_version: str = QUERY_PLANNER_VERSION
+    facets: list[QueryFacet] = Field(default_factory=list)
+    selected_subqueries: list[SearchSubquery] = Field(default_factory=list)
+    skipped_facets: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    identified_facet_count: int = Field(default=0, ge=0)
+    selected_facet_count: int = Field(default=0, ge=0)
+    explicit_facet_count: int = Field(default=0, ge=0)
+    selected_subquery_count: int = Field(default=0, ge=0)
+    duplicate_subquery_count: int = Field(default=0, ge=0)
+    skipped_by_budget_count: int = Field(default=0, ge=0)
+    topic_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    method_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    dataset_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    task_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    paper_type_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class SearchPlan(BaseModel):
@@ -219,6 +262,10 @@ class SearchPlan(BaseModel):
     enable_refchain: bool = False
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
+    query_planning_policy: QueryPlanningPolicy = "current_rules"
+    query_planning: QueryPlanningResult = Field(
+        default_factory=QueryPlanningResult
+    )
     warnings: list[str] = Field(default_factory=list)
 
     @field_validator("selected_sources", mode="before")
@@ -232,6 +279,7 @@ class QueryUnderstandingOptions(BaseModel):
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
     enable_query_evolution: bool = False
+    query_planning_policy: QueryPlanningPolicy = "current_rules"
     current_year: int | None = Field(default=None, ge=1900, le=2200)
     use_llm: bool | None = None
     explicit_constraints: QueryConstraint | None = None

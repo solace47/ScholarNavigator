@@ -99,6 +99,8 @@ def _runtime(
     group: str = "baseline",
     retry_failed: bool = False,
     query_evolution_policy: str = "off",
+    query_planning_policy: str = "current_rules",
+    query_planner_version: str = "1.0.0",
 ) -> SnapshotRuntime:
     store = SnapshotStore(root)
     if not store.manifest_path.exists():
@@ -109,6 +111,8 @@ def _runtime(
         group_name=group,
         retry_failed_snapshots=retry_failed,
         query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
+        query_planning_policy=query_planning_policy,  # type: ignore[arg-type]
+        query_planner_version=query_planner_version,
     )
 
 
@@ -185,6 +189,55 @@ def test_coverage_gap_has_distinct_key_while_seed_keeps_legacy_key() -> None:
 
     assert seed == legacy
     assert gap != legacy
+
+
+def test_facet_planner_has_versioned_key_while_current_rules_stays_legacy() -> None:
+    kwargs = {
+        "source": "arxiv",
+        "adapted_query": "graph neural networks molecular prediction",
+        "limit": 20,
+        "adapter_policy": "adaptive",
+        "connector_version": connector_version("arxiv"),
+    }
+
+    legacy = retrieval_snapshot_key(**kwargs)[0]
+    current = retrieval_snapshot_key(
+        **kwargs,
+        query_planning_policy="current_rules",
+        query_planner_version="1.0.0",
+    )[0]
+    facet_v1 = retrieval_snapshot_key(
+        **kwargs,
+        query_planning_policy="facet_balanced",
+        query_planner_version="1.0.0",
+    )[0]
+    facet_v2 = retrieval_snapshot_key(
+        **kwargs,
+        query_planning_policy="facet_balanced",
+        query_planner_version="2.0.0",
+    )[0]
+
+    assert current == legacy
+    assert facet_v1 != legacy
+    assert facet_v2 != facet_v1
+
+
+def test_manifest_group_records_query_planning_policy_and_version(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(
+        tmp_path / "snapshot",
+        "record",
+        group="facet_balanced",
+        query_planning_policy="facet_balanced",
+        query_planner_version="1.0.0",
+    )
+    _record_search(runtime)
+
+    observation = runtime.finish_group(completed=True)
+
+    assert observation.query_planning_policy == "facet_balanced"
+    assert observation.query_planner_version == "1.0.0"
 
 
 def test_manifest_group_records_query_evolution_policy(tmp_path: Path) -> None:
@@ -379,6 +432,19 @@ def test_manifest_rejects_incompatible_collection_config(tmp_path: Path) -> None
     store.ensure_manifest(_manifest(root))
     with pytest.raises(SnapshotConflictError, match="sources"):
         store.ensure_manifest(_manifest(root, sources=["pubmed"]))
+
+
+def test_manifest_allows_versioned_query_planner_upgrade(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    store = SnapshotStore(root)
+    store.ensure_manifest(_manifest(root, query_planner_version="1.0.0"))
+
+    upgraded = store.ensure_manifest(
+        _manifest(root, query_planner_version="1.1.0")
+    )
+
+    assert upgraded.query_planner_version == "1.1.0"
+    assert store.read_manifest().query_planner_version == "1.1.0"
 
 
 def test_replay_cost_is_zero_while_recorded_live_cost_is_preserved(

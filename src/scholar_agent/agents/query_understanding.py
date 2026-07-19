@@ -7,10 +7,15 @@ import re
 from datetime import date
 from typing import Any, Protocol
 
+from scholar_agent.agents.query_planning import (
+    plan_facet_balanced,
+    summarize_current_rules_planning,
+)
 from scholar_agent.core.search_schemas import (
     QueryAnalysis,
     QueryConstraint,
     QueryIntent,
+    QueryPlanningPolicy,
     QueryUnderstandingOptions,
     ResearchDomain,
     SearchPlan,
@@ -291,15 +296,26 @@ class QueryUnderstandingAgent:
             needs_expansion=_needs_expansion(intent, keyword_terms, max_subqueries),
             reasoning=reasoning,
         )
-        subqueries = _build_subqueries(
-            original_query=normalized_query,
-            keyword_terms=keyword_terms,
-            intent=intent,
-            domain=domain,
-            constraints=constraints,
-            selected_sources=selected_sources,
-            max_subqueries=max_subqueries,
-        )
+        if options.query_planning_policy == "facet_balanced":
+            subqueries, query_planning = plan_facet_balanced(
+                query_analysis,
+                selected_sources=selected_sources,
+                max_subqueries=max_subqueries,
+            )
+        else:
+            subqueries = _build_subqueries(
+                original_query=normalized_query,
+                keyword_terms=keyword_terms,
+                intent=intent,
+                domain=domain,
+                constraints=constraints,
+                selected_sources=selected_sources,
+                max_subqueries=max_subqueries,
+            )
+            subqueries, query_planning = summarize_current_rules_planning(
+                query_analysis,
+                subqueries,
+            )
 
         return SearchPlan(
             query_analysis=query_analysis,
@@ -310,6 +326,8 @@ class QueryUnderstandingAgent:
             run_profile=options.run_profile,
             enable_refchain=options.enable_refchain,
             enable_query_evolution=options.enable_query_evolution,
+            query_planning_policy=options.query_planning_policy,
+            query_planning=query_planning,
             warnings=warnings,
         )
 
@@ -366,6 +384,7 @@ def analyze_query(
     run_profile: str = "balanced",
     enable_refchain: bool = False,
     enable_query_evolution: bool = False,
+    query_planning_policy: QueryPlanningPolicy = "current_rules",
     current_year: int | None = None,
     use_llm: bool | None = None,
     llm_client: "LLMJsonClient | None" = None,
@@ -378,6 +397,7 @@ def analyze_query(
         run_profile=run_profile,
         enable_refchain=enable_refchain,
         enable_query_evolution=enable_query_evolution,
+        query_planning_policy=query_planning_policy,
         current_year=current_year,
         use_llm=use_llm,
         explicit_constraints=explicit_constraints,
@@ -1006,20 +1026,31 @@ def _search_plan_from_llm_json(
             ]
         ),
     )
-    subqueries = _subqueries_from_llm_json(
-        raw_plan.get("subqueries"),
-        selected_sources=selected_sources,
-        fallback=rule_plan.subqueries,
-        max_subqueries=max_subqueries,
-        warnings=warnings,
-    )
-    subqueries = _ensure_explicit_constraint_subquery(
-        subqueries,
-        original_query=query,
-        constraints=constraints,
-        selected_sources=selected_sources,
-        max_subqueries=max_subqueries,
-    )
+    if options.query_planning_policy == "facet_balanced":
+        subqueries, query_planning = plan_facet_balanced(
+            query_analysis,
+            selected_sources=selected_sources,
+            max_subqueries=max_subqueries,
+        )
+    else:
+        subqueries = _subqueries_from_llm_json(
+            raw_plan.get("subqueries"),
+            selected_sources=selected_sources,
+            fallback=rule_plan.subqueries,
+            max_subqueries=max_subqueries,
+            warnings=warnings,
+        )
+        subqueries = _ensure_explicit_constraint_subquery(
+            subqueries,
+            original_query=query,
+            constraints=constraints,
+            selected_sources=selected_sources,
+            max_subqueries=max_subqueries,
+        )
+        subqueries, query_planning = summarize_current_rules_planning(
+            query_analysis,
+            subqueries,
+        )
 
     return SearchPlan(
         query_analysis=query_analysis,
@@ -1030,6 +1061,8 @@ def _search_plan_from_llm_json(
         run_profile=options.run_profile,
         enable_refchain=options.enable_refchain,
         enable_query_evolution=options.enable_query_evolution,
+        query_planning_policy=options.query_planning_policy,
+        query_planning=query_planning,
         warnings=_dedupe(warnings),
     )
 

@@ -74,6 +74,10 @@ class SnapshotRuntime:
         query_evolution_policy: Literal[
             "off", "seed_expansion", "coverage_gap"
         ] = "off",
+        query_planning_policy: Literal[
+            "current_rules", "facet_balanced"
+        ] = "current_rules",
+        query_planner_version: str | None = None,
     ) -> None:
         if mode == "live":
             raise ValueError("SnapshotRuntime does not handle live mode")
@@ -84,6 +88,8 @@ class SnapshotRuntime:
         self.overwrite_snapshots = overwrite_snapshots
         self.plan_round = plan_round
         self.query_evolution_policy = query_evolution_policy
+        self.query_planning_policy = query_planning_policy
+        self.query_planner_version = query_planner_version
         self._lock = RLock()
         self._case = SnapshotCostReport(mode=mode)
         self._case_id = ""
@@ -191,6 +197,8 @@ class SnapshotRuntime:
             )
             replay_ready = bool(required_count and missing_count == 0)
             observation = SnapshotGroupObservation(
+                query_planning_policy=self.query_planning_policy,
+                query_planner_version=self.query_planner_version,
                 query_evolution_policy=self.query_evolution_policy,
                 retrieval_keys=list(self._group_retrieval),
                 reference_keys=list(self._group_references),
@@ -240,7 +248,17 @@ class SnapshotRuntime:
         query_evolution_policy: Literal[
             "off", "seed_expansion", "coverage_gap"
         ] | None = None,
+        query_planning_policy: Literal[
+            "current_rules", "facet_balanced"
+        ] | None = None,
+        query_planner_version: str | None = None,
     ) -> ConnectorSearchResult:
+        effective_planning_policy = (
+            query_planning_policy or self.query_planning_policy
+        )
+        effective_planner_version = (
+            query_planner_version or self.query_planner_version
+        )
         version = connector_version(source)
         key, normalized_query = retrieval_snapshot_key(
             source=source,
@@ -249,6 +267,8 @@ class SnapshotRuntime:
             adapter_policy=adapter_policy,
             connector_version=version,
             query_evolution_policy=query_evolution_policy,
+            query_planning_policy=effective_planning_policy,
+            query_planner_version=effective_planner_version,
         )
         self._observe("retrieval", key)
         try:
@@ -272,6 +292,8 @@ class SnapshotRuntime:
                     origin_subquery=origin_subquery,
                     generated_by=generated_by,
                     query_evolution_policy=query_evolution_policy,
+                    query_planning_policy=effective_planning_policy,
+                    query_planner_version=effective_planner_version,
                     dependency_keys=self._dependency_keys(key, generated_by),
                     priority=1 if source == "arxiv" else 2,
                     already_present=existing is not None,
@@ -707,6 +729,8 @@ class SnapshotAwareRetriever:
                 origin_subquery=query,
                 generated_by=generated_by,
                 query_evolution_policy=query_evolution_policy,
+                query_planning_policy=self.runtime.query_planning_policy,
+                query_planner_version=self.runtime.query_planner_version,
             )
         )
         return retrieve_papers(

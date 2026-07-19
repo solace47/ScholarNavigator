@@ -29,6 +29,8 @@ from scholar_agent.core.search_schemas import (
     QueryAnalysis,
     QueryConstraint,
     QueryEvolutionRecord,
+    QueryFacet,
+    QueryPlanningResult,
     RankedPaper,
     RefChainOutput,
     RefChainRecord,
@@ -40,10 +42,143 @@ from scholar_agent.core.search_schemas import (
     SearchSubquery,
 )
 from scholar_agent.evaluation.stage_diagnostics import (
+    aggregate_stage_diagnostics,
     analyze_search_stages,
     classify_module_outcome,
 )
 from scholar_agent.services.search_service import SearchService, SearchServiceOutput
+
+
+def test_initial_query_planning_reports_per_query_yield_and_aggregate_cost() -> None:
+    original = "graph retrieval"
+    method_query = "graph retrieval contrastive learning"
+    shared = _paper("Shared", "W1")
+    exclusive = _paper("Method Exclusive", "W2")
+    gold = EvalGoldPaper(title="Method Exclusive", openalex_id="W2")
+    output = _output(
+        snapshots=[
+            StageCandidateSnapshot(
+                stage="initial_retrieval",
+                candidates=[
+                    _candidate(
+                        shared,
+                        category="partially_relevant",
+                        provenance=_initial_provenance(original),
+                    ),
+                    _candidate(
+                        shared,
+                        category="partially_relevant",
+                        provenance=_initial_provenance(method_query),
+                    ),
+                    _candidate(
+                        exclusive,
+                        category="highly_relevant",
+                        provenance=_initial_provenance(method_query),
+                    ),
+                ],
+                retrieval_calls=[
+                    RetrievalCallTrace(
+                        origin_subquery=original,
+                        source="openalex",
+                        adapted_query=original,
+                        request_count=1,
+                        returned_count=1,
+                        recorded_request_count=1,
+                        recorded_latency_seconds=0.2,
+                    ),
+                    RetrievalCallTrace(
+                        origin_subquery=method_query,
+                        source="openalex",
+                        adapted_query="graph retrieval contrastive",
+                        request_count=1,
+                        returned_count=2,
+                        recorded_request_count=1,
+                        recorded_latency_seconds=0.3,
+                    ),
+                ],
+            )
+        ],
+    )
+    output.search_plan = SearchPlan(
+        query_analysis=output.search_plan.query_analysis.model_copy(
+            update={"original_query": original}
+        ),
+        subqueries=[
+            SearchSubquery(
+                query=original,
+                source_hints=["openalex"],
+                purpose="original_query",
+                facet_types=["topic"],
+                provenance=["original_query"],
+            ),
+            SearchSubquery(
+                query=method_query,
+                source_hints=["openalex"],
+                purpose="facet_method",
+                facet_types=["topic", "method"],
+                provenance=["rules:method:contrastive learning"],
+            ),
+        ],
+        selected_sources=["openalex"],
+        query_planning_policy="facet_balanced",
+        query_planning=QueryPlanningResult(
+            policy="facet_balanced",
+            facets=[
+                QueryFacet(
+                    facet_type="method",
+                    terms=["contrastive learning"],
+                    confidence=1.0,
+                    source="rules",
+                )
+            ],
+            selected_subqueries=[
+                SearchSubquery(
+                    query=original,
+                    source_hints=["openalex"],
+                    purpose="original_query",
+                    facet_types=["topic"],
+                    provenance=["original_query"],
+                ),
+                SearchSubquery(
+                    query=method_query,
+                    source_hints=["openalex"],
+                    purpose="facet_method",
+                    facet_types=["topic", "method"],
+                    provenance=["rules:method:contrastive learning"],
+                ),
+            ],
+            identified_facet_count=1,
+            selected_facet_count=1,
+        ),
+    )
+
+    case = analyze_search_stages(
+        _query(gold),
+        output,
+        result_policy="highly_and_partial",
+    )
+    planning = case["initial_query_planning"]
+
+    assert planning["policy"] == "facet_balanced"
+    assert planning["subquery_count"] == 2
+    assert planning["adapted_query_count"] == 2
+    assert planning["unique_candidate_count"] == 2
+    assert planning["unique_gold_count"] == 1
+    assert planning["recorded_request_count"] == 2
+    assert planning["recorded_latency_seconds"] == pytest.approx(0.5)
+    method = planning["subqueries"][1]
+    assert method["exclusive_candidate_count"] == 1
+    assert method["post_run_unique_gold_hit_count"] == 1
+    assert method["dimension_coverage"]["method"] is True
+
+    aggregate, _, _ = aggregate_stage_diagnostics([case])
+    aggregate_planning = aggregate["initial_query_planning"]
+    assert aggregate_planning["policies"] == {"facet_balanced": 1}
+    assert aggregate_planning["effective_request_count"] == 2
+    assert aggregate_planning["facet_contribution"]["method"] == {
+        "unique_candidate_count": 1,
+        "unique_gold_count": 1,
+    }
 
 
 def test_query_evolution_counts_seeds_queries_candidates_and_posthoc_gold() -> None:
@@ -491,6 +626,19 @@ def _provenance(kind: str, query: str) -> list[CandidateProvenance]:
             origin_stage=(
                 "query_evolution_retrieval" if kind == "query_evolution" else "refchain_retrieval"
             ),
+            origin_subquery=query,
+            source="openalex",
+        )
+    ]
+
+
+def _initial_provenance(query: str) -> list[CandidateProvenance]:
+    return [
+        CandidateProvenance(
+            origin_kind=(
+                "initial_query" if query == "graph retrieval" else "initial_generated_subquery"
+            ),
+            origin_stage="initial_retrieval",
             origin_subquery=query,
             source="openalex",
         )

@@ -25,6 +25,7 @@ from scholar_agent.services.search_service import SearchService  # noqa: E402
 
 SUPPORTED_SOURCES = {"openalex", "arxiv", "semantic_scholar", "pubmed"}
 QUERY_EVOLUTION_POLICIES = {"off", "seed_expansion", "coverage_gap"}
+QUERY_PLANNING_POLICIES = {"current_rules", "facet_balanced"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -58,6 +59,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=sorted(QUERY_EVOLUTION_POLICIES),
         default="coverage_gap",
         help="Query Evolution strategy used when the feature is enabled.",
+    )
+    parser.add_argument(
+        "--query-planning-policy",
+        choices=sorted(QUERY_PLANNING_POLICIES),
+        default="current_rules",
+        help="Initial subquery planning strategy.",
     )
     parser.add_argument(
         "--enable-refchain",
@@ -139,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
                     default_current_year=args.current_year,
                     default_enable_query_evolution=args.enable_query_evolution,
                     default_query_evolution_policy=args.query_evolution_policy,
+                    default_query_planning_policy=args.query_planning_policy,
                     default_enable_refchain=args.enable_refchain,
                     default_sources=default_sources,
                 )
@@ -203,6 +211,7 @@ def _run_case(
     default_current_year: int | None,
     default_enable_query_evolution: bool,
     default_query_evolution_policy: str,
+    default_query_planning_policy: str,
     default_enable_refchain: bool,
     default_sources: list[str] | None,
 ) -> dict[str, Any]:
@@ -230,6 +239,16 @@ def _run_case(
             raise ValueError(
                 f"unsupported query_evolution_policy: {query_evolution_policy}"
             )
+        query_planning_policy = str(
+            case.get(
+                "query_planning_policy",
+                default_query_planning_policy,
+            )
+        )
+        if query_planning_policy not in QUERY_PLANNING_POLICIES:
+            raise ValueError(
+                f"unsupported query_planning_policy: {query_planning_policy}"
+            )
         enable_refchain = bool(case.get("enable_refchain", default_enable_refchain))
         sources_override = _case_sources(case, default_sources)
 
@@ -239,6 +258,7 @@ def _run_case(
             run_profile=run_profile,  # type: ignore[arg-type]
             enable_query_evolution=enable_query_evolution,
             query_evolution_policy=query_evolution_policy,  # type: ignore[arg-type]
+            query_planning_policy=query_planning_policy,  # type: ignore[arg-type]
             enable_refchain=enable_refchain,
             enable_synthesis=True,
             current_year=current_year,

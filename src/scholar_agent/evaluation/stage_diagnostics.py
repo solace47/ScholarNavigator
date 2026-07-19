@@ -127,6 +127,11 @@ def analyze_search_stages(
         snapshots,
         output,
     )
+    initial_query_planning = _initial_query_planning_diagnostics(
+        eval_query,
+        by_stage,
+        output,
+    )
     query_evolution = _query_evolution_diagnostics(
         eval_query,
         by_stage,
@@ -158,6 +163,7 @@ def analyze_search_stages(
         "source_contribution": source_contribution,
         "retrieval_diagnostics": retrieval_diagnostics,
         "query_strategy_contribution": query_strategy_contribution,
+        "initial_query_planning": initial_query_planning,
         "query_evolution": query_evolution,
         "refchain": refchain,
         "stage_costs": stage_costs,
@@ -221,6 +227,9 @@ def aggregate_stage_diagnostics(
     query_strategy_contribution = _aggregate_strategy_contribution(
         case_diagnostics
     )
+    initial_query_planning = _aggregate_initial_query_planning(
+        case_diagnostics
+    )
     query_evolution = _aggregate_module_diagnostics(
         case_diagnostics,
         "query_evolution",
@@ -271,6 +280,7 @@ def aggregate_stage_diagnostics(
         "source_contribution": sources,
         "retrieval_diagnostics": retrieval_diagnostics,
         "query_strategy_contribution": query_strategy_contribution,
+        "initial_query_planning": initial_query_planning,
         "query_evolution": query_evolution,
         "refchain": refchain,
         "stage_costs": stage_costs,
@@ -647,6 +657,300 @@ def _source_contribution(
         "sources": stats,
         "overlap": overlap,
         "source_error_rate": error_count / request_count if request_count else 0.0,
+    }
+
+
+def _initial_query_planning_diagnostics(
+    eval_query: EvalQuery,
+    snapshots: dict[str, StageCandidateSnapshot],
+    output: SearchServiceOutput,
+) -> dict[str, Any]:
+    snapshot = snapshots.get("initial_retrieval")
+    subqueries = list(output.search_plan.subqueries)
+    calls = list(snapshot.retrieval_calls if snapshot is not None else [])
+    candidates = list(snapshot.candidates if snapshot is not None else [])
+    candidate_sets = {
+        subquery.query: {
+            identifier
+            for candidate in candidates
+            if _candidate_has_initial_query(candidate, subquery.query)
+            if (identifier := canonical_paper_id(candidate))
+        }
+        for subquery in subqueries
+    }
+    gold_sets = {
+        subquery.query: {
+            f"{eval_query.query_id}:{index}"
+            for index, gold in enumerate(eval_query.gold_papers)
+            if any(
+                _candidate_matches(candidate, gold)
+                for candidate in candidates
+                if _candidate_has_initial_query(candidate, subquery.query)
+            )
+        }
+        for subquery in subqueries
+    }
+    query_rows: list[dict[str, Any]] = []
+    ineffective: Counter[str] = Counter()
+    facet_contribution: dict[str, dict[str, int]] = {}
+    original_query = output.search_plan.query_analysis.original_query
+    for subquery in subqueries:
+        matching_calls = [
+            call for call in calls if call.origin_subquery == subquery.query
+        ]
+        raw_count = sum(call.returned_count for call in matching_calls)
+        unique_ids = candidate_sets[subquery.query]
+        other_ids = set().union(
+            *(
+                values
+                for query, values in candidate_sets.items()
+                if query != subquery.query
+            )
+        ) if len(candidate_sets) > 1 else set()
+        exclusive_ids = unique_ids - other_ids
+        gold_ids = gold_sets[subquery.query]
+        other_gold = set().union(
+            *(
+                values
+                for query, values in gold_sets.items()
+                if query != subquery.query
+            )
+        ) if len(gold_sets) > 1 else set()
+        duplicate_ratio = (
+            max(0, raw_count - len(unique_ids)) / raw_count
+            if raw_count
+            else None
+        )
+        executed = any(call.logical_call_executed for call in matching_calls)
+        recorded_requests = sum(
+            call.recorded_request_count for call in matching_calls
+        )
+        recorded_latency = sum(
+            call.recorded_latency_seconds for call in matching_calls
+        )
+        reasons = _initial_query_ineffective_reasons(
+            subquery,
+            subqueries,
+            output,
+            raw_count=raw_count,
+            unique_count=len(unique_ids),
+            duplicate_ratio=duplicate_ratio,
+            gold_count=len(gold_ids),
+            calls=matching_calls,
+        )
+        ineffective.update(reasons)
+        for facet_type in subquery.facet_types:
+            bucket = facet_contribution.setdefault(
+                facet_type,
+                {"unique_candidate_count": 0, "unique_gold_count": 0},
+            )
+            bucket["unique_candidate_count"] += len(exclusive_ids)
+            bucket["unique_gold_count"] += len(gold_ids - other_gold)
+        query_rows.append(
+            {
+                "query": subquery.query,
+                "purpose": subquery.purpose,
+                "facet_types": list(subquery.facet_types),
+                "provenance": list(subquery.provenance),
+                "source_hints": list(subquery.source_hints),
+                "adapted_queries": _stable_reasons(
+                    call.adapted_query
+                    for call in matching_calls
+                    if call.adapted_query
+                ),
+                "status": "executed" if executed else "skipped",
+                "skip_reasons": _stable_reasons(
+                    call.source_skipped_reason
+                    for call in matching_calls
+                    if call.source_skipped_reason
+                ),
+                "raw_candidate_count": raw_count,
+                "unique_candidate_count": len(unique_ids),
+                "exclusive_candidate_count": len(exclusive_ids),
+                "post_run_gold_hit_count": len(gold_ids),
+                "post_run_unique_gold_hit_count": len(gold_ids - other_gold),
+                "duplicate_candidate_ratio": duplicate_ratio,
+                "duplicate_call_count": sum(
+                    call.run_dedupe_hit for call in matching_calls
+                ),
+                "query_character_count": len(subquery.query),
+                "query_term_count": len(_planning_terms(subquery.query)),
+                "information_retention": _planning_information_retention(
+                    original_query,
+                    subquery.query,
+                ),
+                "dimension_coverage": {
+                    facet: facet in subquery.facet_types
+                    for facet in (
+                        "topic",
+                        "method",
+                        "dataset",
+                        "task",
+                        "paper_type",
+                        "venue",
+                        "temporal",
+                    )
+                },
+                "request_count": sum(
+                    call.request_count for call in matching_calls
+                ),
+                "recorded_request_count": recorded_requests,
+                "recorded_latency_seconds": recorded_latency,
+                "ineffective_reasons": reasons,
+            }
+        )
+    all_gold = set().union(*gold_sets.values()) if gold_sets else set()
+    all_ids = set().union(*candidate_sets.values()) if candidate_sets else set()
+    planning = output.search_plan.query_planning
+    return {
+        "policy": output.search_plan.query_planning_policy,
+        "planner_version": planning.planner_version,
+        "original_query": original_query,
+        "query_analysis": output.search_plan.query_analysis.model_dump(mode="json"),
+        "planning": planning.model_dump(mode="json"),
+        "subqueries": query_rows,
+        "subquery_count": len(subqueries),
+        "adapted_query_count": len(
+            {
+                " ".join((call.adapted_query or "").casefold().split())
+                for call in calls
+                if call.adapted_query
+            }
+        ),
+        "raw_candidate_count": sum(item["raw_candidate_count"] for item in query_rows),
+        "unique_candidate_count": len(all_ids),
+        "duplicate_candidate_ratio": (
+            max(0, sum(item["raw_candidate_count"] for item in query_rows) - len(all_ids))
+            / sum(item["raw_candidate_count"] for item in query_rows)
+            if sum(item["raw_candidate_count"] for item in query_rows)
+            else None
+        ),
+        "unique_gold_count": len(all_gold),
+        "request_count": sum(item["request_count"] for item in query_rows),
+        "recorded_request_count": sum(
+            item["recorded_request_count"] for item in query_rows
+        ),
+        "recorded_latency_seconds": sum(
+            item["recorded_latency_seconds"] for item in query_rows
+        ),
+        "source_error_count": sum(
+            (
+                call.recorded_error_count
+                if call.recorded_request_count
+                else call.error_count
+            )
+            for call in calls
+        ),
+        "facet_contribution": dict(sorted(facet_contribution.items())),
+        "ineffective_reasons": dict(sorted(ineffective.items())),
+    }
+
+
+def _candidate_has_initial_query(candidate: Any, query: str) -> bool:
+    return any(
+        provenance.origin_stage == "initial_retrieval"
+        and provenance.origin_subquery == query
+        for provenance in candidate.provenance
+    )
+
+
+def _initial_query_ineffective_reasons(
+    subquery: Any,
+    subqueries: list[Any],
+    output: SearchServiceOutput,
+    *,
+    raw_count: int,
+    unique_count: int,
+    duplicate_ratio: float | None,
+    gold_count: int,
+    calls: list[Any],
+) -> list[str]:
+    reasons: list[str] = []
+    original = output.search_plan.query_analysis.original_query
+    normalized = " ".join(subquery.query.casefold().split())
+    if subquery.purpose != "original_query" and normalized == " ".join(
+        original.casefold().split()
+    ):
+        reasons.append("original_query_repeated")
+    if any(
+        other is not subquery
+        and _planning_semantic_similarity(other, subquery) >= 0.85
+        for other in subqueries
+    ):
+        reasons.append("duplicate_semantics")
+    retention = _planning_information_retention(original, subquery.query)
+    if retention < 0.4:
+        reasons.append("missing_core_topic")
+    if len(subquery.facet_types) > 3:
+        reasons.append("too_many_dimensions_combined")
+    if subquery.purpose != "original_query":
+        for facet, reason in (
+            ("method", "missing_method"),
+            ("dataset", "missing_dataset"),
+            ("task", "missing_task"),
+        ):
+            if subquery.purpose == f"facet_{facet}" and facet not in subquery.facet_types:
+                reasons.append(reason)
+    suffixes = {"survey", "review", "benchmark", "evaluation", "comparison"}
+    original_terms = _planning_terms(original)
+    query_terms = _planning_terms(subquery.query)
+    additions = query_terms - original_terms
+    if additions and additions <= suffixes and not subquery.facet_types:
+        reasons.append("generic_suffix_only")
+    if len(query_terms) <= 1:
+        reasons.append("over_broad")
+    if raw_count == 0 and any(call.logical_call_executed for call in calls):
+        reasons.append("over_restrictive")
+    if raw_count and unique_count < 5:
+        reasons.append("low_unique_candidate_yield")
+    if duplicate_ratio is not None and duplicate_ratio >= 0.5:
+        reasons.append("high_duplicate_candidate_yield")
+    if raw_count and gold_count == 0:
+        reasons.append("no_gold_hit")
+    if any(
+        (
+            call.recorded_error_count
+            if call.recorded_request_count
+            else call.error_count
+        )
+        for call in calls
+    ):
+        reasons.append("source_failure")
+    if any(
+        "budget" in (call.source_skipped_reason or "").casefold()
+        or "max_" in (call.source_skipped_reason or "").casefold()
+        for call in calls
+    ):
+        reasons.append("budget_stop")
+    if not reasons and not gold_count:
+        reasons.append("unknown")
+    return _stable_reasons(reasons)
+
+
+def _planning_semantic_similarity(left: Any, right: Any) -> float:
+    left_terms = _planning_terms(left.query)
+    right_terms = _planning_terms(right.query)
+    union = left_terms | right_terms
+    if not union:
+        return 1.0
+    term_similarity = len(left_terms & right_terms) / len(union)
+    purpose_bonus = 0.05 if left.purpose == right.purpose else 0.0
+    facet_bonus = 0.05 if set(left.facet_types) == set(right.facet_types) else 0.0
+    return min(1.0, term_similarity + purpose_bonus + facet_bonus)
+
+
+def _planning_information_retention(original: str, query: str) -> float:
+    original_terms = _planning_terms(original)
+    if not original_terms:
+        return 1.0
+    return len(original_terms & _planning_terms(query)) / len(original_terms)
+
+
+def _planning_terms(value: str) -> set[str]:
+    return {
+        term
+        for term in normalize_title(value).split()
+        if len(term) > 1 and term not in DIAGNOSTIC_QUERY_BOILERPLATE
     }
 
 
@@ -1976,6 +2280,82 @@ def _aggregate_retrieval_diagnostics(
         "average_adapted_keyword_count": _average_optional(
             [item.get("average_adapted_keyword_count") for item in diagnostics]
         ),
+    }
+
+
+def _aggregate_initial_query_planning(
+    cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    modules = [case.get("initial_query_planning") or {} for case in cases]
+    policies: Counter[str] = Counter()
+    ineffective: Counter[str] = Counter()
+    facet_contribution: dict[str, Counter[str]] = {}
+    raw = unique = gold = requests = recorded_requests = errors = 0
+    latency = 0.0
+    subquery_count = adapted_count = 0
+    for module in modules:
+        if module.get("policy"):
+            policies[str(module["policy"])] += 1
+        ineffective.update(module.get("ineffective_reasons") or {})
+        raw += int(module.get("raw_candidate_count") or 0)
+        unique += int(module.get("unique_candidate_count") or 0)
+        gold += int(module.get("unique_gold_count") or 0)
+        requests += int(module.get("request_count") or 0)
+        recorded_requests += int(module.get("recorded_request_count") or 0)
+        errors += int(module.get("source_error_count") or 0)
+        latency += float(module.get("recorded_latency_seconds") or 0.0)
+        subquery_count += int(module.get("subquery_count") or 0)
+        adapted_count += int(module.get("adapted_query_count") or 0)
+        for facet_type, contribution in (
+            module.get("facet_contribution") or {}
+        ).items():
+            bucket = facet_contribution.setdefault(facet_type, Counter())
+            bucket.update(contribution)
+    case_count = len(modules)
+    effective_requests = recorded_requests or requests
+    planning_rows = [module.get("planning") or {} for module in modules]
+    return {
+        "case_count": case_count,
+        "policies": dict(sorted(policies.items())),
+        "subquery_count": subquery_count,
+        "average_subquery_count": subquery_count / case_count if case_count else 0.0,
+        "adapted_query_count": adapted_count,
+        "average_adapted_query_count": adapted_count / case_count if case_count else 0.0,
+        "raw_candidate_count": raw,
+        "unique_candidate_count": unique,
+        "duplicate_candidate_ratio": max(0, raw - unique) / raw if raw else None,
+        "unique_gold_count": gold,
+        "request_count": requests,
+        "recorded_request_count": recorded_requests,
+        "effective_request_count": effective_requests,
+        "recorded_latency_seconds": latency,
+        "source_error_count": errors,
+        "source_error_rate": errors / effective_requests if effective_requests else 0.0,
+        "identified_facet_count": sum(
+            int(item.get("identified_facet_count") or 0)
+            for item in planning_rows
+        ),
+        "selected_facet_count": sum(
+            int(item.get("selected_facet_count") or 0)
+            for item in planning_rows
+        ),
+        "explicit_facet_count": sum(
+            int(item.get("explicit_facet_count") or 0)
+            for item in planning_rows
+        ),
+        "duplicate_subquery_count": sum(
+            int(item.get("duplicate_subquery_count") or 0)
+            for item in planning_rows
+        ),
+        "skipped_by_budget_count": sum(
+            int(item.get("skipped_by_budget_count") or 0)
+            for item in planning_rows
+        ),
+        "facet_contribution": {
+            facet_type: dict(sorted(values.items()))
+            for facet_type, values in sorted(facet_contribution.items())
+        },
+        "ineffective_reasons": dict(sorted(ineffective.items())),
     }
 
 

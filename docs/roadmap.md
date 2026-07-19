@@ -16,6 +16,7 @@
 - Query Evolution 与 RefChain 已补齐逐 case seed、动作、去重新增候选、事后 gold、Judgement/Top-K 丢失及边际成本诊断；固定开发集前 10 条四组均已纯离线验证，结果只作为小样本诊断。
 - Benchmark 已支持动态快照的离线规划、有界串行采集、固定点检查、失败环境冻结和四组覆盖审计；四组均 replay-ready 且 replay-verified，回放执行期 HTTP、重试和网络等待为 0。
 - Query Evolution 已增加覆盖缺口策略、候选质量门、策略级快照键和逐查询诊断；固定开发/验证子集的查询数、请求数和无效候选均低于旧 seed 扩展，但未新增 gold，产品开关保持默认关闭，真实召回增益仍待更大样本验证。
+- 初始查询规划已增加 `facet_balanced` v1.2、facet provenance、版本化快照键和逐查询成本诊断；固定开发集质量持平且重复率下降，独立验证未新增 gold 且请求略增，因此产品默认保持 `current_rules`。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
@@ -28,6 +29,7 @@
 
 1. **扩大演化策略消融**：在同一正式数据与预算下扩大 `off`、`seed_expansion`、`coverage_gap` 对比；验收标准是新策略在不降低 F1@20/Recall@20 时产生可复现的新增 gold，且调用量不高于旧策略。
 2. **增加误差切片**：按领域、查询意图和失败类型汇总；验收标准是所有切片沿用同一论文匹配与失败聚合口径。
+3. **扩大初始规划验证**：在冻结版本和相同预算下扩大 `current_rules`/`facet_balanced` 对比；验收标准是验证集新增可复现 gold，且 F1@20、Recall@20 不退化、API 不超过旧策略 1.5 倍。
 
 ## P2
 

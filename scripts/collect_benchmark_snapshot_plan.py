@@ -68,6 +68,7 @@ def collect_plan(
     plan = SnapshotPlanRound.model_validate_json(path.read_text(encoding="utf-8"))
     store = SnapshotStore(snapshot_dir)
     query_evolution_policy = _plan_query_evolution_policy(plan, store)
+    query_planning_policy, query_planner_version = _plan_query_planning(plan, store)
     runtime = SnapshotRuntime(
         store,
         mode="record-missing",
@@ -75,6 +76,8 @@ def collect_plan(
         retry_failed_snapshots=retry_failed_snapshots,
         plan_round=plan.round_index,
         query_evolution_policy=query_evolution_policy,
+        query_planning_policy=query_planning_policy,
+        query_planner_version=query_planner_version,
     )
     registry = searchers or {
         "arxiv": search_arxiv_detailed,
@@ -209,6 +212,8 @@ def _collect_entry(
             origin_subquery=entry.origin_subquery,
             generated_by=entry.generated_by,
             query_evolution_policy=entry.query_evolution_policy,
+            query_planning_policy=entry.query_planning_policy,
+            query_planner_version=entry.query_planner_version,
         )
     if entry.seed_identifier is None:
         raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
@@ -246,6 +251,47 @@ def _plan_query_evolution_policy(
     if prior is not None and prior.query_evolution_policy is not None:
         return prior.query_evolution_policy
     return "off"
+
+
+def _plan_query_planning(
+    plan: SnapshotPlanRound,
+    store: SnapshotStore,
+) -> tuple[str, str]:
+    policies = {
+        entry.query_planning_policy
+        for entry in plan.entries
+        if entry.query_planning_policy is not None
+    }
+    versions = {
+        entry.query_planner_version
+        for entry in plan.entries
+        if entry.query_planner_version is not None
+    }
+    if len(policies) > 1:
+        raise ValueError("snapshot_plan_mixed_query_planning_policy")
+    if len(versions) > 1:
+        raise ValueError("snapshot_plan_mixed_query_planner_version")
+    manifest = store.read_manifest()
+    prior = manifest.groups.get(plan.group)
+    policy = (
+        policies.pop()
+        if policies
+        else (
+            prior.query_planning_policy
+            if prior is not None and prior.query_planning_policy is not None
+            else "current_rules"
+        )
+    )
+    version = (
+        versions.pop()
+        if versions
+        else (
+            prior.query_planner_version
+            if prior is not None and prior.query_planner_version is not None
+            else manifest.query_planner_version
+        )
+    )
+    return policy, version
 
 
 def _existing_status(store: SnapshotStore, entry: SnapshotPlanEntry) -> str | None:

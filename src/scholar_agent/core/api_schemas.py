@@ -12,6 +12,8 @@ from scholar_agent.core.search_schemas import (
     BudgetStatus,
     PaperType,
     QueryEvolutionPolicy,
+    QueryPlanningPolicy,
+    QueryPlanningResult,
     SearchBudget,
     SourceName,
     TimeRange,
@@ -107,6 +109,7 @@ class SearchBudgets(SearchBudget):
 
 
 class SearchOptions(BaseModel):
+    query_planning_policy: QueryPlanningPolicy = "current_rules"
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_refchain: bool = True
@@ -281,6 +284,10 @@ class SearchPlan(BaseModel):
     expanded_queries: list[str] = Field(default_factory=list)
     source_preferences: list[str] = Field(default_factory=list)
     max_rounds: int = 1
+    query_planning_policy: QueryPlanningPolicy = "current_rules"
+    query_planning: QueryPlanningResult = Field(
+        default_factory=QueryPlanningResult
+    )
     query_evolution_policy: QueryEvolutionPolicy = "off"
 
 

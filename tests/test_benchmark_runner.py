@@ -115,6 +115,43 @@ def test_query_evolution_policy_is_recorded_and_passed_to_service(
     )
 
 
+def test_query_planning_policy_is_recorded_passed_and_namespaced(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    service = FakeService()
+    options = _options(tmp_path, dataset, run_id="facet-planner").model_copy(
+        update={"query_planning_policy": "facet_balanced"}
+    )
+
+    result = run_benchmark.run_benchmark(options, service=service)
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "facet-cli",
+            "--query-planning-policy",
+            "facet_balanced",
+        ]
+    )
+
+    assert result.config["query_planning_policy"] == "facet_balanced"
+    assert result.config["query_planner_version"] == "1.2.0"
+    assert service.kwargs[0]["query_planning_policy"] == "facet_balanced"
+    assert parsed.query_planning_policy == "facet_balanced"
+    assert run_benchmark._ablation_group_name(options) == "facet_balanced"  # noqa: SLF001
+    assert run_benchmark._ablation_group_name(  # noqa: SLF001
+        options.model_copy(
+            update={
+                "enable_query_evolution": True,
+                "query_evolution_policy": "coverage_gap",
+                "enable_refchain": True,
+            }
+        )
+    ) == "facet_balanced_query_evolution_coverage_gap_plus_refchain"
+
+
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
     tmp_path: Path,
 ) -> None:

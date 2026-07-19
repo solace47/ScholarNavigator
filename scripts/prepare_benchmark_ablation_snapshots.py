@@ -40,6 +40,12 @@ SUPPORTED_GROUPS = (
     *ABLATION_GROUPS,
     "query_evolution_coverage_gap",
     "query_evolution_coverage_gap_plus_refchain",
+    "facet_balanced",
+    "facet_balanced_query_evolution_only",
+    "facet_balanced_query_evolution_coverage_gap",
+    "facet_balanced_refchain_only",
+    "facet_balanced_query_evolution_plus_refchain",
+    "facet_balanced_query_evolution_coverage_gap_plus_refchain",
 )
 
 
@@ -183,16 +189,28 @@ def prepare_groups(
             "query_evolution_plus_refchain",
             "query_evolution_coverage_gap",
             "query_evolution_coverage_gap_plus_refchain",
+            "facet_balanced_query_evolution_only",
+            "facet_balanced_query_evolution_coverage_gap",
+            "facet_balanced_query_evolution_plus_refchain",
+            "facet_balanced_query_evolution_coverage_gap_plus_refchain",
         }
         refchain = group in {
             "refchain_only",
             "query_evolution_plus_refchain",
             "query_evolution_coverage_gap_plus_refchain",
+            "facet_balanced_refchain_only",
+            "facet_balanced_query_evolution_plus_refchain",
+            "facet_balanced_query_evolution_coverage_gap_plus_refchain",
         }
         query_evolution_policy = (
             "coverage_gap"
             if "coverage_gap" in group
             else "seed_expansion"
+        )
+        query_planning_policy = (
+            "facet_balanced"
+            if group.startswith("facet_balanced")
+            else "current_rules"
         )
         run_id = _available_run_id(
             output,
@@ -212,6 +230,7 @@ def prepare_groups(
                 top_k=20,
                 enable_query_evolution=query_evolution,
                 query_evolution_policy=query_evolution_policy,
+                query_planning_policy=query_planning_policy,
                 enable_refchain=refchain,
                 enable_llm_query_understanding=False,
                 enable_llm_judgement=False,
