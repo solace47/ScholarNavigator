@@ -1,0 +1,565 @@
+{
+  "adapted_query": "all:Can you tell me some papers about hybrid architectures in reconstruction-based techniques",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "24283f7f7b948f99a91af053a26e66c8f975a11ed54868f20e45ffcfb7868aff",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 1.1767182080075145,
+    "rate_limit_wait_seconds": 0.0,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "fe473c2c0318d1f6e1ed65a8ddba74515aa69a57d16b7db303752984ace4647c",
+  "limit": 20,
+  "normalized_query": "all:Can you tell me some papers about hybrid architectures in reconstruction-based techniques",
+  "papers": [
+    {
+      "abstract": "Symmetries are ubiquitous in a wide range of nonlinear systems. Particularly in systems whose dynamics are determined by a Lagrangian or Hamiltonian function. For hybrid systems which possess a continuous-time dynamics determined by a Lagrangian function, with a cyclic variable, the degrees of freedom for the corresponding hybrid Lagrangian system can be reduced by means of a method known as \\textit{hybrid Routhian reduction}. In this paper we study sufficient conditions for the existence of periodic orbits in hybrid Routhian systems which also exhibit time-reversal symmetry. Likewise, we explore some stability aspects of such orbits through the characterization of the eigenvalues for the corresponding linearized Poincaré map. Finally, we apply the results to find periodic solutions in underactuated hybrid Routhian control systems.",
+      "authors": [
+        "Leonardo Colombo",
+        "Maria Emma Eyrea Irazu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2001.08941",
+        "doi": "10.1016/j.nahs.2020.100857",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Symmetries and periodic orbits in simple hybrid Routhian systems",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2001.08941v1",
+        "pdf": "https://arxiv.org/pdf/2001.08941v1"
+      },
+      "venue": "Nonlinear Analysis: Hybrid Systems, Vol 36, May 2020, 100857",
+      "year": 2020
+    },
+    {
+      "abstract": "Given a classifier ensemble and a set of examples to be classified, many examples may be confidently and accurately classified after only a subset of the base models in the ensemble are evaluated. This can reduce both mean latency and CPU while maintaining the high accuracy of the original ensemble. To achieve such gains, we propose jointly optimizing a fixed evaluation order of the base models and early-stopping thresholds. Our proposed objective is a combinatorial optimization problem, but we provide a greedy algorithm that achieves a 4-approximation of the optimal solution for certain cases. For those cases, this is also the best achievable polynomial time approximation bound unless $P = NP$. Experiments on benchmark and real-world problems show that the proposed Quit When You Can (QWYC) algorithm can speed-up average evaluation time by $2$x--$4$x, and is around $1.5$x faster than prior work. QWYC's joint optimization of ordering and thresholds also performed better in experiments than various fixed orderings, including gradient boosted trees' ordering.",
+      "authors": [
+        "Serena Wang",
+        "Maya Gupta",
+        "Seungil You"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1806.11202",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Quit When You Can: Efficient Evaluation of Ensembles with Ordering Optimization",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1806.11202v1",
+        "pdf": "https://arxiv.org/pdf/1806.11202v1"
+      },
+      "venue": "arXiv",
+      "year": 2018
+    },
+    {
+      "abstract": "We introduce a variation on Kac's question, \"Can one hear the shape of a drum?\" Instead of trying to identify a compact manifold and its metric via its Laplace--Beltrami spectrum, we ask if it is possible to uniquely identify a point $x$ on the manifold, up to symmetry, from its pointwise counting function \\[ N_x(λ) = \\sum_{λ_j \\leq λ} |e_j(x)|^2, \\] where here $Δ_g e_j = -λ_j^2 e_j$ and $e_j$ form an orthonormal basis for $L^2(M)$. This problem has several natural physical interpretations, two of which are acoustic: 1. You are placed at an arbitrary location in a familiar room with your eyes closed. Can you identify your location in the room by clapping your hands once and listening to the resulting echoes and reverberations? 2. If a drum of a known shape is struck at some unknown point, can you determine this point by listening to the quality of the sound the drum produces? The main result of this paper provides an affirmative answer to this question for a generic class of metrics. We also probe the problem with a variety of simple examples, highlighting along the way helpful geometric invariants that can be pulled out of the pointwise counting function $N_x$.",
+      "authors": [
+        "Emmett L. Wyman",
+        "Yakun Xi"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2304.04659",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Can you hear your location on a manifold?",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2304.04659v2",
+        "pdf": "https://arxiv.org/pdf/2304.04659v2"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "A genome read data set can be quickly and efficiently remapped from one reference to another similar reference (e.g., between two reference versions or two similar species) using a variety of tools, e.g., the commonly-used CrossMap tool. With the explosion of available genomic data sets and references, high-performance remapping tools will be even more important for keeping up with the computational demands of genome assembly and analysis. We provide FastRemap, a fast and efficient tool for remapping reads between genome assemblies. FastRemap provides up to a 7.82$\\times$ speedup (6.47$\\times$, on average) and uses as low as 61.7% (80.7%, on average) of the peak memory consumption compared to the state-of-the-art remapping tool, CrossMap. FastRemap is written in C++. The source code and user manual are freely available at: github.com/CMU-SAFARI/FastRemap. Docker image available at: https://hub.docker.com/r/alkanlab/fast. Also available in Bioconda at: https://anaconda.org/bioconda/fastremap-bio.",
+      "authors": [
+        "Jeremie S. Kim",
+        "Can Firtina",
+        "Meryem Banu Cavlak",
+        "Damla Senol Cali",
+        "Can Alkan",
+        "Onur Mutlu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2201.06255",
+        "doi": "10.1093/bioinformatics/btac554",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "FastRemap: A Tool for Quickly Remapping Reads between Genome Assemblies",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2201.06255v3",
+        "pdf": "https://arxiv.org/pdf/2201.06255v3"
+      },
+      "venue": "Bioinformatics, Sep 30; 38(19):4633-4635, 2022",
+      "year": 2022
+    },
+    {
+      "abstract": "If you have a restless intellect, it is very likely that you have played at some point with the idea of investigating the meaning and conceptual foundations of quantum mechanics. It is also probable (albeit not certain) that your intentions have been stopped on their tracks by an encounter with some version of the \"Shut up and calculate\" command. You may have heard that everything is already understood. That understanding is not your job. Or, if it is, it is either impossible or very difficult. Maybe somebody explained to you that physics is concerned with \"hows\" and not with \"whys\"; that whys are the business of \"philosophy\" ---you know, that dirty word. That what you call \"understanding\" is just being Newtonian; which of course you cannot ask quantum mechanics to be. Perhaps they also added some norms: The important thing a theory must do is predict; a theory must only talk about measurable quantities. It may also be the case that you almost asked \"OK, and why is that?\", but you finally bit your tongue. If you persisted in your intentions and the debate got a little heated up, it is even possible that it was suggested that you suffered of some type of moral or epistemic weakness that tend to disappear as you grow up. Maybe you received some job advice such as \"Don't work in that if you ever want to own a house\". I have certainly met all these objections in my short career, and I think that they are all just wrong. In this somewhat personal document, I try to defend that making sense of quantum mechanics is an exciting, challenging, important and open scientific endeavor. I do this by compulsively quoting Feynman (and others), and I provide some arguments that you might want to use the next time you confront the mentioned \"opinions\". By analogy with the anti-rationalistic Copenhagen command, all the arguments are subsumed in a standard answer to it: \"Shut up and let me think\"",
+      "authors": [
+        "Pablo Echenique-Robba"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1308.5619",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Shut up and let me think. Or why you should work on the foundations of quantum mechanics as much as you please",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1308.5619v3",
+        "pdf": "https://arxiv.org/pdf/1308.5619v3"
+      },
+      "venue": "arXiv",
+      "year": 2013
+    },
+    {
+      "abstract": "Dynamics of the hybrid systems of aerial cable-ways is investigated. The eigenvalue problems are considered for such hybrid systems with different assumptions. An overview of different methods for eigenvalue problems is given. In the research, the method of the normal fundamental systems is applied, which turns out to be very effective for the considered problems. Changes of dynamical characteristics of the systems depending on the controlled parameter are studied.",
+      "authors": [
+        "Olena V. Mul",
+        "Delfim F. M. Torres",
+        "Volodymyr P. Kravchenko"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0607200",
+        "doi": "10.1016/j.nahs.2006.05.006",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Dynamics of Controlled Hybrid Systems of Aerial Cable-Ways",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/math/0607200v1",
+        "pdf": "https://arxiv.org/pdf/math/0607200v1"
+      },
+      "venue": "Nonlinear Analysis: Hybrid Systems 2 (2008), no. 2, 431--440",
+      "year": 2006
+    },
+    {
+      "abstract": "What does bumping into things in a scene tell you about scene geometry? In this paper, we investigate the idea of learning from collisions. At the heart of our approach is the idea of collision replay, where we use examples of a collision to provide supervision for observations at a past frame. We use collision replay to train convolutional neural networks to predict a distribution over collision time from new images. This distribution conveys information about the navigational affordances (e.g., corridors vs open spaces) and, as we show, can be converted into the distance function for the scene geometry. We analyze this approach with an agent that has noisy actuation in a photorealistic simulator.",
+      "authors": [
+        "Alexander Raistrick",
+        "Nilesh Kulkarni",
+        "David F. Fouhey"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2105.01061",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Collision Replay: What Does Bumping Into Things Tell You About Scene Geometry?",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2105.01061v1",
+        "pdf": "https://arxiv.org/pdf/2105.01061v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "The world's stock markets display a strikingly suspicious, decades long pattern of overnight and intraday returns that nobody (other than us) has plausibly explained and that nobody (other than us) has clearly and persistently alerted you to. We use correspondence on this topic over the past five years to show that the silence of others on this issue does not arise from their having a good reason to believe this pattern is fine. Separately, and regardless of whether this pattern turns out to be fine, we have documented that people in a position to alert you to the presence of strikingly suspicious return patterns in the world's stock markets that nobody can innocuously explain are aware of this issue, have no good reason to believe it is not a problem, and chose to not tell you.",
+      "authors": [
+        "Bruce Knuteson"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2107.12516",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "They Chose to Not Tell You",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2107.12516v1",
+        "pdf": "https://arxiv.org/pdf/2107.12516v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "Benchmarks for large multimodal language models (MLMs) now serve to simultaneously assess the general capabilities of models instead of evaluating for a specific capability. As a result, when a developer wants to identify which models to use for their application, they are overwhelmed by the number of benchmarks and remain uncertain about which benchmark's results are most reflective of their specific use case. This paper introduces Task-Me-Anything, a benchmark generation engine which produces a benchmark tailored to a user's needs. Task-Me-Anything maintains an extendable taxonomy of visual assets and can programmatically generate a vast number of task instances. Additionally, it algorithmically addresses user queries regarding MLM performance efficiently within a computational budget. It contains 113K images, 10K videos, 2K 3D object assets, over 365 object categories, 655 attributes, and 335 relationships. It can generate 750M image/video question-answering pairs, which focus on evaluating MLM perceptual capabilities. Task-Me-Anything reveals critical insights: open-source MLMs excel in object and attribute recognition but lack spatial and temporal understanding; each model exhibits unique strengths and weaknesses; larger models generally perform better, though exceptions exist; and GPT4o demonstrates challenges in recognizing rotating/moving objects and distinguishing colors.",
+      "authors": [
+        "Jieyu Zhang",
+        "Weikai Huang",
+        "Zixian Ma",
+        "Oscar Michel",
+        "Dong He",
+        "Tanmay Gupta",
+        "Wei-Chiu Ma",
+        "Ali Farhadi",
+        "Aniruddha Kembhavi",
+        "Ranjay Krishna"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2406.11775",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Task Me Anything",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2406.11775v2",
+        "pdf": "https://arxiv.org/pdf/2406.11775v2"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    },
+    {
+      "abstract": "Rapid progress in machine learning for natural language processing has the potential to transform debates about how humans learn language. However, the learning environments and biases of current artificial learners and humans diverge in ways that weaken the impact of the evidence obtained from learning simulations. For example, today's most effective neural language models are trained on roughly one thousand times the amount of linguistic data available to a typical child. To increase the relevance of learnability results from computational models, we need to train model learners without significant advantages over humans. If an appropriate model successfully acquires some target linguistic knowledge, it can provide a proof of concept that the target is learnable in a hypothesized human learning scenario. Plausible model learners will enable us to carry out experimental manipulations to make causal inferences about variables in the learning environment, and to rigorously test poverty-of-the-stimulus-style claims arguing for innate linguistic knowledge in humans on the basis of speculations about learnability. Comparable experiments will never be possible with human subjects due to practical and ethical considerations, making model learners an indispensable resource. So far, attempts to deprive current models of unfair advantages obtain sub-human results for key grammatical behaviors such as acceptability judgments. But before we can justifiably conclude that language learning requires more prior domain-specific knowledge than current models possess, we must first explore non-linguistic inputs in the form of multimodal stimuli and multi-agent interaction as ways to make our learners more efficient at learning from limited linguistic input.",
+      "authors": [
+        "Alex Warstadt",
+        "Samuel R. Bowman"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2208.07998",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "What Artificial Neural Networks Can Tell Us About Human Language Acquisition",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2208.07998v2",
+        "pdf": "https://arxiv.org/pdf/2208.07998v2"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "Optimizing the reliability and the robustness of a design is important but often unaffordable due to high sample requirements. Surrogate models based on statistical and machine learning methods are used to increase the sample efficiency. However, for higher dimensional or multi-modal systems, surrogate models may also require a large amount of samples to achieve good results. We propose a sequential sampling strategy for the surrogate based solution of multi-objective reliability based robust design optimization problems. Proposed local Latin hypercube refinement (LoLHR) strategy is model-agnostic and can be combined with any surrogate model because there is no free lunch but possibly a budget one. The proposed method is compared to stationary sampling as well as other proposed strategies from the literature. Gaussian process and support vector regression are both used as surrogate models. Empirical evidence is presented, showing that LoLHR achieves on average better results compared to other surrogate based strategies on the tested examples.",
+      "authors": [
+        "Can Bogoclu",
+        "Dirk Roos",
+        "Tamara Nestorović"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2108.08890",
+        "doi": "10.1016/j.asoc.2021.107807",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Local Latin Hypercube Refinement for Multi-objective Design Uncertainty Optimization",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2108.08890v2",
+        "pdf": "https://arxiv.org/pdf/2108.08890v2"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "We provide explicit closed form expressions for strict Lyapunov functions for time-varying discrete time systems. Our Lyapunov functions are expressed in terms of known nonstrict Lyapunov functions for the dynamics and finite sums of persistency of excitation parameters. This provides a discrete time analog of our previous continuous time Lyapunov function constructions. We also construct explicit strict Lyapunov functions for systems satisfying nonstrict discrete time analogs of the conditions from Matrosov's Theorem. We use our methods to build strict Lyapunov functions for time-varying hybrid systems that contain mixtures of continuous and discrete time evolutions.",
+      "authors": [
+        "Michael Malisoff",
+        "Frederic Mazenc"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0610210",
+        "doi": "10.1016/j.nahs.2006.12.005",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Constructions of Strict Lyapunov Functions for Discrete Time and Hybrid Time-Varying Systems",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/math/0610210v1",
+        "pdf": "https://arxiv.org/pdf/math/0610210v1"
+      },
+      "venue": "Nonlinear Analysis Hybrid Systems, published online February 20, 2007",
+      "year": 2006
+    },
+    {
+      "abstract": "Hardly any software development process is used as prescribed by authors or standards. Regardless of company size or industry sector, a majority of project teams and companies use hybrid development methods (short: hybrid methods) that combine different development methods and practices. Even though such hybrid methods are highly individualized, a common understanding of how to systematically construct synergetic practices is missing. In this article, we make a first step towards a statistical construction procedure for hybrid methods. Grounded in 1467 data points from a large-scale practitioner survey, we study the question: What are hybrid methods made of and how can they be systematically constructed? Our findings show that only eight methods and few practices build the core of modern software development. Using an 85% agreement level in the participants' selections, we provide examples illustrating how hybrid methods can be characterized by the practices they are made of. Furthermore, using this characterization, we develop an initial construction procedure, which allows for defining a method frame and enriching it incrementally to devise a hybrid method using ranked sets of practice.",
+      "authors": [
+        "Paolo Tell",
+        "Jil Klünder",
+        "Steffen Küpper",
+        "David Raffo",
+        "Stephen MacDonell",
+        "Jürgen Münch",
+        "Dietmar Pfahl",
+        "Oliver Linssen",
+        "Marco Kuhrmann"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2105.13563",
+        "doi": "10.1002/smr.2315",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Towards the statistical construction of hybrid development methods",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2105.13563v1",
+        "pdf": "https://arxiv.org/pdf/2105.13563v1"
+      },
+      "venue": "Towards the statistical construction of hybrid development methods, Journal of Software: Evolution and Process; 33:e2315 (2021)",
+      "year": 2021
+    },
+    {
+      "abstract": "World models for deformable objects should recover not only geometry and appearance, but also underlying physical dynamics, interaction grounding, and material behavior. Learning such a model from real videos is challenging because deformable linear, planar, and volumetric objects evolve under high-dimensional deformation, noisy interactions, and complex material response. The model must therefore infer a physical state from visual observations, roll it forward under new interactions, and render the resulting dynamics with high visual fidelity. We present DeformMaster, a video-derived interactive physics-neural world model that turns real interaction videos into an online interactive model of deformable objects within a unified dynamics-and-appearance framework. DeformMaster preserves structured physical rollout while using a neural residual to compensate for unmodeled effects, grounds sparse hand motion as distributed compliant actuator for hand-continuum interaction, represents material response with spatially varying constitutive experts, and drives high-fidelity 4D appearance from the predicted physical evolution. Experiments on real-world deformable-object sequences demonstrate DeformMaster's ability to roll out future dynamics and render dynamic appearance, outperforming state-of-the-art baselines while supporting novel action rollout, material-parameter variation, and dynamic novel-view synthesis. Project page: https://can-lee.github.io/deformmaster-web/",
+      "authors": [
+        "Can Li",
+        "Zhoujian Li",
+        "Ren Li",
+        "Jie Gu",
+        "Lei Lei",
+        "Jingmin Chen",
+        "Lei Sun"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2605.09586",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "DeformMaster: An Interactive Physics-Neural World Model for Deformable Objects from Videos",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2605.09586v2",
+        "pdf": "https://arxiv.org/pdf/2605.09586v2"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "We study how relative quantum cohomology, defined by Tseng--You and Fan--Wu--You, varies under birational transformations. For toric complete intersections with simple normal crossings divisors that contain the loci of indeterminacy, we prove that their respective relative $I$-functions can be directly identified. For toric complete intersections with smooth divisors, we prove that their respective relative $I$-functions are related by analytic continuation. We also study some connections with extremal transitions and FJRW theory.",
+      "authors": [
+        "Fenglong You"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2204.00509",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Relative quantum cohomology under birational transformations",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2204.00509v1",
+        "pdf": "https://arxiv.org/pdf/2204.00509v1"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "We introduce the problem of zero-shot sign language recognition (ZSSLR), where the goal is to leverage models learned over the seen sign class examples to recognize the instances of unseen signs. To this end, we propose to utilize the readily available descriptions in sign language dictionaries as an intermediate-level semantic representation for knowledge transfer. We introduce a new benchmark dataset called ASL-Text that consists of 250 sign language classes and their accompanying textual descriptions. Compared to the ZSL datasets in other domains (such as object recognition), our dataset consists of limited number of training examples for a large number of classes, which imposes a significant challenge. We propose a framework that operates over the body and hand regions by means of 3D-CNNs, and models longer temporal relationships via bidirectional LSTMs. By leveraging the descriptive text embeddings along with these spatio-temporal representations within a zero-shot learning framework, we show that textual data can indeed be useful in uncovering sign languages. We anticipate that the introduced approach and the accompanying dataset will provide a basis for further exploration of this new zero-shot learning problem.",
+      "authors": [
+        "Yunus Can Bilge",
+        "Nazli Ikizler-Cinbis",
+        "Ramazan Gokberk Cinbis"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1907.10292",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Zero-Shot Sign Language Recognition: Can Textual Data Uncover Sign Languages?",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1907.10292v1",
+        "pdf": "https://arxiv.org/pdf/1907.10292v1"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "AirLift is the first read remapping tool that enables users to quickly and comprehensively map a read set, that had been previously mapped to one reference genome, to another similar reference. Users can then quickly run a downstream analysis of read sets for each latest reference release. Compared to the state-of-the-art method for remapping reads (i.e., full mapping), AirLift reduces the overall execution time to remap read sets between two reference genome versions by up to 27.4x. We validate our remapping results with GATK and find that AirLift provides high accuracy in identifying ground truth SNP/INDEL variants AirLift source code and readme describing how to reproduce our results are available at https://github.com/CMU-SAFARI/AirLift.",
+      "authors": [
+        "Jeremie S. Kim",
+        "Can Firtina",
+        "Meryem Banu Cavlak",
+        "Damla Senol Cali",
+        "Mohammed Alser",
+        "Nastaran Hajinazar",
+        "Can Alkan",
+        "Onur Mutlu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1912.08735",
+        "doi": "10.1109/TCBB.2024.3433378",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "AirLift: A Fast and Comprehensive Technique for Remapping Alignments between Reference Genomes",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1912.08735v5",
+        "pdf": "https://arxiv.org/pdf/1912.08735v5"
+      },
+      "venue": "IEEE Transactions on Computational Biology and Bioinformatics, 23 (2): 589-597, 2026",
+      "year": 2019
+    },
+    {
+      "abstract": "Inference of online social network users' attributes and interests has been an active research topic. Accurate identification of users' attributes and interests is crucial for improving the performance of personalization and recommender systems. Most of the existing works have focused on textual content generated by the users and have successfully used it for predicting users' interests and other identifying attributes. However, little attention has been paid to user generated visual content (images) that is becoming increasingly popular and pervasive in recent times. We posit that images posted by users on online social networks are a reflection of topics they are interested in and propose an approach to infer user attributes from images posted by them. We analyze the content of individual images and then aggregate the image-level knowledge to infer user-level interest distribution. We employ image-level similarity to propagate the label information between images, as well as utilize the image category information derived from the user created organization structure to further propagate the category-level knowledge for all images. A real life social network dataset created from Pinterest is used for evaluation and the experimental results demonstrate the effectiveness of our proposed approach.",
+      "authors": [
+        "Quanzeng You",
+        "Sumit Bhatia",
+        "Jiebo Luo"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1504.04558",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A Picture Tells a Thousand Words -- About You! User Interest Profiling from User Generated Visual Content",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1504.04558v1",
+        "pdf": "https://arxiv.org/pdf/1504.04558v1"
+      },
+      "venue": "arXiv",
+      "year": 2015
+    },
+    {
+      "abstract": "This technical report describes our QuAVF@NTU-NVIDIA submission to the Ego4D Talking to Me (TTM) Challenge 2023. Based on the observation from the TTM task and the provided dataset, we propose to use two separate models to process the input videos and audio. By doing so, we can utilize all the labeled training data, including those without bounding box labels. Furthermore, we leverage the face quality score from a facial landmark prediction model for filtering noisy face input data. The face quality score is also employed in our proposed quality-aware fusion for integrating the results from two branches. With the simple architecture design, our model achieves 67.4% mean average precision (mAP) on the test set, which ranks first on the leaderboard and outperforms the baseline method by a large margin. Code is available at: https://github.com/hsi-che-lin/Ego4D-QuAVF-TTM-CVPR23",
+      "authors": [
+        "Hsi-Che Lin",
+        "Chien-Yi Wang",
+        "Min-Hung Chen",
+        "Szu-Wei Fu",
+        "Yu-Chiang Frank Wang"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2306.17404",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "QuAVF: Quality-aware Audio-Visual Fusion for Ego4D Talking to Me Challenge",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2306.17404v1",
+        "pdf": "https://arxiv.org/pdf/2306.17404v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "We present a novel approach for parallel computation in the context of machine learning that we call \"Tell Me Something New\" (TMSN). This approach involves a set of independent workers that use broadcast to update each other when they observe \"something new\". TMSN does not require synchronization or a head node and is highly resilient against failing machines or laggards. We demonstrate the utility of TMSN by applying it to learning boosted trees. We show that our implementation is 10 times faster than XGBoost and LightGBM on the splice-site prediction problem.",
+      "authors": [
+        "Julaiti Alafate",
+        "Yoav Freund"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1805.07483",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Tell Me Something New: A New Framework for Asynchronous Parallel Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1805.07483v2",
+        "pdf": "https://arxiv.org/pdf/1805.07483v2"
+      },
+      "venue": "arXiv",
+      "year": 2018
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:12:56.974577+00:00",
+  "recorded_latency_seconds": 1.1768187920097262,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

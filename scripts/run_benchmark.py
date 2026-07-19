@@ -27,6 +27,7 @@ for import_root in (REPO_ROOT, SRC_ROOT):
 
 from scripts.evaluate_search_batch import evaluate_batch_results  # noqa: E402
 from scholar_agent.core.api_schemas import CostReport  # noqa: E402
+from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     SUPPORTED_SEARCH_SOURCES,
@@ -39,6 +40,16 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
     supported_datasets,
 )
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
+from scholar_agent.evaluation.snapshots import (  # noqa: E402
+    SnapshotAwareReferenceFetcher,
+    SnapshotAwareRetriever,
+    SnapshotManifest,
+    SnapshotRuntime,
+    SnapshotStore,
+)
+from scholar_agent.evaluation.snapshots.schemas import CONNECTOR_VERSIONS  # noqa: E402
+from scholar_agent.evaluation.snapshots.schemas import QUERY_ADAPTER_VERSION  # noqa: E402
+from scholar_agent.evaluation.snapshots.store import utc_now  # noqa: E402
 from scholar_agent.evaluation.stage_diagnostics import (  # noqa: E402
     aggregate_stage_diagnostics,
     analyze_search_stages,
@@ -65,6 +76,7 @@ _SENSITIVE_ENV_NAMES = (
 class BenchmarkRunOptions(BaseModel):
     dataset: str
     dataset_path: Path | None = None
+    dataset_split: str = "development"
     limit: int | None = Field(default=None, ge=1)
     offset: int = Field(default=0, ge=0)
     output_root: Path = Path("outputs/benchmark_runs")
@@ -85,6 +97,10 @@ class BenchmarkRunOptions(BaseModel):
     diagnostics: bool = False
     resume: bool = False
     query_adapter_policy: QueryAdapterPolicy = "adaptive"
+    retrieval_mode: Literal["live", "record", "replay", "record-missing"] = "live"
+    snapshot_dir: Path | None = None
+    retry_failed_snapshots: bool = False
+    overwrite_snapshots: bool = False
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -114,6 +130,110 @@ class BenchmarkRunResult(BaseModel):
     stage_metrics: dict[str, Any] | None = None
 
 
+def _ablation_group_name(options: BenchmarkRunOptions) -> str:
+    if options.enable_query_evolution and options.enable_refchain:
+        return "query_evolution_plus_refchain"
+    if options.enable_query_evolution:
+        return "query_evolution_only"
+    if options.enable_refchain:
+        return "refchain_only"
+    return "baseline"
+
+
+def _snapshot_manifest(
+    options: BenchmarkRunOptions,
+    config: dict[str, Any],
+) -> SnapshotManifest:
+    if options.snapshot_dir is None:
+        raise ValueError("snapshot directory is required")
+    prompt_rows = config.get("prompts") or []
+
+    def prompt(name: str) -> dict[str, str | int | None]:
+        for row in prompt_rows:
+            if isinstance(row, dict) and row.get("name") == name:
+                return {
+                    "name": str(row.get("name") or name),
+                    "version": str(row.get("version") or ""),
+                    "hash": str(row.get("hash") or ""),
+                }
+        return {"name": name, "version": None, "hash": None}
+
+    now = utc_now()
+    code = config.get("code") or {}
+    return SnapshotManifest(
+        snapshot_name=options.snapshot_dir.name,
+        dataset=options.dataset,
+        split=options.dataset_split,
+        offset=options.offset,
+        limit=options.limit,
+        sources=list(options.sources),
+        adapter_policy=options.query_adapter_policy,
+        query_adapter_version=QUERY_ADAPTER_VERSION,
+        run_profile=options.run_profile,
+        budgets=options.budgets.model_dump(mode="json"),
+        llm_enabled=bool((config.get("llm") or {}).get("llm_enabled")),
+        query_understanding_prompt=prompt("query_understanding"),
+        judgement_prompt=prompt("relevance_judgement"),
+        connector_versions=dict(CONNECTOR_VERSIONS),
+        code_hash=str(config.get("runtime_code_hash") or ""),
+        git_commit=code.get("commit"),
+        dirty_worktree=bool(code.get("dirty")),
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _aggregate_snapshot_costs(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reports = [
+        row.get("snapshot_cost_report")
+        for row in rows
+        if isinstance(row.get("snapshot_cost_report"), dict)
+    ]
+    numeric_fields = (
+        "retrieval_snapshot_hits",
+        "reference_snapshot_hits",
+        "retrieval_snapshot_writes",
+        "reference_snapshot_writes",
+        "replay_execution_request_count",
+        "replay_execution_retry_count",
+        "replay_execution_network_wait_seconds",
+        "recorded_search_request_count",
+        "recorded_reference_request_count",
+        "recorded_retry_count",
+        "recorded_error_count",
+        "recorded_rate_limit_wait_seconds",
+        "recorded_latency_seconds",
+    )
+    return {
+        "case_count": len(reports),
+        **{
+            field: sum(float(report.get(field) or 0) for report in reports)
+            for field in numeric_fields
+        },
+        "missing_retrieval_keys": sorted(
+            {
+                key
+                for report in reports
+                for key in report.get("missing_retrieval_keys") or []
+            }
+        ),
+        "missing_reference_keys": sorted(
+            {
+                key
+                for report in reports
+                for key in report.get("missing_reference_keys") or []
+            }
+        ),
+        "fatal_errors": sorted(
+            {
+                error
+                for report in reports
+                for error in report.get("fatal_errors") or []
+            }
+        ),
+    }
+
+
 def run_benchmark(
     options: BenchmarkRunOptions,
     *,
@@ -139,17 +259,59 @@ def run_benchmark(
             dataset_report.model_dump(mode="json"),
         )
 
-    runner = service or SearchService(max_workers=options.max_workers)
+    snapshot_runtime: SnapshotRuntime | None = None
+    if options.retrieval_mode != "live":
+        if service is not None:
+            raise ValueError("snapshot modes require the real SearchService")
+        if options.snapshot_dir is None:
+            raise ValueError("--snapshot-dir is required outside live mode")
+        store = SnapshotStore(options.snapshot_dir)
+        manifest = store.ensure_manifest(_snapshot_manifest(options, config))
+        group_name = _ablation_group_name(options)
+        if options.retrieval_mode == "replay":
+            observation = manifest.groups.get(group_name)
+            collection_completed = bool(
+                observation
+                and (
+                    observation.collection_completed
+                    or observation.completed
+                )
+            )
+            if not collection_completed:
+                raise ValueError(f"snapshot_group_not_replay_ready:{group_name}")
+        snapshot_runtime = SnapshotRuntime(
+            store,
+            mode=options.retrieval_mode,
+            group_name=group_name,
+            retry_failed_snapshots=options.retry_failed_snapshots,
+            overwrite_snapshots=options.overwrite_snapshots,
+        )
+        runner = SearchService(
+            retriever=SnapshotAwareRetriever(snapshot_runtime),
+            reference_fetcher=SnapshotAwareReferenceFetcher(
+                snapshot_runtime,
+                fetch_openalex_references_detailed,
+            ),
+            max_workers=options.max_workers,
+        )
+    else:
+        runner = service or SearchService(max_workers=options.max_workers)
     selected_ids = [query.query_id for query in selected]
     for query in selected:
         previous = existing_rows.get(query.query_id)
         if previous is not None and previous.get("status") == "succeeded":
             continue
-        existing_rows[query.query_id] = _run_case(runner, query, options)
+        existing_rows[query.query_id] = _run_case(
+            runner,
+            query,
+            options,
+            snapshot_runtime=snapshot_runtime,
+        )
         _write_result_artifacts(run_dir, selected_ids, existing_rows)
 
     ordered_rows = [existing_rows[case_id] for case_id in selected_ids]
     metrics = _evaluate_rows(ordered_rows, selected, options.result_policy)
+    metrics["snapshot_costs"] = _aggregate_snapshot_costs(ordered_rows)
     _atomic_write_json(run_dir / "metrics.json", metrics)
     stage_metrics: dict[str, Any] | None = None
     if options.diagnostics:
@@ -169,6 +331,10 @@ def run_benchmark(
         _summary_markdown(config, metrics, stage_metrics),
     )
     _write_failures(run_dir / "failures.jsonl", ordered_rows)
+    if snapshot_runtime is not None:
+        snapshot_runtime.finish_group(
+            completed=all(row.get("status") == "succeeded" for row in ordered_rows)
+        )
     return BenchmarkRunResult(
         run_dir=run_dir,
         config=config,
@@ -201,6 +367,7 @@ def _build_config(
     semantic_config = {
         "dataset": options.dataset,
         "dataset_source_path": str(source_path),
+        "dataset_split": options.dataset_split,
         "dataset_sha256": _file_sha256(source_path),
         "case_count": len(selected),
         "case_ids": [item.query_id for item in selected],
@@ -218,6 +385,18 @@ def _build_config(
         "budgets": options.budgets.model_dump(mode="json"),
         "diagnostics": options.diagnostics,
         "query_adapter_policy": options.query_adapter_policy,
+        "retrieval_mode": options.retrieval_mode,
+        "snapshot": (
+            {
+                "directory": str(options.snapshot_dir.expanduser().resolve()),
+                "name": options.snapshot_dir.name,
+                "group": _ablation_group_name(options),
+                "retry_failed_snapshots": options.retry_failed_snapshots,
+                "overwrite_snapshots": options.overwrite_snapshots,
+            }
+            if options.snapshot_dir is not None
+            else None
+        ),
         "llm": {
             "llm_enabled": bool(requested_llm and llm_runtime.available),
             "requested": requested_llm,
@@ -353,8 +532,11 @@ def _run_case(
     service: Any,
     query: EvalQuery,
     options: BenchmarkRunOptions,
+    snapshot_runtime: SnapshotRuntime | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
+    if snapshot_runtime is not None:
+        snapshot_runtime.begin_case()
     try:
         output = service.run_search(
             query.query,
@@ -377,6 +559,8 @@ def _run_case(
             status="succeeded",
             partial=False,
         ).model_dump(mode="json")
+        if snapshot_runtime is not None:
+            snapshot_runtime.assert_case_complete()
         cost_report = dict(result.get("cost_report") or {})
         row = {
             "case_id": query.query_id,
@@ -393,9 +577,13 @@ def _run_case(
                 output,
                 result_policy=options.result_policy,
             )
+        if snapshot_runtime is not None:
+            row["snapshot_cost_report"] = snapshot_runtime.finish_case().model_dump(
+                mode="json"
+            )
         return row
     except Exception as exc:  # noqa: BLE001 - isolate benchmark cases
-        return {
+        row = {
             "case_id": query.query_id,
             "query": query.query,
             "status": "failed",
@@ -405,6 +593,11 @@ def _run_case(
             "latency_seconds": time.perf_counter() - started,
             "cost_report": CostReport().model_dump(mode="json"),
         }
+        if snapshot_runtime is not None:
+            row["snapshot_cost_report"] = snapshot_runtime.finish_case().model_dump(
+                mode="json"
+            )
+        return row
 
 
 def _evaluate_rows(
@@ -645,6 +838,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="运行公开学术检索 Benchmark。")
     parser.add_argument("--dataset", required=True, choices=supported_datasets())
     parser.add_argument("--dataset-path", default=None)
+    parser.add_argument("--dataset-split", default="development")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--output-root", default="outputs/benchmark_runs")
@@ -682,6 +876,14 @@ def _parser() -> argparse.ArgumentParser:
         default="adaptive",
     )
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--retrieval-mode",
+        choices=["live", "record", "replay", "record-missing"],
+        default="live",
+    )
+    parser.add_argument("--snapshot-dir", default=None)
+    parser.add_argument("--retry-failed-snapshots", action="store_true")
+    parser.add_argument("--overwrite-snapshots", action="store_true")
     return parser
 
 
@@ -721,6 +923,7 @@ def main(argv: list[str] | None = None) -> int:
         options = BenchmarkRunOptions(
             dataset=args.dataset,
             dataset_path=args.dataset_path,
+            dataset_split=args.dataset_split,
             limit=args.limit,
             offset=args.offset,
             output_root=args.output_root,
@@ -739,12 +942,20 @@ def main(argv: list[str] | None = None) -> int:
             diagnostics=args.diagnostics,
             query_adapter_policy=args.query_adapter_policy,
             resume=args.resume,
+            retrieval_mode=args.retrieval_mode,
+            snapshot_dir=(Path(args.snapshot_dir) if args.snapshot_dir else None),
+            retry_failed_snapshots=args.retry_failed_snapshots,
+            overwrite_snapshots=args.overwrite_snapshots,
         )
         result = run_benchmark(options)
     except (ValueError, OSError) as exc:
         print(_sanitize_message(str(exc)), file=sys.stderr)
         return 1
     print(result.run_dir)
+    if args.retrieval_mode == "replay" and any(
+        row.get("status") != "succeeded" for row in result.result_rows
+    ):
+        return 2
     return 0
 
 

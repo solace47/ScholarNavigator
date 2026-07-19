@@ -239,7 +239,10 @@ class SearchService:
         llm_client: Any | None = None,
     ) -> None:
         self._retriever = retriever
-        self._retriever_emits_connector_events = retriever is retrieve_papers
+        self._retriever_emits_connector_events = bool(
+            retriever is retrieve_papers
+            or getattr(retriever, "emits_connector_events", False)
+        )
         self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
@@ -266,7 +269,19 @@ class SearchService:
         signals = _ExecutionSignals(event_callback, should_cancel)
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
         retrieval_run_context = RetrievalRunContext()
-        runtime = SearchBudgetRuntime(budget)
+        elapsed_seconds_provider = getattr(
+            self._retriever,
+            "budget_elapsed_seconds",
+            None,
+        )
+        runtime = SearchBudgetRuntime(
+            budget,
+            elapsed_seconds_provider=(
+                elapsed_seconds_provider
+                if callable(elapsed_seconds_provider)
+                else None
+            ),
+        )
         adaptive_budget_tracker = _AdaptiveBudgetTracker(runtime)
         start = runtime.started_at
         stage_latencies: dict[str, float] = {}
@@ -1213,7 +1228,7 @@ class SearchService:
         start = time.perf_counter()
         try:
             if self._retriever_emits_connector_events:
-                output = retrieve_papers(
+                output = self._retriever(
                     subquery.query,
                     limit_per_source=limit_per_source,
                     sources=sources,

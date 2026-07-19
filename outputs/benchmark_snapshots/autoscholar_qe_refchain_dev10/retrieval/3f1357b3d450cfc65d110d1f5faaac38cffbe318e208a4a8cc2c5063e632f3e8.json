@@ -1,0 +1,593 @@
+{
+  "adapted_query": "((ti:hybrid OR abs:hybrid) AND (ti:architectures OR abs:architectures)) OR ((ti:reconstruction-based OR abs:reconstruction-based) AND (ti:techniques OR abs:techniques))",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "5741a362a1627d691e579a3a216bb7ed36a21f12e7a6e46a104b70a61ae9022d",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 3.488243417115882,
+    "rate_limit_wait_seconds": 1.7996615001466125,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "3f1357b3d450cfc65d110d1f5faaac38cffbe318e208a4a8cc2c5063e632f3e8",
+  "limit": 20,
+  "normalized_query": "((ti:hybrid OR abs:hybrid) AND (ti:architectures OR abs:architectures)) OR ((ti:reconstruction-based OR abs:reconstruction-based) AND (ti:techniques OR abs:techniques))",
+  "papers": [
+    {
+      "abstract": "We present an evolution of multiple-input multiple-output (MIMO) wireless communications known as the tri-hybrid MIMO architecture. In this framework, the traditional operations of linear precoding at the transmitter are distributed across digital beamforming, analog beamforming, and reconfigurable antennas. Compared with the hybrid MIMO architecture, which combines digital and analog beamforming, the tri-hybrid approach introduces a third layer of electromagnetic beamforming through antenna reconfigurability. This added layer offers a pathway to scale MIMO spatial dimensions, important for 6G systems operating in centimeter-wave bands, where the tension between larger bandwidths and infrastructure reuse necessitates ultra-large antenna arrays. We introduce the key features of the tri-hybrid architecture by (i)~reviewing the benefits and challenges of communicating with reconfigurable antennas, (ii)~examining tradeoffs between spectral and energy efficiency enabled by reconfigurability, and (iii)~exploring configuration challenges across the three layers. Overall, the tri-hybrid MIMO architecture offers a new approach for integrating emerging antenna technologies in the MIMO precoding framework.",
+      "authors": [
+        "Robert W. Heath,",
+        "Joseph Carlson",
+        "Nitish Vikas Deshpande",
+        "Miguel Rodrigo Castellanos",
+        "Mohamed Akrout",
+        "Chan-Byoung Chae"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2505.21971",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Tri-Hybrid MIMO Architecture",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2505.21971v1",
+        "pdf": "https://arxiv.org/pdf/2505.21971v1"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "Current state-of-the-art motion-based dynamic computed tomography reconstruction techniques estimate the deformation by considering motion models in the entire object volume although occasionally the proper change is local. In this article, we address this issue by introducing the region-based Motion-compensated Iterative Reconstruction Technique (rMIRT). It aims to accurately reconstruct the object being locally deformed during the scan, while identifying the deformed regions consistently with the motion models. Moreover, the motion parameters that correspond to the deformation in those areas are also estimated. In order to achieve these goals, we consider a mathematical optimization problem whose objective function depends on the reconstruction, the deformed regions and the motion parameters. The derivatives towards all of them are formulated analytically, which allows for efficient reconstruction using gradient-based optimizers. To the best of our knowledge, this is the first iterative reconstruction method in dynamic CT that exploits the analytical derivative towards the deformed regions.",
+      "authors": [
+        "Anh-Tuan Nguyen",
+        "Jens Renders",
+        "Jan Sijbers",
+        "Jan De Beenhouwer"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2301.11029",
+        "doi": "10.1109/ISBI53787.2023.10230608",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Region-based motion-compensated iterative reconstruction technique for dynamic computed tomography",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2301.11029v1",
+        "pdf": "https://arxiv.org/pdf/2301.11029v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "High-precision direction-of-arrival (DOA) estimation, as a key sensing capability for 6G-enabled applications such as autonomous driving and extended reality, is increasingly dependent on the effective exploitation of spatial degrees of freedom (DOFs). This paper integrates two frontier DOFs-oriented paradigms and proposes a fluid antenna-enabled hybrid analog-digital (FA-HAD) architecture, which features an extremely lightweight front-end configuration mechanism and efficient spatial DOFs exploitation. Within this architecture, a collaborative spatial-phase sampling strategy is first developed to enable real-time 2-D DOA estimation under compressive observations, and a single-source CRLB analysis is provided to quantify the achievable performance limit, offering quantitative guidance for accuracy-overhead trade-offs. Furthermore, an efficient virtual-array spatial covariance matrix reconstruction method is proposed to recover a physically meaningful covariance representation, thereby providing a covariance-domain interface that is directly reusable by a broad class of existing covariance-based array processing and array design techniques, which strengthens the scalability and transferability of the proposed architecture. Building upon the reconstructed SCM, a Jacobi-Anger expansion based dimension-reduced MUSIC estimator is further derived for arbitrary planar arrays with a favorable computational cost. Simulation results demonstrate that the proposed FA-HAD framework attains DOA accuracy close to fully digital systems while substantially reducing RF hardware complexity and training overhead.",
+      "authors": [
+        "Ye Tian",
+        "Jiaji Ren",
+        "Tuo Wu",
+        "Wei Liu",
+        "Maged Elkashlan",
+        "Matthew C. Valenti",
+        "Naofal Al-Dhahir",
+        "Hing Cheung So"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2604.13587",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Hybrid Architecture Gets Fluid: A New Paradigm for Direction-of-arrival Estimation in 6G Networks",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2604.13587v1",
+        "pdf": "https://arxiv.org/pdf/2604.13587v1"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "The development of deep learning architectures is a resource-demanding process, due to a vast design space, long prototyping times, and high compute costs associated with at-scale model training and evaluation. We set out to simplify this process by grounding it in an end-to-end mechanistic architecture design (MAD) pipeline, encompassing small-scale capability unit tests predictive of scaling laws. Through a suite of synthetic token manipulation tasks such as compression and recall, designed to probe capabilities, we identify and test new hybrid architectures constructed from a variety of computational primitives. We experimentally validate the resulting architectures via an extensive compute-optimal and a new state-optimal scaling law analysis, training over 500 language models between 70M to 7B parameters. Surprisingly, we find MAD synthetics to correlate with compute-optimal perplexity, enabling accurate evaluation of new architectures via isolated proxy tasks. The new architectures found via MAD, based on simple ideas such as hybridization and sparsity, outperform state-of-the-art Transformer, convolutional, and recurrent architectures (Transformer++, Hyena, Mamba) in scaling, both at compute-optimal budgets and in overtrained regimes. Overall, these results provide evidence that performance on curated synthetic tasks can be predictive of scaling laws, and that an optimal architecture should leverage specialized layers via a hybrid topology.",
+      "authors": [
+        "Michael Poli",
+        "Armin W Thomas",
+        "Eric Nguyen",
+        "Pragaash Ponnusamy",
+        "Björn Deiseroth",
+        "Kristian Kersting",
+        "Taiji Suzuki",
+        "Brian Hie",
+        "Stefano Ermon",
+        "Christopher Ré",
+        "Ce Zhang",
+        "Stefano Massaroli"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2403.17844",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Mechanistic Design and Scaling of Hybrid Architectures",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2403.17844v2",
+        "pdf": "https://arxiv.org/pdf/2403.17844v2"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    },
+    {
+      "abstract": "Hybrid model architectures that combine computational primitives (e.g., Attention, MLP) in different ratios have shown promising performance beyond Transformers. Some studies have shown that different interleavings of primitives can affect model quality as well. However, prior works explore the hybrid model architecture design space manually. Due to the large design space and training costs, discovering hybrid models that combine key computational primitives for pre-training is challenging. In this work, we take a principled approach in designing a modular hybrid model architecture search framework -- Composer. Composer explores model architectures at a small scale and extrapolates the top-performing model architectures to a larger scale using our proposed scaling strategies. Using Composer, we discover new hybrid LLM architectures that outperform Llama 3.2. Compared to Llama 3.2 and previous state-of-the-art baselines, the new model architectures consistently reduce validation loss at parameter scales of 350M-3B and improve evaluation accuracy on the downstream tasks by up to 2.8-8.3% (1.1-3.1% on average) while improving both training and inference efficiency.",
+      "authors": [
+        "Bilge Acun",
+        "Prasoon Sinha",
+        "Newsha Ardalani",
+        "Sangmin Bae",
+        "Alicia Golden",
+        "Chien-Yu Lin",
+        "Meghana Madhyastha",
+        "Fei Sun",
+        "Neeraja J. Yadwadkar",
+        "Carole-Jean Wu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2510.00379",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Composer: A Search Framework for Hybrid Neural Architecture Design",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2510.00379v2",
+        "pdf": "https://arxiv.org/pdf/2510.00379v2"
+      },
+      "venue": "The International Conference on Learning Representations (ICLR) 2026",
+      "year": 2025
+    },
+    {
+      "abstract": "Approaches to machine intelligence based on brain models have stressed the use of neural networks for generalization. Here we propose the use of a hybrid neural network architecture that uses two kind of neural networks simultaneously: (i) a surface learning agent that quickly adapt to new modes of operation; and, (ii) a deep learning agent that is very accurate within a specific regime of operation. The two networks of the hybrid architecture perform complementary functions that improve the overall performance. The performance of the hybrid architecture has been compared with that of back-propagation perceptrons and the CC and FC networks for chaotic time-series prediction, the CATS benchmark test, and smooth function approximation. It has been shown that the hybrid architecture provides a superior performance based on the RMS error criterion.",
+      "authors": [
+        "Yuhua Chen",
+        "Subhash Kak",
+        "Lei Wang"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0809.5087",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Hybrid Neural Network Architecture for On-Line Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/0809.5087v1",
+        "pdf": "https://arxiv.org/pdf/0809.5087v1"
+      },
+      "venue": "arXiv",
+      "year": 2008
+    },
+    {
+      "abstract": "We present two hybrid linear-optical architectures that simultaneously exploit spatial and temporal degrees of freedom of light to effect arbitrary discrete unitary transformations. Our architectures combine the benefits of spatial implementations of linear optics, namely low loss and parallel operation, with those of temporal implementations, namely modest resource requirements and access to transformations of potentially unbounded size. We arrive at our architectures by devising and employing decompositions of large discrete unitary transformations into smaller ones, decompositions we expect to have broad utility beyond spatio-temporal linear optics. We show that hybrid architectures promise important advantages over both spatial-only and temporal-only architectures.",
+      "authors": [
+        "Daiqin Su",
+        "Ish Dhand",
+        "Lukas G. Helt",
+        "Zachary Vernon",
+        "Kamil Bradler"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1812.07939",
+        "doi": "10.1103/PhysRevA.99.062301",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Hybrid spatiotemporal architectures for universal linear optics",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1812.07939v2",
+        "pdf": "https://arxiv.org/pdf/1812.07939v2"
+      },
+      "venue": "Phys. Rev. A 99, 062301 (2019)",
+      "year": 2018
+    },
+    {
+      "abstract": "This paper questions the feasibility of a strong (general) data-centric artificial intelligence (AI). The disadvantages of this type of intelligence are discussed. As an alternative, the concept of co-evolutionary hybrid intelligence is proposed. It is based on the cognitive interoperability of man and machine. An analysis of existing approaches to the construction of cognitive architectures is given. An architecture seamlessly incorporates a human into the loop of intelligent problem solving is considered. The article is organized as follows. The first part contains a critique of data-centric intelligent systems. The reasons why it is impossible to create a strong artificial intelligence based on this type of intelligence are indicated. The second part briefly presents the concept of co-evolutionary hybrid intelligence and shows its advantages. The third part gives an overview and analysis of existing cognitive architectures. It is concluded that many do not consider humans part of the intelligent data processing process. The next part discusses the cognitive architecture for co-evolutionary hybrid intelligence, providing integration with humans. It finishes with general conclusions about the feasibility of developing intelligent systems with humans in the problem-solving loop.",
+      "authors": [
+        "Kirill Krinkin",
+        "Yulia Shichkina"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2209.12623",
+        "doi": "10.1007/978-3-031-19907-3_28",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Cognitive Architecture for Co-Evolutionary Hybrid Intelligence",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2209.12623v1",
+        "pdf": "https://arxiv.org/pdf/2209.12623v1"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "Neuromorphic vision sensor is a new bio-inspired imaging paradigm that reports asynchronous, continuously per-pixel brightness changes called `events' with high temporal resolution and high dynamic range. So far, the event-based image reconstruction methods are based on artificial neural networks (ANN) or hand-crafted spatiotemporal smoothing techniques. In this paper, we first implement the image reconstruction work via fully spiking neural network (SNN) architecture. As the bio-inspired neural networks, SNNs operating with asynchronous binary spikes distributed over time, can potentially lead to greater computational efficiency on event-driven hardware. We propose a novel Event-based Video reconstruction framework based on a fully Spiking Neural Network (EVSNN), which utilizes Leaky-Integrate-and-Fire (LIF) neuron and Membrane Potential (MP) neuron. We find that the spiking neurons have the potential to store useful temporal information (memory) to complete such time-dependent tasks. Furthermore, to better utilize the temporal information, we propose a hybrid potential-assisted framework (PA-EVSNN) using the membrane potential of spiking neuron. The proposed neuron is referred as Adaptive Membrane Potential (AMP) neuron, which adaptively updates the membrane potential according to the input spikes. The experimental results demonstrate that our models achieve comparable performance to ANN-based models on IJRR, MVSEC, and HQF datasets. The energy consumptions of EVSNN and PA-EVSNN are 19.36$\\times$ and 7.75$\\times$ more computationally efficient than their ANN architectures, respectively.",
+      "authors": [
+        "Lin Zhu",
+        "Xiao Wang",
+        "Yi Chang",
+        "Jianing Li",
+        "Tiejun Huang",
+        "Yonghong Tian"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2201.10943",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Event-based Video Reconstruction via Potential-assisted Spiking Neural Network",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2201.10943v3",
+        "pdf": "https://arxiv.org/pdf/2201.10943v3"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "The hybrid cloud idea is increasingly gaining momentum because it brings distinct advantages as a hosting platform for complex software systems. However, there are several challenges that need to be surmounted before hybrid hosting can become pervasive and penetrative. One main problem is to architecturally partition workloads across permutations of feasible cloud and non-cloud deployment choices to yield the best-fit hosting combination. Another is to predict the effort estimate to deliver such an advantageous hybrid deployment. In this paper, we describe a heuristic solution to address the said obstacles and converge on the ideal hybrid cloud deployment architecture, based on properties and characteristics of workloads that are sought to be hosted. We next propose a model to represent such a hybrid cloud deployment, and demonstrate a method to estimate the effort required to implement and sustain that deployment. We also validate our model through dozens of case studies spanning several industry verticals and record results pertaining to how the industrial grouping of a software system can impact the aforementioned hybrid deployment model.",
+      "authors": [
+        "Sreekrishnan Venkateswaran",
+        "Santonu Sarkar"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2205.04467",
+        "doi": "10.1002/spe.2496",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Architectural Partitioning and Deployment Modeling on Hybrid Clouds",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2205.04467v1",
+        "pdf": "https://arxiv.org/pdf/2205.04467v1"
+      },
+      "venue": "Software: Practice and Experience (Feb 2018, Volume 48, Issue 2)",
+      "year": 2022
+    },
+    {
+      "abstract": "Field Programmable Gate Arrays(FPGA) exceed the computing power of software based implementations by breaking the paradigm of sequential execution and accomplishing more per clock cycle by enabling hardware level parallelization at an architectural level. Introducing parallel architectures for a computationally intensive algorithm like Rapidly Exploring Random Trees(RRT) will result in an exploration that is fast, dense and uniform. Through a cost function delineated in later sections, FPGA based combinatorial architecture delivers superlative speed-up but consumes very high power while hierarchical architecture delivers relatively lower speed-up with acceptable power consumption levels. To combine the qualities of both, a hybrid architecture, that encompasses both combinatorial and hierarchical architecture, is designed. To determine the number of RRT nodes to be allotted to the combinatorial and hierarchical blocks of the hybrid architecture, a cost function, comprised of fundamentally inversely related speed-up and power parameters, is formulated. This maximization of cost function, with its associated constraints,is then mathematically solved using a modified branch and bound, that leads to optimal allocation of RRT modules to both blocks. It is observed that this hybrid architecture delivers the highest performance-per-watt out of the three architectures for differential, quad-copter and fixed wing kinematics.",
+      "authors": [
+        "Gurshaant Malik",
+        "Krishna Gupta",
+        "Raunak Dharani",
+        "K Madhava Krishna"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1607.05704",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "FPGA based hybrid architecture for parallelizing RRT",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1607.05704v1",
+        "pdf": "https://arxiv.org/pdf/1607.05704v1"
+      },
+      "venue": "arXiv",
+      "year": 2016
+    },
+    {
+      "abstract": "The hybrid of Convolutional Neural Network (CNN) and Vision Transformers (ViT) architectures has emerged as a groundbreaking approach, pushing the boundaries of computer vision (CV). This comprehensive review provides a thorough examination of the literature on state-of-the-art hybrid CNN-ViT architectures, exploring the synergies between these two approaches. The main content of this survey includes: (1) a background on the vanilla CNN and ViT, (2) systematic review of various taxonomic hybrid designs to explore the synergy achieved through merging CNNs and ViTs models, (3) comparative analysis and application task-specific synergy between different hybrid architectures, (4) challenges and future directions for hybrid models, (5) lastly, the survey concludes with a summary of key findings and recommendations. Through this exploration of hybrid CV architectures, the survey aims to serve as a guiding resource, fostering a deeper understanding of the intricate dynamics between CNNs and ViTs and their collective impact on shaping the future of CV architectures.",
+      "authors": [
+        "Haruna Yunusa",
+        "Shiyin Qin",
+        "Abdulrahman Hamman Adama Chukkol",
+        "Abdulganiyu Abdu Yusuf",
+        "Isah Bello",
+        "Adamu Lawan"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2402.02941",
+        "doi": "10.1016/j.engappai.2025.110057",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Exploring the Synergies of Hybrid CNNs and ViTs Architectures for Computer Vision: A survey",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2402.02941v1",
+        "pdf": "https://arxiv.org/pdf/2402.02941v1"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    },
+    {
+      "abstract": "Modern language models increasingly adopt hybrid architectures that combine full attention with efficient attention modules, such as sliding-window attention (SWA) and recurrent sequence mixers. However, how these efficient modules shape model capabilities remains poorly understood. To address this gap, we conduct a systematic analysis across hybrid architectures from three perspectives: scaling behavior, mechanism analysis, and architecture design. First, from a scaling perspective, we find that efficient-attention design primarily affects how fast long-context capability emerges, while different hybrids eventually converge to comparable long-context performance under sufficient training. Second, mechanistically, we show that long-range retrieval is mainly carried by full attention, whereas efficient attention shapes its optimization trajectory. This explains a counter-intuitive phenomenon we call Large-Window Laziness: larger SWA windows can delay the formation of retrieval heads in full-attention layers. Third, guided by this mechanism, we show that applying NoPE to only the full-attention layers of a small-window SWA hybrid substantially improves long-context performance with negligible impact on short-context performance.",
+      "authors": [
+        "Ziqing Qiao",
+        "Yinuo Xu",
+        "Chaojun Xiao",
+        "Zhou Su",
+        "Zihan Zhou",
+        "Yingfa Chen",
+        "Xiaoyue Xu",
+        "Xu Han",
+        "Zhiyuan Liu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2606.15378",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Rethinking the Role of Efficient Attention in Hybrid Architectures",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2606.15378v1",
+        "pdf": "https://arxiv.org/pdf/2606.15378v1"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "Compressed sensing (CS) is an innovative technique allowing to represent signals through a small number of their linear projections. Hence, CS can be thought of as a natural candidate for acquisition of multidimensional signals, as the amount of data acquired and processed by conventional sensors could create problems in terms of computational complexity. In this paper, we propose a framework for the acquisition and reconstruction of multidimensional correlated signals. The approach is general and can be applied to D dimensional signals, even if the algorithms we propose to practically implement such architectures apply to 2-D and 3-D signals. The proposed architectures employ iterative local signal reconstruction based on a hybrid transform/prediction correlation model, coupled with a proper initialization strategy.",
+      "authors": [
+        "Giulio Coluccia",
+        "Simeon Kamden-Kuiteng",
+        "Andrea Abrardo",
+        "Mauro Barni",
+        "Enrico Magli"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1310.1266",
+        "doi": "10.1109/JETCAS.2012.2214891",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Progressive Compressed Sensing and Reconstruction of Multidimensional Signals Using Hybrid Transform/Prediction Sparsity Model",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1310.1266v1",
+        "pdf": "https://arxiv.org/pdf/1310.1266v1"
+      },
+      "venue": "IEEE Journal on Emerging and Selected Topics in Circuits and Systems, vol.2, no.3, pp.340,352, Sept. 2012",
+      "year": 2013
+    },
+    {
+      "abstract": "Hybrid analog/digital MIMO architectures were recently proposed as an alternative for fully-digitalprecoding in millimeter wave (mmWave) wireless communication systems. This is motivated by the possible reduction in the number of RF chains and analog-to-digital converters. In these architectures, the analog processing network is usually based on variable phase shifters. In this paper, we propose hybrid architectures based on switching networks to reduce the complexity and the power consumption of the structures based on phase shifters. We define a power consumption model and use it to evaluate the energy efficiency of both structures. To estimate the complete MIMO channel, we propose an open loop compressive channel estimation technique which is independent of the hardware used in the analog processing stage. We analyze the performance of the new estimation algorithm for hybrid architectures based on phase shifters and switches. Using the estimated, we develop two algorithms for the design of the hybrid combiner based on switches and analyze the achieved spectral efficiency. Finally, we study the trade-offs between power consumption, hardware complexity, and spectral efficiency for hybrid architectures based on phase shifting networks and switching networks. Numerical results show that architectures based on switches obtain equal or better channel estimation performance to that obtained using phase shifters, while reducing hardware complexity and power consumption. For equal power consumption, all the hybrid architectures provide similar spectral efficiencies.",
+      "authors": [
+        "Roi Méndez-Rial",
+        "Cristian Rusu",
+        "Nuria González-Prelcic",
+        "Ahmed Alkhateeb",
+        "Robert W. Heath"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1512.03032",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Hybrid MIMO Architectures for Millimeter Wave Communications: Phase Shifters or Switches?",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1512.03032v1",
+        "pdf": "https://arxiv.org/pdf/1512.03032v1"
+      },
+      "venue": "arXiv",
+      "year": 2015
+    },
+    {
+      "abstract": "Performing X-ray computed tomography (CT) examinations with less radiation has recently received increasing interest: in medical imaging this means less (potentially harmful) radiation for the patient; in non-destructive testing of materials/objects such as testing jet engines, the redution of the number of projection angles (which for large objects is in general high) leads to a substantial decreasing of the experiment time. In the experiment, less radiation is usually achieved by either (1) reducing the radiation dose used at each projection angle or (2) using sparse view X-ray CT, which means significantly less projection angles are used during the examination. In this work, we study the performance of the recently proposed sinogram-based iterative reconstruction algorithm in sparse view X-ray CT and show that it provides, in some cases, reconstruction accuracy better than that obtained by some of the Total Variation regularization techniques. The provided accuracy is obtained with computation times comparable to other techniques. An important feature of the sinogram-based iterative reconstruction algorithm is that it has no parameters to be set.",
+      "authors": [
+        "Dragos Trinca",
+        "Eduard Libin"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1809.08308",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Comparison of Sinogram-based Iterative Reconstruction with Compressed Sensing Techniques in X-ray CT",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1809.08308v1",
+        "pdf": "https://arxiv.org/pdf/1809.08308v1"
+      },
+      "venue": "arXiv",
+      "year": 2018
+    },
+    {
+      "abstract": "With the popularity of Hybrid Quantum-Classical architectures, particularly noisy intermediate-scale quantum (NISQ) architectures, comes the need for quality assurance methods tailored to their specific faults. In this study, we propose a taxonomy of faults in Hybrid Quantum-Classical architectures accompanied by a dataset of real faults in the identified categories. To achieve this, we empirically analysed open-source repositories for fixed faults. We analysed over 5000 closed issues on GitHub and pre-selected 529 of them based on rigorously defined inclusion criteria. We selected 133 faults that we labelled around symptoms and the origin of the faults. We cross-validated the classification and labels assigned to every fault between two of the authors. As a result, we introduced a taxonomy of real faults in Hybrid Quantum-Classical architectures. Subsequently, we validated the taxonomy through interviews conducted with eleven developers. The taxonomy was dynamically updated throughout the cross-validation and interview processes. The final version was validated and discussed through surveys conducted with an independent group of domain experts to ensure its relevance and to gain further insights.",
+      "authors": [
+        "Avner Bensoussan",
+        "Gunel Jahangirova",
+        "Mohammad Reza Mousavi"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2502.08739",
+        "doi": "10.1145/3788677",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A Taxonomy of Real Faults in Hybrid Quantum-Classical Architectures",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2502.08739v3",
+        "pdf": "https://arxiv.org/pdf/2502.08739v3"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "Recently, we proposed a capacity expansion approach for transmission grids that combines the upgrade of transmission capacity with a transition in system structure to improve grid operation. The key to this concept is a particular hybrid AC/DC transmission grid architecture, which is obtained by uprating selected AC lines via a conversion to HVDC. We have shown that this system structure improves optimal power flow (OPF) solvability and that it can reduce the total generation costs. In this work, we study the benefits of this hybrid architecture in the context of a deregulated electricity market. We propose an efficient and accurate nodal pricing method based on locational marginal prices (LMPs) that utilizes a second-order cone relaxation of the OPF problem. Applicability of this method requires exactness of the relaxation, which is difficult to obtain for conventional meshed AC transmission grids. We prove that the hybrid architecture ensures applicability if the LMPs do not coincide with certain pathological price profiles, which are shown to be unlikely under normal operating conditions. Using this nodal pricing method, we demonstrate that upgrading to the hybrid architecture can not only increase the effective transmission capacity but also reduce the separation of nodal markets and improve the utilization of generation.",
+      "authors": [
+        "Matthias Hotz",
+        "Wolfgang Utschick"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1707.00579",
+        "doi": "10.1109/TPWRS.2017.2733820",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Hybrid Transmission Grid Architecture: Benefits in Nodal Pricing",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1707.00579v3",
+        "pdf": "https://arxiv.org/pdf/1707.00579v3"
+      },
+      "venue": "IEEE Transactions on Power Systems, vol. 33, no. 2, pp. 1431-1442, Mar. 2018",
+      "year": 2017
+    },
+    {
+      "abstract": "This paper studies energy-efficient hybrid beamforming architectures and its algorithm design in millimeter-wave communication systems, aiming to address the challenges faced by existing hybrid beamforming due to low hardware flexibility and high power consumption. To solve the problems of existing hybrid beamforming, a novel energy-efficient hybrid beamforming architecture is proposed, where radio-frequency (RF) switch networks are introduced at the front and rear ends of the phase shifter network, enabling dynamic connections between the RF chains and the phase shifter array as well as the antenna array. The system model of the proposed architecture is established, including digital precoding and analog precoding processes, and the practical hardware limitations such as quantization errors of the digital-to-analog converter (DAC) and phase shifter resolution. In order to maximize the energy efficiency, this paper derives an energy efficiency model including spectral efficiency and system power consumption, and a hybrid precoding algorithm is proposed based on block coordinate descent to iteratively optimize the digital precoding matrix, analog precoding matrix, and DAC resolution. Simulation results under the NYUSIM-generated millimeter-wave channels show that the proposed hybrid beamforming architecture and precoding algorithm have higher energy efficiency than existing representative architectures and precoding algorithms under complete and partial channel state information, while the loss of spectral efficiency compared to fully connected architecture is less than 20%",
+      "authors": [
+        "Hongpu Zhang",
+        "Yulu Guo",
+        "Liuxun Xue",
+        "Xingchen Liu",
+        "Shu Sun",
+        "Ruifeng Gao",
+        "Xianghao Yu",
+        "Meixia Tao"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2501.01684",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Millimeter-Wave Energy-Efficient Hybrid Beamforming Architecture and Algorithm",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2501.01684v1",
+        "pdf": "https://arxiv.org/pdf/2501.01684v1"
+      },
+      "venue": "Mobile Communications, vol. 48, no. 12, pp. 86-96, December 2024",
+      "year": 2025
+    },
+    {
+      "abstract": "We present 3DeepCT, a deep neural network for computed tomography, which performs 3D reconstruction of scattering volumes from multi-view images. Our architecture is dictated by the stationary nature of atmospheric cloud fields. The task of volumetric scattering tomography aims at recovering a volume from its 2D projections. This problem has been studied extensively, leading, to diverse inverse methods based on signal processing and physics models. However, such techniques are typically iterative, exhibiting high computational load and long convergence time. We show that 3DeepCT outperforms physics-based inverse scattering methods in term of accuracy as well as offering a significant orders of magnitude improvement in computational time. To further improve the recovery accuracy, we introduce a hybrid model that combines 3DeepCT and physics-based method. The resultant hybrid technique enjoys fast inference time and improved recovery performance.",
+      "authors": [
+        "Yael Sde-Chen",
+        "Yoav Y. Schechner",
+        "Vadim Holodovsky",
+        "Eshkol Eytan"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2012.05960",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "3D Scattering Tomography by Deep Learning with Architecture Tailored to Cloud Fields",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2012.05960v1",
+        "pdf": "https://arxiv.org/pdf/2012.05960v1"
+      },
+      "venue": "arXiv",
+      "year": 2020
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:13:00.486395+00:00",
+  "recorded_latency_seconds": 3.4883870829362422,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": []
+}

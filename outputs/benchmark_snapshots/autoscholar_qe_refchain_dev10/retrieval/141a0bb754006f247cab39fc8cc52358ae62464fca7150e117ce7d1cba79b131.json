@@ -1,0 +1,695 @@
+{
+  "adapted_query": "all:Which studies present issues about the stationary distribution of rewards over contexts",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "a85a6e90bc0aa55dba8abfebe6bd4325ec695ca78b6a78eede7fa7a789c423bd",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 4.512002374976873,
+    "rate_limit_wait_seconds": 1.1363670420832932,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "141a0bb754006f247cab39fc8cc52358ae62464fca7150e117ce7d1cba79b131",
+  "limit": 20,
+  "normalized_query": "all:Which studies present issues about the stationary distribution of rewards over contexts",
+  "papers": [
+    {
+      "abstract": "In classic instruction following, language like \"I'd like the JetBlue flight\" maps to actions (e.g., selecting that flight). However, language also conveys information about a user's underlying reward function (e.g., a general preference for JetBlue), which can allow a model to carry out desirable actions in new contexts. We present a model that infers rewards from language pragmatically: reasoning about how speakers choose utterances not only to elicit desired actions, but also to reveal information about their preferences. On a new interactive flight-booking task with natural language, our model more accurately infers rewards and predicts optimal actions in unseen environments, in comparison to past work that first maps language to actions (instruction following) and then maps actions to rewards (inverse reinforcement learning).",
+      "authors": [
+        "Jessy Lin",
+        "Daniel Fried",
+        "Dan Klein",
+        "Anca Dragan"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2204.02515",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Inferring Rewards from Language in Context",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2204.02515v1",
+        "pdf": "https://arxiv.org/pdf/2204.02515v1"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "A Markovian single-server queue is studied in an interactive random environment. The arrival and service rates of the queue depend on the environment, while the transition dynamics of the random environment depends on the queue length. We consider in detail two types of Markov random environments: a pure jump process and a reflected jump-diffusion. In both cases, the joint dynamics is constructed so that the stationary distribution can be explicitly found in a simple form (weighted geometric). We also derive an explicit estimate for exponential rate of convergence to the stationary distribution via coupling.",
+      "authors": [
+        "Yana Belopolskaya",
+        "Guodong Pang",
+        "Andrey Sarantsev",
+        "Yurii Suhov"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1902.03941",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Stationary Distributions and Convergence for M/M/1 Queues in Interactive Random Environment",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1902.03941v2",
+        "pdf": "https://arxiv.org/pdf/1902.03941v2"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "Consider the infinite Atlas model: a semi-infinite collection of particles driven by independent standard Brownian motions with zero drifts, except for the bottom-ranked particle which receives unit drift. We derive a continuum one-parameter family of product-of-exponentials stationary gap distributions, with exponentially growing density at infinity. This result shows that there are infinitely many stationary gap distributions for the Atlas model, and hence resolves a conjecture of Pal and Pitman (2008) in the negative. This result is further generalized for infinite systems of competing Brownian particles with generic rank-based drifts.",
+      "authors": [
+        "Andrey Sarantsev",
+        "Li-Cheng Tsai"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1608.00628",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Stationary Gap Distributions for Infinite Systems of Competing Brownian Particles",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1608.00628v2",
+        "pdf": "https://arxiv.org/pdf/1608.00628v2"
+      },
+      "venue": "arXiv",
+      "year": 2016
+    },
+    {
+      "abstract": "A Walsh diffusion on Euclidean space moves along each ray from the origin, as a solution to a stochastic differential equation with certain drift and diffusion coefficients, as long as it stays away from the origin. As it hits the origin, it instantaneously chooses a new direction according to a given probability law, called the spinning measure. A special example is a real-valued diffusion with skew reflections at the origin. This process continuously (in the weak sense) depends on the spinning measure. We determine a stationary measure for such process, explore long-term convergence to this distribution and establish an explicit rate of exponential convergence.",
+      "authors": [
+        "Tomoyuki Ichiba",
+        "Andrey Sarantsev"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1706.07127",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Convergence and Stationary Distributions for Walsh Diffusions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1706.07127v3",
+        "pdf": "https://arxiv.org/pdf/1706.07127v3"
+      },
+      "venue": "arXiv",
+      "year": 2017
+    },
+    {
+      "abstract": "In a first part, we prove a Lyapunov-type criterion for the $ξ\\_1$-positive recurrence of absorbed birth and death processes and provide new results on the domain of attraction of the minimal quasi-stationary distribution. In a second part, we study the ergodicity and the convergence of a Fleming-Viot type particle system whose particles evolve independently as a birth and death process and jump on each others when they hit $0$. Our main result is that the sequence of empirical stationary distributions of the particle system converges to the minimal quasi-stationary distribution of the birth and death process.",
+      "authors": [
+        "Denis Villemonais"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1404.6648",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Minimal quasi-stationary distribution approximation for a birth and death process",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1404.6648v2",
+        "pdf": "https://arxiv.org/pdf/1404.6648v2"
+      },
+      "venue": "arXiv",
+      "year": 2014
+    },
+    {
+      "abstract": "Training language models via reinforcement learning often relies on imperfect proxy rewards, since ground truth rewards that precisely define the intended behavior are rarely available. Standard metrics for assessing the quality of proxy rewards, such as ranking accuracy, treat incorrect rewards as strictly harmful. In this work, however, we highlight that not all deviations from the ground truth are equal. By theoretically analyzing which outputs attract probability during policy gradient optimization, we categorize reward errors according to their effect on the increase in ground truth reward. The analysis establishes that reward errors, though conventionally viewed as harmful, can also be benign or even beneficial by preventing the policy from stalling around outputs with mediocre ground truth reward. We then present two practical implications of our theory. First, for reinforcement learning from human feedback (RLHF), we develop reward model evaluation metrics that account for the harmfulness of reward errors. Compared to standard ranking accuracy, these metrics typically correlate better with the performance of a language model after RLHF, yet gaps remain in robustly evaluating reward models. Second, we provide insights for reward design in settings with verifiable rewards. A key theme underlying our results is that the effectiveness of a proxy reward function depends heavily on its interaction with the initial policy and learning algorithm.",
+      "authors": [
+        "Shuning Shang",
+        "Hubert Strauss",
+        "Stanley Wei",
+        "Sanjeev Arora",
+        "Noam Razin"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2604.25872",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "When Errors Can Be Beneficial: A Categorization of Imperfect Rewards for Policy Gradient",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2604.25872v1",
+        "pdf": "https://arxiv.org/pdf/2604.25872v1"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "Testing practices within the machine learning (ML) community have centered around assessing a learned model's predictive performance measured against a test dataset, often drawn from the same distribution as the training dataset. While recent work on robustness and fairness testing within the ML community has pointed to the importance of testing against distributional shifts, these efforts also focus on estimating the likelihood of the model making an error against a reference dataset/distribution. We argue that this view of testing actively discourages researchers and developers from looking into other sources of robustness failures, for instance corner cases which may have severe undesirable impacts. We draw parallels with decades of work within software engineering testing focused on assessing a software system against various stress conditions, including corner cases, as opposed to solely focusing on average-case behaviour. Finally, we put forth a set of recommendations to broaden the view of machine learning testing to a rigorous practice.",
+      "authors": [
+        "Negar Rostamzadeh",
+        "Ben Hutchinson",
+        "Christina Greer",
+        "Vinodkumar Prabhakaran"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2112.03057",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Thinking Beyond Distributions in Testing Machine Learned Models",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2112.03057v1",
+        "pdf": "https://arxiv.org/pdf/2112.03057v1"
+      },
+      "venue": "NeurIPS 2021 workshop on Distribution Shifts",
+      "year": 2021
+    },
+    {
+      "abstract": "On 2017 August 17 a binary neutron star coalescence candidate (later designated GW170817) with merger time 12:41:04 UTC was observed through gravitational waves by the Advanced LIGO and Advanced Virgo detectors. The Fermi Gamma-ray Burst Monitor independently detected a gamma-ray burst (GRB 170817A) with a time delay of $\\sim$1.7 s with respect to the merger time. From the gravitational-wave signal, the source was initially localized to a sky region of 31 deg$^2$ at a luminosity distance of $40^{+8}_{-8}$ Mpc and with component masses consistent with neutron stars. The component masses were later measured to be in the range 0.86 to 2.26 Msun. An extensive observing campaign was launched across the electromagnetic spectrum leading to the discovery of a bright optical transient (SSS17a, now with the IAU identification of AT 2017gfo) in NGC 4993 (at $\\sim$40 Mpc) less than 11 hours after the merger by the One-Meter, Two Hemisphere (1M2H) team using the 1 m Swope Telescope. The optical transient was independently detected by multiple teams within an hour. Subsequent observations targeted the object and its environment. Early ultraviolet observations revealed a blue transient that faded within 48 hours. Optical and infrared observations showed a redward evolution over $\\sim$10 days. Following early non-detections, X-ray and radio emission were discovered at the transient's position $\\sim$9 and $\\sim$16 days, respectively, after the merger. Both the X-ray and radio emission likely arise from a physical process that is distinct from the one that generates the UV/optical/near-infrared emission. No ultra-high-energy gamma-rays and no neutrino candidates consistent with the source were found in follow-up searches. (Abridged)",
+      "authors": [
+        "LIGO Scientific Collaboration",
+        "Virgo Collaboration",
+        "Fermi GBM",
+        "INTEGRAL",
+        "IceCube Collaboration",
+        "AstroSat Cadmium Zinc Telluride Imager Team",
+        "IPN Collaboration",
+        "The Insight-Hxmt Collaboration",
+        "ANTARES Collaboration",
+        "The Swift Collaboration",
+        "AGILE Team",
+        "The 1M2H Team",
+        "The Dark Energy Camera GW-EM Collaboration",
+        "the DES Collaboration",
+        "The DLT40 Collaboration",
+        "GRAWITA",
+        ":",
+        "GRAvitational Wave Inaf TeAm",
+        "The Fermi Large Area Telescope Collaboration",
+        "ATCA",
+        ":",
+        "Australia Telescope Compact Array",
+        "ASKAP",
+        ":",
+        "Australian SKA Pathfinder",
+        "Las Cumbres Observatory Group",
+        "OzGrav",
+        "DWF",
+        "AST3",
+        "CAASTRO Collaborations",
+        "The VINROUGE Collaboration",
+        "MASTER Collaboration",
+        "J-GEM",
+        "GROWTH",
+        "JAGWAR",
+        "Caltech- NRAO",
+        "TTU-NRAO",
+        "NuSTAR Collaborations",
+        "Pan-STARRS",
+        "The MAXI Team",
+        "TZAC Consortium",
+        "KU Collaboration",
+        "Nordic Optical Telescope",
+        "ePESSTO",
+        "GROND",
+        "Texas Tech University",
+        "SALT Group",
+        "TOROS",
+        ":",
+        "Transient Robotic Observatory of the South Collaboration",
+        "The BOOTES Collaboration",
+        "MWA",
+        ":",
+        "Murchison Widefield Array",
+        "The CALET Collaboration",
+        "IKI-GW Follow-up Collaboration",
+        "H. E. S. S. Collaboration",
+        "LOFAR Collaboration",
+        "LWA",
+        ":",
+        "Long Wavelength Array",
+        "HAWC Collaboration",
+        "The Pierre Auger Collaboration",
+        "ALMA Collaboration",
+        "Euro VLBI Team",
+        "Pi of the Sky Collaboration",
+        "The Chandra Team at McGill University",
+        "DFN",
+        ":",
+        "Desert Fireball Network",
+        "ATLAS",
+        "High Time Resolution Universe Survey",
+        "RIMAS",
+        "RATIR",
+        "SKA South Africa/MeerKAT"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1710.05833",
+        "doi": "10.3847/2041-8213/aa91c9",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Multi-messenger Observations of a Binary Neutron Star Merger",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1710.05833v2",
+        "pdf": "https://arxiv.org/pdf/1710.05833v2"
+      },
+      "venue": "ApJL, 848:L12, 2017",
+      "year": 2017
+    },
+    {
+      "abstract": "In this paper, we concentrate on the connection between Boltzmann equation and stationary equations. To our knowledge, the stationary Navier-Stokes-Fourier system, the stationary Euler equations and the stationary Stokes equations are formally derived by moment estimate in the first time and extend the results of Bardos, Golse, and Levermore in J. Statist. Phys. 63(1-2), 323-344, 1991.",
+      "authors": [
+        "Zhendong Fang"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2403.11058",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Formal derivations from Boltzmann equation to three stationary equations",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2403.11058v1",
+        "pdf": "https://arxiv.org/pdf/2403.11058v1"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    },
+    {
+      "abstract": "Phosphorus (P) is considered to be one of the key elements for life, making it an important element to look for in the abundance analysis of spectra of stellar systems. Yet, there exists only a handful of spectroscopic studies to estimate the P abundances and investigate its trend across a range of metallicities. We have observed full HK band spectra at a spectral resolving power of R=45,000 with IGRINS instrument. Abundances are determined using SME in combination with 1D MARCS stellar atmosphere models. The investigated sample of stars have reliable stellar parameters estimated using optical FIES spectra (GILD; Jönsson et al. in prep.). In order to determine the P abundances from the 16482.92 Angstrom P line, we take special care of the CO($ν=7-4$) blend. We determine the C, N, O abundances from atomic carbon and a range of non-blended molecular lines (CO, CN, OH) which are aplenty in the H band region of K giant stars, assuring an appropriate modelling of the blending CO($ν=7-4$) line. We present [P/Fe] vs [Fe/H] trend for 38 K giant stars in the metallicity range of -1.2 dex $<$ [Fe/H] $<$ 0.4 dex. We find that our trend matches well with the compiled literature sample of prominently dwarf stars and limited number of giant stars. Our trend is found to be higher by $\\sim$ 0.05 - 0.1 dex compared to the theoretical chemical evolution trend in Cescutti et al. 2012 resulting from core collapse supernova (type II) of massive stars with the P yields from Kobayashi et al. (2006) arbitrarily increased by a factor of 2.75. Thus the enhancement factor might need to be $\\sim$ 0.05 - 0.1 dex higher to match our trend. We also find an empirically determined primary behaviour for phosphorus. Furthermore, the phosphorus abundance is found to be elevated by $\\sim$ 0.6 - 0.9 dex in two metal poor s-enriched stars compared to the theoretical chemical evolution trend.",
+      "authors": [
+        "G. Nandakumar",
+        "N. Ryde",
+        "M. Montelius",
+        "B. Thorsbro",
+        "H. Jönsson",
+        "G. Mace",
+        "Lund Observatory",
+        "Department of Astronomy",
+        "Theoretical Physics",
+        "Lund University",
+        "Box 43",
+        "SE-221 00 Lund",
+        "Sweden",
+        "Kapteyn Astronomical Institute",
+        "University of Groningen",
+        "Landleven 12",
+        "NL-9747 AD Groningen",
+        "the Netherlands",
+        "Department of Astronomy",
+        "School of Science",
+        "The University of Tokyo",
+        "7-3-1 Hongo",
+        "Bunkyo-ku",
+        "Tokyo 113-0033",
+        "Japan",
+        "Materials Science",
+        "Applied Mathematics",
+        "Malmö University",
+        "SE-205 06 Malmö",
+        "Sweden",
+        "Department of Astronomy",
+        "McDonald Observatory",
+        "The University of Texas",
+        "Austin",
+        "TX 78712",
+        "USA"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2210.04940",
+        "doi": "10.1051/0004-6361/202244724",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Galactic Chemical Evolution of phosphorus observed with IGRINS",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2210.04940v1",
+        "pdf": "https://arxiv.org/pdf/2210.04940v1"
+      },
+      "venue": "A&A 668, A88 (2022)",
+      "year": 2022
+    },
+    {
+      "abstract": "We consider the relationship between stationary distributions for stochastic models of reaction systems and Lyapunov functions for their deterministic counterparts. Specifically, we derive the well known Lyapunov function of reaction network theory as a scaling limit of the non-equilibrium potential of the stationary distribution of stochastically modeled complex balanced systems. We extend this result to general birth-death models and demonstrate via example that similar scaling limits can yield Lyapunov functions even for models that are not complex or detailed balanced, and may even have multiple equilibria.",
+      "authors": [
+        "David F. Anderson",
+        "Gheorghe Craciun",
+        "Manoj Gopalkrishnan",
+        "Carsten Wiuf"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1410.4820",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Lyapunov functions, stationary distributions, and non-equilibrium potential for chemical reaction networks",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1410.4820v2",
+        "pdf": "https://arxiv.org/pdf/1410.4820v2"
+      },
+      "venue": "arXiv",
+      "year": 2014
+    },
+    {
+      "abstract": "We present the results of processing the effects of the powerful Gamma Ray Burst GRB221009A captured by the charged particle detectors (electrostatic analyzers and solid-state detectors) onboard spacecraft at different points in the heliosphere on October 9, 2022. To follow the GRB221009A propagation through the heliosphere we used the electron and proton flux measurements from solar missions Solar Orbiter and STEREO-A; Earth magnetosphere and the solar wind missions THEMIS and Wind; meteorological satellites POES15, POES19, MetOp3; and MAVEN - a NASA mission orbiting Mars. GRB221009A had a structure of four bursts: less intense Pulse 1 - the triggering impulse - was detected by gamma-ray observatories at 131659 UT (near the Earth); the most intense Pulses 2 and 3 were detected on board all the spacecraft from the list, and Pulse 4 detected in more than 500 s after Pulse 1. Due to their different scientific objectives, the spacecraft, which data was used in this study, were separated by more than 1 AU (Solar Orbiter and MAVEN). This enabled tracking GRB221009A as it was propagating across the heliosphere. STEREO-A was the first to register Pulse 2 and 3 of the GRB, almost 100 seconds before their detection by spacecraft in the vicinity of Earth. MAVEN detected GRB221009A Pulses 2, 3, and 4 at the orbit of Mars about 237 seconds after their detection near Earth. By processing the time delays observed we show that the source location of the GRB221009A was at RA 288.5 degrees, Dec 18.5 degrees (J2000) with an error cone of 2 degrees",
+      "authors": [
+        "Andrii Voshchepynets",
+        "Oleksiy Agapitov",
+        "Lynn Wilson",
+        "Vassilis Angelopoulos",
+        "Samer T. Alnussirat",
+        "Michael Balikhin",
+        "Myroslava Hlebena",
+        "Ihor Korol",
+        "Davin Larson",
+        "David Mitchell",
+        "Christopher Owen",
+        "Ali Rahmati",
+        "Department of System Analysis",
+        "Optimization Theory",
+        "Uzhhorod National University",
+        "Uzhhorod",
+        "Ukraine",
+        "Space Sciences Laboratory",
+        ":",
+        "University of California Berkeley Berkeley",
+        "CA 94720",
+        "Astronomy",
+        "Space Physics Department",
+        "National Taras Shevchenko University of Kyiv",
+        "Kyiv",
+        "Ukraine",
+        "Goddard Space Flight Center",
+        "National Aeronautics",
+        "Space Administration",
+        "Greenbelt",
+        "MD",
+        "Department of Earth",
+        "Planetary",
+        "Space Sciences",
+        "University of California Los Angeles",
+        "Los Angeles",
+        "CA}",
+        "University of Sheffield",
+        "Sheffield",
+        "UK",
+        "Department of Algebra",
+        "Differential Equation",
+        "Uzhhorod National University",
+        "Uzhhorod",
+        "Ukraine",
+        "Department of Mathematical Analysis",
+        "The John Paul II Catholic University of Lublin",
+        "Lublin",
+        "Poland}"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2309.05856",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Multi-Point Detection of the Powerful Gamma Ray Burst GRB221009A Propagation through the Heliosphere on October 9, 2022",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2309.05856v1",
+        "pdf": "https://arxiv.org/pdf/2309.05856v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "We study a multi-armed bandit problem in a dynamic environment where arm rewards evolve in a correlated fashion according to a Markov chain. Different than much of the work on related problems, in our formulation a learning algorithm does not have access to either a priori information or observations of the state of the Markov chain and only observes smoothed reward feedback following time intervals we refer to as epochs. We demonstrate that existing methods such as UCB and $\\varepsilon$-greedy can suffer linear regret in such an environment. Employing mixing-time bounds on Markov chains, we develop algorithms called EpochUCB and EpochGreedy that draw inspiration from the aforementioned methods, yet which admit sublinear regret guarantees for the problem formulation. Our proposed algorithms proceed in epochs in which an arm is played repeatedly for a number of iterations that grows linearly as a function of the number of times an arm has been played in the past. We analyze these algorithms under two types of smoothed reward feedback at the end of each epoch: a reward that is the discount-average of the discounted rewards within an epoch, and a reward that is the time-average of the rewards within an epoch.",
+      "authors": [
+        "Tanner Fiez",
+        "Shreyas Sekar",
+        "Lillian J. Ratliff"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1803.04008",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Multi-Armed Bandits for Correlated Markovian Environments with Smoothed Reward Feedback",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1803.04008v2",
+        "pdf": "https://arxiv.org/pdf/1803.04008v2"
+      },
+      "venue": "arXiv",
+      "year": 2018
+    },
+    {
+      "abstract": "The existence of stationary points for the dynamical system of ABC-flow is considered. The ABC-flow, a three-parameter velocity field that provides a simple stationary solution of Euler's equations in three dimensions for incompressible, inviscid fluid flows, is the prototype for the study of turbulence (it provides a simple example of dynamical chaos). But, nevertheless, between the chaotic trajectories of the appropriate solutions of such a system we can reveal the stationary points, the deterministic basis among the chaotic behaviour of ABC-flow dynamical system. It has been proved the existence of 1 point for two partial cases of parameters {A, B, C}: 1) A = B = 1; 2) C = 1 (A^2 + B^2 = 1). Moreover, dynamical system of ABC-flow allows 3 points of such a type, depending on the meanings of parameters {A, B, C}.",
+      "authors": [
+        "Sergey V. Ershkov"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1512.04367",
+        "doi": "10.1016/j.amc.2015.12.038",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "About existence of stationary points for the Arnold-Beltrami-Childress (ABC) flow",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1512.04367v1",
+        "pdf": "https://arxiv.org/pdf/1512.04367v1"
+      },
+      "venue": "Applied Mathematics and Computation (2016)",
+      "year": 2015
+    },
+    {
+      "abstract": "The software development process has evolved with respect to the problems in developing large and complex applications. There is a paradigm shift towards collaborative development, which necessitates the need to evaluate this approach. A number of tools are used for collaborative software development (CSD) including social media and web 2.0 features. Collaborative development facilities are provided by IDEs and project hosting websites. In this paper, we present a survey of collaboratively developed projects and discuss challenges and issues in CSD. We analyze various issues of communication, coordination, support, lifecycle management and discuss their effect on software quality.",
+      "authors": [
+        "Robail Yasrab",
+        "Javed Ferzund",
+        "Saad Razzaq"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1904.00721",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Challenges and issues in collaborative software developments",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1904.00721v1",
+        "pdf": "https://arxiv.org/pdf/1904.00721v1"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "Researchers help operators of vulnerable and non-compliant internet services by individually notifying them about security and privacy issues uncovered in their research. To improve efficiency and effectiveness of such efforts, dedicated notification studies are imperative. As of today, there is no comprehensive documentation of pitfalls and best practices for conducting such notification studies, which limits validity of results and impedes reproducibility. Drawing on our experience with such studies and guidance from related work, we present a set of guidelines and practical recommendations, including initial data collection, sending of notifications, interacting with the recipients, and publishing the results. We note that future studies can especially benefit from extensive planning and automation of crucial processes, i.e., activities that take place well before the first notifications are sent.",
+      "authors": [
+        "Max Maass",
+        "Henning Pridöhl",
+        "Dominik Herrmann",
+        "Matthias Hollick"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2106.08029",
+        "doi": "10.1145/3465481.3470081",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Best Practices for Notification Studies for Security and Privacy Issues on the Internet",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2106.08029v1",
+        "pdf": "https://arxiv.org/pdf/2106.08029v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "In this article and its sequel we discuss the asymptotic structure of space-times representing isolated bodies in General Relativity. Such space-times are usually required to be asymptotically flat (AF), and thus to have a prescribed type of asymptotic. Despite all the \"reasonable\" that the requirement is, it seems to be against the spirit of General Relativity where the global structure of the space-time should be also considered as a variable. It is shown here that, even eliminating from the definition any a priori reference or assumption about the asymptotic, the space-times of isolated bodies are unavoidably and a posteriori AF. In precise terms, between the two articles it is proved that any vacuum strictly stationary space-time end whose (quotient) manifold is diffeomorphic to R^3 minus a ball and whose Killing field has its norm bounded away from zero is necessarily AF with Schwarzschidian fall off. The \"excised\" ball would contain (if any) the actual material body, but this information or any other is not necessary to reach the conclusion. Physical and mathematical implications are also discussed.",
+      "authors": [
+        "Martin Reiris"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1002.1172",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Stationary solutions and asymptotic flatness I",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1002.1172v3",
+        "pdf": "https://arxiv.org/pdf/1002.1172v3"
+      },
+      "venue": "arXiv",
+      "year": 2010
+    },
+    {
+      "abstract": "nsEVDx is an open-source Python package for fitting stationary and nonstationary Extreme Value Distributions (EVDs) to extreme value data. It can be used to model extreme events in fields like hydrology, climate science, finance, and insurance, using both frequentist and Bayesian methods. For Bayesian inference it employs advanced Monte Carlo sampling techniques such as Metropolis-Hastings, Metropolis-adjusted Langevin (MALA), and Hamiltonian Monte Carlo (HMC). Unlike many existing extreme value theory (EVT) tools, which can be complex or lack Bayesian options, nsEVDx offers an intuitive, Python-native interface that is both user-friendly and extensible. It requires only standard scientific Python libraries (numpy, scipy) for its core functionality, while optional features like plotting and diagnostics use matplotlib and seaborn. A key feature of nsEVDx is its flexible support for non-stationary modeling, where the location, scale, and shape parameters can each depend on arbitrary, user-defined covariates. This enables practical applications such as linking extremes to other variables (e.g., rainfall extremes to temperature or maximum stock market losses to market volatility indices). Overall, nsEVDx aims to serve as a practical, easy-to-use, and extensible tool for researchers and practitioners analyzing extreme events in non-stationary environments.",
+      "authors": [
+        "Nischal Kafle",
+        "Claudio I. Meier"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2509.07261",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "nsEVDx: A Python library for modeling Non-Stationary Extreme Value Distributions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2509.07261v1",
+        "pdf": "https://arxiv.org/pdf/2509.07261v1"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "An important problem in time series analysis is the discrimination between non-stationarity and longrange dependence. Most of the literature considers the problem of testing specific parametric hypotheses of non-stationarity (such as a change in the mean) against long-range dependent stationary alternatives. In this paper we suggest a simple approach, which can be used to test the null-hypothesis of a general non-stationary short-memory against the alternative of a non-stationary long-memory process. The test procedure works in the spectral domain and uses a sequence of approximating tvFARIMA models to estimate the time varying long-range dependence parameter. We prove uniform consistency of this estimate and asymptotic normality of an averaged version. These results yield a simple test (based on the quantiles of the standard normal distribution), and it is demonstrated in a simulation study that - despite of its semi-parametric nature - the new test outperforms the currently available methods, which are constructed to discriminate between specific parametric hypotheses of non-stationarity short- and stationarity long-range dependence.",
+      "authors": [
+        "Philip Preuß",
+        "Kemal Sen",
+        "Holger Dette"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1312.7452",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Detecting long-range dependence in non-stationary time series",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1312.7452v2",
+        "pdf": "https://arxiv.org/pdf/1312.7452v2"
+      },
+      "venue": "arXiv",
+      "year": 2013
+    },
+    {
+      "abstract": "Renewable energy productions and electrification of mobility are promising solutions to reduce greenhouse gas emissions. Their effective integration in a power grid encounters several challenges. The uncertain nature of renewable energy productions as well as stochastic consumptions of electric vehicles introduce remarkable intermittency to a distribution grid and results in bi-uncertain characteristics of both supply and demand sides. One way to verify the secure grid operation within acceptable voltage and loading levels is to assess its required flexibility considering possible boundaries of uncertain variables. In this paper, first a comprehensive linear model of distribution grid considering all pertaining constraints is presented. Then, a flexibility estimation technique is proposed based on the feasibility study of the uncertain space of photovoltaic power productions and load containing electric vehicles. The proposed methodology uses grid monitoring data to determine grid state and to model uncertain parameters. The model is applied on a real low voltage (LV) system equipped with grid monitoring devices.",
+      "authors": [
+        "Manijeh Alipour",
+        "Omid Alizadeh-Mousavi"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2301.03779",
+        "doi": "10.1049/icp.2022.0815",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Estimating required flexibility for secure distribution grid operation considering the uncertainties of EV and PV",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2301.03779v1",
+        "pdf": "https://arxiv.org/pdf/2301.03779v1"
+      },
+      "venue": "CIRED Porto Workshop 2022: E-mobility and power distribution systems.pp. 770-773, Vol. 2022. IET, 2022",
+      "year": 2023
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:17:22.147018+00:00",
+  "recorded_latency_seconds": 4.512224541977048,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

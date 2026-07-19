@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,7 +29,12 @@ class TokenUsageSnapshot:
 class SearchBudgetRuntime:
     """Mutable, per-search counters over an immutable validated budget."""
 
-    def __init__(self, budget: SearchBudget | None = None) -> None:
+    def __init__(
+        self,
+        budget: SearchBudget | None = None,
+        *,
+        elapsed_seconds_provider: Callable[[], float] | None = None,
+    ) -> None:
         self.budget = budget or SearchBudget()
         self.started_at = time.perf_counter()
         self.stop_reasons: list[str] = []
@@ -40,10 +46,14 @@ class SearchBudgetRuntime:
         self.total_tokens = 0
         self.token_usage_precise = True
         self.candidate_truncations: list[CandidateTruncation] = []
+        self._elapsed_seconds_provider = elapsed_seconds_provider
 
     @property
     def elapsed_seconds(self) -> float:
-        return max(0.0, time.perf_counter() - self.started_at)
+        actual = max(0.0, time.perf_counter() - self.started_at)
+        if self._elapsed_seconds_provider is None:
+            return actual
+        return max(actual, max(0.0, self._elapsed_seconds_provider()))
 
     def stop(self, reason: str) -> str:
         if reason not in self.stop_reasons:

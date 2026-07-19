@@ -1,0 +1,29 @@
+{
+  "adapted_query": "Can you tell some hybrid architectures reconstruction-based techniques",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "3dc661df274ce31e5f225cb3ce9739f3980ed7144d217c97e792b92ced1a82d2",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 1,
+    "latency_seconds": 4.767966084182262,
+    "rate_limit_wait_seconds": 0.0,
+    "request_count": 2,
+    "retry_count": 1
+  },
+  "error_message": "OpenAlex search failed: HTTP Error 429: Too Many Requests",
+  "key": "77fa4a2a2c2aa639f196523832929ec6a9ab4a22dadb2823b8f9229034e23954",
+  "limit": 20,
+  "normalized_query": "Can you tell some hybrid architectures reconstruction-based techniques",
+  "papers": [],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:13:34.666284+00:00",
+  "recorded_latency_seconds": 4.768040499882773,
+  "schema_version": "1",
+  "source": "openalex",
+  "status": "failed",
+  "warnings": [
+    "OpenAlex search transient error on attempt 1/2: HTTP Error 429: Too Many Requests; retried",
+    "OpenAlex search failed: HTTP Error 429: Too Many Requests"
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "adapter_policy": "adaptive",
+  "budgets": {
+    "max_candidate_papers": 150,
+    "max_latency_seconds": 120.0,
+    "max_llm_calls": 0,
+    "max_search_rounds": 2,
+    "max_total_tokens": 0
+  },
+  "code_hash": "8fb3a6205f07ab0919401dc53b4d769374ce301a82c9ff558485f2715c56df6c",
+  "connector_versions": {
+    "arxiv": "search-v1",
+    "openalex": "search-v1",
+    "openalex_references": "references-v1",
+    "pubmed": "search-v1",
+    "semantic_scholar": "search-v1"
+  },
+  "created_at": "2026-07-19T16:12:55.787837+00:00",
+  "dataset": "auto_scholar_query",
+  "dirty_worktree": true,
+  "git_commit": "9c4816c88142e887b552e4596e6d24fa74e2e16a",
+  "groups": {
+    "baseline": {
+      "collection_completed": true,
+      "completed": true,
+      "missing_reference_keys": [],
+      "missing_retrieval_keys": [],
+      "reference_keys": [],
+      "replay_verified": true,
+      "retrieval_keys": [
+        "13641962f126df5323fa663f66f15186472cfa47c6ab4e44b0db5eda13c0159a",
+        "141a0bb754006f247cab39fc8cc52358ae62464fca7150e117ce7d1cba79b131",
+        "15fb7fde20ecb1b6ab4d00c868f3b6b5dd05587b729df488a13f660295224d13",
+        "1f8885900859f753dfeea3294cf0b1384faebd533986b5823afc52c003879502",
+        "2034928f9947c75cdf5787d71562e91c35c9ac8529e3ca1356b97ae70726b30d",
+        "3f1357b3d450cfc65d110d1f5faaac38cffbe318e208a4a8cc2c5063e632f3e8",
+        "4186dd17665cfb09f74d3c9428b931f5f09b6adc4a88bb6e94f47bf9104f4c38",
+        "4c4d498b938e6e83396562b269f92ecb112a8908b23bb68db9397214dfd9a074",
+        "527e300594ec5c9aea090701ddc6a0218458bab257250c48d64bfe5e9e593dc3",
+        "575096275e8926ac61c98a49167801c803adc7d13e0d5089ba114aec0476a722",
+        "619760e75f047604bfe6530e03f4337f0d5ce7f191fc01691e3a2d54beed718a",
+        "67e9965854732e81dfde61de69bb13ea3af9ee6aef8327609203951c035af38b",
+        "6c859efea77fa4e4df2d428baa63df922d1595a2e29ab08de54281559b42ec6e",
+        "72c2698e49ea0323d3c11de129931826da0bdf4e2bb06891a85fd5e5c76e81dd",
+        "77fa4a2a2c2aa639f196523832929ec6a9ab4a22dadb2823b8f9229034e23954",
+        "854ec8a278fc57933a0448ba74d97075c6d2beb76ab0f9aa08be283c63d03e40",
+        "8911344cfcaf06467c94cda07c9757d9edce2348516b7172d793c9a60c82721e",
+        "8d50115f89990edf4499430dbf71067ff8f96acdb7d0a3e89742af4ad2023d89",
+        "92a80228e020968670c6d5e423fa5d5fef34370c74862030ec6c3108f15e82cd",
+        "9b0c411535e969a97e7d8c24a60b4e4ccece56ae8f715017c0e499aaf47e0934",
+        "9bc6ede3afeb5c5d4338dc503b095274b4aeda4f59f693f1f2f3cd7b42094a2d",
+        "c01457e12b0c3d87f93ada97c49decf91bfd85b267cbeeff7712508b05b22210",
+        "c50525daa1e1461d26b837898cbf5efcb8c41a7935b0a18ee4601f465977d5c7",
+        "c56b2a433558c945ca83c9b409b377020e2f15743c6f0bcacad88896aa7779eb",
+        "c5d531d3aae451fc228469bd2ff3278ae4af2976f0373ac01b9169839783e1c6",
+        "c8e3446fb47fb953c3797e9baced9be8e813e809dbd3b8dc928cef88ec576441",
+        "dc54e9571f3eb853ca19731f8778089e0b11cedd73cf7d69e9b45cb99349ea71",
+        "fbbfc7cd846a87534db875fe2f4378577e0dec71a9b2c472119762b96d3ae2e1",
+        "fe473c2c0318d1f6e1ed65a8ddba74515aa69a57d16b7db303752984ace4647c",
+        "fe518aa6865012f6367a1e4cda495f546b8e9f7f27b669326e7c5afcbbec9da3"
+      ],
+      "updated_at": "2026-07-19T16:25:03.288745+00:00"
+    }
+  },
+  "judgement_prompt": {
+    "hash": "04093c275026b45b0fe1f8f60b5f42752b4874e608c807ece0b71664f8865905",
+    "name": "relevance_judgement",
+    "version": "1.0.0"
+  },
+  "limit": 10,
+  "llm_enabled": false,
+  "offset": 0,
+  "query_adapter_version": "1",
+  "query_understanding_prompt": {
+    "hash": "67879ba833773d9450ab3f12904d3b2ee08fada38ed3100a57e04d39fe8460f7",
+    "name": "query_understanding",
+    "version": "1.0.0"
+  },
+  "reference_entry_count": 0,
+  "retrieval_entry_count": 30,
+  "run_profile": "balanced",
+  "schema_version": "1",
+  "snapshot_name": "autoscholar_qe_refchain_dev10",
+  "sources": [
+    "arxiv",
+    "openalex"
+  ],
+  "split": "development",
+  "updated_at": "2026-07-19T16:25:03.288857+00:00"
+}

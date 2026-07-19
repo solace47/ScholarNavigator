@@ -1,0 +1,547 @@
+{
+  "adapted_query": "all:have proposed voxel spatial geometry texture modeling scene representation",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "28eb502630b484138aaa8b0669ff94e44d4ce71c8984ded0abbfc7a23a9c6816",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 2.572072874987498,
+    "rate_limit_wait_seconds": 1.4187411670573056,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "2034928f9947c75cdf5787d71562e91c35c9ac8529e3ca1356b97ae70726b30d",
+  "limit": 20,
+  "normalized_query": "all:have proposed voxel spatial geometry texture modeling scene representation",
+  "papers": [
+    {
+      "abstract": "Tactile texture refers to the tangible feel of a surface and visual texture refers to see the shape or contents of the image. In the image processing, the texture can be defined as a function of spatial variation of the brightness intensity of the pixels. Texture is the main term used to define objects or concepts of a given image. Texture analysis plays an important role in computer vision cases such as object recognition, surface defect detection, pattern recognition, medical image analysis, etc. Since now many approaches have been proposed to describe texture images accurately. Texture analysis methods usually are classified into four categories: statistical methods, structural, model-based and transform-based methods. This paper discusses the various methods used for texture or analysis in details. New researches shows the power of combinational methods for texture analysis, which can't be in specific category. This paper provides a review on well known combinational methods in a specific section with details. This paper counts advantages and disadvantages of well-known texture image descriptors in the result part. Main focus in all of the survived methods is on discrimination performance, computational complexity and resistance to challenges such as noise, rotation, etc. A brief review is also made on the common classifiers used for texture image classification. Also, a survey on texture image benchmark datasets is included.",
+      "authors": [
+        "Laleh Armi",
+        "Shervan Fekri-Ershad"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1904.06554",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Texture image analysis and texture classification methods - A review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1904.06554v1",
+        "pdf": "https://arxiv.org/pdf/1904.06554v1"
+      },
+      "venue": "International Online Journal of Image Processing and Pattern Recognition Vol. 2, No.1, pp. 1-29, 2019",
+      "year": 2019
+    },
+    {
+      "abstract": "Existing 3D open-vocabulary scene understanding methods mostly emphasize distilling language features from 2D foundation models into 3D feature fields, but largely overlook the synergy among scene appearance, semantics, and geometry. As a result, scene understanding often deviates from the underlying geometric structure of scenes and becomes decoupled from the reconstruction process. In this work, we propose a novel approach that leverages language and geometry grounded sparse voxel representations to comprehensively model appearance, semantics, and geometry within a unified framework. Specifically, we use 3D sparse voxels as primitives and employ an appearance field, a density field, a feature field, and a confidence field to holistically represent a 3D scene. To promote synergy among the appearance, density, and feature fields, we construct a feature modulation module and distill language features from a 2D foundation model into our 3D scene model. In addition, we integrate geometric distillation into feature field distillation to transfer geometric knowledge from a geometry foundation model to our 3D scene representations via depth correlation regularization and pattern consistency regularization. These components work together to synergistically model the appearance, semantics, and geometry of the 3D scene within a unified framework. Extensive experiments demonstrate that our approach achieves superior overall performance compared with state-of-the-art methods in holistic scene understanding and reconstruction.",
+      "authors": [
+        "Guile Wu",
+        "David Huang",
+        "Bingbing Liu",
+        "Dongfeng Bai"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2602.15734",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Language and Geometry Grounded Sparse Voxel Representations for Holistic Scene Understanding",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2602.15734v1",
+        "pdf": "https://arxiv.org/pdf/2602.15734v1"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "The rings of symmetric polynomials form an inverse system whose limit, the ring of symmetric functions, is the model for the bosonic Fock space representation of the affine Lie algebra. We categorify this construction by considering an inverse limit of categories of polynomial representation of general linear groups. We show that this limit naturally carries an action of the affine Lie algebra (in the sense of Rouquier), thereby obtaining a famiy of categorifications of the bosonic Fock space representation.",
+      "authors": [
+        "Jiuzu Hong",
+        "Oded Yacobi"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1101.2456",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Polynomial representations and categorifications of Fock Space",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1101.2456v3",
+        "pdf": "https://arxiv.org/pdf/1101.2456v3"
+      },
+      "venue": "Algebras and Representation Theory 16 (2013), no.5, 1273-1311",
+      "year": 2011
+    },
+    {
+      "abstract": "Indoor scene classification is a critical task in computer vision, with wide-ranging applications that go from robotics to sensitive content analysis, such as child sexual abuse imagery (CSAI) classification. The problem is particularly challenging due to the intricate relationships between objects and complex spatial layouts. In this work, we propose the Attention over Scene Graphs for Sensitive Content Analysis (ASGRA), a novel framework that operates on structured graph representations instead of raw pixels. By first converting images into Scene Graphs and then employing a Graph Attention Network for inference, ASGRA directly models the interactions between a scene's components. This approach offers two key benefits: (i) inherent explainability via object and relationship identification, and (ii) privacy preservation, enabling model training without direct access to sensitive images. On Places8, we achieve 81.27% balanced accuracy, surpassing image-based methods. Real-world CSAI evaluation with law enforcement yields 74.27% balanced accuracy. Our results establish structured scene representations as a robust paradigm for indoor scene classification and CSAI classification. Code is publicly available at https://github.com/tutuzeraa/ASGRA.",
+      "authors": [
+        "Artur Barros",
+        "Carlos Caetano",
+        "João Macedo",
+        "Jefersson A. dos Santos",
+        "Sandra Avila"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2509.26457",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Attention over Scene Graphs: Indoor Scene Representations Toward CSAI Classification",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2509.26457v1",
+        "pdf": "https://arxiv.org/pdf/2509.26457v1"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "We show that the spheres in Hilbert geometry have the same volume growth entropy as those in the Lobachevsky space. We give the asymptotic estimates for the ratio of the volume of metric ball to the area of the metric sphere in Hilbert geometry. Derived estimates agree with the well-known fact in the Lobachevsky space",
+      "authors": [
+        "Alexander A. Borisenko",
+        "Eugeny A. Olin"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0711.0446",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Asymptotic Properties of Hilbert Geometry",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/0711.0446v1",
+        "pdf": "https://arxiv.org/pdf/0711.0446v1"
+      },
+      "venue": "Journal of Mathematical Physics, Analysis, Geometry, vol 4, N 3, 2008, 327 - 345",
+      "year": 2007
+    },
+    {
+      "abstract": "We study finite-dimensional representations of hyper loop algebras over non-algebraically closed fields. The main results concern the classification of the irreducible representations, the construction of the Weyl modules, base change, tensor products of irreducible and Weyl modules, and the block decomposition of the underlying abelian category. Several results are interestingly related to the study of irreducible representations of polynomial algebras and Galois theory.",
+      "authors": [
+        "Dijana Jakelic",
+        "Adriano Moura"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0711.0795",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Finite-Dimensional Representations of Hyper Loop Algebras Over Non-Algebraically Closed Fields",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/0711.0795v4",
+        "pdf": "https://arxiv.org/pdf/0711.0795v4"
+      },
+      "venue": "Algebras and Representation Theory 13 (2010), no. 3, 271-301",
+      "year": 2007
+    },
+    {
+      "abstract": "Scene graphs have become an important form of structured knowledge for tasks such as for image generation, visual relation detection, visual question answering, and image retrieval. While visualizing and interpreting word embeddings is well understood, scene graph embeddings have not been fully explored. In this work, we train scene graph embeddings in a layout generation task with different forms of supervision, specifically introducing triplet super-vision and data augmentation. We see a significant performance increase in both metrics that measure the goodness of layout prediction, mean intersection-over-union (mIoU)(52.3% vs. 49.2%) and relation score (61.7% vs. 54.1%),after the addition of triplet supervision and data augmentation. To understand how these different methods affect the scene graph representation, we apply several new visualization and evaluation methods to explore the evolution of the scene graph embedding. We find that triplet supervision significantly improves the embedding separability, which is highly correlated with the performance of the layout prediction model.",
+      "authors": [
+        "Brigit Schroeder",
+        "Subarna Tripathi",
+        "Hanlin Tang"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1909.09256",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Triplet-Aware Scene Graph Embeddings",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1909.09256v1",
+        "pdf": "https://arxiv.org/pdf/1909.09256v1"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "This paper establishes the basis of the quaternionic differential geometry ($\\mathbbm H$DG) initiated in a previous article. The usual concepts of curves and surfaces are generalized to quaternionic constraints, as well as the curvature and torsion concepts, differential forms, directional derivatives and the structural equations. The analogy between the quaternionic and the real geometries is obtained using a matrix representation of quaternions. The results evidences the quaternionic formalism as a suitable language to differential geometry that can be useful in various directions of future investigation.",
+      "authors": [
+        "Sergio Giardino"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2404.03765",
+        "doi": "10.36890/iejg.1362006",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Differential geometry using quaternions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2404.03765v1",
+        "pdf": "https://arxiv.org/pdf/2404.03765v1"
+      },
+      "venue": "International Electronic Journal of Geometry, Volume 17, Issue 2, 2024, 700 - 711",
+      "year": 2024
+    },
+    {
+      "abstract": "This paper is based on a talk presented by the first author at the Short Program on Riemannian Geometry that took place at the Centre de Recherche Mathématiques, Université de Montréal, during the period June 28-July 16, 2004. It is a report on our joint work with János Kollár concerning the existence of an abundance of Einstein metrics on odd dimensional spheres, including exotic spheres.",
+      "authors": [
+        "Charles P. Boyer",
+        "Krzysztof Galicki"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0505221",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Sasakian Geometry and Einstein Metrics on Spheres",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/math/0505221v1",
+        "pdf": "https://arxiv.org/pdf/math/0505221v1"
+      },
+      "venue": "Perspectives in Riemannian geometry, CRM Proc. Lecture Notes, 40, 2006, 47-61.",
+      "year": 2005
+    },
+    {
+      "abstract": "Trajectory prediction in traffic scenes involves accurately forecasting the behaviour of surrounding vehicles. To achieve this objective it is crucial to consider contextual information, including the driving path of vehicles, road topology, lane dividers, and traffic rules. Although studies demonstrated the potential of leveraging heterogeneous context for improving trajectory prediction, state-of-the-art deep learning approaches still rely on a limited subset of this information. This is mainly due to the limited availability of comprehensive representations. This paper presents an approach that utilizes knowledge graphs to model the diverse entities and their semantic connections within traffic scenes. Further, we present nuScenes Knowledge Graph (nSKG), a knowledge graph for the nuScenes dataset, that models explicitly all scene participants and road elements, as well as their semantic and spatial relationships. To facilitate the usage of the nSKG via graph neural networks for trajectory prediction, we provide the data in a format, ready-to-use by the PyG library. All artefacts can be found here: https://github.com/boschresearch/nuScenes_Knowledge_Graph",
+      "authors": [
+        "Leon Mlodzian",
+        "Zhigang Sun",
+        "Hendrik Berkemeyer",
+        "Sebastian Monka",
+        "Zixu Wang",
+        "Stefan Dietze",
+        "Lavdim Halilaj",
+        "Juergen Luettin"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2312.09676",
+        "doi": "10.1109/ICCVW60793.2023.00011",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "nuScenes Knowledge Graph -- A comprehensive semantic representation of traffic scenes for trajectory prediction",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2312.09676v1",
+        "pdf": "https://arxiv.org/pdf/2312.09676v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "It is shown that an algebra $Λ$ can be lifted with nilpotent Jacobson radical $r = r(Λ)$ and has a generalized matrix unit $\\{e_{ii}\\}_I$ with each $\\bar e_{ii} $ in the center of $\\bar Λ= Λ/r$ iff $Λ$ is isomorphic to a generalized path algebra with weak relations. Representations of the generalized path algebras are given. As a corollary, $Λ$ is a finite algebra with non-zero unity element over perfect field $k$ (e.g. a field with characteristic zero or a finite field) iff $Λ$ is isomorphic to a generalized path algebra $k (D, Ω, ρ)$ of finite directed graph with weak relations and $dim {\\} Ω< \\infty $; $Λ$ is a generalized elementary algebra which can be lifted with nilpotent Jacobson radical and has a complete set of pairwise orthogonal idempotents iff $Λ$ is isomorphic to a path algebra with relations.",
+      "authors": [
+        "Shouchuan Zhang",
+        "Yao-Zhong Zhang"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0402188",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Structures and Representations of Generalized Path Algebras",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/math/0402188v5",
+        "pdf": "https://arxiv.org/pdf/math/0402188v5"
+      },
+      "venue": "Algebras and Representation Theory 10 (2007), 117-134",
+      "year": 2004
+    },
+    {
+      "abstract": "A color image contains luminance and chrominance components representing the intensity and color information respectively. The objective of the work presented in this paper is to show the significance of incorporating the chrominance information for the task of scene classification. An improved color-to-grayscale image conversion algorithm by effectively incorporating the chrominance information is proposed using color-to-gay structure similarity index (C2G-SSIM) and singular value decomposition (SVD) to improve the perceptual quality of the converted grayscale images. The experimental result analysis based on the image quality assessment for image decolorization called C2G-SSIM and success rate (Cadik and COLOR250 datasets) shows that the proposed image decolorization technique performs better than 8 existing benchmark algorithms for image decolorization. In the second part of the paper, the effectiveness of incorporating the chrominance component in scene classification task is demonstrated using the deep belief network (DBN) based image classification system developed using dense scale invariant feature transform (SIFT) as features. The levels of chrominance information incorporated by the proposed image decolorization technique is confirmed by the improvement in the overall scene classification accuracy . Also, the overall scene classification performance is improved by the combination of models obtained using the proposed and the conventional decolorization methods.",
+      "authors": [
+        "V. Sowmya",
+        "D. Govind",
+        "K. P. Soman"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1712.10152",
+        "doi": "10.1117/1.JEI.26.6.063019",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Exploring the significance of using perceptually relevant image decolorization method for scene classification",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1712.10152v1",
+        "pdf": "https://arxiv.org/pdf/1712.10152v1"
+      },
+      "venue": "Sowmya Viswanathan, Govind Divakaran, Kutti Padanyl Soman, Significance of perceptually relevant image decolorization for scene classification, J. Electron. Imaging 26(6), 063019 (2017)",
+      "year": 2017
+    },
+    {
+      "abstract": "In this paper, we propose an algorithm that extracts spatial frequent patterns to explain the relative characteristics of a specific location from the available social data. This paper proposes a spatial social data model which includes spatial social data, spatial support, spatial frequent patterns, spatial partition, and spatial clustering; these concepts are used for describing the exploration algorithm of spatial frequent patterns. With these defined concepts as the foundation, an SFP-tree structure that maintains not only the frequent words but also the frequent cells was proposed, and an SFP-growth algorithm that explores the frequent patterns on the basis of this SFP-tree was proposed.",
+      "authors": [
+        "Yongmi Lee",
+        "Kwang Woo Nam",
+        "Keun Ho Ryu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1912.09127",
+        "doi": "10.1007/s41324-017-0094-6",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Fast Mining of Spatial Frequent Wordset from Social Database",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1912.09127v2",
+        "pdf": "https://arxiv.org/pdf/1912.09127v2"
+      },
+      "venue": "Spatial Information Research, 25(2), 271-280 (2017)",
+      "year": 2019
+    },
+    {
+      "abstract": "In this paper, we study representations of hom-Lie algebras. In particular, the adjoint representation and the trivial representation of hom-Lie algebras are studied in detail. Derivations, deformations, central extensions and derivation extensions of hom-Lie algebras are also studied as an application.",
+      "authors": [
+        "Yunhe Sheng"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1005.0140",
+        "doi": "10.1007/s10468-011-9280-8",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Representations of hom-Lie algebras",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1005.0140v4",
+        "pdf": "https://arxiv.org/pdf/1005.0140v4"
+      },
+      "venue": "Algebra and Representation Theory, 15 (6) (2012), 1081-1098",
+      "year": 2010
+    },
+    {
+      "abstract": "The techniques for 3D indoor scene capturing are widely used, but the meshes produced leave much to be desired. In this paper, we propose \"RoomDreamer\", which leverages powerful natural language to synthesize a new room with a different style. Unlike existing image synthesis methods, our work addresses the challenge of synthesizing both geometry and texture aligned to the input scene structure and prompt simultaneously. The key insight is that a scene should be treated as a whole, taking into account both scene texture and geometry. The proposed framework consists of two significant components: Geometry Guided Diffusion and Mesh Optimization. Geometry Guided Diffusion for 3D Scene guarantees the consistency of the scene style by applying the 2D prior to the entire scene simultaneously. Mesh Optimization improves the geometry and texture jointly and eliminates the artifacts in the scanned scene. To validate the proposed method, real indoor scenes scanned with smartphones are used for extensive experiments, through which the effectiveness of our method is demonstrated.",
+      "authors": [
+        "Liangchen Song",
+        "Liangliang Cao",
+        "Hongyu Xu",
+        "Kai Kang",
+        "Feng Tang",
+        "Junsong Yuan",
+        "Yang Zhao"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2305.11337",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "RoomDreamer: Text-Driven 3D Indoor Scene Synthesis with Coherent Geometry and Texture",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2305.11337v1",
+        "pdf": "https://arxiv.org/pdf/2305.11337v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "Texture analysis plays an important role in many image processing applications to describe the image content or objects. On the other hand, visual surface defect detection is a highly research field in the computer vision. Surface defect refers to abnormalities in the texture of the surface. So, in this paper a dual purpose benchmark dataset is proposed for texture image analysis and surface defect detection titled stone texture image (STI dataset). The proposed benchmark dataset consist of 4 different class of stone texture images. The proposed benchmark dataset have some unique properties to make it very near to real applications. Local rotation, different zoom rates, unbalanced classes, variation of textures in size are some properties of the proposed dataset. In the result part, some descriptors are applied on this dataset to evaluate the proposed STI dataset in comparison with other state-of-the-art datasets.",
+      "authors": [
+        "Shervan Fekri-Ershad"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1906.11561",
+        "doi": "10.13140/RG.2.2.33612.46722",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A New Benchmark Dataset for Texture Image Analysis and Surface Defect Detection",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1906.11561v1",
+        "pdf": "https://arxiv.org/pdf/1906.11561v1"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "Scene flow prediction is a crucial underlying task in understanding dynamic scenes as it offers fundamental motion information. However, contemporary scene flow methods encounter three major challenges. Firstly, flow estimation solely based on local receptive fields lacks long-dependency matching of point pairs. To address this issue, we propose global attentive flow embedding to match all-to-all point pairs in both feature space and Euclidean space, providing global initialization before local refinement. Secondly, there are deformations existing in non-rigid objects after warping, which leads to variations in the spatiotemporal relation between the consecutive frames. For a more precise estimation of residual flow, a spatial temporal feature re-embedding module is devised to acquire the sequence features after deformation. Furthermore, previous methods perform poor generalization due to the significant domain gap between the synthesized and LiDAR-scanned datasets. We leverage novel domain adaptive losses to effectively bridge the gap of motion inference from synthetic to real-world. Experiments demonstrate that our approach achieves state-of-the-art performance across various datasets, with particularly outstanding results on real-world LiDAR-scanned datasets. Our code is available at https://github.com/O-VIGIA/StarFlow.",
+      "authors": [
+        "Zhiyang Lu",
+        "Qinghan Chen",
+        "Ming Cheng"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2403.07032",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "STARFlow: Spatial Temporal Feature Re-embedding with Attentive Learning for Real-world Scene Flow",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2403.07032v2",
+        "pdf": "https://arxiv.org/pdf/2403.07032v2"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    },
+    {
+      "abstract": "Classical Clifford theory studies the decomposition of simple $G$-modules into simple $H$-modules for some normal subgroup $H \\triangleleft G$. In this paper we deal with chains of normal subgroups $1 \\triangleleft G_1 \\triangleleft \\cdots \\triangleleft G_d =G$, which allow to consider fragments and in particular glider representations. These are given by a descending chain of vector spaces over some field $K$ and relate different representations of the groups appearing in the chain. Picking some normal subgroup $H \\triangleleft G$ one obtains a normal subchain and one can construct an induced fragment structure. Moreover, a notion of irreducibility of fragments is introduced, which completes the list of ingredients to perform a Clifford theory.",
+      "authors": [
+        "Frederik Caenepeel",
+        "Fred Van Oystaeyen"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1603.02493",
+        "doi": "10.1007/s10468-016-9628-1",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Clifford theory for glider representations",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1603.02493v4",
+        "pdf": "https://arxiv.org/pdf/1603.02493v4"
+      },
+      "venue": "Algebras and Representation Theory, Volume 19, No. 3, June 2016",
+      "year": 2016
+    },
+    {
+      "abstract": "We revisit Semantic Scene Completion (SSC), a useful task to predict the semantic and occupancy representation of 3D scenes, in this paper. A number of methods for this task are always based on voxelized scene representations for keeping local scene structure. However, due to the existence of visible empty voxels, these methods always suffer from heavy computation redundancy when the network goes deeper, and thus limit the completion quality. To address this dilemma, we propose our novel point-voxel aggregation network for this task. Firstly, we transfer the voxelized scenes to point clouds by removing these visible empty voxels and adopt a deep point stream to capture semantic information from the scene efficiently. Meanwhile, a light-weight voxel stream containing only two 3D convolution layers preserves local structures of the voxelized scenes. Furthermore, we design an anisotropic voxel aggregation operator to fuse the structure details from the voxel stream into the point stream, and a semantic-aware propagation module to enhance the up-sampling process in the point stream by semantic labels. We demonstrate that our model surpasses state-of-the-arts on two benchmarks by a large margin, with only depth images as the input.",
+      "authors": [
+        "Xiaokang Chen",
+        "Jiaxiang Tang",
+        "Jingbo Wang",
+        "Gang Zeng"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2112.12925",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Not All Voxels Are Equal: Semantic Scene Completion from the Point-Voxel Perspective",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2112.12925v2",
+        "pdf": "https://arxiv.org/pdf/2112.12925v2"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "Based on the notion of dilatation structure arXiv:math/0608536, we give an intrinsic treatment to sub-riemannian geometry, started in the paper arXiv:0706.3644 . Here we prove that regular sub-riemannian manifolds admit dilatation structures. From the existence of normal frames proved by Bellaiche we deduce the rest of the properties of regular sub-riemannian manifolds by using the formalism of dilatation structures.",
+      "authors": [
+        "Marius Buliga"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0708.4298",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Dilatation structures in sub-riemannian geometry",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/0708.4298v3",
+        "pdf": "https://arxiv.org/pdf/0708.4298v3"
+      },
+      "venue": "Contemporary Geometry and Topology and Related Topics. Cluj-Napoca, August 19-25, 2007, Cluj University Press (2008), 89-105",
+      "year": 2007
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:17:16.919696+00:00",
+  "recorded_latency_seconds": 2.5721823750063777,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

@@ -57,6 +57,14 @@ class RetrievalCallTrace(BaseModel):
     returned_count: int = 0
     request_count: int = 0
     error_count: int = 0
+    snapshot_provenance: str = "live"
+    snapshot_key: str | None = None
+    snapshot_hit: bool = False
+    recorded_request_count: int = 0
+    recorded_retry_count: int = 0
+    recorded_error_count: int = 0
+    recorded_rate_limit_wait_seconds: float = 0.0
+    recorded_latency_seconds: float = 0.0
     query_provenance: list[QueryAdaptationProvenance] = Field(default_factory=list)
 
 
@@ -150,6 +158,30 @@ class PipelineDiagnosticsCollector:
                         returned_count=stats.returned_count,
                         request_count=stats.diagnostics.request_count,
                         error_count=stats.diagnostics.error_count,
+                        snapshot_provenance=stats.snapshot_provenance,
+                        snapshot_key=stats.snapshot_key,
+                        snapshot_hit=stats.snapshot_hit,
+                        recorded_request_count=(
+                            stats.recorded_diagnostics.request_count
+                            if stats.recorded_diagnostics is not None
+                            else 0
+                        ),
+                        recorded_retry_count=(
+                            stats.recorded_diagnostics.retry_count
+                            if stats.recorded_diagnostics is not None
+                            else 0
+                        ),
+                        recorded_error_count=(
+                            stats.recorded_diagnostics.error_count
+                            if stats.recorded_diagnostics is not None
+                            else 0
+                        ),
+                        recorded_rate_limit_wait_seconds=(
+                            stats.recorded_diagnostics.rate_limit_wait_seconds
+                            if stats.recorded_diagnostics is not None
+                            else 0.0
+                        ),
+                        recorded_latency_seconds=stats.recorded_latency_seconds,
                         query_provenance=list(stats.query_provenance),
                     )
                 )

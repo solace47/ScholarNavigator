@@ -103,6 +103,11 @@ class SourceStats(BaseModel):
     remaining_subquery_count: int = 0
     diagnostic_papers: list[Paper] = Field(default_factory=list, exclude=True)
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    snapshot_provenance: str = "live"
+    snapshot_key: str | None = None
+    snapshot_hit: bool = False
+    recorded_diagnostics: ConnectorDiagnostics | None = None
+    recorded_latency_seconds: float = 0.0
 
 
 class RetrievalOutput(BaseModel):
@@ -190,6 +195,11 @@ def retrieve_papers(
     query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
     query_purpose: str | None = None,
     adaptive_budget_check: Callable[[list[Paper]], str | None] | None = None,
+    connector_result_provider: Callable[
+        [str, str, int, QueryAdapterPolicy, Callable[[str, int], ConnectorSearchResult]],
+        ConnectorSearchResult,
+    ]
+    | None = None,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -221,6 +231,18 @@ def retrieve_papers(
             _emit_connector_completed(connector_event_callback, source_stats[-1])
             continue
 
+        effective_search = search
+        if connector_result_provider is not None:
+            effective_search = lambda adapted_query, limit, *, _source=source, _search=search: (
+                connector_result_provider(
+                    _source,
+                    adapted_query,
+                    limit,
+                    query_adapter_policy,
+                    _search,
+                )
+            )
+
         adapted_queries = adapt_queries_for_source(
             query,
             source,
@@ -234,7 +256,7 @@ def retrieve_papers(
                 adapted_queries=adapted_queries,
                 constraints=constraints,
                 limit_per_source=limit_per_source,
-                search=search,
+                search=effective_search,
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
                 query_purpose=query_purpose,
@@ -267,7 +289,7 @@ def retrieve_papers(
                 source=source,
                 adapted=adapted,
                 limit_per_source=limit_per_source,
-                search=search,
+                search=effective_search,
                 run_context=run_context,
                 remaining_subquery_count=remaining_subquery_count,
                 query_purpose=query_purpose,
@@ -853,6 +875,11 @@ def _retrieve_adapted_query(
             warnings=list(result.warnings),
             diagnostic_papers=list(result.papers),
             diagnostics=result.diagnostics,
+            snapshot_provenance=result.snapshot_provenance,
+            snapshot_key=result.snapshot_key,
+            snapshot_hit=result.snapshot_hit,
+            recorded_diagnostics=result.recorded_diagnostics,
+            recorded_latency_seconds=result.recorded_latency_seconds,
         )
 
 

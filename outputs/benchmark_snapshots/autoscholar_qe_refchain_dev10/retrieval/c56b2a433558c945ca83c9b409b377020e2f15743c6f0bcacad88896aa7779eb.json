@@ -1,0 +1,733 @@
+{
+  "adapted_query": "all:Which works develop suitable approximations of the predictive distribution or parts of the integral for uncertainties in deep learning",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "f72e0900871d4f1f07a9d27aa20a5c451f1e0b7c04b30926c8adafc5375989e8",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 1.4359538748394698,
+    "rate_limit_wait_seconds": 0.0,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "c56b2a433558c945ca83c9b409b377020e2f15743c6f0bcacad88896aa7779eb",
+  "limit": 20,
+  "normalized_query": "all:Which works develop suitable approximations of the predictive distribution or parts of the integral for uncertainties in deep learning",
+  "papers": [
+    {
+      "abstract": "On 2017 August 17 a binary neutron star coalescence candidate (later designated GW170817) with merger time 12:41:04 UTC was observed through gravitational waves by the Advanced LIGO and Advanced Virgo detectors. The Fermi Gamma-ray Burst Monitor independently detected a gamma-ray burst (GRB 170817A) with a time delay of $\\sim$1.7 s with respect to the merger time. From the gravitational-wave signal, the source was initially localized to a sky region of 31 deg$^2$ at a luminosity distance of $40^{+8}_{-8}$ Mpc and with component masses consistent with neutron stars. The component masses were later measured to be in the range 0.86 to 2.26 Msun. An extensive observing campaign was launched across the electromagnetic spectrum leading to the discovery of a bright optical transient (SSS17a, now with the IAU identification of AT 2017gfo) in NGC 4993 (at $\\sim$40 Mpc) less than 11 hours after the merger by the One-Meter, Two Hemisphere (1M2H) team using the 1 m Swope Telescope. The optical transient was independently detected by multiple teams within an hour. Subsequent observations targeted the object and its environment. Early ultraviolet observations revealed a blue transient that faded within 48 hours. Optical and infrared observations showed a redward evolution over $\\sim$10 days. Following early non-detections, X-ray and radio emission were discovered at the transient's position $\\sim$9 and $\\sim$16 days, respectively, after the merger. Both the X-ray and radio emission likely arise from a physical process that is distinct from the one that generates the UV/optical/near-infrared emission. No ultra-high-energy gamma-rays and no neutrino candidates consistent with the source were found in follow-up searches. (Abridged)",
+      "authors": [
+        "LIGO Scientific Collaboration",
+        "Virgo Collaboration",
+        "Fermi GBM",
+        "INTEGRAL",
+        "IceCube Collaboration",
+        "AstroSat Cadmium Zinc Telluride Imager Team",
+        "IPN Collaboration",
+        "The Insight-Hxmt Collaboration",
+        "ANTARES Collaboration",
+        "The Swift Collaboration",
+        "AGILE Team",
+        "The 1M2H Team",
+        "The Dark Energy Camera GW-EM Collaboration",
+        "the DES Collaboration",
+        "The DLT40 Collaboration",
+        "GRAWITA",
+        ":",
+        "GRAvitational Wave Inaf TeAm",
+        "The Fermi Large Area Telescope Collaboration",
+        "ATCA",
+        ":",
+        "Australia Telescope Compact Array",
+        "ASKAP",
+        ":",
+        "Australian SKA Pathfinder",
+        "Las Cumbres Observatory Group",
+        "OzGrav",
+        "DWF",
+        "AST3",
+        "CAASTRO Collaborations",
+        "The VINROUGE Collaboration",
+        "MASTER Collaboration",
+        "J-GEM",
+        "GROWTH",
+        "JAGWAR",
+        "Caltech- NRAO",
+        "TTU-NRAO",
+        "NuSTAR Collaborations",
+        "Pan-STARRS",
+        "The MAXI Team",
+        "TZAC Consortium",
+        "KU Collaboration",
+        "Nordic Optical Telescope",
+        "ePESSTO",
+        "GROND",
+        "Texas Tech University",
+        "SALT Group",
+        "TOROS",
+        ":",
+        "Transient Robotic Observatory of the South Collaboration",
+        "The BOOTES Collaboration",
+        "MWA",
+        ":",
+        "Murchison Widefield Array",
+        "The CALET Collaboration",
+        "IKI-GW Follow-up Collaboration",
+        "H. E. S. S. Collaboration",
+        "LOFAR Collaboration",
+        "LWA",
+        ":",
+        "Long Wavelength Array",
+        "HAWC Collaboration",
+        "The Pierre Auger Collaboration",
+        "ALMA Collaboration",
+        "Euro VLBI Team",
+        "Pi of the Sky Collaboration",
+        "The Chandra Team at McGill University",
+        "DFN",
+        ":",
+        "Desert Fireball Network",
+        "ATLAS",
+        "High Time Resolution Universe Survey",
+        "RIMAS",
+        "RATIR",
+        "SKA South Africa/MeerKAT"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1710.05833",
+        "doi": "10.3847/2041-8213/aa91c9",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Multi-messenger Observations of a Binary Neutron Star Merger",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1710.05833v2",
+        "pdf": "https://arxiv.org/pdf/1710.05833v2"
+      },
+      "venue": "ApJL, 848:L12, 2017",
+      "year": 2017
+    },
+    {
+      "abstract": "Evidential deep learning, built upon belief theory and subjective logic, offers a principled and computationally efficient way to turn a deterministic neural network uncertainty-aware. The resultant evidential models can quantify fine-grained uncertainty using the learned evidence. To ensure theoretically sound evidential models, the evidence needs to be non-negative, which requires special activation functions for model training and inference. This constraint often leads to inferior predictive performance compared to standard softmax models, making it challenging to extend them to many large-scale datasets. To unveil the real cause of this undesired behavior, we theoretically investigate evidential models and identify a fundamental limitation that explains the inferior performance: existing evidential activation functions create zero evidence regions, which prevent the model to learn from training samples falling into such regions. A deeper analysis of evidential activation functions based on our theoretical underpinning inspires the design of a novel regularizer that effectively alleviates this fundamental limitation. Extensive experiments over many challenging real-world datasets and settings confirm our theoretical findings and demonstrate the effectiveness of our proposed approach.",
+      "authors": [
+        "Deep Pandey",
+        "Qi Yu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2306.11113",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Learn to Accumulate Evidence from All Training Samples: Theory and Practice",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2306.11113v2",
+        "pdf": "https://arxiv.org/pdf/2306.11113v2"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "We describe the new field of mathematical analysis of deep learning. This field emerged around a list of research questions that were not answered within the classical framework of learning theory. These questions concern: the outstanding generalization power of overparametrized neural networks, the role of depth in deep architectures, the apparent absence of the curse of dimensionality, the surprisingly successful optimization performance despite the non-convexity of the problem, understanding what features are learned, why deep architectures perform exceptionally well in physical problems, and which fine aspects of an architecture affect the behavior of a learning task in which way. We present an overview of modern approaches that yield partial answers to these questions. For selected approaches, we describe the main ideas in more detail.",
+      "authors": [
+        "Julius Berner",
+        "Philipp Grohs",
+        "Gitta Kutyniok",
+        "Philipp Petersen"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2105.04026",
+        "doi": "10.1017/9781009025096.002",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Modern Mathematics of Deep Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2105.04026v2",
+        "pdf": "https://arxiv.org/pdf/2105.04026v2"
+      },
+      "venue": "Mathematical Aspects of Deep Learning, pp. 1-111. Cambridge University Press, 2022",
+      "year": 2021
+    },
+    {
+      "abstract": "The Intel Collaborative Research Institute for Computational Intelligence (ICRI-CI) has been heavily supporting Machine Learning and Deep Learning research from its foundation in 2012. We have asked six leading ICRI-CI Deep Learning researchers to address the challenge of \"Why & When Deep Learning works\", with the goal of looking inside Deep Learning, providing insights on how deep networks function, and uncovering key observations on their expressiveness, limitations, and potential. The output of this challenge resulted in five papers that address different facets of deep learning. These different facets include a high-level understating of why and when deep networks work (and do not work), the impact of geometry on the expressiveness of deep networks, and making deep networks interpretable.",
+      "authors": [
+        "Ronny Ronen"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1705.03921",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Why & When Deep Learning Works: Looking Inside Deep Learnings",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1705.03921v1",
+        "pdf": "https://arxiv.org/pdf/1705.03921v1"
+      },
+      "venue": "arXiv",
+      "year": 2017
+    },
+    {
+      "abstract": "Phosphorus (P) is considered to be one of the key elements for life, making it an important element to look for in the abundance analysis of spectra of stellar systems. Yet, there exists only a handful of spectroscopic studies to estimate the P abundances and investigate its trend across a range of metallicities. We have observed full HK band spectra at a spectral resolving power of R=45,000 with IGRINS instrument. Abundances are determined using SME in combination with 1D MARCS stellar atmosphere models. The investigated sample of stars have reliable stellar parameters estimated using optical FIES spectra (GILD; Jönsson et al. in prep.). In order to determine the P abundances from the 16482.92 Angstrom P line, we take special care of the CO($ν=7-4$) blend. We determine the C, N, O abundances from atomic carbon and a range of non-blended molecular lines (CO, CN, OH) which are aplenty in the H band region of K giant stars, assuring an appropriate modelling of the blending CO($ν=7-4$) line. We present [P/Fe] vs [Fe/H] trend for 38 K giant stars in the metallicity range of -1.2 dex $<$ [Fe/H] $<$ 0.4 dex. We find that our trend matches well with the compiled literature sample of prominently dwarf stars and limited number of giant stars. Our trend is found to be higher by $\\sim$ 0.05 - 0.1 dex compared to the theoretical chemical evolution trend in Cescutti et al. 2012 resulting from core collapse supernova (type II) of massive stars with the P yields from Kobayashi et al. (2006) arbitrarily increased by a factor of 2.75. Thus the enhancement factor might need to be $\\sim$ 0.05 - 0.1 dex higher to match our trend. We also find an empirically determined primary behaviour for phosphorus. Furthermore, the phosphorus abundance is found to be elevated by $\\sim$ 0.6 - 0.9 dex in two metal poor s-enriched stars compared to the theoretical chemical evolution trend.",
+      "authors": [
+        "G. Nandakumar",
+        "N. Ryde",
+        "M. Montelius",
+        "B. Thorsbro",
+        "H. Jönsson",
+        "G. Mace",
+        "Lund Observatory",
+        "Department of Astronomy",
+        "Theoretical Physics",
+        "Lund University",
+        "Box 43",
+        "SE-221 00 Lund",
+        "Sweden",
+        "Kapteyn Astronomical Institute",
+        "University of Groningen",
+        "Landleven 12",
+        "NL-9747 AD Groningen",
+        "the Netherlands",
+        "Department of Astronomy",
+        "School of Science",
+        "The University of Tokyo",
+        "7-3-1 Hongo",
+        "Bunkyo-ku",
+        "Tokyo 113-0033",
+        "Japan",
+        "Materials Science",
+        "Applied Mathematics",
+        "Malmö University",
+        "SE-205 06 Malmö",
+        "Sweden",
+        "Department of Astronomy",
+        "McDonald Observatory",
+        "The University of Texas",
+        "Austin",
+        "TX 78712",
+        "USA"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2210.04940",
+        "doi": "10.1051/0004-6361/202244724",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Galactic Chemical Evolution of phosphorus observed with IGRINS",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2210.04940v1",
+        "pdf": "https://arxiv.org/pdf/2210.04940v1"
+      },
+      "venue": "A&A 668, A88 (2022)",
+      "year": 2022
+    },
+    {
+      "abstract": "Many large scale problems in computational fluid dynamics such as uncertainty quantification, Bayesian inversion, data assimilation and PDE constrained optimization are considered very challenging computationally as they require a large number of expensive (forward) numerical solutions of the corresponding PDEs. We propose a machine learning algorithm, based on deep artificial neural networks, that predicts the underlying \\emph{input parameters to observable} map from a few training samples (computed realizations of this map). By a judicious combination of theoretical arguments and empirical observations, we find suitable network architectures and training hyperparameters that result in robust and efficient neural network approximations of the parameters to observable map. Numerical experiments are presented to demonstrate low prediction errors for the trained network networks, even when the network has been trained with a few samples, at a computational cost which is several orders of magnitude lower than the underlying PDE solver. Moreover, we combine the proposed deep learning algorithm with Monte Carlo (MC) and Quasi-Monte Carlo (QMC) methods to efficiently compute uncertainty propagation for nonlinear PDEs. Under the assumption that the underlying neural networks generalize well, we prove that the deep learning MC and QMC algorithms are guaranteed to be faster than the baseline (quasi-) Monte Carlo methods. Numerical experiments demonstrating one to two orders of magnitude speed up over baseline QMC and MC algorithms, for the intricate problem of computing probability distributions of the observable, are also presented.",
+      "authors": [
+        "Kjetil O. Lye",
+        "Siddhartha Mishra",
+        "Deep Ray"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1903.03040",
+        "doi": "10.1016/j.jcp.2020.109339",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Deep learning observables in computational fluid dynamics",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1903.03040v2",
+        "pdf": "https://arxiv.org/pdf/1903.03040v2"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "These notes were compiled as lecture notes for a course developed and taught at the University of the Southern California. They should be accessible to a typical engineering graduate student with a strong background in Applied Mathematics. The main objective of these notes is to introduce a student who is familiar with concepts in linear algebra and partial differential equations to select topics in deep learning. These lecture notes exploit the strong connections between deep learning algorithms and the more conventional techniques of computational physics to achieve two goals. First, they use concepts from computational physics to develop an understanding of deep learning algorithms. Not surprisingly, many concepts in deep learning can be connected to similar concepts in computational physics, and one can utilize this connection to better understand these algorithms. Second, several novel deep learning algorithms can be used to solve challenging problems in computational physics. Thus, they offer someone who is interested in modeling a physical phenomena with a complementary set of tools.",
+      "authors": [
+        "Deep Ray",
+        "Orazio Pinti",
+        "Assad A. Oberai"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2301.00942",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Deep Learning and Computational Physics (Lecture Notes)",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2301.00942v1",
+        "pdf": "https://arxiv.org/pdf/2301.00942v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "While an integration by parts formula for the bilinear form of the hypersingular boundary integral operator for the transient heat equation in three spatial dimensions is available in the literature, a proof of this formula seems to be missing. Moreover, the available formula contains an integral term including the time derivative of the fundamental solution of the heat equation, whose interpretation is difficult at second glance. To fill these gaps we provide a rigorous proof of a general version of the integration by parts formula and an alternative representation of the mentioned integral term, which is valid for a certain class of functions including the typical tensor-product discretization spaces.",
+      "authors": [
+        "Raphael Watschinger",
+        "Günther Of"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2104.15024",
+        "doi": "10.1216/jie.2022.34.103",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "An integration by parts formula for the bilinear form of the hypersingular boundary integral operator for the transient heat equation in three spatial dimensions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2104.15024v3",
+        "pdf": "https://arxiv.org/pdf/2104.15024v3"
+      },
+      "venue": "J. Integral Equations Applications 34(1): 103-133 (2022)",
+      "year": 2021
+    },
+    {
+      "abstract": "We present the results of processing the effects of the powerful Gamma Ray Burst GRB221009A captured by the charged particle detectors (electrostatic analyzers and solid-state detectors) onboard spacecraft at different points in the heliosphere on October 9, 2022. To follow the GRB221009A propagation through the heliosphere we used the electron and proton flux measurements from solar missions Solar Orbiter and STEREO-A; Earth magnetosphere and the solar wind missions THEMIS and Wind; meteorological satellites POES15, POES19, MetOp3; and MAVEN - a NASA mission orbiting Mars. GRB221009A had a structure of four bursts: less intense Pulse 1 - the triggering impulse - was detected by gamma-ray observatories at 131659 UT (near the Earth); the most intense Pulses 2 and 3 were detected on board all the spacecraft from the list, and Pulse 4 detected in more than 500 s after Pulse 1. Due to their different scientific objectives, the spacecraft, which data was used in this study, were separated by more than 1 AU (Solar Orbiter and MAVEN). This enabled tracking GRB221009A as it was propagating across the heliosphere. STEREO-A was the first to register Pulse 2 and 3 of the GRB, almost 100 seconds before their detection by spacecraft in the vicinity of Earth. MAVEN detected GRB221009A Pulses 2, 3, and 4 at the orbit of Mars about 237 seconds after their detection near Earth. By processing the time delays observed we show that the source location of the GRB221009A was at RA 288.5 degrees, Dec 18.5 degrees (J2000) with an error cone of 2 degrees",
+      "authors": [
+        "Andrii Voshchepynets",
+        "Oleksiy Agapitov",
+        "Lynn Wilson",
+        "Vassilis Angelopoulos",
+        "Samer T. Alnussirat",
+        "Michael Balikhin",
+        "Myroslava Hlebena",
+        "Ihor Korol",
+        "Davin Larson",
+        "David Mitchell",
+        "Christopher Owen",
+        "Ali Rahmati",
+        "Department of System Analysis",
+        "Optimization Theory",
+        "Uzhhorod National University",
+        "Uzhhorod",
+        "Ukraine",
+        "Space Sciences Laboratory",
+        ":",
+        "University of California Berkeley Berkeley",
+        "CA 94720",
+        "Astronomy",
+        "Space Physics Department",
+        "National Taras Shevchenko University of Kyiv",
+        "Kyiv",
+        "Ukraine",
+        "Goddard Space Flight Center",
+        "National Aeronautics",
+        "Space Administration",
+        "Greenbelt",
+        "MD",
+        "Department of Earth",
+        "Planetary",
+        "Space Sciences",
+        "University of California Los Angeles",
+        "Los Angeles",
+        "CA}",
+        "University of Sheffield",
+        "Sheffield",
+        "UK",
+        "Department of Algebra",
+        "Differential Equation",
+        "Uzhhorod National University",
+        "Uzhhorod",
+        "Ukraine",
+        "Department of Mathematical Analysis",
+        "The John Paul II Catholic University of Lublin",
+        "Lublin",
+        "Poland}"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2309.05856",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Multi-Point Detection of the Powerful Gamma Ray Burst GRB221009A Propagation through the Heliosphere on October 9, 2022",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2309.05856v1",
+        "pdf": "https://arxiv.org/pdf/2309.05856v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "For acute ischemic stroke (AIS) patients with large vessel occlusions, clinicians must decide if the benefit of mechanical thrombectomy (MTB) outweighs the risks and potential complications following an invasive procedure. Pre-treatment computed tomography (CT) and angiography (CTA) are widely used to characterize occlusions in the brain vasculature. If a patient is deemed eligible, a modified treatment in cerebral ischemia (mTICI) score will be used to grade how well blood flow is reestablished throughout and following the MTB procedure. An estimation of the likelihood of successful recanalization can support treatment decision-making. In this study, we proposed a fully automated prediction of a patient's recanalization score using pre-treatment CT and CTA imaging. We designed a spatial cross attention network (SCANet) that utilizes vision transformers to localize to pertinent slices and brain regions. Our top model achieved an average cross-validated ROC-AUC of 77.33 $\\pm$ 3.9\\%. This is a promising result that supports future applications of deep learning on CT and CTA for the identification of eligible AIS patients for MTB.",
+      "authors": [
+        "Haoyue Zhang",
+        "Jennifer S. Polson",
+        "Eric J. Yang",
+        "Kambiz Nael",
+        "William Speier",
+        "Corey W. Arnold"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2302.04143",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Predicting Thrombectomy Recanalization from CT Imaging Using Deep Learning Models",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2302.04143v2",
+        "pdf": "https://arxiv.org/pdf/2302.04143v2"
+      },
+      "venue": "Medical Imaging with Deep Learning 2022",
+      "year": 2023
+    },
+    {
+      "abstract": "Eccentric planets may spend a significant portion of their orbits at large distances from their host stars, where low temperatures can cause atmospheric CO2 to condense out onto the surface, similar to the polar ice caps on Mars. The radiative effects on the climates of these planets throughout their orbits would depend on the wavelength-dependent albedo of surface CO2 ice that may accumulate at or near apoastron and vary according to the spectral energy distribution of the host star. To explore these possible effects, we incorporated a CO2 ice-albedo parameterization into a one-dimensional energy balance climate model. With the inclusion of this parameterization, our simulations demonstrated that F-dwarf planets require 29% more orbit-averaged flux to thaw out of global water ice cover compared with simulations that solely use a traditional pure water ice-albedo parameterization. When no eccentricity is assumed, and host stars are varied, F-dwarf planets with higher bond albedos relative to their M-dwarf planet counterparts require 30% more orbit-averaged flux to exit a water snowball state. Additionally, the intense heat experienced at periastron aids eccentric planets in exiting a snowball state with a smaller increase in instellation compared with planets on circular orbits; this enables eccentric planets to exhibit warmer conditions along a broad range of instellation. This study emphasizes the significance of incorporating an albedo parameterization for the formation of CO2 ice into climate models to accurately assess the habitability of eccentric planets, as we show that, even at moderate eccentricities, planets with Earth-like atmospheres can reach surface temperatures cold enough for the condensation of CO2 onto their surfaces, as can planets receiving low amounts of instellation on circular orbits.",
+      "authors": [
+        "Vidya Venkatesan",
+        "Aomawa L. Shields",
+        "Russell Deitrick",
+        "Eric T. Wolf",
+        "Andrew Rushby",
+        "Department of Physics",
+        "Astronomy",
+        "University of California",
+        "Irvine",
+        "California",
+        "USA",
+        "School of Earth",
+        "Ocean Sciences",
+        "University of Victoria",
+        "Victoria",
+        "Canada",
+        "Laboratory for Atmospheric",
+        "Space Physics",
+        "University of Colorado Boulder",
+        "Boulder",
+        "Colorado",
+        "USA",
+        "Sellers Exoplanet Environment Collaboration",
+        "NASA Goddard Space Flight Center",
+        "Greenbelt",
+        "Maryland",
+        "USA",
+        "Blue Marble Space Institute of Science",
+        "Seattle",
+        "Washington",
+        "USA",
+        "Department of Earth",
+        "Planetary Sciences",
+        "Birkbeck University of London",
+        "London",
+        "United Kingdom"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2501.11667",
+        "doi": "10.1089/ast.2023.0103",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A One-Dimensional Energy Balance Model Parameterization for the Formation of CO2 Ice on the Surfaces of Eccentric Extrasolar Planets",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2501.11667v1",
+        "pdf": "https://arxiv.org/pdf/2501.11667v1"
+      },
+      "venue": "Astrobiology 2025",
+      "year": 2025
+    },
+    {
+      "abstract": "We propose an approach to Multitask Learning (MTL) to make deep learning models faster and lighter for applications in which multiple tasks need to be solved simultaneously, which is particularly useful in embedded, real-time systems. We develop a multitask model for both Object Detection and Semantic Segmentation and analyze the challenges that appear during its training. Our multitask network is 1.6x faster, lighter and uses less memory than deploying the single-task models in parallel. We conclude that MTL has the potential to give superior performance in exchange of a more complex training process that introduces challenges not present in single-task models.",
+      "authors": [
+        "Miquel Martí",
+        "Atsuto Maki"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1711.00146",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A multitask deep learning model for real-time deployment in embedded systems",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1711.00146v1",
+        "pdf": "https://arxiv.org/pdf/1711.00146v1"
+      },
+      "venue": "Swedish Symposium on Deep Learning 2017",
+      "year": 2017
+    },
+    {
+      "abstract": "Item Price Elasticity is used to quantify the responsiveness of consumer demand to changes in item prices, enabling businesses to create pricing strategies and optimize revenue management. Sectors such as store retail, e-commerce, and consumer goods rely on elasticity information derived from historical sales and pricing data. This elasticity provides an understanding of purchasing behavior across different items, consumer discount sensitivity, and demand elastic departments. This information is particularly valuable for competitive markets and resource-constrained businesses decision making which aims to maximize profitability and market share. Price elasticity also uncovers historical shifts in consumer responsiveness over time. In this paper, we model item-level price elasticity using large-scale transactional datasets, by proposing a novel elasticity estimation framework which has the capability to work in an absence of treatment control setting. We test this framework by using Machine learning based algorithms listed below, including our newly proposed Monodense deep neural network. (1) Monodense-DL network -- Hybrid neural network architecture combining embedding, dense, and Monodense layers (2) DML -- Double machine learning setting using regression models (3) LGBM -- Light Gradient Boosting Model We evaluate our model on multi-category retail data spanning millions of transactions using a back testing framework. Experimental results demonstrate the superiority of our proposed neural network model within the framework compared to other prevalent ML based methods listed above.",
+      "authors": [
+        "Lakshya Garg",
+        "Sai Yaswanth",
+        "Deep Narayan Mishra",
+        "Karthik Kumaran",
+        "Anupriya Sharma",
+        "Mayank Uniyal"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2603.29261",
+        "doi": "10.1109/AAIML67890.2026.11498150",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Monodense Deep Neural Model for Determining Item Price Elasticity",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2603.29261v1",
+        "pdf": "https://arxiv.org/pdf/2603.29261v1"
+      },
+      "venue": "2026 International Conference on Advances in Artificial Intelligence and Machine Learning (AAIML)",
+      "year": 2026
+    },
+    {
+      "abstract": "Evidential deep learning (EDL) models, based on Subjective Logic, introduce a principled and computationally efficient way to make deterministic neural networks uncertainty-aware. The resulting evidential models can quantify fine-grained uncertainty using learned evidence. However, the Subjective-Logic framework constrains evidence to be non-negative, requiring specific activation functions whose geometric properties can induce activation-dependent learning-freeze behavior: a regime where gradients become extremely small for samples mapped into low-evidence regions. We theoretically characterize this behavior and analyze how different evidential activations influence learning dynamics. Building on this analysis, we design a general family of activation functions and corresponding evidential regularizers that provide an alternative pathway for consistent evidence updates across activation regimes. Extensive experiments on four benchmark classification problems (MNIST, CIFAR-10, CIFAR-100, and Tiny-ImageNet), two few-shot classification problems, and blind face restoration problem empirically validate the developed theory and demonstrate the effectiveness of the proposed generalized regularized evidential models.",
+      "authors": [
+        "Deep Shankar Pandey",
+        "Hyomin Choi",
+        "Qi Yu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2512.23753",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Generalized Regularized Evidential Deep Learning Models: Theory and Comprehensive Evaluation",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2512.23753v1",
+        "pdf": "https://arxiv.org/pdf/2512.23753v1"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "We consider the generic deep image enhancement problem where an input image is transformed into a perceptually better-looking image. Recent methods for image enhancement consider the problem by performing style transfer and image restoration. The methods mostly fall into two categories: training data-based and training data-independent (deep internal learning methods). We perform image enhancement in the deep internal learning framework. Our Deep Internal Learning for Image Enhancement framework enhances content features and style features and uses contextual content loss for preserving image context in the enhanced image. We show results on both hazy and noisy image enhancement. To validate the results, we use structure similarity and perceptual error, which is efficient in measuring the unrealistic deformation present in the images. We show that the proposed framework outperforms the relevant state-of-the-art works for image enhancement.",
+      "authors": [
+        "Indra Deep Mastan",
+        "Shanmuganathan Raman"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2012.06469",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "DILIE: Deep Internal Learning for Image Enhancement",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2012.06469v1",
+        "pdf": "https://arxiv.org/pdf/2012.06469v1"
+      },
+      "venue": "arXiv",
+      "year": 2020
+    },
+    {
+      "abstract": "Deep neural networks and the ENO procedure are both efficient frameworks for approximating rough functions. We prove that at any order, the ENO interpolation procedure can be cast as a deep ReLU neural network. This surprising fact enables the transfer of several desirable properties of the ENO procedure to deep neural networks, including its high-order accuracy at approximating Lipschitz functions. Numerical tests for the resulting neural networks show excellent performance for approximating solutions of nonlinear conservation laws and at data compression.",
+      "authors": [
+        "Tim De Ryck",
+        "Siddhartha Mishra",
+        "Deep Ray"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1912.06732",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "On the approximation of rough functions with deep neural networks",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1912.06732v2",
+        "pdf": "https://arxiv.org/pdf/1912.06732v2"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "Recently, there is a vast interest in developing image feature learning methods that are independent of the training data, such as deep image prior, InGAN, SinGAN, and DCIL. These methods are unsupervised and are used to perform low-level vision tasks such as image restoration, image editing, and image synthesis. In this work, we proposed a new training data-independent framework, called Deep Contextual Features Learning (DeepCFL), to perform image synthesis and image restoration based on the semantics of the input image. The contextual features are simply the high dimensional vectors representing the semantics of the given image. DeepCFL is a single image GAN framework that learns the distribution of the context vectors from the input image. We show the performance of contextual learning in various challenging scenarios: outpainting, inpainting, and restoration of randomly removed pixels. DeepCFL is applicable when the input source image and the generated target image are not aligned. We illustrate image synthesis using DeepCFL for the task of image resizing.",
+      "authors": [
+        "Indra Deep Mastan",
+        "Shanmuganathan Raman"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2011.03712",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "DeepCFL: Deep Contextual Features Learning from a Single Image",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2011.03712v1",
+        "pdf": "https://arxiv.org/pdf/2011.03712v1"
+      },
+      "venue": "arXiv",
+      "year": 2020
+    },
+    {
+      "abstract": "Feature engineering is one of the most costly aspects of developing effective machine learning models, and that cost is even greater in specialized problem domains, like malware classification, where expert skills are necessary to identify useful features. Recent work, however, has shown that deep learning models can be used to automatically learn feature representations directly from the raw, unstructured bytes of the binaries themselves. In this paper, we explore what these models are learning about malware. To do so, we examine the learned features at multiple levels of resolution, from individual byte embeddings to end-to-end analysis of the model. At each step, we connect these byte-oriented activations to their original semantics through parsing and disassembly of the binary to arrive at human-understandable features. Through our results, we identify several interesting features learned by the model and their connection to manually-derived features typically used by traditional machine learning models. Additionally, we explore the impact of training data volume and regularization on the quality of the learned features and the efficacy of the classifiers, revealing the somewhat paradoxical insight that better generalization does not necessarily result in better performance for byte-based malware classifiers.",
+      "authors": [
+        "Scott E. Coull",
+        "Christopher Gardner"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1903.04717",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Activation Analysis of a Byte-Based Deep Neural Network for Malware Classification",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1903.04717v2",
+        "pdf": "https://arxiv.org/pdf/1903.04717v2"
+      },
+      "venue": "2nd Deep Learning and Security Workshop (DLS 2019)",
+      "year": 2019
+    },
+    {
+      "abstract": "Inverse problems are ubiquitous in nature, arising in almost all areas of science and engineering ranging from geophysics and climate science to astrophysics and biomechanics. One of the central challenges in solving inverse problems is tackling their ill-posed nature. Bayesian inference provides a principled approach for overcoming this by formulating the inverse problem into a statistical framework. However, it is challenging to apply when inferring fields that have discrete representations of large dimensions (the so-called \"curse of dimensionality\") and/or when prior information is available only in the form of previously acquired solutions. In this work, we present a novel method for efficient and accurate Bayesian inversion using deep generative models. Specifically, we demonstrate how using the approximate distribution learned by a Generative Adversarial Network (GAN) as a prior in a Bayesian update and reformulating the resulting inference problem in the low-dimensional latent space of the GAN, enables the efficient solution of large-scale Bayesian inverse problems. Our statistical framework preserves the underlying physics and is demonstrated to yield accurate results with reliable uncertainty estimates, even in the absence of information about underlying noise model, which is a significant challenge with many existing methods. We demonstrate the effectiveness of proposed method on a variety of inverse problems which include both synthetic as well as experimentally observed data.",
+      "authors": [
+        "Dhruv V Patel",
+        "Deep Ray",
+        "Assad A Oberai"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2107.02926",
+        "doi": "10.1016/j.cma.2022.115428",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Solution of Physics-based Bayesian Inverse Problems with Deep Generative Priors",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2107.02926v2",
+        "pdf": "https://arxiv.org/pdf/2107.02926v2"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "Uncertainty estimation (UE) techniques -- such as the Gaussian process (GP), Bayesian neural networks (BNN), Monte Carlo dropout (MCDropout) -- aim to improve the interpretability of machine learning models by assigning an estimated uncertainty value to each of their prediction outputs. However, since too high uncertainty estimates can have fatal consequences in practice, this paper analyzes the above techniques. Firstly, we show that GP methods always yield high uncertainty estimates on out of distribution (OOD) data. Secondly, we show on a 2D toy example that both BNNs and MCDropout do not give high uncertainty estimates on OOD samples. Finally, we show empirically that this pitfall of BNNs and MCDropout holds on real world datasets as well. Our insights (i) raise awareness for the more cautious use of currently popular UE methods in Deep Learning, (ii) encourage the development of UE methods that approximate GP-based methods -- instead of BNNs and MCDropout, and (iii) our empirical setups can be used for verifying the OOD performances of any other UE method. The source code is available at https://github.com/epfml/uncertainity-estimation.",
+      "authors": [
+        "Yehao Liu",
+        "Matteo Pagliardini",
+        "Tatjana Chavdarova",
+        "Sebastian U. Stich"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2112.05000",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Peril of Popular Deep Learning Uncertainty Estimation Methods",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2112.05000v1",
+        "pdf": "https://arxiv.org/pdf/2112.05000v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:17:00.467865+00:00",
+  "recorded_latency_seconds": 1.436110540991649,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

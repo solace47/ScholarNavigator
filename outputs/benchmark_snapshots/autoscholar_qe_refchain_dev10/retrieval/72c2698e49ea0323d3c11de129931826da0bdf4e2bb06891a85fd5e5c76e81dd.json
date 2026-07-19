@@ -1,0 +1,574 @@
+{
+  "adapted_query": "all:Any resources providing information attempts detect calibrate biases automatically peer reviews survey review",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "e80cdec84e3577e98247c9ac018f627d5ed51933c673e2ea067b2317980edc1a",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 3.7733350000344217,
+    "rate_limit_wait_seconds": 1.5810305408667773,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "72c2698e49ea0323d3c11de129931826da0bdf4e2bb06891a85fd5e5c76e81dd",
+  "limit": 20,
+  "normalized_query": "all:Any resources providing information attempts detect calibrate biases automatically peer reviews survey review",
+  "papers": [
+    {
+      "abstract": "Peer assessment has established itself as a critical pedagogical tool in academic settings, offering students timely, high-quality feedback to enhance learning outcomes. However, the efficacy of this approach depends on two factors: (1) the strategic allocation of reviewers and (2) the number of reviews per artifact. This paper presents a systematic literature review of 87 studies (2010--2024) to investigate how reviewer-assignment strategies and the number of reviews per submission impact the accuracy, fairness, and educational value of peer assessment. We identified four common reviewer-assignment strategies: random assignment, competency-based assignment, social-network-based assignment, and bidding. Drawing from both quantitative data and qualitative insights, we explored the trade-offs involved in each approach. Random assignment, while widely used, often results in inconsistent grading and fairness concerns. Competency-based strategies can address these issues. Meanwhile, social and bidding-based methods have the potential to improve fairness and timeliness -- existing empirical evidence is limited. In terms of review count, assigning three reviews per submission emerges as the most common practice. A range of three to five reviews per student or per submission is frequently cited as a recommended spot that balances grading accuracy, student workload, learning outcomes, and engagement.",
+      "authors": [
+        "Uchswas Paul",
+        "Shail Shah",
+        "Sri Vaishnavi Mylavarapu",
+        "M. Parvez Rashid",
+        "Edward Gehringer"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2508.11678",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Optimizing Peer Grading: A Systematic Literature Review of Reviewer Assignment Strategies and Quantity of Reviewers",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2508.11678v2",
+        "pdf": "https://arxiv.org/pdf/2508.11678v2"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "A semi-supervised model of peer review is introduced that is intended to overcome the bias and incompleteness of traditional peer review. Traditional approaches are reliant on human biases, while consensus decision-making is constrained by sparse information. Here, the architecture for one potential improvement (a semi-supervised, human-assisted classifier) to the traditional approach will be introduced and evaluated. To evaluate the potential advantages of such a system, hypothetical receiver operating characteristic (ROC) curves for both approaches will be assessed. This will provide more specific indications of how automation would be beneficial in the manuscript evaluation process. In conclusion, the implications for such a system on measurements of scientific impact and improving the quality of open submission repositories will be discussed.",
+      "authors": [
+        "Bradly Alicea"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1311.2504",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A Semi-automated Peer-review System",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1311.2504v1",
+        "pdf": "https://arxiv.org/pdf/1311.2504v1"
+      },
+      "venue": "arXiv",
+      "year": 2013
+    },
+    {
+      "abstract": "An increasing number of scientific publications are created in open and transparent peer review models: a submission is published first, and then reviewers are invited, or a submission is reviewed in a closed environment but then these reviews are published with the final article, or combinations of these. Reasons for open peer review include giving better credit to reviewers and enabling readers to better appraise the quality of a publication. In most cases, the full, unstructured text of an open review is published next to the full, unstructured text of the article reviewed. This approach prevents human readers from getting a quick impression of the quality of parts of an article, and it does not easily support secondary exploitation, e.g., for scientometrics on reviews. While document formats have been proposed for publishing structured articles including reviews, integrated tool support for entire open peer review workflows resulting in such documents is still scarce. We present AR-Annotator, the Automatic Article and Review Annotator which employs a semantic information model of an article and its reviews, using semantic markup and unique identifiers for all entities of interest. The fine-grained article structure is not only exposed to authors and reviewers but also preserved in the published version. We publish articles and their reviews in a Linked Data representation and thus maximize their reusability by third-party applications. We demonstrate this reusability by running quality-related queries against the structured representation of articles and their reviews.",
+      "authors": [
+        "Afshin Sadeghi",
+        "Sarven Capadisli",
+        "Johannes Wilm",
+        "Christoph Lange",
+        "Philipp Mayr"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1812.01027",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Automatically Annotating Articles Towards Opening and Reusing Transparent Peer Reviews",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1812.01027v1",
+        "pdf": "https://arxiv.org/pdf/1812.01027v1"
+      },
+      "venue": "arXiv",
+      "year": 2018
+    },
+    {
+      "abstract": "Reviewers in peer review are often miscalibrated: they may be strict, lenient, extreme, moderate, etc. A number of algorithms have previously been proposed to calibrate reviews. Such attempts of calibration can however leak sensitive information about which reviewer reviewed which paper. In this paper, we identify this problem of calibration with privacy, and provide a foundational building block to address it. Specifically, we present a theoretical study of this problem under a simplified-yet-challenging model involving two reviewers, two papers, and an MAP-computing adversary. Our main results establish the Pareto frontier of the tradeoff between privacy (preventing the adversary from inferring reviewer identity) and utility (accepting better papers), and design explicit computationally-efficient algorithms that we prove are Pareto optimal.",
+      "authors": [
+        "Wenxin Ding",
+        "Gautam Kamath",
+        "Weina Wang",
+        "Nihar B. Shah"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2201.11308",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Calibration with Privacy in Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2201.11308v1",
+        "pdf": "https://arxiv.org/pdf/2201.11308v1"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "In response to the challenges presented by high reviewer workloads in traditional panel reviews and increasing numbers of submitted proposals, ALMA implemented distributed peer review to assess the majority of proposals submitted to the Cycle 8 Main Call. In this paper, we present an analysis of this review process. Over 1000 reviewers participated in the process to review 1497 proposals, making it the largest implementation of distributed peer review to date in astronomy, and marking the first time this process has been used to award the majority of observing time at an observatory. We describe the process to assign proposals to reviewers, analyze the nearly 15,000 ranks and comments submitted by reviewers to identify any trends and systematics, and gather feedback on the process from reviewers and Principal Investigators (PIs) through surveys. Approximately 90% of the proposal assignments were aligned with the expertise of the reviewer, as measured both by the expertise keywords provided by the reviewers and the reviewers' self-assessment of their expertise on their assigned proposals. PIs rated 73% of the individual review comments as helpful, and even though the reviewers had a broad range of experience levels, PIs rated the quality of the comments received from students and senior researchers similarly. The primary concerns raised by PIs were the quality of some reviewer comments and high dispersions in the ranks. The ranks and comments are correlated with various demographics to identify the main areas in which the review process can be improved in future cycles.",
+      "authors": [
+        "Jennifer Donovan Meyer",
+        "Andrea Corvillón",
+        "John M. Carpenter",
+        "Adele L. Plunkett",
+        "Robert Kurowski",
+        "Alex Chalevin",
+        "Jakob Bruenker",
+        "D. -C. Kim",
+        "Enrique Macías"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2204.05390",
+        "doi": "10.3847/25c2cfeb.4ece85d4",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Analysis of the ALMA Cycle 8 Distributed Peer Review Process",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2204.05390v2",
+        "pdf": "https://arxiv.org/pdf/2204.05390v2"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "Photons have been a flagship system for studying quantum mechanics, advancing quantum information science, and developing quantum technologies. Quantum entanglement, teleportation, quantum key distribution and early quantum computing demonstrations were pioneered in this technology because photons represent a naturally mobile and low-noise system with quantum-limited detection readily available. The quantum states of individual photons can be manipulated with very high precision using interferometry, an experimental staple that has been under continuous development since the 19th century. The complexity of photonic quantum computing device and protocol realizations has raced ahead as both underlying technologies and theoretical schemes have continued to develop. Today, photonic quantum computing represents an exciting path to medium- and large-scale processing. It promises to out aside its reputation for requiring excessive resource overheads due to inefficient two-qubit gates. Instead, the ability to generate large numbers of photons---and the development of integrated platforms, improved sources and detectors, novel noise-tolerant theoretical approaches, and more---have solidified it as a leading contender for both quantum information processing and quantum networking. Our concise review provides a flyover of some key aspects of the field, with a focus on experiment. Apart from being a short and accessible introduction, its many references to in-depth articles and longer specialist reviews serve as a launching point for deeper study of the field.",
+      "authors": [
+        "Sergei Slussarenko",
+        "Geoff J. Pryde"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1907.06331",
+        "doi": "10.1063/1.5115814",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Photonic quantum information processing: a concise review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1907.06331v2",
+        "pdf": "https://arxiv.org/pdf/1907.06331v2"
+      },
+      "venue": "Applied Physics Reviews 6, 041303 (2019)",
+      "year": 2019
+    },
+    {
+      "abstract": "Peer Assessment is a task of analysis and commenting on student's writing by peers, is core of all educational components both in campus and in MOOC's. However, with the sheer scale of MOOC's & its inherent personalised open ended learning, automatic grading and tools assisting grading at scale is highly important. Previously we presented survey on tasks of post classification, knowledge tracing and ended with brief review on Peer Assessment (PA), with some initial problems. In this review we shall continue review on PA from perspective of improving the review process itself. As such rest of this review focus on three facets of PA namely Auto grading and Peer Assessment Tools (we shall look only on how peer reviews/auto-grading is carried), strategies to handle Rogue Reviews, Peer Review Improvement using Natural Language Processing. The consolidated set of papers and resources so used are released in https://github.com/manikandan-ravikiran/cs6460-Survey-2.",
+      "authors": [
+        "Manikandan Ravikiran"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2001.10617",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Systematic Review of Approaches to Improve Peer Assessment at Scale",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2001.10617v1",
+        "pdf": "https://arxiv.org/pdf/2001.10617v1"
+      },
+      "venue": "arXiv",
+      "year": 2020
+    },
+    {
+      "abstract": "Peer-review is a necessary and essential quality control step for scientific publications but lacks proper incentives. Indeed, the process, which is very costly in terms of time and intellectual investment, not only is not remunerated by the journals but is also not openly recognized by the academic community as a relevant scientific output for a researcher. Therefore, scientific dissemination is affected in timeliness, quality, and fairness. Here, to solve this issue, we propose a blockchain-based incentive system that rewards scientists for peer-reviewing other scientists' work and that builds up trust and reputation. We designed a privacy-oriented protocol of smart contracts called Ants-Review that allows authors to issue a bounty for open anonymous peer-reviews on Ethereum. If requirements are met, peer-reviews will be accepted and paid by the approver proportionally to their assessed quality. To promote ethical behavior and inclusiveness the system implements a gamified mechanism that allows the whole community to evaluate the peer-reviews and vote for the best ones.",
+      "authors": [
+        "Bianca Trovò",
+        "Nazzareno Massari"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2101.09378",
+        "doi": "10.1007/978-3-030-71593-9_2",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Ants-Review: a Protocol for Incentivized Open Peer-Reviews on Ethereum",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2101.09378v1",
+        "pdf": "https://arxiv.org/pdf/2101.09378v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "We consider the issue of biases in scholarly research, specifically, in peer review. There is a long standing debate on whether exposing author identities to reviewers induces biases against certain groups, and our focus is on designing tests to detect the presence of such biases. Our starting point is a remarkable recent work by Tomkins, Zhang and Heavlin which conducted a controlled, large-scale experiment to investigate existence of biases in the peer reviewing of the WSDM conference. We present two sets of results in this paper. The first set of results is negative, and pertains to the statistical tests and the experimental setup used in the work of Tomkins et al. We show that the test employed therein does not guarantee control over false alarm probability and under correlations between relevant variables coupled with any of the following conditions, with high probability, can declare a presence of bias when it is in fact absent: (a) measurement error, (b) model mismatch, (c) reviewer calibration. Moreover, we show that the setup of their experiment may itself inflate false alarm probability if (d) bidding is performed in non-blind manner or (e) popular reviewer assignment procedure is employed. Our second set of results is positive and is built around a novel approach to testing for biases that we propose. We present a general framework for testing for biases in (single vs. double blind) peer review. We then design hypothesis tests that under minimal assumptions guarantee control over false alarm probability and non-trivial power even under conditions (a)--(c) as well as propose an alternative experimental setup which mitigates issues (d) and (e). Finally, we show that no statistical test can improve over the non-parametric tests we consider in terms of the assumptions required to control for the false alarm probability.",
+      "authors": [
+        "Ivan Stelmakh",
+        "Nihar B. Shah",
+        "Aarti Singh"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1912.13188",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "On Testing for Biases in Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1912.13188v1",
+        "pdf": "https://arxiv.org/pdf/1912.13188v1"
+      },
+      "venue": "arXiv",
+      "year": 2019
+    },
+    {
+      "abstract": "With the increasing amount of problematic peer reviews in top AI conferences, the community is urgently in need of automatic quality control measures. In this paper, we restrict our attention to substantiation -- one popular quality aspect indicating whether the claims in a review are sufficiently supported by evidence -- and provide a solution automatizing this evaluation process. To achieve this goal, we first formulate the problem as claim-evidence pair extraction in scientific peer reviews, and collect SubstanReview, the first annotated dataset for this task. SubstanReview consists of 550 reviews from NLP conferences annotated by domain experts. On the basis of this dataset, we train an argument mining system to automatically analyze the level of substantiation in peer reviews. We also perform data analysis on the SubstanReview dataset to obtain meaningful insights on peer reviewing quality in NLP conferences over recent years.",
+      "authors": [
+        "Yanzhu Guo",
+        "Guokan Shang",
+        "Virgile Rennard",
+        "Michalis Vazirgiannis",
+        "Chloé Clavel"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2311.11967",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Automatic Analysis of Substantiation in Scientific Peer Reviews",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2311.11967v1",
+        "pdf": "https://arxiv.org/pdf/2311.11967v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "Peer review is a multi-stage process involving reviews, rebuttals, meta-reviews, final decisions, and subsequent manuscript revisions. Recent advances in large language models (LLMs) have motivated methods that assist or automate different stages of this pipeline. In this survey, we synthesize techniques for (i) peer review generation, including fine-tuning strategies, agent-based systems, RL-based methods, and emerging paradigms to enhance generation; (ii) after-review tasks including rebuttals, meta-review and revision aligned to reviews; and (iii) evaluation methods spanning human-centered, reference-based, LLM-based and aspect-oriented. We catalog datasets, compare modeling choices, and discuss limitations, ethical concerns, and future directions. The survey aims to provide practical guidance for building, evaluating, and integrating LLM systems across the full peer review workflow.",
+      "authors": [
+        "Sihong Wu",
+        "Owen Jiang",
+        "Yilun Zhao",
+        "Tiansheng Hu",
+        "Yiling Ma",
+        "Kaiyan Zhang",
+        "Manasi Patwardhan",
+        "Arman Cohan"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2604.27924",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Can AI Be a Good Peer Reviewer? A Survey of Peer Review Process, Evaluation, and the Future",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2604.27924v2",
+        "pdf": "https://arxiv.org/pdf/2604.27924v2"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "This article is the rejoinder to ``The ICML 2023 Ranking Experiment: Examining Author Self-Assessment in ML/AI Peer Review,'' to appear in the Journal of the American Statistical Association with discussion. To address the practical and theoretical points raised by the discussants, we organize our response around four core themes: (i) formulating peer review as a statistical estimation problem; (ii) mitigating equity and strategic concerns in the deployment of the Isotonic Mechanism; (iii) incorporating complementary signals such as reviewer rankings and structured metadata; and (iv) exploring a human-centered framework for peer review in the era of generative AI.",
+      "authors": [
+        "Buxin Su",
+        "Jiayao Zhang",
+        "Natalie Collina",
+        "Yuling Yan",
+        "Didong Li",
+        "Kyunghyun Cho",
+        "Jianqing Fan",
+        "Aaron Roth",
+        "Weijie Su"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2605.25172",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Rejoinder: The ICML 2023 Ranking Experiment: Examining Author Self-Assessment in ML/AI Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2605.25172v1",
+        "pdf": "https://arxiv.org/pdf/2605.25172v1"
+      },
+      "venue": "arXiv",
+      "year": 2026
+    },
+    {
+      "abstract": "The peer-review process is the most widely accepted certification mechanism for officially accepting the written results of researchers within the scientific community. An essential component of peer-review is the identification of competent referees to review a submitted manuscript. This article presents an algorithm to automatically determine the most appropriate reviewers for a manuscript by way of a co-authorship network data structure and a relative-rank particle-swarm algorithm. This approach is novel in that it is not limited to a pre-selected set of referees, is computationally efficient, requires no human-intervention, and, in some instances, can automatically identify conflict of interest situations. A useful application of this algorithm would be to open commentary peer-review systems because it provides a weighting for each referee with respects to their expertise in the domain of a manuscript. The algorithm is validated using referee bid data from the 2005 Joint Conference on Digital Libraries.",
+      "authors": [
+        "Marko A. Rodriguez",
+        "Johan Bollen"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "0605112",
+        "doi": "10.1145/1458082.1458127",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "An Algorithm to Determine Peer-Reviewers",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/cs/0605112v2",
+        "pdf": "https://arxiv.org/pdf/cs/0605112v2"
+      },
+      "venue": "Conference on Information and Knowledge Management (CIKM), ACM, pages 319-328, (October 2008)",
+      "year": 2006
+    },
+    {
+      "abstract": "Peer review is a critical process for ensuring the integrity of published scientific research. Confidence in this process is predicated on the assumption that experts in the relevant domain give careful consideration to the merits of manuscripts which are submitted for publication. With the recent rapid advancements in large language models (LLMs), a new risk to the peer review process is that negligent reviewers will rely on LLMs to perform the often time consuming process of reviewing a paper. However, there is a lack of existing resources for benchmarking the detectability of AI text in the domain of peer review. To address this deficiency, we introduce a comprehensive dataset containing a total of 788,984 AI-written peer reviews paired with corresponding human reviews, covering 8 years of papers submitted to each of two leading AI research conferences (ICLR and NeurIPS). We use this new resource to evaluate the ability of 18 existing AI text detection algorithms to distinguish between peer reviews fully written by humans and different state-of-the-art LLMs. Additionally, we explore a context-aware detection method called Anchor, which leverages manuscript content to detect AI-generated reviews, and analyze the sensitivity of detection models to LLM-assisted editing of human-written text. Our work reveals the difficulty of identifying AI-generated text at the individual peer review level, highlighting the urgent need for new tools and methods to detect this unethical use of generative AI. Our dataset is publicly available at: https://huggingface.co/datasets/IntelLabs/AI-Peer-Review-Detection-Benchmark.",
+      "authors": [
+        "Sungduk Yu",
+        "Man Luo",
+        "Avinash Madasu",
+        "Vasudev Lal",
+        "Phillip Howard"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2502.19614",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Is Your Paper Being Reviewed by an LLM? Benchmarking AI Text Detection in Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2502.19614v3",
+        "pdf": "https://arxiv.org/pdf/2502.19614v3"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "Peer review constitutes a core component of scholarly publishing; yet it demands substantial expertise and training, and is susceptible to errors and biases. Various applications of NLP for peer reviewing assistance aim to support reviewers in this complex process, but the lack of clearly licensed datasets and multi-domain corpora prevent the systematic study of NLP for peer review. To remedy this, we introduce NLPeer -- the first ethically sourced multidomain corpus of more than 5k papers and 11k review reports from five different venues. In addition to the new datasets of paper drafts, camera-ready versions and peer reviews from the NLP community, we establish a unified data representation and augment previous peer review datasets to include parsed and structured paper representations, rich metadata and versioning information. We complement our resource with implementations and analysis of three reviewing assistance tasks, including a novel guided skimming task. Our work paves the path towards systematic, multi-faceted, evidence-based study of peer review in NLP and beyond. The data and code are publicly available.",
+      "authors": [
+        "Nils Dycke",
+        "Ilia Kuznetsov",
+        "Iryna Gurevych"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2211.06651",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "NLPeer: A Unified Resource for the Computational Study of Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2211.06651v2",
+        "pdf": "https://arxiv.org/pdf/2211.06651v2"
+      },
+      "venue": "arXiv",
+      "year": 2022
+    },
+    {
+      "abstract": "Peer review systems such as conference paper review often suffer from the issue of miscalibration. Previous works on peer review calibration usually only use the ordinal information or assume simplistic reviewer scoring functions such as linear functions. In practice, applications like academic conferences often rely on manual methods, such as open discussions, to mitigate miscalibration. It remains an important question to develop algorithms that can handle different types of miscalibrations based on available prior knowledge. In this paper, we propose a flexible framework, namely least square calibration (LSC), for selecting top candidates from peer ratings. Our framework provably performs perfect calibration from noiseless linear scoring functions under mild assumptions, yet also provides competitive calibration results when the scoring function is from broader classes beyond linear functions and with arbitrary noise. On our synthetic dataset, we empirically demonstrate that our algorithm consistently outperforms the baseline which select top papers based on the highest average ratings.",
+      "authors": [
+        "Sijun Tan",
+        "Jibang Wu",
+        "Xiaohui Bei",
+        "Haifeng Xu"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2110.12607",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Least Square Calibration for Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2110.12607v1",
+        "pdf": "https://arxiv.org/pdf/2110.12607v1"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "We review recent developments in Jackiw-Teitelboim (JT) gravity. This is a simple solvable model of quantum gravity in two dimensions (that arises e.g. from the s-wave sector of higher dimensional gravity systems with spherical symmetry). Due to its solvability, it has proven to be a fruitful toy model to analyze important questions such as the relation between black holes and chaos, the role of wormholes in black hole physics and holography, and the way in which information that falls into a black hole can be recovered.",
+      "authors": [
+        "Thomas G. Mertens",
+        "Gustavo J. Turiaci"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2210.10846",
+        "doi": "10.1007/s41114-023-00046-1",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Solvable Models of Quantum Black Holes: A Review on Jackiw-Teitelboim Gravity",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2210.10846v2",
+        "pdf": "https://arxiv.org/pdf/2210.10846v2"
+      },
+      "venue": "Living Reviews in Relativity 26, 4 (2023)",
+      "year": 2022
+    },
+    {
+      "abstract": "Peer review lies at the core of the academic process, but even well-intentioned reviewers can still provide noisy ratings. While ranking papers by average ratings may reduce noise, varying noise levels and systematic biases stemming from ``cheap'' signals (e.g. author identity, proof length) can lead to unfairness. Detecting and correcting bias is challenging, as ratings are subjective and unverifiable. Unlike previous works relying on prior knowledge or historical data, we propose a one-shot noise calibration process without any prior information. We ask reviewers to predict others' scores and use these predictions for calibration. Assuming reviewers adjust their predictions according to the noise, we demonstrate that the calibrated score results in a more robust ranking compared to average ratings, even with varying noise levels and biases. In detail, we show that the error probability of the calibrated score approaches zero as the number of reviewers increases and is significantly lower compared to average ratings when the number of reviewers is small.",
+      "authors": [
+        "Yuxuan Lu",
+        "Yuqing Kong"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2312.07269",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Calibrating \"Cheap Signals\" in Peer Review without a Prior",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2312.07269v1",
+        "pdf": "https://arxiv.org/pdf/2312.07269v1"
+      },
+      "venue": "arXiv",
+      "year": 2023
+    },
+    {
+      "abstract": "We propose an aspect-guided, multi-level perturbation framework to evaluate the robustness of Large Language Models (LLMs) in automated peer review. Our framework explores perturbations in three key components of the peer review process-papers, reviews, and rebuttals-across several quality aspects, including contribution, soundness, presentation, tone, and completeness. By applying targeted perturbations and examining their effects on both LLM-as-Reviewer and LLM-as-Meta-Reviewer, we investigate how aspect-based manipulations, such as omitting methodological details from papers or altering reviewer conclusions, can introduce significant biases in the review process. We identify several potential vulnerabilities: review conclusions that recommend a strong reject may significantly influence meta-reviews, negative or misleading reviews may be wrongly interpreted as thorough, and incomplete or hostile rebuttals can unexpectedly lead to higher acceptance rates. Statistical tests show that these biases persist under various Chain-of-Thought prompting strategies, highlighting the lack of robust critical evaluation in current LLMs. Our framework offers a practical methodology for diagnosing these vulnerabilities, thereby contributing to the development of more reliable and robust automated reviewing systems.",
+      "authors": [
+        "Jiatao Li",
+        "Yanheng Li",
+        "Xinyu Hu",
+        "Mingqi Gao",
+        "Xiaojun Wan"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2502.12510",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Aspect-Guided Multi-Level Perturbation Analysis of Large Language Models in Automated Peer Review",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2502.12510v1",
+        "pdf": "https://arxiv.org/pdf/2502.12510v1"
+      },
+      "venue": "arXiv",
+      "year": 2025
+    },
+    {
+      "abstract": "Large Language Models (LLMs) have demonstrated wide-ranging applications across various fields and have shown significant potential in the academic peer-review process. However, existing applications are primarily limited to static review generation based on submitted papers, which fail to capture the dynamic and iterative nature of real-world peer reviews. In this paper, we reformulate the peer-review process as a multi-turn, long-context dialogue, incorporating distinct roles for authors, reviewers, and decision makers. We construct a comprehensive dataset containing over 26,841 papers with 92,017 reviews collected from multiple sources, including the top-tier conference and prestigious journal. This dataset is meticulously designed to facilitate the applications of LLMs for multi-turn dialogues, effectively simulating the complete peer-review process. Furthermore, we propose a series of metrics to evaluate the performance of LLMs for each role under this reformulated peer-review setting, ensuring fair and comprehensive evaluations. We believe this work provides a promising perspective on enhancing the LLM-driven peer-review process by incorporating dynamic, role-based interactions. It aligns closely with the iterative and interactive nature of real-world academic peer review, offering a robust foundation for future research and development in this area. We open-source the dataset at https://github.com/chengtan9907/ReviewMT.",
+      "authors": [
+        "Cheng Tan",
+        "Dongxin Lyu",
+        "Siyuan Li",
+        "Zhangyang Gao",
+        "Jingxuan Wei",
+        "Siqi Ma",
+        "Zicheng Liu",
+        "Stan Z. Li"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2406.05688",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Peer Review as A Multi-Turn and Long-Context Dialogue with Role-Based Interactions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2406.05688v1",
+        "pdf": "https://arxiv.org/pdf/2406.05688v1"
+      },
+      "venue": "arXiv",
+      "year": 2024
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:13:46.738380+00:00",
+  "recorded_latency_seconds": 3.7734140830580145,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

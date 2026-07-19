@@ -64,6 +64,25 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 
 每次运行独立写入 `config.json`、`dataset_report.json`、`results.jsonl`、`metrics.json`、`failures.jsonl` 和 `summary.md`。`--resume` 跳过成功案例、重试失败案例，并在配置签名一致时重新汇总全部结果。
 
+真实响应快照支持 `live`、`record`、`replay` 和 `record-missing` 四种模式。首次采集用 `record`，后续组用 `record-missing` 补齐新键；`--retry-failed-snapshots` 仅重试已记录的最终失败。Replay 缺键、Schema 不兼容或内容哈希不一致时失败，不访问外网：
+
+```bash
+PYTHONPATH=src python scripts/run_benchmark.py \
+  --dataset auto_scholar_query --offset 0 --limit 10 \
+  --sources arxiv,openalex --query-adapter-policy adaptive \
+  --run-profile balanced --top-k 20 --max-workers 1 \
+  --retrieval-mode replay \
+  --snapshot-dir outputs/benchmark_snapshots/autoscholar_qe_refchain_dev10 \
+  --run-id qe_refchain_replay_baseline --diagnostics
+
+PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
+  --snapshot-dir outputs/benchmark_snapshots/autoscholar_qe_refchain_dev10
+```
+
+`cost_report` 在 Replay 中只表示本次执行成本，HTTP、重试和网络等待均为 0；`snapshot_cost_report` 与 `metrics.json.snapshot_costs` 另列快照所记录的 live 请求、重试、错误、限流等待和延迟。两套数字不得混加或把记录成本描述为 Replay 实际成本。
+
+2026-07-20 按固定开发集前 10 条采集 baseline：写入 30 个检索条目，其中 27 个成功、3 个最终失败。OpenAlex 6 次请求均未成功并持续出现 TLS timeout/HTTP 429，按保护条件停止其余三组。baseline 经记录延迟驱动同一预算路径后完成离线验证：10/10 case 成功、29 次快照命中、缺键 0，实际 HTTP、重试和网络等待均为 0；端到端 F1@5/10/20 为 0.0222/0.0143/0.0179。其余三组没有完整快照，比较结果标记为 `incomplete`，不能据此判断模块收益。
+
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。
 
 固定开发诊断使用 AutoScholarQuery 原始顺序前 10 条、`top_k=20`、关闭 LLM，并统一使用两轮、150 候选和 90 秒预算。当前完成了 arXiv-only 与三源 baseline；后者受到 Semantic Scholar 429、OpenAlex 400/超时影响，来源错误率为 0.402。Query Evolution 配置启动后仍持续失败，已按公共服务保护要求中止；RefChain 和 full 配置未运行，不生成替代结果。

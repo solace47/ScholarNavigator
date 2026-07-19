@@ -1,0 +1,587 @@
+{
+  "adapted_query": "all:What are foundation models Natural Language Processing NLP field machine learning deep learning",
+  "adapter_policy": "adaptive",
+  "connector_version": "search-v1",
+  "content_hash": "05ce539364eb03d644279e145370486cc2cab767eef525383cd747044782b48e",
+  "diagnostics": {
+    "cache_hit_count": 0,
+    "error_count": 0,
+    "latency_seconds": 1.6160952090285718,
+    "rate_limit_wait_seconds": 0.16766533418558538,
+    "request_count": 1,
+    "retry_count": 0
+  },
+  "error_message": null,
+  "key": "4186dd17665cfb09f74d3c9428b931f5f09b6adc4a88bb6e94f47bf9104f4c38",
+  "limit": 20,
+  "normalized_query": "all:What are foundation models Natural Language Processing NLP field machine learning deep learning",
+  "papers": [
+    {
+      "abstract": "Data science has become increasingly essential for the production of official statistics, as it enables the automated collection, processing, and analysis of large amounts of data. With such data science practices in place, it enables more timely, more insightful and more flexible reporting. However, the quality and integrity of data-science-driven statistics rely on the accuracy and reliability of the data sources and the machine learning techniques that support them. In particular, changes in data sources are inevitable to occur and pose significant risks that are crucial to address in the context of machine learning for official statistics. This paper gives an overview of the main risks, liabilities, and uncertainties associated with changing data sources in the context of machine learning for official statistics. We provide a checklist of the most prevalent origins and causes of changing data sources; not only on a technical level but also regarding ownership, ethics, regulation, and public perception. Next, we highlight the repercussions of changing data sources on statistical reporting. These include technical effects such as concept drift, bias, availability, validity, accuracy and completeness, but also the neutrality and potential discontinuation of the statistical offering. We offer a few important precautionary measures, such as enhancing robustness in both data sourcing and statistical techniques, and thorough monitoring. In doing so, machine learning-based official statistics can maintain integrity, reliability, consistency, and relevance in policy-making, decision-making, and public discourse.",
+      "authors": [
+        "Cedric De Boom",
+        "Michael Reusens"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2306.04338",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Changing Data Sources in the Age of Machine Learning for Official Statistics",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2306.04338v1",
+        "pdf": "https://arxiv.org/pdf/2306.04338v1"
+      },
+      "venue": "UNECE Machine Learning for Official Statistics Workshop 2023",
+      "year": 2023
+    },
+    {
+      "abstract": "Modern biology frequently relies on machine learning to provide predictions and improve decision processes. There have been recent calls for more scrutiny on machine learning performance and possible limitations. Here we present a set of community-wide recommendations aiming to help establish standards of supervised machine learning validation in biology. Adopting a structured methods description for machine learning based on data, optimization, model, evaluation (DOME) will aim to help both reviewers and readers to better understand and assess the performance and limitations of a method or outcome. The recommendations are formulated as questions to anyone wishing to pursue implementation of a machine learning algorithm. Answers to these questions can be easily included in the supplementary material of published papers.",
+      "authors": [
+        "Ian Walsh",
+        "Dmytro Fishman",
+        "Dario Garcia-Gasulla",
+        "Tiina Titma",
+        "Gianluca Pollastri",
+        "The ELIXIR Machine Learning focus group",
+        "Jen Harrow",
+        "Fotis E. Psomopoulos",
+        "Silvio C. E. Tosatto"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2006.16189",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "DOME: Recommendations for supervised machine learning validation in biology",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2006.16189v4",
+        "pdf": "https://arxiv.org/pdf/2006.16189v4"
+      },
+      "venue": "arXiv",
+      "year": 2020
+    },
+    {
+      "abstract": "Natural language processing (NLP) can be done using either top-down (theory driven) and bottom-up (data driven) approaches, which we call mechanistic and phenomenological respectively. The approaches are frequently considered to stand in opposition to each other. Examining some recent approaches in deep learning we argue that deep neural networks incorporate both perspectives and, furthermore, that leveraging this aspect of deep learning may help in solving complex problems within language technology, such as modelling language and perception in the domain of spatial cognition.",
+      "authors": [
+        "Simon Dobnik",
+        "John D. Kelleher"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1807.09844",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Modular Mechanistic Networks: On Bridging Mechanistic and Phenomenological Models with Deep Neural Networks in Natural Language Processing",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1807.09844v2",
+        "pdf": "https://arxiv.org/pdf/1807.09844v2"
+      },
+      "venue": "CLASP Papers in Computational Linguistics Vol. 1: Proceedings of the Conference on Logic and Machine Learning in Natural Language (LaML 2017). ISSN: 2002-9764. URI: http://hdl.handle.net/2077/54911",
+      "year": 2018
+    },
+    {
+      "abstract": "We describe the new field of mathematical analysis of deep learning. This field emerged around a list of research questions that were not answered within the classical framework of learning theory. These questions concern: the outstanding generalization power of overparametrized neural networks, the role of depth in deep architectures, the apparent absence of the curse of dimensionality, the surprisingly successful optimization performance despite the non-convexity of the problem, understanding what features are learned, why deep architectures perform exceptionally well in physical problems, and which fine aspects of an architecture affect the behavior of a learning task in which way. We present an overview of modern approaches that yield partial answers to these questions. For selected approaches, we describe the main ideas in more detail.",
+      "authors": [
+        "Julius Berner",
+        "Philipp Grohs",
+        "Gitta Kutyniok",
+        "Philipp Petersen"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2105.04026",
+        "doi": "10.1017/9781009025096.002",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "The Modern Mathematics of Deep Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2105.04026v2",
+        "pdf": "https://arxiv.org/pdf/2105.04026v2"
+      },
+      "venue": "Mathematical Aspects of Deep Learning, pp. 1-111. Cambridge University Press, 2022",
+      "year": 2021
+    },
+    {
+      "abstract": "Online active learning is a paradigm in machine learning that aims to select the most informative data points to label from a data stream. The problem of minimizing the cost associated with collecting labeled observations has gained a lot of attention in recent years, particularly in real-world applications where data is only available in an unlabeled form. Annotating each observation can be time-consuming and costly, making it difficult to obtain large amounts of labeled data. To overcome this issue, many active learning strategies have been proposed in the last decades, aiming to select the most informative observations for labeling in order to improve the performance of machine learning models. These approaches can be broadly divided into two categories: static pool-based and stream-based active learning. Pool-based active learning involves selecting a subset of observations from a closed pool of unlabeled data, and it has been the focus of many surveys and literature reviews. However, the growing availability of data streams has led to an increase in the number of approaches that focus on online active learning, which involves continuously selecting and labeling observations as they arrive in a stream. This work aims to provide an overview of the most recently proposed approaches for selecting the most informative observations from data streams in real time. We review the various techniques that have been proposed and discuss their strengths and limitations, as well as the challenges and opportunities that exist in this area of research.",
+      "authors": [
+        "Davide Cacciarelli",
+        "Murat Kulahci"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2302.08893",
+        "doi": "10.1007/s10994-023-06454-2",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Active learning for data streams: a survey",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2302.08893v4",
+        "pdf": "https://arxiv.org/pdf/2302.08893v4"
+      },
+      "venue": "Machine Learning (2023): 1-55",
+      "year": 2023
+    },
+    {
+      "abstract": "This article provides the first survey of computational models of emotion in reinforcement learning (RL) agents. The survey focuses on agent/robot emotions, and mostly ignores human user emotions. Emotions are recognized as functional in decision-making by influencing motivation and action selection. Therefore, computational emotion models are usually grounded in the agent's decision making architecture, of which RL is an important subclass. Studying emotions in RL-based agents is useful for three research fields. For machine learning (ML) researchers, emotion models may improve learning efficiency. For the interactive ML and human-robot interaction (HRI) community, emotions can communicate state and enhance user investment. Lastly, it allows affective modelling (AM) researchers to investigate their emotion theories in a successful AI agent class. This survey provides background on emotion theory and RL. It systematically addresses 1) from what underlying dimensions (e.g., homeostasis, appraisal) emotions can be derived and how these can be modelled in RL-agents, 2) what types of emotions have been derived from these dimensions, and 3) how these emotions may either influence the learning efficiency of the agent or be useful as social signals. We also systematically compare evaluation criteria, and draw connections to important RL sub-domains like (intrinsic) motivation and model-based RL. In short, this survey provides both a practical overview for engineers wanting to implement emotions in their RL agents, and identifies challenges and directions for future emotion-RL research.",
+      "authors": [
+        "Thomas M. Moerland",
+        "Joost Broekens",
+        "Catholijn M. Jonker"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1705.05172",
+        "doi": "10.1007/s10994-017-5666-0",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Emotion in Reinforcement Learning Agents and Robots: A Survey",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1705.05172v1",
+        "pdf": "https://arxiv.org/pdf/1705.05172v1"
+      },
+      "venue": "Machine Learning 2017",
+      "year": 2017
+    },
+    {
+      "abstract": "Learning curves are a concept from social sciences that has been adopted in the context of machine learning to assess the performance of a learning algorithm with respect to a certain resource, e.g., the number of training examples or the number of training iterations. Learning curves have important applications in several machine learning contexts, most notably in data acquisition, early stopping of model training, and model selection. For instance, learning curves can be used to model the performance of the combination of an algorithm and its hyperparameter configuration, providing insights into their potential suitability at an early stage and often expediting the algorithm selection process. Various learning curve models have been proposed to use learning curves for decision making. Some of these models answer the binary decision question of whether a given algorithm at a certain budget will outperform a certain reference performance, whereas more complex models predict the entire learning curve of an algorithm. We contribute a framework that categorises learning curve approaches using three criteria: the decision-making situation they address, the intrinsic learning curve question they answer and the type of resources they use. We survey papers from the literature and classify them into this framework.",
+      "authors": [
+        "Felix Mohr",
+        "Jan N. van Rijn"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2201.12150",
+        "doi": "10.1007/s10994-024-06619-7",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Learning Curves for Decision Making in Supervised Machine Learning: A Survey",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2201.12150v2",
+        "pdf": "https://arxiv.org/pdf/2201.12150v2"
+      },
+      "venue": "Machine Learning, Volume 113, pages 8371-8425 (2024)",
+      "year": 2022
+    },
+    {
+      "abstract": "The proliferation of fake news and its propagation on social media has become a major concern due to its ability to create devastating impacts. Different machine learning approaches have been suggested to detect fake news. However, most of those focused on a specific type of news (such as political) which leads us to the question of dataset-bias of the models used. In this research, we conducted a benchmark study to assess the performance of different applicable machine learning approaches on three different datasets where we accumulated the largest and most diversified one. We explored a number of advanced pre-trained language models for fake news detection along with the traditional and deep learning ones and compared their performances from different aspects for the first time to the best of our knowledge. We find that BERT and similar pre-trained models perform the best for fake news detection, especially with very small dataset. Hence, these models are significantly better option for languages with limited electronic contents, i.e., training data. We also carried out several analysis based on the models' performance, article's topic, article's length, and discussed different lessons learned from them. We believe that this benchmark study will help the research community to explore further and news sites/blogs to select the most appropriate fake news detection method.",
+      "authors": [
+        "Junaed Younus Khan",
+        "Md. Tawkat Islam Khondaker",
+        "Sadia Afroz",
+        "Gias Uddin",
+        "Anindya Iqbal"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1905.04749",
+        "doi": "10.1016/j.mlwa.2021.100032",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "A Benchmark Study of Machine Learning Models for Online Fake News Detection",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1905.04749v2",
+        "pdf": "https://arxiv.org/pdf/1905.04749v2"
+      },
+      "venue": "Machine Learning with Applications: 4(2021).100032",
+      "year": 2019
+    },
+    {
+      "abstract": "The ability to explain decisions made by machine learning models remains one of the most significant hurdles towards widespread adoption of AI in highly sensitive areas such as medicine, cybersecurity or autonomous driving. Great interest exists in understanding which features of the input data prompt model decision making. In this contribution, we propose a novel approach to identify relevant features of the input data, inspired by methods from the energy landscapes field, developed in the physical sciences. By identifying conserved weights within groups of minima of the loss landscapes, we can identify the drivers of model decision making. Analogues to this idea exist in the molecular sciences, where coordinate invariants or order parameters are employed to identify critical features of a molecule. However, no such approach exists for machine learning loss landscapes. We will demonstrate the applicability of energy landscape methods to machine learning models and give examples, both synthetic and from the real world, for how these methods can help to make models more interpretable.",
+      "authors": [
+        "Maximilian P Niroomand",
+        "David J Wales"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2304.02381",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Physics-Inspired Interpretability Of Machine Learning Models",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2304.02381v2",
+        "pdf": "https://arxiv.org/pdf/2304.02381v2"
+      },
+      "venue": "ICLR 2023 Workshop on Physics for Machine Learning",
+      "year": 2023
+    },
+    {
+      "abstract": "While we pay attention to the latest advances in clinical natural language processing (NLP), we can notice some resistance in the clinical and translational research community to adopt NLP models due to limited transparency, interpretability, and usability. In this study, we proposed an open natural language processing development framework. We evaluated it through the implementation of NLP algorithms for the National COVID Cohort Collaborative (N3C). Based on the interests in information extraction from COVID-19 related clinical notes, our work includes 1) an open data annotation process using COVID-19 signs and symptoms as the use case, 2) a community-driven ruleset composing platform, and 3) a synthetic text data generation workflow to generate texts for information extraction tasks without involving human subjects. The corpora were derived from texts from three different institutions (Mayo Clinic, University of Kentucky, University of Minnesota). The gold standard annotations were tested with a single institution's (Mayo) ruleset. This resulted in performances of 0.876, 0.706, and 0.694 in F-scores for Mayo, Minnesota, and Kentucky test datasets, respectively. The study as a consortium effort of the N3C NLP subgroup demonstrates the feasibility of creating a federated NLP algorithm development and benchmarking platform to enhance multi-institution clinical NLP study and adoption. Although we use COVID-19 as a use case in this effort, our framework is general enough to be applied to other domains of interest in clinical NLP.",
+      "authors": [
+        "Sijia Liu",
+        "Andrew Wen",
+        "Liwei Wang",
+        "Huan He",
+        "Sunyang Fu",
+        "Robert Miller",
+        "Andrew Williams",
+        "Daniel Harris",
+        "Ramakanth Kavuluru",
+        "Mei Liu",
+        "Noor Abu-el-rub",
+        "Dalton Schutte",
+        "Rui Zhang",
+        "Masoud Rouhizadeh",
+        "John D. Osborne",
+        "Yongqun He",
+        "Umit Topaloglu",
+        "Stephanie S Hong",
+        "Joel H Saltz",
+        "Thomas Schaffter",
+        "Emily Pfaff",
+        "Christopher G. Chute",
+        "Tim Duong",
+        "Melissa A. Haendel",
+        "Rafael Fuentes",
+        "Peter Szolovits",
+        "Hua Xu",
+        "Hongfang Liu",
+        "National COVID Cohort Collaborative",
+        "Natural Language Processing",
+        "Subgroup",
+        "National COVID Cohort Collaborative"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2110.10780",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "An Open Natural Language Processing Development Framework for EHR-based Clinical Research: A case demonstration using the National COVID Cohort Collaborative (N3C)",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2110.10780v3",
+        "pdf": "https://arxiv.org/pdf/2110.10780v3"
+      },
+      "venue": "arXiv",
+      "year": 2021
+    },
+    {
+      "abstract": "Within the natural language processing (NLP) community, active learning has been widely investigated and applied in order to alleviate the annotation bottleneck faced by developers of new NLP systems and technologies. This paper presents the first theoretical analysis of stopping active learning based on stabilizing predictions (SP). The analysis has revealed three elements that are central to the success of the SP method: (1) bounds on Cohen's Kappa agreement between successively trained models impose bounds on differences in F-measure performance of the models; (2) since the stop set does not have to be labeled, it can be made large in practice, helping to guarantee that the results transfer to previously unseen streams of examples at test/application time; and (3) good (low variance) sample estimates of Kappa between successive models can be obtained. Proofs of relationships between the level of Kappa agreement and the difference in performance between consecutive models are presented. Specifically, if the Kappa agreement between two models exceeds a threshold T (where $T>0$), then the difference in F-measure performance between those models is bounded above by $\\frac{4(1-T)}{T}$ in all cases. If precision of the positive conjunction of the models is assumed to be $p$, then the bound can be tightened to $\\frac{4(1-T)}{(p+1)T}$.",
+      "authors": [
+        "Michael Bloodgood",
+        "John Grothendieck"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1504.06329",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Analysis of Stopping Active Learning based on Stabilizing Predictions",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1504.06329v1",
+        "pdf": "https://arxiv.org/pdf/1504.06329v1"
+      },
+      "venue": "In Proceedings of the Seventeenth Conference on Computational Natural Language Learning, pages 10-19, Sofia, Bulgaria, August 2013. Association for Computational Linguistics",
+      "year": 2015
+    },
+    {
+      "abstract": "In this paper, we introduce ChainerRL, an open-source deep reinforcement learning (DRL) library built using Python and the Chainer deep learning framework. ChainerRL implements a comprehensive set of DRL algorithms and techniques drawn from state-of-the-art research in the field. To foster reproducible research, and for instructional purposes, ChainerRL provides scripts that closely replicate the original papers' experimental settings and reproduce published benchmark results for several algorithms. Lastly, ChainerRL offers a visualization tool that enables the qualitative inspection of trained agents. The ChainerRL source code can be found on GitHub: https://github.com/chainer/chainerrl.",
+      "authors": [
+        "Yasuhiro Fujita",
+        "Prabhat Nagarajan",
+        "Toshiki Kataoka",
+        "Takahiro Ishikawa"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1912.03905",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "ChainerRL: A Deep Reinforcement Learning Library",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1912.03905v2",
+        "pdf": "https://arxiv.org/pdf/1912.03905v2"
+      },
+      "venue": "Journal of Machine Learning Research 22(77) (2021) 1-14;",
+      "year": 2019
+    },
+    {
+      "abstract": "Transfer learning is crucial in training deep neural networks on new target tasks. Current transfer learning methods always assume at least one of (i) source and target task label spaces overlap, (ii) source datasets are available, and (iii) target network architectures are consistent with source ones. However, holding these assumptions is difficult in practical settings because the target task rarely has the same labels as the source task, the source dataset access is restricted due to storage costs and privacy, and the target architecture is often specialized to each task. To transfer source knowledge without these assumptions, we propose a transfer learning method that uses deep generative models and is composed of the following two stages: pseudo pre-training (PP) and pseudo semi-supervised learning (P-SSL). PP trains a target architecture with an artificial dataset synthesized by using conditional source generative models. P-SSL applies SSL algorithms to labeled target data and unlabeled pseudo samples, which are generated by cascading the source classifier and generative models to condition them with target samples. Our experimental results indicate that our method can outperform the baselines of scratch training and knowledge distillation.",
+      "authors": [
+        "Shin'ya Yamaguchi",
+        "Sekitoshi Kanai",
+        "Atsutoshi Kumagai",
+        "Daiki Chijiwa",
+        "Hisashi Kashima"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2204.12833",
+        "doi": "10.1007/s10994-025-06748-7",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Transfer Learning with Pre-trained Conditional Generative Models",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2204.12833v3",
+        "pdf": "https://arxiv.org/pdf/2204.12833v3"
+      },
+      "venue": "Machine Learning 114, 96 (2025)",
+      "year": 2022
+    },
+    {
+      "abstract": "Machine Learning (ML) has recently shown tremendous success in modeling various healthcare prediction tasks, ranging from disease diagnosis and prognosis to patient treatment. Due to the sensitive nature of medical data, privacy must be considered along the entire ML pipeline, from model training to inference. In this paper, we conduct a review of recent literature concerning Privacy-Preserving Machine Learning (PPML) for healthcare. We primarily focus on privacy-preserving training and inference-as-a-service, and perform a comprehensive review of existing trends, identify challenges, and discuss opportunities for future research directions. The aim of this review is to guide the development of private and efficient ML models in healthcare, with the prospects of translating research efforts into real-world settings.",
+      "authors": [
+        "Alejandro Guerra-Manzanares",
+        "L. Julian Lechuga Lopez",
+        "Michail Maniatakos",
+        "Farah E. Shamout"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2303.15563",
+        "doi": "10.1007/978-3-031-39539-0_3",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Privacy-preserving machine learning for healthcare: open challenges and future perspectives",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2303.15563v1",
+        "pdf": "https://arxiv.org/pdf/2303.15563v1"
+      },
+      "venue": "Trustworthy Machine Learning for Healthcare. TML4H 2023. Lecture Notes in Computer Science, vol 13932",
+      "year": 2023
+    },
+    {
+      "abstract": "We propose unsupervised representation learning and feature extraction from dendrograms. The commonly used Minimax distance measures correspond to building a dendrogram with single linkage criterion, with defining specific forms of a level function and a distance function over that. Therefore, we extend this method to arbitrary dendrograms. We develop a generalized framework wherein different distance measures and representations can be inferred from different types of dendrograms, level functions and distance functions. Via an appropriate embedding, we compute a vector-based representation of the inferred distances, in order to enable many numerical machine learning algorithms to employ such distances. Then, to address the model selection problem, we study the aggregation of different dendrogram-based distances respectively in solution space and in representation space in the spirit of deep representations. In the first approach, for example for the clustering problem, we build a graph with positive and negative edge weights according to the consistency of the clustering labels of different objects among different solutions, in the context of ensemble methods. Then, we use an efficient variant of correlation clustering to produce the final clusters. In the second approach, we investigate the combination of different distances and features sequentially in the spirit of multi-layered architectures to obtain the final features. Finally, we demonstrate the effectiveness of our approach via several numerical studies.",
+      "authors": [
+        "Morteza Haghir Chehreghani",
+        "Mostafa Haghir Chehreghani"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1812.09225",
+        "doi": "10.1007/s10994-020-05895-3",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Learning Representations from Dendrograms",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1812.09225v4",
+        "pdf": "https://arxiv.org/pdf/1812.09225v4"
+      },
+      "venue": "Machine Learning, 109 (9): 1779-1802, 2020",
+      "year": 2018
+    },
+    {
+      "abstract": "Item Price Elasticity is used to quantify the responsiveness of consumer demand to changes in item prices, enabling businesses to create pricing strategies and optimize revenue management. Sectors such as store retail, e-commerce, and consumer goods rely on elasticity information derived from historical sales and pricing data. This elasticity provides an understanding of purchasing behavior across different items, consumer discount sensitivity, and demand elastic departments. This information is particularly valuable for competitive markets and resource-constrained businesses decision making which aims to maximize profitability and market share. Price elasticity also uncovers historical shifts in consumer responsiveness over time. In this paper, we model item-level price elasticity using large-scale transactional datasets, by proposing a novel elasticity estimation framework which has the capability to work in an absence of treatment control setting. We test this framework by using Machine learning based algorithms listed below, including our newly proposed Monodense deep neural network. (1) Monodense-DL network -- Hybrid neural network architecture combining embedding, dense, and Monodense layers (2) DML -- Double machine learning setting using regression models (3) LGBM -- Light Gradient Boosting Model We evaluate our model on multi-category retail data spanning millions of transactions using a back testing framework. Experimental results demonstrate the superiority of our proposed neural network model within the framework compared to other prevalent ML based methods listed above.",
+      "authors": [
+        "Lakshya Garg",
+        "Sai Yaswanth",
+        "Deep Narayan Mishra",
+        "Karthik Kumaran",
+        "Anupriya Sharma",
+        "Mayank Uniyal"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2603.29261",
+        "doi": "10.1109/AAIML67890.2026.11498150",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Monodense Deep Neural Model for Determining Item Price Elasticity",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2603.29261v1",
+        "pdf": "https://arxiv.org/pdf/2603.29261v1"
+      },
+      "venue": "2026 International Conference on Advances in Artificial Intelligence and Machine Learning (AAIML)",
+      "year": 2026
+    },
+    {
+      "abstract": "Generative Adversarial Networks have shown remarkable success in learning a distribution that faithfully recovers a reference distribution in its entirety. However, in some cases, we may want to only learn some aspects (e.g., cluster or manifold structure), while modifying others (e.g., style, orientation or dimension). In this work, we propose an approach to learn generative models across such incomparable spaces, and demonstrate how to steer the learned distribution towards target properties. A key component of our model is the Gromov-Wasserstein distance, a notion of discrepancy that compares distributions relationally rather than absolutely. While this framework subsumes current generative models in identically reproducing distributions, its inherent flexibility allows application to tasks in manifold learning, relational learning and cross-domain learning.",
+      "authors": [
+        "Charlotte Bunne",
+        "David Alvarez-Melis",
+        "Andreas Krause",
+        "Stefanie Jegelka"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1905.05461",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Learning Generative Models across Incomparable Spaces",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1905.05461v2",
+        "pdf": "https://arxiv.org/pdf/1905.05461v2"
+      },
+      "venue": "Proceedings of Machine Learning Research (PMLR), 97 (2019)",
+      "year": 2019
+    },
+    {
+      "abstract": "We introduce a new second-order inertial optimization method for machine learning called INNA. It exploits the geometry of the loss function while only requiring stochastic approximations of the function values and the generalized gradients. This makes INNA fully implementable and adapted to large-scale optimization problems such as the training of deep neural networks. The algorithm combines both gradient-descent and Newton-like behaviors as well as inertia. We prove the convergence of INNA for most deep learning problems. To do so, we provide a well-suited framework to analyze deep learning loss functions involving tame optimization in which we study a continuous dynamical system together with its discrete stochastic approximations. We prove sublinear convergence for the continuous-time differential inclusion which underlies our algorithm. Additionally, we also show how standard optimization mini-batch methods applied to non-smooth non-convex problems can yield a certain type of spurious stationary points never discussed before. We address this issue by providing a theoretical framework around the new idea of $D$-criticality; we then give a simple asymptotic analysis of INNA. Our algorithm allows for using an aggressive learning rate of $o(1/\\log k)$. From an empirical viewpoint, we show that INNA returns competitive results with respect to state of the art (stochastic gradient descent, ADAGRAD, ADAM) on popular deep learning benchmark problems.",
+      "authors": [
+        "Camille Castera",
+        "Jérôme Bolte",
+        "Cédric Févotte",
+        "Edouard Pauwels"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1905.12278",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "An Inertial Newton Algorithm for Deep Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1905.12278v6",
+        "pdf": "https://arxiv.org/pdf/1905.12278v6"
+      },
+      "venue": "Journal of Machine Learning Research (JMLR), v22(134):1-31, 2021",
+      "year": 2019
+    },
+    {
+      "abstract": "Model-agnostic meta-learning (MAML) is a meta-learning technique to train a model on a multitude of learning tasks in a way that primes the model for few-shot learning of new tasks. The MAML algorithm performs well on few-shot learning problems in classification, regression, and fine-tuning of policy gradients in reinforcement learning, but comes with the need for costly hyperparameter tuning for training stability. We address this shortcoming by introducing an extension to MAML, called Alpha MAML, to incorporate an online hyperparameter adaptation scheme that eliminates the need to tune meta-learning and learning rates. Our results with the Omniglot database demonstrate a substantial reduction in the need to tune MAML training hyperparameters and improvement to training stability with less sensitivity to hyperparameter choice.",
+      "authors": [
+        "Harkirat Singh Behl",
+        "Atılım Güneş Baydin",
+        "Philip H. S. Torr"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "1905.07435",
+        "doi": null,
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "Alpha MAML: Adaptive Model-Agnostic Meta-Learning",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/1905.07435v1",
+        "pdf": "https://arxiv.org/pdf/1905.07435v1"
+      },
+      "venue": "ICML Workshop on Automated Machine Learning (2019)",
+      "year": 2019
+    },
+    {
+      "abstract": "Reproducibility in scientific work has been becoming increasingly important in research communities such as machine learning, natural language processing, and computer vision communities due to the rapid development of the research domains supported by recent advances in deep learning. In this work, we present a significantly upgraded version of torchdistill, a modular-driven coding-free deep learning framework significantly upgraded from the initial release, which supports only image classification and object detection tasks for reproducible knowledge distillation experiments. To demonstrate that the upgraded framework can support more tasks with third-party libraries, we reproduce the GLUE benchmark results of BERT models using a script based on the upgraded torchdistill, harmonizing with various Hugging Face libraries. All the 27 fine-tuned BERT models and configurations to reproduce the results are published at Hugging Face, and the model weights have already been widely used in research communities. We also reimplement popular small-sized models and new knowledge distillation methods and perform additional experiments for computer vision tasks.",
+      "authors": [
+        "Yoshitomo Matsubara"
+      ],
+      "citation_count": 0,
+      "identifiers": {
+        "arxiv_id": "2310.17644",
+        "doi": "10.18653/v1/2023.nlposs-1.18",
+        "openalex_id": null,
+        "pubmed_id": null,
+        "semantic_scholar_id": null
+      },
+      "sources": [
+        "arxiv"
+      ],
+      "title": "torchdistill Meets Hugging Face Libraries for Reproducible, Coding-Free Deep Learning Studies: A Case Study on NLP",
+      "urls": {
+        "landing_page": "http://arxiv.org/abs/2310.17644v1",
+        "pdf": "https://arxiv.org/pdf/2310.17644v1"
+      },
+      "venue": "Proceedings of the 3rd Workshop for Natural Language Processing Open Source Software (NLP-OSS 2023)",
+      "year": 2023
+    }
+  ],
+  "query_adapter_version": "1",
+  "recorded_at": "2026-07-19T16:13:58.022889+00:00",
+  "recorded_latency_seconds": 1.6161576251033694,
+  "schema_version": "1",
+  "source": "arxiv",
+  "status": "success",
+  "warnings": [
+    "safe_original_truncated"
+  ]
+}

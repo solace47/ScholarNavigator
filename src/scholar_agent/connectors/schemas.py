@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
@@ -14,3 +16,10 @@ class ConnectorSearchResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = 0.0
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    snapshot_provenance: Literal[
+        "live", "snapshot_record", "snapshot_replay"
+    ] = "live"
+    snapshot_key: str | None = None
+    snapshot_hit: bool = False
+    recorded_diagnostics: ConnectorDiagnostics | None = None
+    recorded_latency_seconds: float = 0.0
