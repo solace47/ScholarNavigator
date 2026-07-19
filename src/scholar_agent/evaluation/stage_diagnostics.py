@@ -798,6 +798,14 @@ def _refchain_diagnostics(
         "reference_request_count": (
             refchain_output.diagnostics.request_count if refchain_output else 0
         ),
+        "recorded_reference_request_count": (
+            refchain_output.recorded_diagnostics.request_count
+            if refchain_output
+            else 0
+        ),
+        "recorded_reference_latency_seconds": (
+            refchain_output.recorded_latency_seconds if refchain_output else 0.0
+        ),
         "raw_reference_count": len(references.candidates) if references else 0,
         "unique_reference_count": len(reference_ids),
         "new_unique_reference_count": len(new_ids),
@@ -840,7 +848,37 @@ def _stage_cost_diagnostics(
             ),
         ).retrieval_calls
     )
+    initial_recorded_calls = sum(
+        call.recorded_request_count
+        for call in snapshots.get(
+            "initial_retrieval",
+            StageCandidateSnapshot(stage="initial_retrieval", status="skipped"),
+        ).retrieval_calls
+    )
+    evolution_snapshot = snapshots.get(
+        "query_evolution_retrieval",
+        StageCandidateSnapshot(
+            stage="query_evolution_retrieval",
+            status="skipped",
+        ),
+    )
+    evolution_recorded_calls = sum(
+        call.recorded_request_count for call in evolution_snapshot.retrieval_calls
+    )
+    evolution_recorded_latency = sum(
+        call.recorded_latency_seconds for call in evolution_snapshot.retrieval_calls
+    )
     reference_calls = output.reference_diagnostics.request_count
+    recorded_reference_calls = (
+        output.refchain_output.recorded_diagnostics.request_count
+        if output.refchain_output
+        else 0
+    )
+    recorded_reference_latency = (
+        output.refchain_output.recorded_latency_seconds
+        if output.refchain_output
+        else 0.0
+    )
     qe_latency = sum(
         output.stage_latencies.get(name, 0.0)
         for name in (
@@ -862,6 +900,11 @@ def _stage_cost_diagnostics(
         "initial_search_api_calls": initial_calls,
         "query_evolution_api_calls": evolution_calls,
         "refchain_api_calls": reference_calls,
+        "recorded_initial_search_api_calls": initial_recorded_calls,
+        "recorded_query_evolution_api_calls": evolution_recorded_calls,
+        "recorded_refchain_api_calls": recorded_reference_calls,
+        "recorded_query_evolution_latency_seconds": evolution_recorded_latency,
+        "recorded_refchain_latency_seconds": recorded_reference_latency,
         "retry_count": (
             output.search_diagnostics.retry_count
             + output.reference_diagnostics.retry_count
@@ -876,18 +919,18 @@ def _stage_cost_diagnostics(
         "judgement_latency_seconds": output.stage_latencies.get("judgement", 0.0),
         "reranking_latency_seconds": output.stage_latencies.get("reranking", 0.0),
         "query_evolution": _module_marginal_costs(
-            evolution_calls,
+            evolution_recorded_calls or evolution_calls,
             int(query_evolution["evolved_new_unique_candidate_count"]),
             int(query_evolution["evolved_new_unique_gold_count"]),
             float(query_evolution["candidate_recall_gain"]),
-            qe_latency,
+            evolution_recorded_latency or qe_latency,
         ),
         "refchain": _module_marginal_costs(
-            reference_calls,
+            recorded_reference_calls or reference_calls,
             int(refchain["new_unique_reference_count"]),
             int(refchain["new_unique_reference_gold_count"]),
             float(refchain["candidate_recall_gain"]),
-            refchain_latency,
+            recorded_reference_latency or refchain_latency,
         ),
     }
 
@@ -945,7 +988,7 @@ def classify_module_outcome(
         if action_count == 0:
             labels.append("no_action_generated")
         if skipped.intersection({"source_cooldown", "source_failure"}) and not new_candidates:
-            labels.append("source_unavailable")
+            labels.append("source_failure_dominated")
         raw_candidates = int(
             diagnostics.get("evolved_raw_candidate_count")
             or diagnostics.get("raw_reference_count")
@@ -1040,7 +1083,12 @@ def _refchain_seed_details(record: Any, prior: StageCandidateSnapshot | None) ->
                 "seed_category": diagnostic.seed_category,
                 "seed_score": diagnostic.seed_score,
                 "identifier_type": diagnostic.identifier_type,
+                "reference_key": diagnostic.snapshot_key,
                 "request_count": diagnostic.request_count,
+                "recorded_request_count": diagnostic.recorded_request_count,
+                "recorded_retry_count": diagnostic.recorded_retry_count,
+                "recorded_error_count": diagnostic.recorded_error_count,
+                "recorded_latency_seconds": diagnostic.recorded_latency_seconds,
                 "references_returned": diagnostic.references_returned,
                 "new_unique_references": len(unique),
                 "skip_reason": skip_reason,
@@ -1082,6 +1130,7 @@ def _aggregate_module_diagnostics(
             "seed_with_supported_identifier_count",
             "seed_without_supported_identifier_count",
             "reference_request_count",
+            "recorded_reference_request_count",
             "raw_reference_count",
             "unique_reference_count",
             "new_unique_reference_count",
@@ -1130,11 +1179,29 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "initial_search_api_calls": sum(int(item.get("initial_search_api_calls") or 0) for item in costs),
         "query_evolution_api_calls": sum(int(item.get("query_evolution_api_calls") or 0) for item in costs),
         "refchain_api_calls": sum(int(item.get("refchain_api_calls") or 0) for item in costs),
+        "recorded_initial_search_api_calls": sum(
+            int(item.get("recorded_initial_search_api_calls") or 0)
+            for item in costs
+        ),
+        "recorded_query_evolution_api_calls": sum(
+            int(item.get("recorded_query_evolution_api_calls") or 0)
+            for item in costs
+        ),
+        "recorded_refchain_api_calls": sum(
+            int(item.get("recorded_refchain_api_calls") or 0)
+            for item in costs
+        ),
         "retry_count": sum(int(item.get("retry_count") or 0) for item in costs),
         "cache_hit_count": sum(int(item.get("cache_hit_count") or 0) for item in costs),
         "average_latency_seconds": _average_optional([item.get("latency_seconds") for item in costs]) or 0.0,
         "average_query_evolution_latency_seconds": _average_optional([item.get("query_evolution_latency_seconds") for item in costs]) or 0.0,
         "average_refchain_latency_seconds": _average_optional([item.get("refchain_latency_seconds") for item in costs]) or 0.0,
+        "average_recorded_query_evolution_latency_seconds": _average_optional(
+            [item.get("recorded_query_evolution_latency_seconds") for item in costs]
+        ) or 0.0,
+        "average_recorded_refchain_latency_seconds": _average_optional(
+            [item.get("recorded_refchain_latency_seconds") for item in costs]
+        ) or 0.0,
         "average_judgement_latency_seconds": _average_optional([item.get("judgement_latency_seconds") for item in costs]) or 0.0,
         "average_reranking_latency_seconds": _average_optional([item.get("reranking_latency_seconds") for item in costs]) or 0.0,
     }
@@ -1145,12 +1212,27 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
     rc_gold = sum(int((case.get("refchain") or {}).get("new_unique_reference_gold_count") or 0) for case in cases)
     rc_gain = _average_optional([(case.get("refchain") or {}).get("candidate_recall_gain") for case in cases]) or 0.0
     result["query_evolution"] = _module_marginal_costs(
-        result["query_evolution_api_calls"], qe_new, qe_gold, qe_gain,
-        result["average_query_evolution_latency_seconds"] * case_count,
+        result["recorded_query_evolution_api_calls"]
+        or result["query_evolution_api_calls"],
+        qe_new,
+        qe_gold,
+        qe_gain,
+        (
+            result["average_recorded_query_evolution_latency_seconds"]
+            or result["average_query_evolution_latency_seconds"]
+        )
+        * case_count,
     )
     result["refchain"] = _module_marginal_costs(
-        result["refchain_api_calls"], rc_new, rc_gold, rc_gain,
-        result["average_refchain_latency_seconds"] * case_count,
+        result["recorded_refchain_api_calls"] or result["refchain_api_calls"],
+        rc_new,
+        rc_gold,
+        rc_gain,
+        (
+            result["average_recorded_refchain_latency_seconds"]
+            or result["average_refchain_latency_seconds"]
+        )
+        * case_count,
     )
     return result
 

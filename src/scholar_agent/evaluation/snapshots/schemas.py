@@ -20,6 +20,8 @@ CONNECTOR_VERSIONS = {
     "openalex_references": "references-v1",
 }
 SnapshotEntryStatus = Literal["success", "failed"]
+SnapshotEntryType = Literal["retrieval", "reference"]
+SnapshotGeneratedBy = Literal["initial_retrieval", "query_evolution", "refchain"]
 
 
 class RetrievalSnapshotEntry(BaseModel):
@@ -64,10 +66,52 @@ class SnapshotGroupObservation(BaseModel):
     reference_keys: list[str] = Field(default_factory=list)
     missing_retrieval_keys: list[str] = Field(default_factory=list)
     missing_reference_keys: list[str] = Field(default_factory=list)
+    collection_started: bool = False
     collection_completed: bool = False
+    replay_ready: bool = False
     replay_verified: bool = False
+    required_key_count: int = Field(default=0, ge=0)
+    success_key_count: int = Field(default=0, ge=0)
+    failed_key_count: int = Field(default=0, ge=0)
+    missing_key_count: int = Field(default=0, ge=0)
+    last_plan_round: int = Field(default=0, ge=0)
+    plan_rounds: int = Field(default=0, ge=0)
+    stop_reason: str | None = None
     completed: bool = False
     updated_at: str
+
+
+class SnapshotPlanEntry(BaseModel):
+    key: str = Field(min_length=64, max_length=64)
+    entry_type: SnapshotEntryType
+    source: str
+    adapted_query: str | None = None
+    seed_identifier: str | None = None
+    limit: int = Field(ge=0)
+    adapter_policy: str | None = None
+    connector_version: str
+    required_by_group: str
+    case_id: str
+    stage: str
+    origin_subquery: str | None = None
+    generated_by: SnapshotGeneratedBy
+    dependency_keys: list[str] = Field(default_factory=list)
+    priority: int = Field(ge=1)
+    already_present: bool = False
+    existing_status: SnapshotEntryStatus | None = None
+
+
+class SnapshotPlanRound(BaseModel):
+    snapshot_name: str
+    group: str
+    round_index: int = Field(ge=1)
+    entries: list[SnapshotPlanEntry] = Field(default_factory=list)
+    missing_retrieval_count: int = Field(default=0, ge=0)
+    missing_reference_count: int = Field(default=0, ge=0)
+    network_request_count: int = Field(default=0, ge=0)
+    converged: bool = False
+    stop_reason: str | None = None
+    created_at: str
 
 
 class SnapshotManifest(BaseModel):

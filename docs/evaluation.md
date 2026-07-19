@@ -64,7 +64,7 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 
 每次运行独立写入 `config.json`、`dataset_report.json`、`results.jsonl`、`metrics.json`、`failures.jsonl` 和 `summary.md`。`--resume` 跳过成功案例、重试失败案例，并在配置签名一致时重新汇总全部结果。
 
-真实响应快照支持 `live`、`record`、`replay` 和 `record-missing` 四种模式。首次采集用 `record`，后续组用 `record-missing` 补齐新键；`--retry-failed-snapshots` 仅重试已记录的最终失败。Replay 缺键、Schema 不兼容或内容哈希不一致时失败，不访问外网：
+真实响应快照支持 `live`、`record`、`record-missing`、`plan` 和 `replay`。`plan` 完全离线执行真实流水线并输出动态缺键及依赖，采集器串行补齐后再次规划到固定点；`--retry-failed-snapshots` 才会重试已冻结失败。结构合法的 success 或 failed 条目都算覆盖，但分别统计；Replay 缺键、Schema 不兼容或内容哈希不一致时失败，不访问外网：
 
 ```bash
 PYTHONPATH=src python scripts/run_benchmark.py \
@@ -79,9 +79,11 @@ PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
   --snapshot-dir outputs/benchmark_snapshots/autoscholar_qe_refchain_dev10
 ```
 
+动态组使用 `prepare_benchmark_ablation_snapshots.py` 的保守集中上限执行“规划→采集→再规划”，计划与四组覆盖汇总位于快照目录的 `plans/`。`replay-ready` 不等于外部请求全部成功；只有纯离线 Replay 完成后才标记 `replay-verified` 并生成模块结论。
+
 `cost_report` 在 Replay 中只表示本次执行成本，HTTP、重试和网络等待均为 0；`snapshot_cost_report` 与 `metrics.json.snapshot_costs` 另列快照所记录的 live 请求、重试、错误、限流等待和延迟。两套数字不得混加或把记录成本描述为 Replay 实际成本。
 
-2026-07-20 按固定开发集前 10 条采集 baseline：写入 30 个检索条目，其中 27 个成功、3 个最终失败。OpenAlex 6 次请求均未成功并持续出现 TLS timeout/HTTP 429，按保护条件停止其余三组。baseline 经记录延迟驱动同一预算路径后完成离线验证：10/10 case 成功、29 次快照命中、缺键 0，实际 HTTP、重试和网络等待均为 0；端到端 F1@5/10/20 为 0.0222/0.0143/0.0179。其余三组没有完整快照，比较结果标记为 `incomplete`，不能据此判断模块收益。
+2026-07-20 固定开发集前 10 条的四组快照均达到 `replay-ready` 并完成纯离线 Replay，实际 HTTP、重试和网络等待均为 0。各组必需键的 success/failed 分别为：baseline 27/3、Query Evolution 52/2、RefChain 27/6、组合组 52/8；failed 条目属于可复现覆盖，不表示成功检索。四组 Recall@20 均为 0.1250，F1@20 均为 0.0179。Query Evolution 把候选 Recall 从 0.1500 提高到 0.1875，并新增 197 个唯一候选，但没有新增 gold，结论为 `new_candidates_but_no_gold`；RefChain 的引用响应均为冻结的 OpenAlex 失败，未产生新候选，结论为 `no_action_generated` 和 `source_failure_dominated`。所有结论同时标记 `insufficient_sample` 与 `small_sample_diagnostic_only`，不得外推为模块有效性或正式性能。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。
 

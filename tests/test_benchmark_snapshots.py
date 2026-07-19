@@ -414,7 +414,7 @@ def test_inspector_reports_entries_failures_cost_and_group_coverage(
     assert report["successful_entries"] == 1
     assert report["request_count_recorded"] == 2
     assert report["groups"]["baseline"]["collection_completed"] is True
-    assert report["groups"]["baseline"]["replay_ready"] is False
+    assert report["groups"]["baseline"]["replay_ready"] is True
     assert report["invalid_entries"] == 0
 
 

@@ -11,6 +11,8 @@ from scholar_agent.evaluation.snapshots.schemas import (
     ReferenceSnapshotEntry,
     RetrievalSnapshotEntry,
     SnapshotManifest,
+    SnapshotPlanEntry,
+    SnapshotPlanRound,
 )
 from scholar_agent.evaluation.snapshots.store import (
     SnapshotConflictError,
@@ -30,6 +32,8 @@ __all__ = [
     "SnapshotIntegrityError",
     "SnapshotManifest",
     "SnapshotMissingError",
+    "SnapshotPlanEntry",
+    "SnapshotPlanRound",
     "SnapshotRuntime",
     "SnapshotStore",
 ]

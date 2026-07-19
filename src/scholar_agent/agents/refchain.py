@@ -48,6 +48,8 @@ class RefChainAgent:
         references: list[Paper] = []
         reference_edges: list[ReferenceEdge] = []
         connector_diagnostics: list[ConnectorDiagnostics] = []
+        recorded_connector_diagnostics: list[ConnectorDiagnostics] = []
+        recorded_latency_seconds = 0.0
         seed_diagnostics: list[RefChainSeedDiagnostic] = []
         seen_reference_ids: set[str] = set()
 
@@ -107,9 +109,19 @@ class RefChainAgent:
                 continue
 
             request_count = 0
+            recorded_diagnostics = ConnectorDiagnostics()
+            recorded_latency = 0.0
+            snapshot_key: str | None = None
             fetch_error: str | None = None
             if isinstance(fetch_result, ConnectorSearchResult):
                 connector_diagnostics.append(fetch_result.diagnostics)
+                recorded_diagnostics = (
+                    fetch_result.recorded_diagnostics or ConnectorDiagnostics()
+                )
+                recorded_connector_diagnostics.append(recorded_diagnostics)
+                recorded_latency = fetch_result.recorded_latency_seconds
+                snapshot_key = fetch_result.snapshot_key
+                recorded_latency_seconds += recorded_latency
                 warnings.extend(fetch_result.warnings)
                 request_count = fetch_result.diagnostics.request_count
                 fetch_error = fetch_result.error_message
@@ -155,6 +167,9 @@ class RefChainAgent:
                 _seed_diagnostic(
                     ranked,
                     request_count=request_count,
+                    snapshot_key=snapshot_key,
+                    recorded_diagnostics=recorded_diagnostics,
+                    recorded_latency_seconds=recorded_latency,
                     references_returned=returned_for_seed,
                     unique_references_returned=unique_for_seed,
                     skip_reason=skip_reason,
@@ -170,6 +185,9 @@ class RefChainAgent:
 
         latency_seconds = time.perf_counter() - start
         diagnostics = merge_connector_diagnostics(connector_diagnostics)
+        recorded_diagnostics = merge_connector_diagnostics(
+            recorded_connector_diagnostics
+        )
         record = RefChainRecord(
             seeds=[_to_seed(seed) for seed in seeds],
             seed_diagnostics=seed_diagnostics,
@@ -180,6 +198,8 @@ class RefChainAgent:
             warnings=_dedupe(warnings),
             latency_seconds=latency_seconds,
             diagnostics=diagnostics,
+            recorded_diagnostics=recorded_diagnostics,
+            recorded_latency_seconds=recorded_latency_seconds,
         )
         return RefChainOutput(
             references=references,
@@ -188,6 +208,8 @@ class RefChainAgent:
             warnings=record.warnings,
             latency_seconds=latency_seconds,
             diagnostics=diagnostics,
+            recorded_diagnostics=recorded_diagnostics,
+            recorded_latency_seconds=recorded_latency_seconds,
         )
 
 
@@ -259,10 +281,14 @@ def _seed_diagnostic(
     ranked: RankedPaper,
     *,
     request_count: int = 0,
+    snapshot_key: str | None = None,
+    recorded_diagnostics: ConnectorDiagnostics | None = None,
+    recorded_latency_seconds: float = 0.0,
     references_returned: int = 0,
     unique_references_returned: int = 0,
     skip_reason: str | None = None,
 ) -> RefChainSeedDiagnostic:
+    recorded = recorded_diagnostics or ConnectorDiagnostics()
     return RefChainSeedDiagnostic(
         seed_id=_paper_identifier(ranked.paper),
         seed_rank=ranked.rank,
@@ -270,6 +296,11 @@ def _seed_diagnostic(
         seed_score=ranked.final_score,
         identifier_type=_identifier_type(ranked.paper),
         request_count=request_count,
+        snapshot_key=snapshot_key,
+        recorded_request_count=recorded.request_count,
+        recorded_retry_count=recorded.retry_count,
+        recorded_error_count=recorded.error_count,
+        recorded_latency_seconds=recorded_latency_seconds,
         references_returned=references_returned,
         unique_references_returned=unique_references_returned,
         skip_reason=skip_reason,

@@ -49,6 +49,14 @@ from scholar_agent.evaluation.snapshots import (  # noqa: E402
 )
 from scholar_agent.evaluation.snapshots.schemas import CONNECTOR_VERSIONS  # noqa: E402
 from scholar_agent.evaluation.snapshots.schemas import QUERY_ADAPTER_VERSION  # noqa: E402
+from scholar_agent.evaluation.snapshots.schemas import SnapshotPlanRound  # noqa: E402
+from scholar_agent.evaluation.snapshots.planning import (  # noqa: E402
+    atomic_write_json as _write_plan_json,
+    atomic_write_jsonl as _write_plan_jsonl,
+    plan_group_root,
+    plan_round_root,
+    write_coverage_artifacts,
+)
 from scholar_agent.evaluation.snapshots.store import utc_now  # noqa: E402
 from scholar_agent.evaluation.stage_diagnostics import (  # noqa: E402
     aggregate_stage_diagnostics,
@@ -97,8 +105,11 @@ class BenchmarkRunOptions(BaseModel):
     diagnostics: bool = False
     resume: bool = False
     query_adapter_policy: QueryAdapterPolicy = "adaptive"
-    retrieval_mode: Literal["live", "record", "replay", "record-missing"] = "live"
+    retrieval_mode: Literal[
+        "live", "record", "replay", "record-missing", "plan"
+    ] = "live"
     snapshot_dir: Path | None = None
+    plan_round: int = Field(default=1, ge=1)
     retry_failed_snapshots: bool = False
     overwrite_snapshots: bool = False
 
@@ -234,6 +245,69 @@ def _aggregate_snapshot_costs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _write_snapshot_plan_artifacts(
+    options: BenchmarkRunOptions,
+    runtime: SnapshotRuntime,
+) -> None:
+    if options.snapshot_dir is None:
+        return
+    entries = runtime.plan_entries()
+    missing = [entry for entry in entries if not entry.already_present]
+    group = _ablation_group_name(options)
+    group_root = plan_group_root(options.snapshot_dir, group)
+    round_root = plan_round_root(options.snapshot_dir, group, options.plan_round)
+    plan = SnapshotPlanRound(
+        snapshot_name=options.snapshot_dir.name,
+        group=group,
+        round_index=options.plan_round,
+        entries=entries,
+        missing_retrieval_count=sum(
+            entry.entry_type == "retrieval" for entry in missing
+        ),
+        missing_reference_count=sum(
+            entry.entry_type == "reference" for entry in missing
+        ),
+        network_request_count=0,
+        converged=not missing,
+        stop_reason=None if not missing else "snapshot_missing",
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    _write_plan_json(
+        group_root / f"plan_round_{options.plan_round}.json",
+        plan.model_dump(mode="json"),
+    )
+    _write_plan_jsonl(
+        round_root / "missing_retrieval_keys.jsonl",
+        [
+            entry.model_dump(mode="json")
+            for entry in missing
+            if entry.entry_type == "retrieval"
+        ],
+    )
+    _write_plan_jsonl(
+        round_root / "missing_reference_keys.jsonl",
+        [
+            entry.model_dump(mode="json")
+            for entry in missing
+            if entry.entry_type == "reference"
+        ],
+    )
+    result = {
+        "group": group,
+        "round_index": options.plan_round,
+        "planned_key_count": len(entries),
+        "missing_key_count": len(missing),
+        "network_request_count": 0,
+        "stop_reason": plan.stop_reason,
+    }
+    _write_plan_json(round_root / "collection_result.json", result)
+    write_coverage_artifacts(
+        options.snapshot_dir,
+        group=group,
+        round_index=options.plan_round,
+    )
+
+
 def run_benchmark(
     options: BenchmarkRunOptions,
     *,
@@ -269,15 +343,8 @@ def run_benchmark(
         manifest = store.ensure_manifest(_snapshot_manifest(options, config))
         group_name = _ablation_group_name(options)
         if options.retrieval_mode == "replay":
-            observation = manifest.groups.get(group_name)
-            collection_completed = bool(
-                observation
-                and (
-                    observation.collection_completed
-                    or observation.completed
-                )
-            )
-            if not collection_completed:
+            coverage = store.inspect().get("groups", {}).get(group_name, {})
+            if not coverage.get("replay_ready"):
                 raise ValueError(f"snapshot_group_not_replay_ready:{group_name}")
         snapshot_runtime = SnapshotRuntime(
             store,
@@ -285,6 +352,7 @@ def run_benchmark(
             group_name=group_name,
             retry_failed_snapshots=options.retry_failed_snapshots,
             overwrite_snapshots=options.overwrite_snapshots,
+            plan_round=options.plan_round,
         )
         runner = SearchService(
             retriever=SnapshotAwareRetriever(snapshot_runtime),
@@ -335,6 +403,11 @@ def run_benchmark(
         snapshot_runtime.finish_group(
             completed=all(row.get("status") == "succeeded" for row in ordered_rows)
         )
+        if options.retrieval_mode == "plan" and options.snapshot_dir is not None:
+            _write_snapshot_plan_artifacts(
+                options,
+                snapshot_runtime,
+            )
     return BenchmarkRunResult(
         run_dir=run_dir,
         config=config,
@@ -393,6 +466,7 @@ def _build_config(
                 "group": _ablation_group_name(options),
                 "retry_failed_snapshots": options.retry_failed_snapshots,
                 "overwrite_snapshots": options.overwrite_snapshots,
+                "plan_round": options.plan_round,
             }
             if options.snapshot_dir is not None
             else None
@@ -536,7 +610,7 @@ def _run_case(
 ) -> dict[str, Any]:
     started = time.perf_counter()
     if snapshot_runtime is not None:
-        snapshot_runtime.begin_case()
+        snapshot_runtime.begin_case(query.query_id)
     try:
         output = service.run_search(
             query.query,
@@ -559,7 +633,7 @@ def _run_case(
             status="succeeded",
             partial=False,
         ).model_dump(mode="json")
-        if snapshot_runtime is not None:
+        if snapshot_runtime is not None and options.retrieval_mode != "plan":
             snapshot_runtime.assert_case_complete()
         cost_report = dict(result.get("cost_report") or {})
         row = {
@@ -878,10 +952,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument(
         "--retrieval-mode",
-        choices=["live", "record", "replay", "record-missing"],
+        choices=["live", "record", "replay", "record-missing", "plan"],
         default="live",
     )
     parser.add_argument("--snapshot-dir", default=None)
+    parser.add_argument("--plan-round", type=int, default=1)
     parser.add_argument("--retry-failed-snapshots", action="store_true")
     parser.add_argument("--overwrite-snapshots", action="store_true")
     return parser
@@ -944,6 +1019,7 @@ def main(argv: list[str] | None = None) -> int:
             resume=args.resume,
             retrieval_mode=args.retrieval_mode,
             snapshot_dir=(Path(args.snapshot_dir) if args.snapshot_dir else None),
+            plan_round=args.plan_round,
             retry_failed_snapshots=args.retry_failed_snapshots,
             overwrite_snapshots=args.overwrite_snapshots,
         )

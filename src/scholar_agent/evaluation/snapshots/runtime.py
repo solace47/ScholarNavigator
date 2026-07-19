@@ -22,6 +22,7 @@ from scholar_agent.evaluation.snapshots.schemas import (
     RetrievalSnapshotEntry,
     SnapshotCostReport,
     SnapshotGroupObservation,
+    SnapshotPlanEntry,
 )
 from scholar_agent.evaluation.snapshots.store import (
     SnapshotError,
@@ -37,7 +38,7 @@ from scholar_agent.evaluation.snapshots.store import (
 from scholar_agent.retrieval.query_adapter import QueryAdapterPolicy
 
 
-RetrievalMode = Literal["live", "record", "replay", "record-missing"]
+RetrievalMode = Literal["live", "record", "replay", "record-missing", "plan"]
 LiveSearch = Callable[[str, int], ConnectorSearchResult]
 LiveReferenceFetcher = Callable[[Paper, int], list[Paper] | ConnectorSearchResult]
 
@@ -69,6 +70,7 @@ class SnapshotRuntime:
         group_name: str,
         retry_failed_snapshots: bool = False,
         overwrite_snapshots: bool = False,
+        plan_round: int = 1,
     ) -> None:
         if mode == "live":
             raise ValueError("SnapshotRuntime does not handle live mode")
@@ -77,38 +79,46 @@ class SnapshotRuntime:
         self.group_name = group_name
         self.retry_failed_snapshots = retry_failed_snapshots
         self.overwrite_snapshots = overwrite_snapshots
+        self.plan_round = plan_round
         self._lock = RLock()
         self._case = SnapshotCostReport(mode=mode)
+        self._case_id = ""
+        self._plan_entries: list[SnapshotPlanEntry] = []
         self._group_write_count = 0
         manifest = store.read_manifest()
         existing = manifest.groups.get(group_name)
         self._prior_group = existing
-        prior_missing_retrieval = set(existing.missing_retrieval_keys) if existing else set()
-        prior_missing_references = set(existing.missing_reference_keys) if existing else set()
+        # Plan 每轮都重新走真实流水线，required key 只来自本轮实际路径，
+        # 避免保留因上游结果变化而不再可达的动态键。
         self._group_retrieval = (
-            [key for key in existing.retrieval_keys if key not in prior_missing_retrieval]
-            if existing
-            else []
+            []
+            if mode == "plan"
+            else list(existing.retrieval_keys) if existing else []
         )
         self._group_references = (
-            [key for key in existing.reference_keys if key not in prior_missing_references]
-            if existing
-            else []
+            []
+            if mode == "plan"
+            else list(existing.reference_keys) if existing else []
         )
         self._group_missing_retrieval = (
             []
-            if mode == "replay"
+            if mode in {"replay", "plan"}
             else list(existing.missing_retrieval_keys) if existing else []
         )
         self._group_missing_references = (
             []
-            if mode == "replay"
+            if mode in {"replay", "plan"}
             else list(existing.missing_reference_keys) if existing else []
         )
 
-    def begin_case(self) -> None:
+    def begin_case(self, case_id: str = "") -> None:
         with self._lock:
             self._case = SnapshotCostReport(mode=self.mode)
+            self._case_id = case_id
+
+    def plan_entries(self) -> list[SnapshotPlanEntry]:
+        with self._lock:
+            return [entry.model_copy(deep=True) for entry in self._plan_entries]
 
     def finish_case(self) -> SnapshotCostReport:
         with self._lock:
@@ -136,7 +146,12 @@ class SnapshotRuntime:
         with self._lock:
             return self._case.recorded_latency_seconds
 
-    def finish_group(self, *, completed: bool) -> SnapshotGroupObservation:
+    def finish_group(
+        self,
+        *,
+        completed: bool,
+        stop_reason: str | None = None,
+    ) -> SnapshotGroupObservation:
         with self._lock:
             run_completed = bool(
                 completed
@@ -151,7 +166,9 @@ class SnapshotRuntime:
                 )
             )
             collection_completed = (
-                prior_collection_completed if self.mode == "replay" else run_completed
+                prior_collection_completed
+                if self.mode == "replay"
+                else run_completed
             )
             replay_verified = (
                 run_completed
@@ -163,13 +180,39 @@ class SnapshotRuntime:
                     and self._prior_group.replay_verified
                 )
             )
+            success_count, failed_count = self._coverage_counts()
+            required_count = len(self._group_retrieval) + len(self._group_references)
+            missing_count = len(self._group_missing_retrieval) + len(
+                self._group_missing_references
+            )
+            replay_ready = bool(required_count and missing_count == 0)
             observation = SnapshotGroupObservation(
                 retrieval_keys=list(self._group_retrieval),
                 reference_keys=list(self._group_references),
                 missing_retrieval_keys=list(self._group_missing_retrieval),
                 missing_reference_keys=list(self._group_missing_references),
+                collection_started=True,
                 collection_completed=collection_completed,
+                replay_ready=replay_ready,
                 replay_verified=replay_verified,
+                required_key_count=required_count,
+                success_key_count=success_count,
+                failed_key_count=failed_count,
+                missing_key_count=missing_count,
+                last_plan_round=(
+                    self.plan_round
+                    if self.mode == "plan"
+                    else (self._prior_group.last_plan_round if self._prior_group else 0)
+                ),
+                plan_rounds=(
+                    max(
+                        self.plan_round,
+                        self._prior_group.plan_rounds if self._prior_group else 0,
+                    )
+                    if self.mode == "plan"
+                    else (self._prior_group.plan_rounds if self._prior_group else 0)
+                ),
+                stop_reason=(stop_reason or (None if replay_ready else "snapshot_missing")),
                 completed=(replay_verified if self.mode == "replay" else run_completed),
                 updated_at=utc_now(),
             )
@@ -183,6 +226,12 @@ class SnapshotRuntime:
         limit: int,
         adapter_policy: QueryAdapterPolicy,
         live_search: LiveSearch,
+        *,
+        stage: str = "initial_retrieval",
+        origin_subquery: str | None = None,
+        generated_by: Literal[
+            "initial_retrieval", "query_evolution", "refchain"
+        ] = "initial_retrieval",
     ) -> ConnectorSearchResult:
         version = connector_version(source)
         key, normalized_query = retrieval_snapshot_key(
@@ -198,6 +247,36 @@ class SnapshotRuntime:
         except SnapshotError as exc:
             self._mark_fatal(str(exc))
             raise
+        if self.mode == "plan":
+            self._record_plan_entry(
+                SnapshotPlanEntry(
+                    key=key,
+                    entry_type="retrieval",
+                    source=source,
+                    adapted_query=adapted_query,
+                    limit=limit,
+                    adapter_policy=adapter_policy,
+                    connector_version=version,
+                    required_by_group=self.group_name,
+                    case_id=self._case_id,
+                    stage=stage,
+                    origin_subquery=origin_subquery,
+                    generated_by=generated_by,
+                    dependency_keys=self._dependency_keys(key, generated_by),
+                    priority=1 if source == "arxiv" else 2,
+                    already_present=existing is not None,
+                    existing_status=existing.status if existing is not None else None,
+                )
+            )
+            if existing is None:
+                self._mark_missing("retrieval", key)
+                return ConnectorSearchResult(
+                    error_message=f"snapshot_plan_missing:retrieval:{key}",
+                    warnings=[f"snapshot_plan_missing:retrieval:{key}"],
+                    snapshot_provenance="snapshot_plan",
+                    snapshot_key=key,
+                )
+            return self._replay_retrieval(existing)
         if self.mode == "replay":
             if existing is None:
                 self._mark_missing("retrieval", key)
@@ -251,6 +330,8 @@ class SnapshotRuntime:
             self._mark_fatal(str(exc))
             raise
         self._mark_available("retrieval", key)
+        if wrote:
+            self.store.invalidate_verified_groups(key)
         self._record_cost("retrieval", entry.diagnostics, elapsed, wrote=wrote)
         return result.model_copy(
             update={
@@ -275,6 +356,18 @@ class SnapshotRuntime:
                 error_message="snapshot_seed_missing_supported_identifier",
                 diagnostics=ConnectorDiagnostics(error_count=1),
             )
+        if self.mode == "plan":
+            unresolved_retrieval = [
+                entry.key
+                for entry in self.plan_entries()
+                if entry.entry_type == "retrieval" and not entry.already_present
+            ]
+            if unresolved_retrieval:
+                return ConnectorSearchResult(
+                    error_message="snapshot_plan_dependency_missing:refchain",
+                    warnings=["snapshot_plan_dependency_missing:refchain"],
+                    snapshot_provenance="snapshot_plan",
+                )
         version = connector_version("openalex_references")
         key = reference_snapshot_key(
             seed_identifier=seed_identifier,
@@ -287,6 +380,35 @@ class SnapshotRuntime:
         except SnapshotError as exc:
             self._mark_fatal(str(exc))
             raise
+        if self.mode == "plan":
+            self._record_plan_entry(
+                SnapshotPlanEntry(
+                    key=key,
+                    entry_type="reference",
+                    source="openalex",
+                    seed_identifier=seed_identifier,
+                    limit=limit,
+                    connector_version=version,
+                    required_by_group=self.group_name,
+                    case_id=self._case_id,
+                    stage="refchain",
+                    origin_subquery=None,
+                    generated_by="refchain",
+                    dependency_keys=self._dependency_keys(key, "refchain"),
+                    priority=3,
+                    already_present=existing is not None,
+                    existing_status=existing.status if existing is not None else None,
+                )
+            )
+            if existing is None:
+                self._mark_missing("references", key)
+                return ConnectorSearchResult(
+                    error_message=f"snapshot_plan_missing:references:{key}",
+                    warnings=[f"snapshot_plan_missing:references:{key}"],
+                    snapshot_provenance="snapshot_plan",
+                    snapshot_key=key,
+                )
+            return self._replay_reference(existing)
         if self.mode == "replay":
             if existing is None:
                 self._mark_missing("references", key)
@@ -342,6 +464,8 @@ class SnapshotRuntime:
             self._mark_fatal(str(exc))
             raise
         self._mark_available("references", key)
+        if wrote:
+            self.store.invalidate_verified_groups(key)
         self._record_cost("references", entry.diagnostics, elapsed, wrote=wrote)
         return result.model_copy(
             update={
@@ -445,6 +569,48 @@ class SnapshotRuntime:
         with self._lock:
             _stable_append(self._case.fatal_errors, message)
 
+    def _record_plan_entry(self, entry: SnapshotPlanEntry) -> None:
+        with self._lock:
+            for index, existing in enumerate(self._plan_entries):
+                if existing.key != entry.key or existing.case_id != entry.case_id:
+                    continue
+                dependencies = list(existing.dependency_keys)
+                for key in entry.dependency_keys:
+                    _stable_append(dependencies, key)
+                self._plan_entries[index] = existing.model_copy(
+                    update={"dependency_keys": dependencies}
+                )
+                return
+            self._plan_entries.append(entry)
+
+    def _dependency_keys(self, current_key: str, generated_by: str) -> list[str]:
+        if generated_by == "initial_retrieval":
+            return []
+        return [
+            key
+            for key in self._case.observed_retrieval_keys
+            if key != current_key and key not in self._case.missing_retrieval_keys
+        ]
+
+    def _coverage_counts(self) -> tuple[int, int]:
+        success = 0
+        failed = 0
+        for key in self._group_retrieval:
+            try:
+                status = self.store.read_retrieval(key).status
+            except SnapshotMissingError:
+                continue
+            success += status == "success"
+            failed += status == "failed"
+        for key in self._group_references:
+            try:
+                status = self.store.read_reference(key).status
+            except SnapshotMissingError:
+                continue
+            success += status == "success"
+            failed += status == "failed"
+        return success, failed
+
     def _snapshot_hit(
         self,
         kind: str,
@@ -504,10 +670,33 @@ class SnapshotAwareRetriever:
         clear_source_cooldowns()
 
     def __call__(self, query: str, **kwargs: object) -> RetrievalOutput:
+        purpose = str(kwargs.get("query_purpose") or "")
+        generated_by = (
+            "query_evolution"
+            if purpose.startswith("query_evolution")
+            else "initial_retrieval"
+        )
+        stage = (
+            "query_evolution"
+            if generated_by == "query_evolution"
+            else "initial_retrieval"
+        )
+        provider = lambda source, adapted_query, limit, policy, live_search: (
+            self.runtime.search(
+                source,
+                adapted_query,
+                limit,
+                policy,
+                live_search,
+                stage=stage,
+                origin_subquery=query,
+                generated_by=generated_by,
+            )
+        )
         return retrieve_papers(
             query,
             **kwargs,
-            connector_result_provider=self.runtime.search,
+            connector_result_provider=provider,
         )
 
     def budget_elapsed_seconds(self) -> float:

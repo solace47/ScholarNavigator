@@ -22,6 +22,7 @@ from scholar_agent.evaluation.snapshots.schemas import (
     RetrievalSnapshotEntry,
     SnapshotGroupObservation,
     SnapshotManifest,
+    SnapshotPlanRound,
 )
 
 
@@ -205,38 +206,165 @@ class SnapshotStore:
         self._write_manifest(updated)
         return updated
 
+    def invalidate_verified_groups(self, key: str) -> list[str]:
+        """新条目刷新共享覆盖，并使引用它的已验证组失效。"""
+
+        manifest = self.read_manifest()
+        groups = dict(manifest.groups)
+        invalidated: list[str] = []
+        for name, observation in groups.items():
+            if (
+                key not in observation.retrieval_keys
+                and key not in observation.reference_keys
+            ):
+                continue
+            missing_retrieval = [
+                item
+                for item in observation.retrieval_keys
+                if not (self.retrieval_dir / f"{item}.json").is_file()
+            ]
+            missing_references = [
+                item
+                for item in observation.reference_keys
+                if not (self.reference_dir / f"{item}.json").is_file()
+            ]
+            success_count = 0
+            failed_count = 0
+            for item in observation.retrieval_keys:
+                try:
+                    status = self.read_retrieval(item).status
+                except SnapshotMissingError:
+                    continue
+                success_count += status == "success"
+                failed_count += status == "failed"
+            for item in observation.reference_keys:
+                try:
+                    status = self.read_reference(item).status
+                except SnapshotMissingError:
+                    continue
+                success_count += status == "success"
+                failed_count += status == "failed"
+            missing_count = len(missing_retrieval) + len(missing_references)
+            replay_ready = bool(
+                observation.retrieval_keys or observation.reference_keys
+            ) and missing_count == 0
+            groups[name] = observation.model_copy(
+                update={
+                    "missing_retrieval_keys": missing_retrieval,
+                    "missing_reference_keys": missing_references,
+                    "collection_completed": replay_ready,
+                    "replay_ready": replay_ready,
+                    "replay_verified": False,
+                    "required_key_count": len(observation.retrieval_keys)
+                    + len(observation.reference_keys),
+                    "success_key_count": success_count,
+                    "failed_key_count": failed_count,
+                    "missing_key_count": missing_count,
+                    "stop_reason": None if replay_ready else observation.stop_reason,
+                    "updated_at": utc_now(),
+                }
+            )
+            invalidated.append(name)
+        if invalidated:
+            self._write_manifest(
+                self._with_entry_counts(
+                    manifest.model_copy(
+                        update={"groups": groups, "updated_at": utc_now()}
+                    )
+                )
+            )
+        return invalidated
+
     def inspect(self) -> dict[str, Any]:
         manifest = self.read_manifest()
         retrieval = self._inspect_kind("retrieval", RetrievalSnapshotEntry)
         references = self._inspect_kind("references", ReferenceSnapshotEntry)
         retrieval_keys = {entry.key for entry in retrieval["entries"]}
         reference_keys = {entry.key for entry in references["entries"]}
+        entry_by_key = {entry.key: entry for entry in [
+            *retrieval["entries"],
+            *references["entries"],
+        ]}
+        planned_source_by_key = self._planned_source_by_key()
         groups = {
             name: {
                 "completed": observation.completed,
+                "collection_started": observation.collection_started,
                 "collection_completed": observation.collection_completed,
-                "replay_verified": observation.replay_verified,
-                "retrieval_key_count": len(observation.retrieval_keys),
-                "reference_key_count": len(observation.reference_keys),
-                "missing_retrieval_keys": sorted(
-                    set(observation.missing_retrieval_keys)
-                    | (set(observation.retrieval_keys) - retrieval_keys)
-                ),
-                "missing_reference_keys": sorted(
-                    set(observation.missing_reference_keys)
-                    | (set(observation.reference_keys) - reference_keys)
-                ),
                 "replay_ready": bool(
-                    observation.collection_completed
-                    and observation.replay_verified
+                    (observation.retrieval_keys or observation.reference_keys)
                     and not (
-                        set(observation.missing_retrieval_keys)
+                        (set(observation.missing_retrieval_keys) - retrieval_keys)
                         | (set(observation.retrieval_keys) - retrieval_keys)
                     )
                     and not (
-                        set(observation.missing_reference_keys)
+                        (set(observation.missing_reference_keys) - reference_keys)
                         | (set(observation.reference_keys) - reference_keys)
                     )
+                ),
+                "replay_verified": observation.replay_verified,
+                "retrieval_key_count": len(observation.retrieval_keys),
+                "reference_key_count": len(observation.reference_keys),
+                "required_retrieval_keys": list(observation.retrieval_keys),
+                "required_reference_keys": list(observation.reference_keys),
+                "required_key_count": len(observation.retrieval_keys)
+                + len(observation.reference_keys),
+                "present_success_entries": sum(
+                    entry_by_key[key].status == "success"
+                    for key in [
+                        *observation.retrieval_keys,
+                        *observation.reference_keys,
+                    ]
+                    if key in entry_by_key
+                ),
+                "present_failed_entries": sum(
+                    entry_by_key[key].status == "failed"
+                    for key in [
+                        *observation.retrieval_keys,
+                        *observation.reference_keys,
+                    ]
+                    if key in entry_by_key
+                ),
+                "missing_entries": len(
+                    (set(observation.missing_retrieval_keys) - retrieval_keys)
+                    | (set(observation.retrieval_keys) - retrieval_keys)
+                )
+                + len(
+                    (set(observation.missing_reference_keys) - reference_keys)
+                    | (set(observation.reference_keys) - reference_keys)
+                ),
+                "missing_retrieval_keys": sorted(
+                    (set(observation.missing_retrieval_keys) - retrieval_keys)
+                    | (set(observation.retrieval_keys) - retrieval_keys)
+                ),
+                "missing_reference_keys": sorted(
+                    (set(observation.missing_reference_keys) - reference_keys)
+                    | (set(observation.reference_keys) - reference_keys)
+                ),
+                "plan_rounds": observation.plan_rounds,
+                "last_plan_round": observation.last_plan_round,
+                "stop_reason": observation.stop_reason,
+                "missing_keys_by_source": _count_sources(
+                    [
+                        planned_source_by_key.get(key, "unknown")
+                        for key in sorted(
+                            (set(observation.missing_retrieval_keys) - retrieval_keys)
+                            | (set(observation.retrieval_keys) - retrieval_keys)
+                            | (set(observation.missing_reference_keys) - reference_keys)
+                            | (set(observation.reference_keys) - reference_keys)
+                        )
+                    ]
+                ),
+                "failed_keys_by_source": _count_sources(
+                    [
+                        entry_by_key[key].source
+                        for key in [
+                            *observation.retrieval_keys,
+                            *observation.reference_keys,
+                        ]
+                        if key in entry_by_key
+                        and entry_by_key[key].status == "failed"
+                    ]
                 ),
             }
             for name, observation in sorted(manifest.groups.items())
@@ -269,6 +397,20 @@ class SnapshotStore:
             + references["hash_mismatch_entries"],
             "groups": groups,
         }
+
+    def _planned_source_by_key(self) -> dict[str, str]:
+        sources: dict[str, str] = {}
+        plans_root = self.root / "plans"
+        for path in sorted(plans_root.rglob("plan_round_*.json")):
+            try:
+                plan = SnapshotPlanRound.model_validate_json(
+                    path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValidationError):
+                continue
+            for entry in plan.entries:
+                sources[entry.key] = entry.source
+        return sources
 
     def _read_entry(
         self,
@@ -395,3 +537,10 @@ def _stable_hash(payload: dict[str, Any]) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _count_sources(sources: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for source in sources:
+        counts[source] = counts.get(source, 0) + 1
+    return dict(sorted(counts.items()))

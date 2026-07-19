@@ -261,6 +261,22 @@ def _ablation_comparison_data(
             "average_refchain_latency_seconds": float(
                 costs.get("average_refchain_latency_seconds") or 0.0
             ),
+            "recorded_initial_search_api_calls": int(
+                costs.get("recorded_initial_search_api_calls") or 0
+            ),
+            "recorded_query_evolution_api_calls": int(
+                costs.get("recorded_query_evolution_api_calls") or 0
+            ),
+            "recorded_refchain_api_calls": int(
+                costs.get("recorded_refchain_api_calls") or 0
+            ),
+            "average_recorded_query_evolution_latency_seconds": float(
+                costs.get("average_recorded_query_evolution_latency_seconds")
+                or 0.0
+            ),
+            "average_recorded_refchain_latency_seconds": float(
+                costs.get("average_recorded_refchain_latency_seconds") or 0.0
+            ),
             "source_error_rate": float(
                 (stage.get("source_contribution") or {}).get("source_error_rate")
                 or 0.0
@@ -353,11 +369,12 @@ def _ablation_markdown(data: dict[str, Any]) -> str:
         (
             "| 配置 | F1@5/10/20 | R@20 | 候选 Recall 初始→QE→Ref→返回@20 | QE +候选/+gold | "
             "RefChain +候选/+gold | Search API | Ref API | 总 API | 延迟 | "
-            "QE 延迟 | Ref 延迟 | 错误率 | QE 结论 | RefChain 结论 |"
+            "QE 延迟 | Ref 延迟 | 记录 QE/Ref API | 记录 QE/Ref 延迟 | "
+            "错误率 | QE 结论 | RefChain 结论 |"
         ),
         (
             "| --- | --- | ---: | ---: | --- | --- | ---: | ---: | ---: | "
-            "---: | ---: | ---: | ---: | --- | --- |"
+            "---: | ---: | ---: | ---: | --- | --- | ---: | --- | --- |"
         ),
     ]
     for row in data["configurations"]:
@@ -379,6 +396,10 @@ def _ablation_markdown(data: dict[str, Any]) -> str:
             f"{row['average_latency_seconds']:.3f} | "
             f"{row['average_query_evolution_latency_seconds']:.3f} | "
             f"{row['average_refchain_latency_seconds']:.3f} | "
+            f"{row['recorded_query_evolution_api_calls']}/"
+            f"{row['recorded_refchain_api_calls']} | "
+            f"{row['average_recorded_query_evolution_latency_seconds']:.3f}/"
+            f"{row['average_recorded_refchain_latency_seconds']:.3f} | "
             f"{row['source_error_rate']:.3f} | "
             f"{', '.join(row['query_evolution_conclusions']) or '-'} | "
             f"{', '.join(row['refchain_conclusions']) or '-'} |"

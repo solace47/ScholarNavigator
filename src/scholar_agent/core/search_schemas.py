@@ -328,7 +328,12 @@ class RefChainSeedDiagnostic(BaseModel):
     seed_category: JudgementCategory
     seed_score: float = Field(ge=0.0, le=1.0)
     identifier_type: str | None = None
+    snapshot_key: str | None = None
     request_count: int = Field(default=0, ge=0)
+    recorded_request_count: int = Field(default=0, ge=0)
+    recorded_retry_count: int = Field(default=0, ge=0)
+    recorded_error_count: int = Field(default=0, ge=0)
+    recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
     references_returned: int = Field(default=0, ge=0)
     unique_references_returned: int = Field(default=0, ge=0)
     skip_reason: str | None = None
@@ -351,6 +356,10 @@ class RefChainRecord(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = Field(default=0.0, ge=0.0)
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    recorded_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
 
 
 class RefChainOutput(BaseModel):
@@ -360,6 +369,10 @@ class RefChainOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     latency_seconds: float = Field(default=0.0, ge=0.0)
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    recorded_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
 
 
 def _normalize_sources(value: object) -> list[str]:

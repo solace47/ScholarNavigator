@@ -13,16 +13,15 @@
 - 阶段快照、gold drop reason、Judgement/Reranking 错误、来源独占贡献和规则瓶颈标签已接入 Benchmark Runner；固定前 10 条完成两组基线，剩余配置因公共源持续 429/超时暂停。
 - 查询适配已改为安全原查询保底和核心查询补充，信息保留保护、精确 run 去重和完整 provenance 已通过离线测试；固定前 10 条 arXiv 开发诊断恢复候选 Recall，独立 5 条验证未低于 safe-original，但三源运行仍受持续 429 限制。
 - 自适应查询策略已按候选充分性、预算和来源状态按需执行核心补充，并记录触发、跳过、成本和事后 gold 增量；固定开发集、独立验证集和无 Semantic Scholar 的双源结果仍需结合小样本限制解释。
-- Query Evolution 与 RefChain 已补齐逐 case seed、动作、去重新增候选、事后 gold、Judgement/Top-K 丢失及边际成本诊断；四组双源运行因 OpenAlex 持续 timeout、429 和 cooldown 仅完成开发集 baseline，尚无模块收益结论。
-- Benchmark 已在检索与 RefChain 连接器边界支持原子 Record/Replay、缺键补录、失败重试、完整性校验和执行/记录成本分离；固定 baseline 已通过 10/10 零网络回放，另外三组因 OpenAlex 持续失败未采集，四组结果仍不完整。
+- Query Evolution 与 RefChain 已补齐逐 case seed、动作、去重新增候选、事后 gold、Judgement/Top-K 丢失及边际成本诊断；固定开发集前 10 条四组均已纯离线验证，结果只作为小样本诊断。
+- Benchmark 已支持动态快照的离线规划、有界串行采集、固定点检查、失败环境冻结和四组覆盖审计；四组均 replay-ready 且 replay-verified，回放执行期 HTTP、重试和网络等待为 0。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0
 
 1. **完成正式基线**：在固定代码、数据、来源和预算下运行完整 AutoScholarQuery；验收标准是一条命令复现 1000 条逐查询 F1@5/10/20、端到端汇总和效率报告。
 2. **校准官方口径**：核对 gold 转换、K 值和官方计分器差异；验收标准是共享样例与官方输出逐项一致。
-3. **补齐固定快照矩阵**：按 baseline、Query Evolution、RefChain、组合顺序补齐同一真实响应快照；验收标准是四组 manifest 均 replay-ready，离线回放 HTTP 请求为 0 且输出完整诊断文件。
-4. **扩大查询适配验证**：在不使用 gold 生成查询的前提下扩大异质查询集；验收标准是多次运行中来源可靠性不退化且候选 Recall 不低于原始查询基线。
+3. **扩大查询适配验证**：在不使用 gold 生成查询的前提下扩大异质查询集；验收标准是多次运行中来源可靠性不退化且候选 Recall 不低于原始查询基线。
 
 ## P1
 

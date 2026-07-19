@@ -17,7 +17,7 @@ class ConnectorSearchResult(BaseModel):
     latency_seconds: float = 0.0
     diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
     snapshot_provenance: Literal[
-        "live", "snapshot_record", "snapshot_replay"
+        "live", "snapshot_record", "snapshot_replay", "snapshot_plan"
     ] = "live"
     snapshot_key: str | None = None
     snapshot_hit: bool = False
