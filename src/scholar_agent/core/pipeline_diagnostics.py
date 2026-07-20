@@ -49,6 +49,7 @@ class CandidateProvenance(BaseModel):
 class RetrievalCallTrace(BaseModel):
     origin_subquery: str
     source: str
+    terminal_status: str | None = None
     adapted_query: str | None = None
     adaptation_strategy: str | None = None
     cache_hit: bool = False
@@ -146,6 +147,7 @@ class PipelineDiagnosticsCollector:
                     RetrievalCallTrace(
                         origin_subquery=output.query,
                         source=stats.source,
+                        terminal_status=stats.terminal_status,
                         adapted_query=stats.adapted_query,
                         adaptation_strategy=stats.adaptation_strategy,
                         cache_hit=stats.cache_hit,

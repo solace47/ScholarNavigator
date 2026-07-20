@@ -126,6 +126,8 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 
 真实响应快照支持 `live`、`record`、`record-missing`、`plan` 和 `replay`。`plan` 完全离线执行真实流水线并输出动态缺键及依赖，采集器串行补齐后再次规划到固定点；`--retry-failed-snapshots` 才会重试已冻结失败。结构合法的 success 或 failed 条目都算覆盖，但分别统计；Replay 缺键、Schema 不兼容或内容哈希不一致时失败，不访问外网：
 
+纯 `replay` 按冻结组中的请求 key 重放每个已记录终态，不读取或更新 live connector 的进程级/运行级 cooldown。一个失败快照仍以原错误返回并计为失败，但不会抑制后续已有成功快照；组内必需 key 缺少文件时明确失败，未进入冻结组的历史未执行路径记为 `snapshot_key_not_recorded`，不会伪装成缺失请求。`record` 与 `record-missing` 继续使用 live 限流、cooldown 和熔断语义。
+
 ```bash
 PYTHONPATH=src python scripts/run_benchmark.py \
   --dataset auto_scholar_query --offset 0 --limit 10 \

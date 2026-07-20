@@ -14,9 +14,11 @@ if str(ROOT) not in sys.path:
 from scripts import run_benchmark
 from scripts.inspect_benchmark_snapshot import inspect_snapshot
 from scholar_agent.agents import retriever as retriever_module
+from scholar_agent.agents.retriever import RetrievalRunContext
 from scholar_agent.connectors.schemas import ConnectorSearchResult
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
+from scholar_agent.core.pipeline_diagnostics import PipelineDiagnosticsCollector
 from scholar_agent.core.search_schemas import SearchBudget
 from scholar_agent.evaluation.snapshots import (
     SnapshotAwareReferenceFetcher,
@@ -641,6 +643,306 @@ def test_snapshot_aware_retriever_replay_never_invokes_connector(
     assert [paper.title for paper in output.papers] == ["Snapshot Paper"]
     assert output.source_stats[0].snapshot_hit is True
     assert output.source_stats[0].diagnostics.request_count == 0
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        [
+            ("semantic_scholar", "semantic failed"),
+            ("openalex", "openalex success"),
+            ("semantic_scholar", "semantic success"),
+            ("openalex", "openalex outage"),
+        ],
+        [
+            ("openalex", "openalex outage"),
+            ("semantic_scholar", "semantic success"),
+            ("openalex", "openalex success"),
+            ("semantic_scholar", "semantic failed"),
+        ],
+    ],
+)
+def test_snapshot_replay_consumes_recorded_terminals_independent_of_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    order: list[tuple[str, str]],
+) -> None:
+    root = tmp_path / "snapshot"
+    record = _runtime(root, "record")
+    recorded = {
+        ("semantic_scholar", "semantic failed"): ConnectorSearchResult(
+            error_message="Semantic Scholar search failed: HTTP Error 429: ",
+            warnings=["Semantic Scholar search failed: HTTP Error 429:"],
+            diagnostics=ConnectorDiagnostics(
+                request_count=2,
+                retry_count=1,
+                error_count=1,
+            ),
+        ),
+        ("semantic_scholar", "semantic success"): _success_result(
+            "Semantic Success"
+        ),
+        ("openalex", "openalex success"): _success_result("OpenAlex Success"),
+        ("openalex", "openalex outage"): ConnectorSearchResult(
+            error_message="source_outage: OpenAlex HTTP Error 429",
+            warnings=["source_outage:openalex"],
+            diagnostics=ConnectorDiagnostics(
+                request_count=2,
+                retry_count=1,
+                error_count=1,
+            ),
+        ),
+    }
+    for (source, query), result in recorded.items():
+        record.search(
+            source,
+            query,
+            5,
+            "safe_original",
+            lambda adapted_query, limit, *, value=result: value,
+        )
+    record.finish_group(completed=True)
+
+    live_calls: list[tuple[str, str]] = []
+
+    def forbidden(source: str):
+        def call(query: str, limit: int) -> ConnectorSearchResult:
+            live_calls.append((source, query))
+            raise AssertionError("network forbidden during replay")
+
+        return call
+
+    monkeypatch.setattr(
+        retriever_module,
+        "search_semantic_scholar_detailed",
+        forbidden("semantic_scholar"),
+    )
+    monkeypatch.setattr(
+        retriever_module,
+        "search_openalex_detailed",
+        forbidden("openalex"),
+    )
+
+    runs: list[
+        dict[tuple[str, str], tuple[bool, str | None, str | None, str | None]]
+    ] = []
+    for _ in range(2):
+        replay = _runtime(root, "replay")
+        retriever = SnapshotAwareRetriever(replay)
+        context = RetrievalRunContext()
+        observed = {}
+        for source, query in order:
+            output = retriever(
+                query,
+                limit_per_source=5,
+                sources=[source],
+                query_adapter_policy="safe_original",
+                run_context=context,
+            )
+            stats = output.source_stats[0]
+            observed[(source, query)] = (
+                stats.snapshot_hit,
+                stats.error_message,
+                output.papers[0].title if output.papers else None,
+                stats.terminal_status,
+            )
+            assert stats.source_skipped_reason is None
+            assert stats.diagnostics.request_count == 0
+        costs = replay.finish_case()
+        assert costs.retrieval_snapshot_hits == len(recorded)
+        assert costs.retrieval_snapshot_writes == 0
+        assert costs.replay_execution_request_count == 0
+        runs.append(observed)
+
+    assert live_calls == []
+    assert runs[0] == runs[1]
+    assert runs[0][("semantic_scholar", "semantic failed")][1] == (
+        "Semantic Scholar search failed: HTTP Error 429: "
+    )
+    assert runs[0][("semantic_scholar", "semantic failed")][3] == "failed"
+    assert runs[0][("semantic_scholar", "semantic success")][2] == (
+        "Semantic Success"
+    )
+    assert runs[0][("semantic_scholar", "semantic success")][3] == "success"
+    assert runs[0][("openalex", "openalex success")][2] == "OpenAlex Success"
+    assert runs[0][("openalex", "openalex success")][3] == "success"
+    assert runs[0][("openalex", "openalex outage")][1] == (
+        "source_outage: OpenAlex HTTP Error 429"
+    )
+    assert runs[0][("openalex", "openalex outage")][3] == "source_outage"
+
+
+def test_snapshot_replay_reports_missing_key_after_failed_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "snapshot"
+    failed = ConnectorSearchResult(
+        error_message="Semantic Scholar search failed: HTTP Error 429: ",
+        diagnostics=ConnectorDiagnostics(request_count=2, retry_count=1, error_count=1),
+    )
+    record = _runtime(root, "record")
+    record.search(
+        "semantic_scholar",
+        "recorded failure",
+        5,
+        "safe_original",
+        lambda query, limit: failed,
+    )
+    record.search(
+        "semantic_scholar",
+        "required but missing",
+        5,
+        "safe_original",
+        lambda query, limit: _success_result("Missing Entry"),
+    )
+    group = record.finish_group(completed=True)
+    missing_key = group.retrieval_keys[1]
+    (root / "retrieval" / f"{missing_key}.json").unlink()
+    monkeypatch.setattr(
+        retriever_module,
+        "search_semantic_scholar_detailed",
+        lambda query, limit: pytest.fail("network forbidden during replay"),
+    )
+    replay = _runtime(root, "replay")
+    retriever = SnapshotAwareRetriever(replay)
+    context = RetrievalRunContext()
+
+    failed_output = retriever(
+        "recorded failure",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+    missing_output = retriever(
+        "required but missing",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+
+    assert failed_output.source_stats[0].snapshot_hit is True
+    assert failed_output.source_stats[0].error_message == failed.error_message
+    assert missing_output.source_stats[0].snapshot_hit is False
+    assert missing_output.source_stats[0].terminal_status == "missing"
+    assert "snapshot_missing:retrieval" in (
+        missing_output.source_stats[0].error_message or ""
+    )
+    assert missing_output.source_stats[0].source_skipped_reason is None
+    collector = PipelineDiagnosticsCollector(enabled=True)
+    collector.register_retrieval(
+        "initial_retrieval",
+        [failed_output, missing_output],
+        origin_kind_by_query={
+            "recorded failure": "initial_query",
+            "required but missing": "initial_generated_subquery",
+        },
+    )
+    assert [
+        call.terminal_status for call in collector.snapshots[0].retrieval_calls
+    ] == ["failed", "missing"]
+    costs = replay.finish_case()
+    assert costs.retrieval_snapshot_hits == 1
+    assert costs.retrieval_snapshot_writes == 0
+    assert len(costs.missing_retrieval_keys) == 1
+
+
+def test_snapshot_replay_marks_nonfrozen_path_without_creating_missing_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "snapshot"
+    failed = ConnectorSearchResult(
+        error_message="Semantic Scholar search failed: HTTP Error 429: ",
+        diagnostics=ConnectorDiagnostics(request_count=2, retry_count=1, error_count=1),
+    )
+    record = _runtime(root, "record")
+    record.search(
+        "semantic_scholar",
+        "frozen failure",
+        5,
+        "safe_original",
+        lambda query, limit: failed,
+    )
+    record.finish_group(completed=True)
+    monkeypatch.setattr(
+        retriever_module,
+        "search_semantic_scholar_detailed",
+        lambda query, limit: pytest.fail("network forbidden during replay"),
+    )
+    replay = _runtime(root, "replay")
+    retriever = SnapshotAwareRetriever(replay)
+    context = RetrievalRunContext()
+
+    retriever(
+        "frozen failure",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+    unrecorded = retriever(
+        "path not present in frozen group",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+
+    stats = unrecorded.source_stats[0]
+    assert stats.terminal_status == "not_started"
+    assert stats.logical_call_executed is False
+    assert stats.source_skipped_reason == "snapshot_key_not_recorded"
+    assert stats.snapshot_hit is False
+    costs = replay.finish_case()
+    assert costs.retrieval_snapshot_hits == 1
+    assert costs.retrieval_snapshot_writes == 0
+    assert costs.missing_retrieval_keys == []
+
+
+def test_snapshot_record_keeps_live_cooldown_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def rate_limited(query: str, limit: int) -> ConnectorSearchResult:
+        calls.append(query)
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar search failed: HTTP Error 429: ",
+            diagnostics=ConnectorDiagnostics(request_count=2, retry_count=1, error_count=1),
+        )
+
+    monkeypatch.setattr(
+        retriever_module,
+        "search_semantic_scholar_detailed",
+        rate_limited,
+    )
+    record = _runtime(tmp_path / "snapshot", "record")
+    retriever = SnapshotAwareRetriever(record)
+    context = RetrievalRunContext()
+
+    first = retriever(
+        "first live record",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+    second = retriever(
+        "second live record",
+        limit_per_source=5,
+        sources=["semantic_scholar"],
+        query_adapter_policy="safe_original",
+        run_context=context,
+    )
+
+    assert calls == ["first live record"]
+    assert first.source_stats[0].snapshot_hit is False
+    assert second.source_stats[0].source_skipped_reason == "run_rate_limit_cooldown"
+    assert record.finish_case().retrieval_snapshot_writes == 1
 
 
 def test_four_ablation_groups_can_share_one_manifest(tmp_path: Path) -> None:

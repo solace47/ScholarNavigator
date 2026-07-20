@@ -6,7 +6,7 @@ import re
 import time
 from collections.abc import Callable
 from threading import RLock
-from typing import Literal
+from typing import Literal, cast
 
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
@@ -381,6 +381,41 @@ class SnapshotRuntime:
             deep=True,
         )
 
+    def has_recorded_retrieval_request(
+        self,
+        source: str,
+        adapted_query: str,
+        limit: int,
+        adapter_policy: QueryAdapterPolicy,
+        *,
+        query_evolution_policy: Literal[
+            "off", "seed_expansion", "coverage_gap"
+        ]
+        | None = None,
+        query_planning_policy: QueryPlanningPolicy | None = None,
+        query_planner_version: str | None = None,
+    ) -> bool:
+        """Return whether a replay request belongs to the frozen key set."""
+
+        key, _ = retrieval_snapshot_key(
+            source=source,
+            adapted_query=adapted_query,
+            limit=limit,
+            adapter_policy=adapter_policy,
+            connector_version=connector_version(source),
+            query_evolution_policy=query_evolution_policy,
+            query_planning_policy=(
+                query_planning_policy or self.query_planning_policy
+            ),
+            query_planner_version=(
+                query_planner_version or self.query_planner_version
+            ),
+        )
+        with self._lock:
+            if self._prior_group is not None:
+                return key in self._prior_group.retrieval_keys
+        return self._read_optional("retrieval", key) is not None
+
     def fetch_references(
         self,
         paper: Paper,
@@ -736,6 +771,12 @@ class SnapshotAwareRetriever:
             if purpose.startswith("query_evolution_coverage_gap")
             else "seed_expansion" if generated_by == "query_evolution" else None
         )
+        raw_adapter_policy = kwargs.get("query_adapter_policy", "adaptive")
+        adapter_policy: QueryAdapterPolicy = (
+            cast(QueryAdapterPolicy, raw_adapter_policy)
+            if raw_adapter_policy in {"safe_original", "hybrid", "adaptive"}
+            else "adaptive"
+        )
         provider = lambda source, adapted_query, limit, policy, live_search: (
             self.runtime.search(
                 source,
@@ -751,10 +792,27 @@ class SnapshotAwareRetriever:
                 query_planner_version=self.runtime.query_planner_version,
             )
         )
+        recorded_terminal_lookup = (
+            lambda source, adapted_query, limit: (
+                self.runtime.has_recorded_retrieval_request(
+                    source,
+                    adapted_query,
+                    limit,
+                    adapter_policy,
+                    query_evolution_policy=query_evolution_policy,
+                    query_planning_policy=self.runtime.query_planning_policy,
+                    query_planner_version=self.runtime.query_planner_version,
+                )
+            )
+        )
         return retrieve_papers(
             query,
             **kwargs,
             connector_result_provider=provider,
+            replay_recorded_terminals=self.runtime.mode == "replay",
+            recorded_terminal_lookup=(
+                recorded_terminal_lookup if self.runtime.mode == "replay" else None
+            ),
         )
 
     def budget_elapsed_seconds(self) -> float:

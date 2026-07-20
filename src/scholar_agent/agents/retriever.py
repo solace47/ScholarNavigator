@@ -50,6 +50,7 @@ ADAPTIVE_COMPLEX_DIMENSION_COUNT = 2
 
 
 _CacheKey = tuple[str, str, int]
+_RecordedTerminalLookup = Callable[[str, str, int], bool]
 _RETRIEVAL_CACHE: OrderedDict[_CacheKey, tuple[float, ConnectorSearchResult]] = (
     OrderedDict()
 )
@@ -204,6 +205,8 @@ def retrieve_papers(
         ConnectorSearchResult,
     ]
     | None = None,
+    replay_recorded_terminals: bool = False,
+    recorded_terminal_lookup: _RecordedTerminalLookup | None = None,
 ) -> RetrievalOutput:
     """Retrieve papers from supported sources and deduplicate them."""
 
@@ -269,6 +272,8 @@ def retrieve_papers(
                 combination_mode=combination_mode,
                 connector_event_callback=connector_event_callback,
                 adaptive_budget_check=adaptive_budget_check,
+                replay_recorded_terminals=replay_recorded_terminals,
+                recorded_terminal_lookup=recorded_terminal_lookup,
             )
             for stats in adaptive_stats:
                 source_stats.append(stats)
@@ -301,6 +306,8 @@ def retrieve_papers(
                 remaining_subquery_count=remaining_subquery_count,
                 query_purpose=query_purpose,
                 combination_mode=combination_mode,
+                replay_recorded_terminals=replay_recorded_terminals,
+                recorded_terminal_lookup=recorded_terminal_lookup,
             )
             source_stats.append(stats)
             if stats.source_skipped_reason and not stats.error_message:
@@ -428,6 +435,8 @@ def _retrieve_adaptive_source(
     combination_mode: CombinationMode,
     connector_event_callback: Callable[[str, dict[str, object]], None] | None,
     adaptive_budget_check: Callable[[list[Paper]], str | None] | None,
+    replay_recorded_terminals: bool,
+    recorded_terminal_lookup: _RecordedTerminalLookup | None,
 ) -> list[SourceStats]:
     if not adapted_queries:
         return []
@@ -443,6 +452,8 @@ def _retrieve_adaptive_source(
         remaining_subquery_count=remaining_subquery_count,
         query_purpose=query_purpose,
         combination_mode=combination_mode,
+        replay_recorded_terminals=replay_recorded_terminals,
+        recorded_terminal_lookup=recorded_terminal_lookup,
     )
     _emit_connector_completed(connector_event_callback, safe_stats)
     if len(adapted_queries) < 2:
@@ -474,6 +485,7 @@ def _retrieve_adaptive_source(
             budget_reason=budget_reason,
             limit_per_source=limit_per_source,
             run_context=run_context,
+            replay_recorded_terminals=replay_recorded_terminals,
         )
         triggered_by = list(sufficiency.reasons)
         if budget_reason:
@@ -515,6 +527,8 @@ def _retrieve_adaptive_source(
             remaining_subquery_count=remaining_subquery_count,
             query_purpose=query_purpose,
             combination_mode=combination_mode,
+            replay_recorded_terminals=replay_recorded_terminals,
+            recorded_terminal_lookup=recorded_terminal_lookup,
         ).model_copy(
             update=_adaptive_stats_update(
                 sufficiency,
@@ -539,6 +553,7 @@ def _adaptive_compact_skip_reason(
     budget_reason: str | None,
     limit_per_source: int,
     run_context: RetrievalRunContext | None,
+    replay_recorded_terminals: bool,
 ) -> str | None:
     if not compact.query or compact.retention_ratio < MIN_COMPACT_RETENTION_RATIO:
         return "adaptive_low_information_retention"
@@ -552,9 +567,12 @@ def _adaptive_compact_skip_reason(
         key = _cache_key(source, compact.query, limit_per_source)
         if run_context.reused_result(key) is not None:
             return "adaptive_equivalent_query"
-        if run_context.blocked_reason(source) is not None:
+        if (
+            not replay_recorded_terminals
+            and run_context.blocked_reason(source) is not None
+        ):
             return "adaptive_source_cooldown"
-    if _is_source_in_cooldown(source):
+    if not replay_recorded_terminals and _is_source_in_cooldown(source):
         return "adaptive_source_cooldown"
     if safe_stats.error_message is not None:
         return "adaptive_source_failed"
@@ -775,6 +793,8 @@ def _retrieve_adapted_query(
     remaining_subquery_count: int,
     query_purpose: str | None,
     combination_mode: CombinationMode,
+    replay_recorded_terminals: bool,
+    recorded_terminal_lookup: _RecordedTerminalLookup | None,
 ) -> SourceStats:
     source_start = time.perf_counter()
     base = {
@@ -817,6 +837,23 @@ def _retrieve_adapted_query(
             else current_provenance
         )
         base["query_provenance"] = query_provenance
+        if (
+            replay_recorded_terminals
+            and recorded_terminal_lookup is not None
+            and not recorded_terminal_lookup(
+                source,
+                adapted.query,
+                limit_per_source,
+            )
+        ):
+            return SourceStats(
+                **base,
+                terminal_status="not_started",
+                logical_call_executed=False,
+                source_skipped_reason="snapshot_key_not_recorded",
+                snapshot_provenance="snapshot_replay",
+                latency_seconds=time.perf_counter() - source_start,
+            )
         reused = run_context.reused_result(key) if run_context is not None else None
         if reused is not None:
             return SourceStats(
@@ -830,14 +867,14 @@ def _retrieve_adapted_query(
         blocked_reason = (
             run_context.blocked_reason(source) if run_context is not None else None
         )
-        if blocked_reason is not None:
+        if not replay_recorded_terminals and blocked_reason is not None:
             return SourceStats(
                 **base,
                 error_message=f"source_cooldown_skip:{source}",
                 source_skipped_reason=blocked_reason,
                 latency_seconds=time.perf_counter() - source_start,
             )
-        if _is_source_in_cooldown(source):
+        if not replay_recorded_terminals and _is_source_in_cooldown(source):
             return SourceStats(
                 **base,
                 error_message=f"source_cooldown_skip:{source}",
@@ -854,14 +891,21 @@ def _retrieve_adapted_query(
             )
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
             message = f"{source} failed: {exc}"
-            if _is_final_rate_limit(message):
-                _record_source_cooldown(source)
-                if run_context is not None:
-                    run_context.block_source(source, "run_rate_limit_cooldown")
-            elif run_context is not None:
-                run_context.record_transient_outcome(source, message)
+            if not replay_recorded_terminals:
+                if _is_final_rate_limit(message):
+                    _record_source_cooldown(source)
+                    if run_context is not None:
+                        run_context.block_source(source, "run_rate_limit_cooldown")
+                elif run_context is not None:
+                    run_context.record_transient_outcome(source, message)
             return SourceStats(
                 **base,
+                terminal_status=(
+                    "missing"
+                    if replay_recorded_terminals
+                    and "snapshot_missing:" in str(exc)
+                    else "source_failure"
+                ),
                 error_message=str(exc),
                 warnings=[message],
                 latency_seconds=time.perf_counter() - source_start,
@@ -873,7 +917,10 @@ def _retrieve_adapted_query(
 
         if run_context is not None:
             run_context.store_result(key, result)
-        if _has_cooldown_trigger(result.error_message, result.warnings):
+        if (
+            not replay_recorded_terminals
+            and _has_cooldown_trigger(result.error_message, result.warnings)
+        ):
             _record_source_cooldown(
                 source,
                 minimum_seconds=result.diagnostics.retry_after_seconds,
@@ -882,10 +929,15 @@ def _retrieve_adapted_query(
                 result.error_message
             ):
                 run_context.block_source(source, "run_rate_limit_cooldown")
-        elif run_context is not None:
+        elif not replay_recorded_terminals and run_context is not None:
             run_context.record_transient_outcome(source, result.error_message)
         return SourceStats(
             **base,
+            terminal_status=(
+                _snapshot_terminal_status(result)
+                if replay_recorded_terminals
+                else None
+            ),
             returned_count=len(result.papers),
             latency_seconds=time.perf_counter() - source_start,
             error_message=result.error_message,
@@ -899,6 +951,14 @@ def _retrieve_adapted_query(
             recorded_diagnostics=result.recorded_diagnostics,
             recorded_latency_seconds=result.recorded_latency_seconds,
         )
+
+
+def _snapshot_terminal_status(result: ConnectorSearchResult) -> str:
+    if result.error_message is None:
+        return "success"
+    if "source_outage" in result.error_message.casefold():
+        return "source_outage"
+    return "failed"
 
 
 def _emit_connector_completed(
