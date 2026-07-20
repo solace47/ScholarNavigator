@@ -89,6 +89,8 @@ SciFact 的 evaluator 另使用版本化 `benchmark/beir_scifact_s2_crosswalk.js
 
 SciFact BM25 上界审计位于 `scripts/audit_scifact_bm25.py` 和 `scholar_agent.evaluation.scifact_bm25_audit`，不接入 `SearchService`。索引固定覆盖官方 5,183 篇 corpus，文档文本为未加权的 `title + abstract`；查询只使用 manifest 中 50 条原始 query text。实现固定为 `rank_bm25==0.2.2` 的 `BM25Okapi` 默认参数（`k1=1.5`、`b=0.75`、`epsilon=0.25`），tokenizer 仅做 Unicode `\w+` 与 casefold，不使用停用词、词干、扩展或 gold 信息。20/50/100/200 指标均从同一次完整语料排序的前缀计算，以 Corpus ID 精确评测；外部基线交集使用冻结 Replay 的 `initial_retrieval` 候选和同一统一身份规则。配置、输入哈希、汇总与产物哈希记录在 `benchmark/beir_scifact_bm25_audit_manifest.json`。该结果仅表示语料已知时的离线词法召回上界，不是产品可实现成绩。
 
+SciFact 跨源可索引性审计位于 `scripts/audit_scifact_source_index.py` 和 `scholar_agent.evaluation.scifact_source_index_audit`，同样与产品检索路径隔离。它只对 crosswalk 状态为 success 的 gold 使用来源支持的稳定标识：arXiv `id_list`、OpenAlex 单 work lookup、Semantic Scholar paper stable-ID lookup、PubMed PMID EFetch；不发送标题或 query，不使用模糊匹配。四源结果通过统一 `identity.py` 验证，同类稳定标识冲突保持不匹配。`record-missing` 串行执行并为每个请求保存不可变 Snapshot；`replay` 严格校验 request/key/content hash，外部失败与 not-found 分开。总体互斥归因优先保留正常查询命中，其次为精确可定位但查询未召回；只有全部适用源明确 not-found 才归为未定位，任何失败均保持不可判定。该 oracle 仅量化来源收录与查询命中缺口，不向查询、Prompt、候选或生产 API 注入 gold。
+
 复现命令：
 
 ```bash
