@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from scholar_agent.core.dedup import deduplicate_papers
+from scholar_agent.core.dedup import (
+    deduplicate_papers,
+    deduplicate_papers_with_audit,
+    paper_identity_evidence,
+)
+from scholar_agent.core.identity import build_identity_profile, normalize_title
+import scholar_agent.core.dedup as dedup_module
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
 
@@ -92,7 +98,7 @@ def test_deduplicate_by_arxiv_id_ignores_version() -> None:
     assert papers[0].sources == ["arxiv", "openalex"]
 
 
-def test_deduplicate_by_title_and_near_year() -> None:
+def test_deduplicate_requires_author_and_exact_year_for_title_fallback() -> None:
     papers = deduplicate_papers(
         [
             make_paper(
@@ -110,9 +116,143 @@ def test_deduplicate_by_title_and_near_year() -> None:
         ]
     )
 
+    assert len(papers) == 2
+
+
+def test_deduplicate_title_author_year_is_order_independent() -> None:
+    first = make_paper(
+        "A Study: On Identity",
+        year=2024,
+        authors=["Alice Smith", "Bob Jones"],
+        sources=["openalex"],
+    )
+    second = make_paper(
+        "a study on identity",
+        year=2024,
+        authors=["Bob Jones", "Alice Smith"],
+        sources=["arxiv"],
+    )
+
+    forward = deduplicate_papers([first, second])
+    reverse = deduplicate_papers([second, first])
+
+    assert len(forward) == len(reverse) == 1
+    assert set(forward[0].sources) == set(reverse[0].sources) == {
+        "openalex",
+        "arxiv",
+    }
+
+
+def test_deduplicate_keeps_conflicting_identifiers_separate() -> None:
+    papers = deduplicate_papers(
+        [
+            make_paper(
+                "Same Work",
+                year=2024,
+                authors=["Alice"],
+                doi="10.1000/first",
+                openalex_id="W1",
+            ),
+            make_paper(
+                "Same Work",
+                year=2024,
+                authors=["Alice"],
+                doi="10.1000/second",
+                openalex_id="W2",
+            ),
+        ]
+    )
+
+    assert len(papers) == 2
+
+
+def test_deduplicate_normalizes_all_stable_identifier_formats() -> None:
+    papers = deduplicate_papers(
+        [
+            make_paper(
+                "Stable Paper",
+                doi="https://doi.org/10.1000/ABC?x=1",
+                arxiv_id="https://arxiv.org/abs/2401.00001v1",
+            ),
+            make_paper(
+                "Different Metadata",
+                doi="doi:10.1000/abc",
+                arxiv_id="2401.00001v3",
+                openalex_id="https://openalex.org/W1",
+            ),
+        ]
+    )
+
     assert len(papers) == 1
-    assert papers[0].sources == ["openalex", "arxiv"]
-    assert papers[0].citation_count == 7
+
+
+def test_identity_audit_reports_rule_and_conflict_evidence() -> None:
+    first = make_paper(
+        "Audited Paper",
+        doi="https://doi.org/10.1000/A",
+        openalex_id="W1",
+        authors=["Alice"],
+    )
+    second = make_paper(
+        "Audited Paper Copy",
+        doi="10.1000/a",
+        openalex_id="W1",
+        authors=["Alice"],
+    )
+
+    papers, audit = deduplicate_papers_with_audit([first, second])
+
+    assert len(papers) == 1
+    assert audit == [
+        {
+            "existing_index": 0,
+            "incoming_title": "Audited Paper Copy",
+            "rule": "shared_stable_identifier",
+            "shared_identifiers": ["doi:10.1000/a", "openalex:w1"],
+            "conflicting_identifiers": [],
+            "title": None,
+            "author_overlap": [],
+            "year": None,
+        }
+    ]
+    conflict = paper_identity_evidence(
+        make_paper("Audited Paper", doi="10.1000/a"),
+        make_paper("Audited Paper", doi="10.1000/b"),
+    )
+    assert conflict.equivalent is False
+    assert conflict.rule == "conflicting_stable_identifier"
+
+
+def test_identity_profile_reuses_normalized_fields_and_unicode_punctuation() -> None:
+    assert normalize_title("A—Study… of “Models”") == "a study of models"
+    profile = build_identity_profile(
+        make_paper(
+            "A—Study… of “Models”",
+            authors=["Alice Smith", "Bob Jones"],
+            year=2024,
+        )
+    )
+    assert profile.title == "a study of models"
+    assert profile.authors == {"alice smith", "bob jones"}
+    assert profile.year == 2024
+
+
+def test_batch_dedup_builds_one_profile_per_unique_input(monkeypatch) -> None:
+    original = dedup_module.build_identity_profile
+    calls = 0
+
+    def counted(paper):
+        nonlocal calls
+        calls += 1
+        return original(paper)
+
+    monkeypatch.setattr(dedup_module, "build_identity_profile", counted)
+    papers = [
+        make_paper(f"Paper {index}", arxiv_id=f"2401.{index:05d}")
+        for index in range(3)
+    ]
+    deduplicate_papers_with_audit(papers)
+    assert calls == len(papers)
 
 
 def test_deduplicate_keeps_distinct_title_when_year_far_apart() -> None:
@@ -139,4 +279,3 @@ def test_deduplicate_by_other_identifiers() -> None:
     )
 
     assert len(papers) == 3
-

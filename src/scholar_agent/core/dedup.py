@@ -2,119 +2,80 @@
 
 from __future__ import annotations
 
-import re
-import string
-from difflib import SequenceMatcher
 from typing import Iterable
 
+from scholar_agent.core.identity import (
+    IdentityEvidence,
+    IdentityProfile,
+    build_identity_profile,
+    identity_evidence,
+    identity_evidence_from_profiles,
+    normalize_arxiv_id,
+    normalize_doi,
+    normalize_simple_id,
+    normalize_title,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
-
-
-TITLE_SIMILARITY_THRESHOLD = 0.92
-_LATEX_COMMAND_RE = re.compile(r"\\[a-zA-Z]+\*?(?:\[[^\]]*\])?(?:\{([^{}]*)\})?")
-_ARXIV_VERSION_RE = re.compile(r"v\d+$", re.IGNORECASE)
 
 
 def deduplicate_papers(papers: list[Paper]) -> list[Paper]:
     """Deduplicate papers while preserving first-seen order."""
 
-    deduplicated: list[Paper] = []
-    for paper in papers:
-        match_index = _find_duplicate_index(deduplicated, paper)
-        if match_index is None:
-            deduplicated.append(paper.model_copy(deep=True))
-            continue
-        deduplicated[match_index] = _merge_papers(deduplicated[match_index], paper)
-
+    deduplicated, _ = deduplicate_papers_with_audit(papers)
     return deduplicated
 
 
-def normalize_title(title: str | None) -> str:
-    """Normalize title text for fuzzy comparison."""
+def deduplicate_papers_with_audit(
+    papers: list[Paper],
+) -> tuple[list[Paper], list[dict[str, object]]]:
+    """Deduplicate and return an evidence row for every accepted merge."""
 
-    if not title:
-        return ""
+    deduplicated: list[Paper] = []
+    profiles: list[IdentityProfile] = []
+    evidence_rows: list[dict[str, object]] = []
+    for paper in papers:
+        profile = build_identity_profile(paper)
+        match_index = _find_duplicate_index(profiles, profile)
+        if match_index is None:
+            deduplicated.append(paper.model_copy(deep=True))
+            profiles.append(profile)
+            continue
+        evidence = identity_evidence_from_profiles(profiles[match_index], profile)
+        evidence_rows.append(
+            {
+                "existing_index": match_index,
+                "incoming_title": paper.title,
+                "rule": evidence.rule,
+                "shared_identifiers": list(evidence.shared_identifiers),
+                "conflicting_identifiers": list(evidence.conflicting_identifiers),
+                "title": evidence.title,
+                "author_overlap": list(evidence.author_overlap),
+                "year": evidence.year,
+            }
+        )
+        deduplicated[match_index] = _merge_papers(deduplicated[match_index], paper)
+        profiles[match_index] = build_identity_profile(deduplicated[match_index])
 
-    text = title.lower()
-    text = _LATEX_COMMAND_RE.sub(lambda match: match.group(1) or " ", text)
-    text = text.replace("$", " ")
-    text = text.replace("\\", " ")
-    text = text.replace("{", " ").replace("}", " ")
-    text = text.replace("^", " ").replace("_", " ").replace("~", " ")
-    text = text.translate(str.maketrans("", "", string.punctuation))
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def normalize_doi(value: str | None) -> str | None:
-    text = _clean(value)
-    if not text:
-        return None
-    lower = text.lower()
-    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
-        if lower.startswith(prefix):
-            lower = lower[len(prefix) :]
-            break
-    return lower.strip()
-
-
-def normalize_arxiv_id(value: str | None) -> str | None:
-    text = _clean(value)
-    if not text:
-        return None
-    text = text.rsplit("/", 1)[-1]
-    text = text.removeprefix("arXiv:").removeprefix("arxiv:")
-    text = _ARXIV_VERSION_RE.sub("", text)
-    return text.lower().strip() or None
+    return deduplicated, evidence_rows
 
 
-def normalize_simple_id(value: str | None) -> str | None:
-    text = _clean(value)
-    if not text:
-        return None
-    return text.rstrip("/").rsplit("/", 1)[-1].lower().strip() or None
-
-
-def _find_duplicate_index(existing: list[Paper], candidate: Paper) -> int | None:
-    for index, paper in enumerate(existing):
-        if _is_duplicate(paper, candidate):
+def _find_duplicate_index(
+    existing: list[IdentityProfile], candidate: IdentityProfile
+) -> int | None:
+    for index, profile in enumerate(existing):
+        if identity_evidence_from_profiles(profile, candidate).equivalent:
             return index
     return None
 
 
 def _is_duplicate(left: Paper, right: Paper) -> bool:
-    left_ids = left.identifiers
-    right_ids = right.identifiers
-
-    if _same_non_empty(normalize_doi(left_ids.doi), normalize_doi(right_ids.doi)):
-        return True
-    if _same_non_empty(normalize_arxiv_id(left_ids.arxiv_id), normalize_arxiv_id(right_ids.arxiv_id)):
-        return True
-    if _same_non_empty(normalize_simple_id(left_ids.openalex_id), normalize_simple_id(right_ids.openalex_id)):
-        return True
-    if _same_non_empty(
-        normalize_simple_id(left_ids.semantic_scholar_id),
-        normalize_simple_id(right_ids.semantic_scholar_id),
-    ):
-        return True
-    if _same_non_empty(normalize_simple_id(left_ids.pubmed_id), normalize_simple_id(right_ids.pubmed_id)):
-        return True
-    return _titles_match(left, right)
+    return identity_evidence(left, right).equivalent
 
 
-def _titles_match(left: Paper, right: Paper) -> bool:
-    if left.year is None or right.year is None:
-        return False
-    if abs(left.year - right.year) > 1:
-        return False
+def paper_identity_evidence(left: Paper, right: Paper) -> IdentityEvidence:
+    """Return the shared identity rule used by production deduplication."""
 
-    left_title = normalize_title(left.title)
-    right_title = normalize_title(right.title)
-    if not left_title or not right_title:
-        return False
-    if left_title == right_title:
-        return True
-    return SequenceMatcher(None, left_title, right_title).ratio() >= TITLE_SIMILARITY_THRESHOLD
+    return identity_evidence(left, right)
 
 
 def _merge_papers(existing: Paper, incoming: Paper) -> Paper:
@@ -175,10 +136,6 @@ def _merge_unique(*values: Iterable[str]) -> list[str]:
             merged.append(value)
             seen.add(key)
     return merged
-
-
-def _same_non_empty(left: str | None, right: str | None) -> bool:
-    return bool(left and right and left == right)
 
 
 def _is_placeholder_title(value: str) -> bool:

@@ -34,7 +34,7 @@ from scholar_agent.agents.retriever import (
     retrieve_papers,
 )
 from scholar_agent.connectors.openalex import fetch_openalex_references_detailed
-from scholar_agent.core.dedup import deduplicate_papers
+from scholar_agent.core.dedup import deduplicate_papers, deduplicate_papers_with_audit
 from scholar_agent.core.diagnostics_schemas import (
     ConnectorDiagnostics,
     merge_connector_diagnostics,
@@ -472,13 +472,16 @@ class SearchService:
                     "latency_seconds": retrieval_latency,
                 },
             )
+            deduplicated_papers, identity_audit = deduplicate_papers_with_audit(raw_papers)
             deduplicated = _apply_candidate_budget(
-                deduplicate_papers(raw_papers),
+                deduplicated_papers,
                 runtime,
                 stage="initial_retrieval",
                 source_order=search_plan.selected_sources,
             )
-            diagnostics.snapshot_papers("initial_deduplicated", deduplicated)
+            diagnostics.snapshot_papers(
+                "initial_deduplicated", deduplicated, identity_audit=identity_audit
+            )
             signals.emit(
                 "deduplication_completed",
                 {
@@ -720,8 +723,9 @@ class SearchService:
                         },
                     )
 
+                    deduplicated_papers, identity_audit = deduplicate_papers_with_audit(raw_papers)
                     deduplicated = _apply_candidate_budget(
-                        deduplicate_papers(raw_papers),
+                        deduplicated_papers,
                         runtime,
                         stage="query_evolution",
                         source_order=search_plan.selected_sources,
@@ -729,6 +733,7 @@ class SearchService:
                     diagnostics.snapshot_papers(
                         "post_evolution_deduplicated",
                         deduplicated,
+                        identity_audit=identity_audit,
                     )
                     signals.emit(
                         "deduplication_completed",
@@ -929,8 +934,9 @@ class SearchService:
                 },
             )
             if refchain_output.references:
+                deduplicated_papers, identity_audit = deduplicate_papers_with_audit(raw_papers)
                 deduplicated = _apply_candidate_budget(
-                    deduplicate_papers(raw_papers),
+                    deduplicated_papers,
                     runtime,
                     stage="refchain",
                     source_order=search_plan.selected_sources,
@@ -938,6 +944,7 @@ class SearchService:
                 diagnostics.snapshot_papers(
                     "post_refchain_deduplicated",
                     deduplicated,
+                    identity_audit=identity_audit,
                 )
                 signals.emit(
                     "deduplication_completed",

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from scholar_agent.core import api_schemas as api
+from scholar_agent.core.identity import paper_identifier_set
 from scholar_agent.core.paper_schemas import Paper as InternalPaper
 from scholar_agent.core.search_schemas import (
     EvidenceItem as InternalEvidenceItem,
@@ -580,28 +581,20 @@ def _filtered_paper_diagnostic(ranked: InternalRankedPaper) -> str:
 
 
 def _filtered_paper_identifier(paper: InternalPaper) -> str | None:
-    identifiers = paper.identifiers
-    if identifiers.doi:
-        return f"doi:{identifiers.doi}"
-    if identifiers.arxiv_id:
-        return f"arxiv:{identifiers.arxiv_id}"
-    if identifiers.semantic_scholar_id:
-        return f"semantic_scholar:{identifiers.semantic_scholar_id}"
+    identifiers = paper_identifier_set(paper)
+    for prefix in ("arxiv:", "doi:", "openalex:", "s2:", "pubmed:"):
+        matches = sorted(item for item in identifiers if item.startswith(prefix))
+        if matches:
+            return matches[0]
     return None
 
 
 def _paper_node_id(paper: api.Paper) -> str | None:
-    identifiers = paper.identifiers
-    if identifiers.openalex_id:
-        return f"openalex:{identifiers.openalex_id.casefold()}"
-    if identifiers.doi:
-        return f"doi:{identifiers.doi.casefold()}"
-    if identifiers.arxiv_id:
-        return f"arxiv:{identifiers.arxiv_id.casefold()}"
-    if identifiers.semantic_scholar_id:
-        return f"s2:{identifiers.semantic_scholar_id.casefold()}"
-    if identifiers.pubmed_id:
-        return f"pubmed:{identifiers.pubmed_id.casefold()}"
+    identifiers = paper_identifier_set(paper)
+    for prefix in ("arxiv:", "doi:", "openalex:", "s2:", "pubmed:"):
+        matches = sorted(item for item in identifiers if item.startswith(prefix))
+        if matches:
+            return matches[0]
     return None
 
 

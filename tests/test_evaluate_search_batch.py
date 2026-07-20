@@ -65,7 +65,7 @@ def test_complete_match_metrics_are_correct(tmp_path: Path) -> None:
     assert payload["aggregate"]["ndcg_at_k"]["2"] == pytest.approx(1.0)
 
 
-def test_doi_arxiv_without_version_and_title_year_fallback_match() -> None:
+def test_doi_arxiv_match_but_unproven_title_only_record_stays_unmatched() -> None:
     batch_rows = [
         _batch_row(
             "case_001",
@@ -96,9 +96,8 @@ def test_doi_arxiv_without_version_and_title_year_fallback_match() -> None:
     assert result["per_case"][0]["matched_ids"] == [
         "doi:10.1000/abc",
         "arxiv:2501.00001",
-        "title_year:fallback paper:2023",
     ]
-    assert result["aggregate"]["recall_at_k"]["3"] == pytest.approx(1.0)
+    assert result["aggregate"]["recall_at_k"]["3"] == pytest.approx(2 / 3)
 
 
 def test_arxiv_doi_matches_result_arxiv_id() -> None:
@@ -172,7 +171,7 @@ def test_gold_arxiv_id_version_matches_result_without_version() -> None:
     assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
 
 
-def test_semantic_scholar_id_matches_even_when_doi_differs() -> None:
+def test_semantic_scholar_id_conflict_with_doi_does_not_match() -> None:
     batch_rows = [
         _batch_row(
             "case_001",
@@ -206,13 +205,11 @@ def test_semantic_scholar_id_matches_even_when_doi_differs() -> None:
         k_values=[1],
     )
 
-    assert result["per_case"][0]["matched_ids"] == [
-        "s2:4d91b5b2f4306f92f556a866a770ecd0fc22731e"
-    ]
-    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert result["per_case"][0]["matched_ids"] == []
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
 
 
-def test_arxiv_id_matches_with_different_doi() -> None:
+def test_arxiv_id_conflict_with_doi_does_not_match() -> None:
     batch_rows = [
         _batch_row(
             "case_001",
@@ -246,11 +243,11 @@ def test_arxiv_id_matches_with_different_doi() -> None:
         k_values=[1],
     )
 
-    assert result["per_case"][0]["matched_ids"] == ["arxiv:2501.00001"]
-    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
+    assert result["per_case"][0]["matched_ids"] == []
+    assert result["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
 
 
-def test_title_fallback_only_when_both_sides_have_no_reliable_id() -> None:
+def test_title_fallback_requires_author_evidence() -> None:
     title = "Fallback Only Paper"
     no_id_match = evaluate_search_batch.evaluate_batch_results(
         [_batch_row("case_001", high=[_ranked(title, year=2024)])],
@@ -281,10 +278,8 @@ def test_title_fallback_only_when_both_sides_have_no_reliable_id() -> None:
         k_values=[1],
     )
 
-    assert no_id_match["aggregate"]["recall_at_k"]["1"] == pytest.approx(1.0)
-    assert no_id_match["per_case"][0]["matched_ids"] == [
-        "title_year:fallback only paper:2024"
-    ]
+    assert no_id_match["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
+    assert no_id_match["per_case"][0]["matched_ids"] == []
     assert one_side_has_id["aggregate"]["recall_at_k"]["1"] == pytest.approx(0.0)
     assert one_side_has_id["per_case"][0]["matched_ids"] == []
 

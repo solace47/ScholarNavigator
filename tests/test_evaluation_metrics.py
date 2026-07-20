@@ -114,7 +114,7 @@ def test_f1_zero_and_default_k_values() -> None:
     assert matched.f1_at_k[20] == pytest.approx(2 / 21)
 
 
-def test_all_identifier_intersection_and_one_to_one_matching() -> None:
+def test_conflicting_identifiers_do_not_match_even_with_shared_other_ids() -> None:
     gold = [
         EvalGoldPaper(
             doi="10.123/different",
@@ -133,8 +133,8 @@ def test_all_identifier_intersection_and_one_to_one_matching() -> None:
         make_paper("Duplicate Prediction", openalex_id="W123"),
     ]
 
-    assert recall_at_k(ranked, gold, 2) == pytest.approx(0.5)
-    assert matched_paper_ids(ranked, gold) == ["openalex:w123"]
+    assert recall_at_k(ranked, gold, 2) == pytest.approx(0.0)
+    assert matched_paper_ids(ranked, gold) == []
 
 
 def test_semantic_scholar_prefixes_match() -> None:

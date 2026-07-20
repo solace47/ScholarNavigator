@@ -20,8 +20,19 @@ from scripts.audit_query_depth_curve import (  # noqa: E402
 )
 
 
-def _paper(title: str, arxiv_id: str | None = None, doi: str | None = None, year: int = 2020) -> dict:
-    return {"title": title, "year": year, "identifiers": {"arxiv_id": arxiv_id, "doi": doi}}
+def _paper(
+    title: str,
+    arxiv_id: str | None = None,
+    doi: str | None = None,
+    year: int = 2020,
+    authors: list[str] | None = None,
+) -> dict:
+    return {
+        "title": title,
+        "year": year,
+        "authors": authors or [],
+        "identifiers": {"arxiv_id": arxiv_id, "doi": doi},
+    }
 
 
 def test_prefix_dedup_and_first_hit_rank_are_stable() -> None:
@@ -60,8 +71,19 @@ def test_multiple_gold_matches_do_not_collapse() -> None:
 
 def test_current_dedup_merges_cross_source_identifiers_and_title_variants() -> None:
     papers = [
-        _paper("A Study of Models", None, "10.1000/example"),
-        _paper("A study of models", "arxiv:1234.1v2"),
+        _paper(
+            "A Study of Models",
+            None,
+            "10.1000/example",
+            year=2020,
+            authors=["Alice"],
+        ),
+        _paper(
+            "A study of models",
+            "arxiv:1234.1v2",
+            year=2020,
+            authors=["Alice"],
+        ),
     ]
     unique = _unique_prefix(papers, 200)
     assert len(unique) == 1

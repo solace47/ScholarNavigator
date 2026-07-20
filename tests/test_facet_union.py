@@ -8,7 +8,7 @@ import pytest
 from scholar_agent.agents.query_planning import plan_facet_union
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
-from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import (
     QUERY_PLANNER_VERSION,
     QueryAnalysis,
@@ -283,5 +283,6 @@ def _paper(title: str) -> Paper:
         title=title,
         abstract=f"abstract for {title}",
         year=2024,
+        identifiers=PaperIdentifiers(arxiv_id=f"fixture:{title}"),
         sources=["arxiv"],
     )

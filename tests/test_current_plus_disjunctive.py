@@ -6,7 +6,7 @@ from threading import Lock
 from scholar_agent.agents.query_planning import plan_current_plus_disjunctive
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.retriever import RetrievalOutput, SourceStats
-from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import QUERY_PLANNER_VERSION, SearchBudget
 from scholar_agent.evaluation.snapshots.store import retrieval_snapshot_key
 from scholar_agent.services.search_service import SearchService
@@ -212,5 +212,6 @@ def _paper(title: str) -> Paper:
         title=title,
         abstract=f"abstract for {title}",
         year=2024,
+        identifiers=PaperIdentifiers(arxiv_id=f"fixture:{title}"),
         sources=["arxiv"],
     )

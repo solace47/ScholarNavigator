@@ -10,6 +10,8 @@
 
 核心排名指标为 F1@K，同时输出 Precision@K、Recall@K、MRR 和 nDCG@K；默认 K 为 5、10、20。Precision@K 的分母固定为 K。
 
+跨来源论文身份由 `scholar_agent.core.identity` 统一解析，并同时用于候选去重、API 结构化 ID 和离线 gold 匹配。DOI、arXiv（忽略版本号）、OpenAlex、Semantic Scholar 与 PubMed 的规范化稳定标识相交时直接判定同一论文；没有共同稳定标识时，只有规范标题、年份和至少一名共同作者同时一致才合并。稳定标识冲突始终保持分离。规则不使用 gold、查询文本或相似度阈值；去重函数为每次合并保留规则、共享标识和冲突标识审计证据。
+
 聚合报告同时包含：
 
 - `success_only_metrics`：仅统计成功且有有效 gold 的案例。

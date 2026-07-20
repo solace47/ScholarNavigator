@@ -12,6 +12,11 @@ from scholar_agent.agents.retriever import (
     RetrievalOutput,
 )
 from scholar_agent.core.dedup import deduplicate_papers
+from scholar_agent.core.identity import (
+    IdentityProfile,
+    build_identity_profile,
+    identity_evidence_from_profiles,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.core.search_schemas import (
     JudgementFeatureVector,
@@ -93,6 +98,7 @@ class StageCandidateSnapshot(BaseModel):
     skipped_reason: str | None = None
     candidates: list[DiagnosticCandidate] = Field(default_factory=list)
     retrieval_calls: list[RetrievalCallTrace] = Field(default_factory=list)
+    identity_audit: list[dict[str, object]] = Field(default_factory=list)
 
 
 @dataclass
@@ -114,7 +120,9 @@ class PipelineDiagnosticsCollector:
         self.enabled = enabled
         self.snapshots: list[StageCandidateSnapshot] = []
         self._tracked: list[_TrackedCandidate] = []
+        self._tracked_profiles: list[IdentityProfile] = []
         self._judgements: list[_TrackedJudgement] = []
+        self._judgement_profiles: list[IdentityProfile] = []
 
     def register_retrieval(
         self,
@@ -267,13 +275,20 @@ class PipelineDiagnosticsCollector:
                 )
         self.snapshot_papers(stage, papers)
 
-    def snapshot_papers(self, stage: str, papers: list[Paper]) -> None:
+    def snapshot_papers(
+        self,
+        stage: str,
+        papers: list[Paper],
+        *,
+        identity_audit: list[dict[str, object]] | None = None,
+    ) -> None:
         if not self.enabled:
             return
         self.snapshots.append(
             StageCandidateSnapshot(
                 stage=stage,
                 candidates=[self._paper_candidate(paper) for paper in papers],
+                identity_audit=identity_audit or [],
             )
         )
 
@@ -292,6 +307,7 @@ class PipelineDiagnosticsCollector:
                     score=judgement.score,
                 )
             )
+            self._judgement_profiles.append(build_identity_profile(judgement.paper))
             base = self._paper_candidate(judgement.paper)
             candidates.append(
                 base.model_copy(
@@ -315,12 +331,15 @@ class PipelineDiagnosticsCollector:
             return
         candidates: list[DiagnosticCandidate] = []
         for ranked in ranked_papers:
-            base = self._paper_candidate(ranked.paper)
+            ranked_profile = build_identity_profile(ranked.paper)
+            base = self._paper_candidate(ranked.paper, profile=ranked_profile)
             judgement_score = next(
                 (
-                    item.score
-                    for item in reversed(self._judgements)
-                    if _same_candidate(item.paper, ranked.paper)
+                    self._judgements[index].score
+                    for index in range(len(self._judgements) - 1, -1, -1)
+                    if identity_evidence_from_profiles(
+                        self._judgement_profiles[index], ranked_profile
+                    ).equivalent
                 ),
                 None,
             )
@@ -350,10 +369,14 @@ class PipelineDiagnosticsCollector:
         )
 
     def _register(self, paper: Paper, provenance: CandidateProvenance) -> None:
-        for tracked in self._tracked:
-            if not _same_candidate(tracked.paper, paper):
+        profile = build_identity_profile(paper)
+        for index, tracked in enumerate(self._tracked):
+            if not identity_evidence_from_profiles(
+                self._tracked_profiles[index], profile
+            ).equivalent:
                 continue
             tracked.paper = deduplicate_papers([tracked.paper, paper])[0]
+            self._tracked_profiles[index] = build_identity_profile(tracked.paper)
             if provenance not in tracked.provenance:
                 tracked.provenance.append(provenance)
             return
@@ -363,11 +386,17 @@ class PipelineDiagnosticsCollector:
                 provenance=[provenance],
             )
         )
+        self._tracked_profiles.append(profile)
 
-    def _paper_candidate(self, paper: Paper) -> DiagnosticCandidate:
+    def _paper_candidate(
+        self, paper: Paper, *, profile: IdentityProfile | None = None
+    ) -> DiagnosticCandidate:
         provenance: list[CandidateProvenance] = []
-        for tracked in self._tracked:
-            if _same_candidate(tracked.paper, paper):
+        profile = profile or build_identity_profile(paper)
+        for index, tracked in enumerate(self._tracked):
+            if identity_evidence_from_profiles(
+                self._tracked_profiles[index], profile
+            ).equivalent:
                 provenance.extend(tracked.provenance)
         provenance = _stable_provenance(provenance)
         return DiagnosticCandidate(

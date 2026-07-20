@@ -7,13 +7,22 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
 
 from scholar_agent.core.evaluation_schemas import (
     EvalAggregateEfficiency,
     EvalCaseEfficiency,
     EvalGoldPaper,
     EvalMetricSet,
+)
+from scholar_agent.core.identity import (
+    build_identity_profile,
+    identity_evidence_from_profiles,
+    paper_identifier_set as shared_paper_identifier_set,
+    paper_title_year_key as shared_paper_title_year_key,
+    normalize_arxiv_id as shared_normalize_arxiv_id,
+    normalize_doi as shared_normalize_doi,
+    normalize_simple_id as shared_normalize_simple_id,
+    normalize_title as shared_normalize_title,
 )
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import RankedPaper
@@ -22,6 +31,7 @@ from scholar_agent.core.search_schemas import RankedPaper
 @dataclass(frozen=True)
 class _GoldRecord:
     index: int
+    paper: Any
     identifiers: frozenset[str]
     title_year: str | None
     grade: float
@@ -80,44 +90,13 @@ def canonical_paper_id(
 
 
 def paper_identifier_set(paper: Any) -> set[str]:
-    """Extract every supported normalized stable identifier from a paper."""
+    """Use the production identity normalizer for evaluator matching."""
 
-    paper = _unwrap_ranked_paper(paper)
-    identifiers: set[str] = set()
-    doi_value = _extract_identifier(paper, "doi")
-    if doi_value:
-        normalized_doi = _normalize_doi(doi_value)
-        if normalized_doi:
-            identifiers.add(f"doi:{normalized_doi}")
-            arxiv_from_doi = _arxiv_id_from_doi(normalized_doi)
-            if arxiv_from_doi:
-                identifiers.add(f"arxiv:{arxiv_from_doi}")
-
-    for field, prefix, normalizer in (
-        ("arxiv_id", "arxiv", _normalize_arxiv_id),
-        ("openalex_id", "openalex", _normalize_openalex_id),
-        ("semantic_scholar_id", "s2", _normalize_semantic_scholar_id),
-        ("s2_id", "s2", _normalize_semantic_scholar_id),
-        ("corpus_id", "s2", _normalize_semantic_scholar_id),
-        ("paper_id", "s2", _normalize_semantic_scholar_id),
-        ("pubmed_id", "pubmed", _normalize_pubmed_id),
-    ):
-        value = _extract_identifier(paper, field)
-        if not value:
-            continue
-        normalized = normalizer(value)
-        if normalized:
-            identifiers.add(f"{prefix}:{normalized}")
-    return identifiers
+    return shared_paper_identifier_set(_unwrap_ranked_paper(paper))
 
 
 def paper_title_year_key(paper: Any) -> str | None:
-    paper = _unwrap_ranked_paper(paper)
-    title = _normalize_title(str(_get_value(paper, "title") or ""))
-    year = _get_value(paper, "year")
-    if not title or year is None:
-        return None
-    return f"title_year:{title}:{year}"
+    return shared_paper_title_year_key(_unwrap_ranked_paper(paper))
 
 
 def matched_paper_ids(
@@ -358,30 +337,27 @@ def _ranked_matches(
         return []
     limit = len(ranked_papers) if k is None else max(0, k)
     used_gold: set[int] = set()
-    seen_prediction_ids: set[str] = set()
-    seen_prediction_titles: set[str] = set()
+    seen_prediction_profiles = []
+    gold_profiles = {
+        record.index: build_identity_profile(record.paper) for record in gold
+    }
     matches: list[_RankedMatch] = []
     for rank, paper in enumerate(ranked_papers[:limit], start=1):
         identifiers = paper_identifier_set(paper)
         title_year = paper_title_year_key(paper)
-        if identifiers:
-            if identifiers.intersection(seen_prediction_ids):
-                continue
-            seen_prediction_ids.update(identifiers)
-        elif title_year:
-            if title_year in seen_prediction_titles:
-                continue
-            seen_prediction_titles.add(title_year)
+        profile = build_identity_profile(paper)
+        if any(
+            identity_evidence_from_profiles(profile, prior).equivalent
+            for prior in seen_prediction_profiles
+        ):
+            continue
+        seen_prediction_profiles.append(profile)
 
         for record in gold:
             if record.index in used_gold:
                 continue
-            match_key = _match_key(
-                identifiers,
-                title_year,
-                set(record.identifiers),
-                record.title_year,
-            )
+            evidence = identity_evidence_from_profiles(profile, gold_profiles[record.index])
+            match_key = _match_key(evidence, title_year)
             if match_key is None:
                 continue
             used_gold.add(record.index)
@@ -410,6 +386,7 @@ def _positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
         records.append(
             _GoldRecord(
                 index=index,
+                paper=paper,
                 identifiers=frozenset(identifiers),
                 title_year=title_year,
                 grade=grade,
@@ -419,17 +396,14 @@ def _positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
 
 
 def _match_key(
-    predicted_ids: set[str],
+    evidence: Any,
     predicted_title: str | None,
-    gold_ids: set[str],
-    gold_title: str | None,
 ) -> str | None:
-    if predicted_ids or gold_ids:
-        shared = predicted_ids.intersection(gold_ids)
-        return _preferred_identifier(shared) if shared else None
-    if predicted_title and predicted_title == gold_title:
-        return predicted_title
-    return None
+    if not evidence.equivalent:
+        return None
+    if evidence.shared_identifiers:
+        return _preferred_identifier(set(evidence.shared_identifiers))
+    return predicted_title
 
 
 def _preferred_identifier(identifiers: set[str]) -> str | None:
@@ -515,18 +489,7 @@ def _overlay_values(paper: Any, values: Mapping[str, Any]) -> Any:
 
 
 def _normalize_doi(value: str) -> str:
-    normalized = value.strip().casefold().split("?", 1)[0]
-    for prefix in (
-        "https://doi.org/",
-        "http://doi.org/",
-        "https://dx.doi.org/",
-        "http://dx.doi.org/",
-        "doi:",
-    ):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-            break
-    return normalized.strip().rstrip("/.")
+    return shared_normalize_doi(value) or ""
 
 
 def _arxiv_id_from_doi(normalized_doi: str) -> str | None:
@@ -535,65 +498,23 @@ def _arxiv_id_from_doi(normalized_doi: str) -> str | None:
 
 
 def _normalize_arxiv_id(value: str) -> str:
-    normalized = value.strip().casefold().split("?", 1)[0].rstrip("/")
-    if "arxiv.org/abs/" in normalized:
-        normalized = normalized.split("arxiv.org/abs/", 1)[1]
-    elif "arxiv.org/pdf/" in normalized:
-        normalized = normalized.split("arxiv.org/pdf/", 1)[1]
-    for prefix in ("arxiv:", "abs/", "pdf/"):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-    if normalized.endswith(".pdf"):
-        normalized = normalized[:-4]
-    return re.sub(r"v\d+$", "", normalized).strip()
+    return shared_normalize_arxiv_id(value) or ""
 
 
 def _normalize_openalex_id(value: str) -> str:
-    normalized = value.strip().casefold().rstrip("/")
-    if "openalex.org/" in normalized:
-        normalized = normalized.rsplit("/", 1)[-1]
-    for prefix in ("openalex:",):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-    return normalized.strip()
+    return shared_normalize_simple_id(value) or ""
 
 
 def _normalize_semantic_scholar_id(value: str) -> str:
-    normalized = value.strip().casefold().rstrip("/")
-    if "semanticscholar.org/" in normalized:
-        path = urlparse(normalized).path.rstrip("/")
-        normalized = path.rsplit("/", 1)[-1]
-    for prefix in (
-        "semantic_scholar:",
-        "semantic-scholar:",
-        "semanticscholar:",
-        "corpusid:",
-        "paper:",
-        "s2:",
-    ):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-            break
-    return normalized.strip()
+    return shared_normalize_simple_id(value) or ""
 
 
 def _normalize_pubmed_id(value: str) -> str:
-    normalized = value.strip().casefold().rstrip("/")
-    if "pubmed.ncbi.nlm.nih.gov/" in normalized:
-        normalized = normalized.rsplit("/", 1)[-1]
-    for prefix in ("pubmed:", "pmid:"):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix) :]
-            break
-    return normalized.strip()
+    return shared_normalize_simple_id(value) or ""
 
 
 def _normalize_title(value: str) -> str:
-    normalized = value.casefold()
-    normalized = re.sub(r"\\[a-zA-Z]+\*?", " ", normalized)
-    normalized = re.sub(r"[{}$^_~]", " ", normalized)
-    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
-    return " ".join(normalized.split())
+    return shared_normalize_title(value)
 
 
 def _normalize_k_values(values: Sequence[int]) -> list[int]:
