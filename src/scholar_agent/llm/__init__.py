@@ -1,7 +1,9 @@
 """LLM provider helpers."""
 
 from scholar_agent.llm.provider import (
+    LLMCallDiagnostics,
     LLMConfigurationError,
+    LLMErrorDetails,
     LLMProviderError,
     LLMResponseError,
     LLMTokenUsage,
@@ -13,7 +15,9 @@ from scholar_agent.llm.provider import (
 )
 
 __all__ = [
+    "LLMCallDiagnostics",
     "LLMConfigurationError",
+    "LLMErrorDetails",
     "LLMProviderError",
     "LLMResponseError",
     "LLMTokenUsage",

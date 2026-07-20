@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import socket
+from typing import Literal
 from urllib.error import HTTPError, URLError
 
 import pytest
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from scholar_agent.llm import provider
 
@@ -105,9 +107,8 @@ def test_chat_json_parses_openai_compatible_json(
     assert captured["authorization"] == "Bearer sk-test-secret"
     assert captured["payload"]["max_tokens"] == provider.DEFAULT_MAX_TOKENS
     assert captured["payload"]["response_format"] == {"type": "json_object"}
-    assert captured["payload"]["extra_body"] == {
-        "chat_template_kwargs": {"thinking": False}
-    }
+    assert captured["payload"]["chat_template_kwargs"] == {"thinking": False}
+    assert captured["payload"]["stream"] is False
 
 
 def test_chat_json_records_token_usage(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -183,9 +184,7 @@ def test_chat_json_uses_configured_max_tokens_and_thinking_false(
 
     assert result == {"ok": True}
     assert captured["payload"]["max_tokens"] == 256
-    assert captured["payload"]["extra_body"] == {
-        "chat_template_kwargs": {"thinking": False}
-    }
+    assert captured["payload"]["chat_template_kwargs"] == {"thinking": False}
 
 
 @pytest.mark.parametrize("raw_value", ["0", "-1", "not-an-int"])
@@ -249,6 +248,184 @@ def test_chat_json_http_error_redacts_api_key(
     message = str(exc_info.value)
     assert "llm_http_error:503" in message
     assert "sk-test-secret" not in message
+    assert exc_info.value.details.http_status == 503
+    assert exc_info.value.details.summary == "upstream [redacted] failed"
+
+
+def test_chat_json_http_error_exposes_only_sanitized_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+
+    def fake_urlopen(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise HTTPError(
+            url="https://api.example.test/v1/chat/completions",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=FakeErrorBody(
+                "Unsupported parameter(s): `extra_body`; "
+                "Authorization: Bearer sk-test-secret",
+                error_type="invalid_request_error",
+                code="unsupported_parameter",
+                param="extra_body",
+            ),
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    with pytest.raises(provider.LLMProviderError) as exc_info:
+        provider.chat_json([{"role": "user", "content": "query"}])
+
+    error = exc_info.value
+    assert error.details.model_dump() == {
+        "http_status": 400,
+        "error_type": "invalid_request_error",
+        "service_error_code": "unsupported_parameter",
+        "summary": (
+            "Unsupported parameter(s): `extra_body`; "
+            "Authorization: [redacted]"
+        ),
+        "unsupported_parameters": [],
+    }
+    assert "sk-test-secret" not in str(error)
+    assert "sk-test-secret" not in json.dumps(error.details.model_dump())
+
+
+def test_chat_json_retries_once_without_unsupported_response_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    client = provider.OpenAICompatibleLLMClient.from_env()
+    messages = [{"role": "user", "content": "Return a status object."}]
+    captured_payloads: list[dict[str, object]] = []
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        del timeout
+        payload = json.loads(request.data.decode("utf-8"))
+        captured_payloads.append(payload)
+        if "response_format" in payload:
+            raise HTTPError(
+                url=request.full_url,
+                code=400,
+                msg="Bad Request",
+                hdrs=None,
+                fp=FakeErrorBody(
+                    "Unsupported parameter: `response_format`",
+                    error_type="invalid_request_error",
+                    code="unsupported_parameter",
+                    param="response_format",
+                ),
+            )
+        return FakeResponse(
+            {
+                "choices": [
+                    {"message": {"content": json.dumps({"status": "ok"})}}
+                ],
+                "usage": {
+                    "prompt_tokens": 12,
+                    "completion_tokens": 4,
+                    "total_tokens": 16,
+                },
+            }
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    assert client.chat_json(messages) == {"status": "ok"}
+
+    assert messages == [{"role": "user", "content": "Return a status object."}]
+    assert len(captured_payloads) == 2
+    assert captured_payloads[0]["response_format"] == {"type": "json_object"}
+    assert "response_format" not in captured_payloads[1]
+    assert captured_payloads[1]["messages"][0] == {
+        "role": "system",
+        "content": provider.JSON_ONLY_COMPATIBILITY_INSTRUCTION,
+    }
+    assert client.token_usage.total_tokens == 16
+    assert client.last_call_diagnostics is not None
+    assert client.last_call_diagnostics.mode == "json_only_prompt"
+    assert client.last_call_diagnostics.http_attempts == 2
+    assert (
+        client.last_call_diagnostics.fallback_reason
+        == "unsupported_parameters:response_format"
+    )
+
+    captured_payloads.clear()
+    assert client.chat_json(messages) == {"status": "ok"}
+    assert len(captured_payloads) == 1
+    assert "response_format" not in captured_payloads[0]
+
+
+def test_chat_json_does_not_retry_unrelated_http_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    attempts = 0
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        nonlocal attempts
+        del timeout
+        attempts += 1
+        raise HTTPError(
+            url=request.full_url,
+            code=429,
+            msg="Too Many Requests",
+            hdrs=None,
+            fp=FakeErrorBody("rate limited", code="rate_limit"),
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    with pytest.raises(provider.LLMProviderError) as exc_info:
+        provider.chat_json([{"role": "user", "content": "query"}])
+
+    assert attempts == 1
+    assert exc_info.value.details.http_status == 429
+
+
+def test_chat_json_result_can_be_strictly_schema_validated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = provider.OpenAICompatibleLLMClient(
+        base_url="https://api.example.test/v1",
+        api_key="sk-test-secret",
+        model="gpt-test",
+    )
+
+    def fake_urlopen(*args, **kwargs):  # noqa: ANN002, ANN003
+        return FakeResponse(
+            {"choices": [{"message": {"content": '{"status":"ok"}'}}]},
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    parsed = client.chat_json([{"role": "user", "content": "query"}])
+
+    assert StrictPreflightResult.model_validate(parsed).status == "ok"
+    with pytest.raises(ValidationError):
+        StrictPreflightResult.model_validate({**parsed, "unexpected": True})
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected"),
+    [
+        (
+            "https://api.example.test/v1",
+            "https://api.example.test/v1/chat/completions",
+        ),
+        (
+            "https://api.example.test/v1/",
+            "https://api.example.test/v1/chat/completions",
+        ),
+        (
+            "https://api.example.test/v1/chat/completions",
+            "https://api.example.test/v1/chat/completions",
+        ),
+    ],
+)
+def test_chat_completions_url_is_joined_once(base_url: str, expected: str) -> None:
+    assert provider._chat_completions_url(base_url) == expected
 
 
 def test_chat_json_url_error_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -282,14 +459,36 @@ def test_chat_json_rejects_non_json_content(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 class FakeErrorBody:
-    def __init__(self, message: str) -> None:
-        self._body = json.dumps({"error": {"message": message}}).encode("utf-8")
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_type: str | None = None,
+        code: str | None = None,
+        param: str | None = None,
+    ) -> None:
+        self._body = json.dumps(
+            {
+                "error": {
+                    "message": message,
+                    "type": error_type,
+                    "code": code,
+                    "param": param,
+                }
+            }
+        ).encode("utf-8")
 
     def read(self) -> bytes:
         return self._body
 
     def close(self) -> None:
         return None
+
+
+class StrictPreflightResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ok"]
 
 
 def _clear_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:

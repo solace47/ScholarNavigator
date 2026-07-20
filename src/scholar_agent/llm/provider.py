@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
+import time
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -24,10 +26,72 @@ SUPPORTED_PROVIDER = "openai_compatible"
 DISABLED_PROVIDER = "disabled"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_TOKENS = 1024
+JSON_ONLY_COMPATIBILITY_INSTRUCTION = (
+    "Compatibility requirement: return exactly one valid JSON object and no "
+    "markdown, prose, or code fences."
+)
+_OPTIONAL_JSON_PARAMETERS = ("response_format", "chat_template_kwargs")
+_UNSUPPORTED_PARAMETER_MARKERS = (
+    "unsupported parameter",
+    "unsupported field",
+    "unknown parameter",
+    "unknown field",
+    "unrecognized parameter",
+    "unrecognized field",
+    "not supported",
+    "not permitted",
+)
+
+
+@dataclass(frozen=True)
+class LLMErrorDetails:
+    """脱敏后的 provider 诊断信息，不包含响应正文或请求凭据。"""
+
+    http_status: int | None = None
+    error_type: str | None = None
+    service_error_code: str | None = None
+    summary: str | None = None
+    unsupported_parameters: tuple[str, ...] = ()
+
+    def model_dump(self) -> dict[str, Any]:
+        return {
+            "http_status": self.http_status,
+            "error_type": self.error_type,
+            "service_error_code": self.service_error_code,
+            "summary": self.summary,
+            "unsupported_parameters": list(self.unsupported_parameters),
+        }
+
+
+@dataclass(frozen=True)
+class LLMCallDiagnostics:
+    """最近一次逻辑调用的公开诊断。"""
+
+    mode: str
+    http_attempts: int
+    latency_ms: int
+    fallback_reason: str | None = None
+
+    def model_dump(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "http_attempts": self.http_attempts,
+            "latency_ms": self.latency_ms,
+            "fallback_reason": self.fallback_reason,
+        }
 
 
 class LLMProviderError(RuntimeError):
     """Base error for LLM provider failures."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: LLMErrorDetails | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.details = details or LLMErrorDetails(summary=message)
 
 
 class LLMConfigurationError(LLMProviderError):
@@ -159,6 +223,12 @@ class OpenAICompatibleLLMClient:
     model: str
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     token_usage: LLMTokenUsage = field(default_factory=LLMTokenUsage)
+    last_call_diagnostics: LLMCallDiagnostics | None = field(
+        default=None,
+        init=False,
+    )
+    _json_only_compatibility: bool = field(default=False, init=False, repr=False)
+    _omit_thinking_parameter: bool = field(default=False, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> "OpenAICompatibleLLMClient":
@@ -179,19 +249,64 @@ class OpenAICompatibleLLMClient:
         temperature: float = 0,
         timeout: float | None = None,
     ) -> dict[str, Any]:
-        payload = {
+        started = time.monotonic()
+        timeout_seconds = timeout if timeout is not None else self.timeout_seconds
+        payload: dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
+            "messages": _json_only_messages(messages)
+            if self._json_only_compatibility
+            else messages,
             "temperature": temperature,
             "max_tokens": _max_tokens_from_env(),
-            "response_format": {"type": "json_object"},
+            "stream": False,
         }
-        if not _nvidia_thinking_from_env():
-            payload["extra_body"] = {
-                "chat_template_kwargs": {
-                    "thinking": False,
-                }
-            }
+        mode = "json_only_prompt" if self._json_only_compatibility else "structured_json"
+        if not self._json_only_compatibility:
+            payload["response_format"] = {"type": "json_object"}
+        if not _nvidia_thinking_from_env() and not self._omit_thinking_parameter:
+            # ``extra_body`` is an OpenAI SDK option, not a wire-format field.
+            # OpenAI-compatible raw HTTP endpoints expect the extension itself.
+            payload["chat_template_kwargs"] = {"thinking": False}
+
+        http_attempts = 1
+        fallback_reason: str | None = None
+        try:
+            parsed_response = self._send_request(payload, timeout=timeout_seconds)
+        except LLMProviderError as exc:
+            fallback = self._compatibility_fallback(payload, exc)
+            if fallback is None:
+                raise
+            payload, mode, fallback_reason = fallback
+            http_attempts += 1
+            parsed_response = self._send_request(payload, timeout=timeout_seconds)
+
+        self.last_call_diagnostics = LLMCallDiagnostics(
+            mode=mode,
+            http_attempts=http_attempts,
+            latency_ms=max(0, round((time.monotonic() - started) * 1000)),
+            fallback_reason=fallback_reason,
+        )
+        self.token_usage.add(_parse_token_usage(parsed_response.get("usage")))
+
+        try:
+            content = parsed_response["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LLMResponseError("llm_malformed_chat_response") from exc
+
+        try:
+            parsed_content = json.loads(content)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise LLMResponseError("llm_invalid_json_content") from exc
+        if not isinstance(parsed_content, dict):
+            raise LLMResponseError("llm_json_content_not_object")
+        return parsed_content
+
+    def _send_request(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout: float,
+    ) -> dict[str, Any]:
         request = Request(
             _chat_completions_url(self.base_url),
             data=json.dumps(payload).encode("utf-8"),
@@ -204,46 +319,70 @@ class OpenAICompatibleLLMClient:
         try:
             with urlopen(  # noqa: S310 - URL is configured by trusted backend env.
                 request,
-                timeout=timeout if timeout is not None else self.timeout_seconds,
+                timeout=timeout,
             ) as response:
                 response_body = response.read().decode("utf-8")
         except socket.timeout as exc:
-            raise LLMTimeoutError("llm_request_timeout") from exc
+            raise LLMTimeoutError(
+                "llm_request_timeout",
+                details=LLMErrorDetails(
+                    error_type=type(exc).__name__,
+                    summary="request timed out",
+                ),
+            ) from exc
         except HTTPError as exc:
-            message = f"llm_http_error:{exc.code}"
-            try:
-                error_body = exc.read().decode("utf-8")
-                parsed = json.loads(error_body)
-                detail = parsed.get("error", {}).get("message")
-                if detail:
-                    message = f"{message}:{_sanitize_error_message(str(detail))}"
-            except Exception:
-                pass
-            raise LLMProviderError(message) from exc
+            raise _http_provider_error(exc) from exc
         except URLError as exc:
+            summary = _sanitize_error_message(str(exc.reason))
             raise LLMProviderError(
-                f"llm_url_error:{_sanitize_error_message(str(exc.reason))}"
+                f"llm_url_error:{summary}",
+                details=LLMErrorDetails(
+                    error_type=type(exc.reason).__name__,
+                    summary=summary,
+                ),
             ) from exc
 
         try:
             parsed_response = json.loads(response_body)
         except json.JSONDecodeError as exc:
             raise LLMResponseError("llm_malformed_chat_response") from exc
+        if not isinstance(parsed_response, dict):
+            raise LLMResponseError("llm_malformed_chat_response")
+        return parsed_response
 
-        self.token_usage.add(_parse_token_usage(parsed_response.get("usage")))
+    def _compatibility_fallback(
+        self,
+        payload: dict[str, Any],
+        error: LLMProviderError,
+    ) -> tuple[dict[str, Any], str, str] | None:
+        details = error.details
+        unsupported = set(details.unsupported_parameters)
+        if details.http_status not in {400, 422} or not unsupported:
+            return None
+        if not unsupported.intersection(_OPTIONAL_JSON_PARAMETERS):
+            return None
 
-        try:
-            content = parsed_response["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise LLMResponseError("llm_malformed_chat_response") from exc
+        fallback_payload = dict(payload)
+        fallback_payload["messages"] = [dict(item) for item in payload["messages"]]
+        fallback_reason = "unsupported_parameters:" + ",".join(
+            parameter
+            for parameter in _OPTIONAL_JSON_PARAMETERS
+            if parameter in unsupported
+        )
 
-        try:
-            parsed_content = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise LLMResponseError("llm_invalid_json_content") from exc
-        if not isinstance(parsed_content, dict):
-            raise LLMResponseError("llm_json_content_not_object")
-        return parsed_content
+        if "chat_template_kwargs" in unsupported:
+            fallback_payload.pop("chat_template_kwargs", None)
+            self._omit_thinking_parameter = True
+        if "response_format" in unsupported:
+            fallback_payload.pop("response_format", None)
+            fallback_payload["messages"] = _json_only_messages(
+                fallback_payload["messages"]
+            )
+            self._json_only_compatibility = True
+            mode = "json_only_prompt"
+        else:
+            mode = "structured_without_optional_parameters"
+        return fallback_payload, mode, fallback_reason
 
 
 def _provider_name() -> str:
@@ -314,9 +453,97 @@ def _base_url_host(base_url: str | None) -> str | None:
     return parsed.netloc or None
 
 
+def _http_provider_error(error: HTTPError) -> LLMProviderError:
+    error_type: str | None = None
+    service_error_code: str | None = None
+    summary = _sanitize_error_message(str(error.reason))
+    unsupported_parameters: tuple[str, ...] = ()
+    try:
+        error_body = error.read().decode("utf-8", errors="replace")
+        parsed = json.loads(error_body)
+        raw_error = parsed.get("error") if isinstance(parsed, dict) else None
+        if isinstance(raw_error, dict):
+            error_type = _safe_error_identifier(raw_error.get("type"))
+            service_error_code = _safe_error_identifier(raw_error.get("code"))
+            detail = raw_error.get("message")
+            if detail:
+                summary = _sanitize_error_message(str(detail))
+            parameter = _safe_error_identifier(raw_error.get("param"))
+            unsupported_parameters = _extract_unsupported_parameters(
+                summary,
+                parameter=parameter,
+            )
+        elif raw_error:
+            summary = _sanitize_error_message(str(raw_error))
+            unsupported_parameters = _extract_unsupported_parameters(summary)
+    except Exception:
+        # Provider bodies are untrusted and optional. The HTTP status remains useful.
+        pass
+
+    details = LLMErrorDetails(
+        http_status=error.code,
+        error_type=error_type,
+        service_error_code=service_error_code,
+        summary=summary,
+        unsupported_parameters=unsupported_parameters,
+    )
+    message_parts = [f"llm_http_error:{error.code}"]
+    if error_type:
+        message_parts.append(f"type={error_type}")
+    if service_error_code:
+        message_parts.append(f"code={service_error_code}")
+    if summary:
+        message_parts.append(f"summary={summary}")
+    return LLMProviderError(":".join(message_parts), details=details)
+
+
+def _extract_unsupported_parameters(
+    message: str,
+    *,
+    parameter: str | None = None,
+) -> tuple[str, ...]:
+    normalized = message.casefold()
+    if not any(marker in normalized for marker in _UNSUPPORTED_PARAMETER_MARKERS):
+        return ()
+    matched = []
+    for candidate in _OPTIONAL_JSON_PARAMETERS:
+        if candidate.casefold() in normalized or candidate == parameter:
+            matched.append(candidate)
+    return tuple(matched)
+
+
+def _json_only_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": JSON_ONLY_COMPATIBILITY_INSTRUCTION},
+        *(dict(message) for message in messages),
+    ]
+
+
+def _safe_error_identifier(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_.:/-]{1,80}", normalized):
+        return None
+    return normalized
+
+
 def _sanitize_error_message(message: str) -> str:
     api_key = os.getenv(API_KEY_ENV, "")
-    sanitized = message.replace("\n", " ").strip()
+    sanitized = re.sub(r"[\r\n\t]+", " ", message).strip()
+    sanitized = re.sub(
+        r"(?i)\b(authorization|api[_-]?key|access[_-]?token)"
+        r"(\s*[:=]\s*)(?:Bearer\s+)?[^\s,;]+",
+        r"\1\2[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*",
+        "Bearer [redacted]",
+        sanitized,
+    )
     if api_key:
         sanitized = sanitized.replace(api_key, "[redacted]")
     return sanitized[:240]
