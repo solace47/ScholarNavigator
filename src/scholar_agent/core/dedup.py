@@ -41,6 +41,9 @@ def deduplicate_papers_with_audit(
             profiles.append(profile)
             continue
         evidence = identity_evidence_from_profiles(profiles[match_index], profile)
+        propagated_identifiers = sorted(
+            profile.identifiers - profiles[match_index].identifiers
+        )
         evidence_rows.append(
             {
                 "existing_index": match_index,
@@ -48,6 +51,7 @@ def deduplicate_papers_with_audit(
                 "rule": evidence.rule,
                 "shared_identifiers": list(evidence.shared_identifiers),
                 "conflicting_identifiers": list(evidence.conflicting_identifiers),
+                "propagated_identifiers": propagated_identifiers,
                 "title": evidence.title,
                 "author_overlap": list(evidence.author_overlap),
                 "year": evidence.year,

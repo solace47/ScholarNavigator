@@ -38,6 +38,7 @@ MAX_SEMANTIC_SCHOLAR_LIMIT = 100
 SEARCH_FIELDS = ",".join(
     [
         "paperId",
+        "corpusId",
         "title",
         "authors",
         "year",

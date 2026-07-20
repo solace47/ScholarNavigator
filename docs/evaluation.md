@@ -83,7 +83,7 @@ PYTHONPATH=src python scripts/run_judgement_holdout.py \
 
 ### BEIR SciFact 泛化适配
 
-`beir_scifact` 适配器只接受 BEIR 官方 TU Darmstadt `scifact.zip` 的解压目录或归档，固定使用 `qrels/test.tsv`，并按 query ID 的 SHA-256 升序稳定抽取 50 条 query。每条正相关关系保留 qrel grade；当前 SciFact test qrels 的正相关 grade 为 1，适配器仍将 grade 写入 gold metadata，便于离线敏感性复核。语料的 `_id` 同时写入 gold 的顶层 `s2orc_corpus_id` 与审计 metadata，并由统一身份实现规范化为 `s2orc:<corpus-id>`；该标识只允许精确 ID 匹配，候选缺失 Corpus ID 时不会通过标题推断。缺失语料映射会在加载阶段失败，不会被计为检索未命中。官方来源、固定 BEIR commit、归档校验值和抽样口径记录在 `benchmark/beir_scifact_manifest.json`；原始归档只保存在被忽略的本地输入目录中。
+`beir_scifact` 适配器只接受 BEIR 官方 TU Darmstadt `scifact.zip` 的解压目录或归档，固定使用 `qrels/test.tsv`，并按 query ID 的 SHA-256 升序稳定抽取 50 条 query。每条正相关关系保留 qrel grade；当前 SciFact test qrels 的正相关 grade 为 1，适配器仍将 grade 写入 gold metadata，便于离线敏感性复核。语料的 `_id` 同时写入 gold 的顶层 `s2orc_corpus_id` 与审计 metadata，并由统一身份实现规范化为 `s2orc:<corpus-id>`；Semantic Scholar connector 显式请求官方 `corpusId` 字段并保留来源返回的精确值，字段采集版本为 `search-v2`。该标识只允许精确 ID 匹配，候选缺失 Corpus ID 时不会通过标题推断。缺失语料映射会在加载阶段失败，不会被计为检索未命中。官方来源、固定 BEIR commit、归档校验值和抽样口径记录在 `benchmark/beir_scifact_manifest.json`；原始归档只保存在被忽略的本地输入目录中。
 
 检查与运行示例（需先取得官方归档）：
 

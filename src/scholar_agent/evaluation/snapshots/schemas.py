@@ -19,7 +19,7 @@ QUERY_ADAPTER_VERSION = "1"
 CONNECTOR_VERSIONS = {
     "arxiv": "search-v1",
     "openalex": "search-v1",
-    "semantic_scholar": "search-v1",
+    "semantic_scholar": "search-v2",
     "pubmed": "search-v1",
     "openalex_references": "references-v1",
 }

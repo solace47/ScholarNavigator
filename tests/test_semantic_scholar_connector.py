@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 import scholar_agent.connectors.semantic_scholar as semantic_scholar_connector
+from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.connectors.semantic_scholar import (
     search_semantic_scholar,
     search_semantic_scholar_detailed,
@@ -102,6 +103,7 @@ def test_search_semantic_scholar_parses_normal_response(monkeypatch) -> None:
     assert query_params["query"] == ["llm reranking"]
     assert query_params["limit"] == ["5"]
     assert "paperId" in query_params["fields"][0]
+    assert "corpusId" in query_params["fields"][0]
 
 
 def test_search_semantic_scholar_detailed_normal_response_has_no_error(
@@ -315,8 +317,47 @@ def test_search_semantic_scholar_missing_fields_returns_available_result(
     assert len(result.papers) == 1
     assert result.papers[0].title == "Untitled Semantic Scholar Paper"
     assert result.papers[0].identifiers.semantic_scholar_id == "S2MIN"
+    assert result.papers[0].identifiers.s2orc_corpus_id is None
     assert result.papers[0].sources == ["semantic_scholar"]
     assert result.error_message is None
+
+
+def test_semantic_scholar_null_corpus_id_remains_unavailable(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse(
+            {"data": [{"paperId": "S2NULL", "corpusId": None, "externalIds": {}}]}
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = search_semantic_scholar_detailed("null corpus id")
+
+    assert len(result.papers) == 1
+    assert result.papers[0].identifiers.s2orc_corpus_id is None
+
+
+def test_duplicate_semantic_scholar_response_preserves_corpus_id_for_dedup(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        return MockResponse(
+            {
+                "data": [
+                    {"paperId": "S2A", "corpusId": 123, "title": "First"},
+                    {"paperId": "S2A", "corpusId": "123", "title": "Second"},
+                ]
+            }
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = search_semantic_scholar_detailed("duplicate corpus id")
+
+    assert [paper.identifiers.s2orc_corpus_id for paper in result.papers] == [
+        "123",
+        "123",
+    ]
+    assert len(deduplicate_papers(result.papers)) == 1
 
 
 def test_semantic_scholar_throttle_waits_between_consecutive_requests(

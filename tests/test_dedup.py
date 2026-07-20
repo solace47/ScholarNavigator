@@ -213,6 +213,7 @@ def test_identity_audit_reports_rule_and_conflict_evidence() -> None:
             "rule": "shared_stable_identifier",
             "shared_identifiers": ["doi:10.1000/a", "openalex:w1"],
             "conflicting_identifiers": [],
+            "propagated_identifiers": [],
             "title": None,
             "author_overlap": [],
             "year": None,
@@ -298,6 +299,46 @@ def test_s2orc_aliases_and_numeric_values_use_exact_identity() -> None:
         {"s2orc_corpus_id": 123},
         {"identifiers": {"CorpusId": "CorpusId:123"}},
     ).equivalent
+
+
+def test_dedup_audit_records_s2orc_propagation_from_source_candidate() -> None:
+    papers, audit = deduplicate_papers_with_audit(
+        [
+            make_paper("First source", doi="10.123/shared", sources=["arxiv"]),
+            make_paper(
+                "Authority source",
+                doi="10.123/shared",
+                s2orc_corpus_id="CorpusId:123",
+                sources=["semantic_scholar"],
+            ),
+        ]
+    )
+
+    assert len(papers) == 1
+    assert papers[0].identifiers.s2orc_corpus_id == "CorpusId:123"
+    assert audit[0]["rule"] == "shared_stable_identifier"
+    assert audit[0]["shared_identifiers"] == ["doi:10.123/shared"]
+    assert audit[0]["propagated_identifiers"] == ["s2orc:123"]
+
+
+def test_conflicting_s2orc_id_is_never_propagated_across_shared_doi() -> None:
+    papers, audit = deduplicate_papers_with_audit(
+        [
+            make_paper(
+                "First source",
+                doi="10.123/shared",
+                s2orc_corpus_id="123",
+            ),
+            make_paper(
+                "Conflicting source",
+                doi="10.123/shared",
+                s2orc_corpus_id="456",
+            ),
+        ]
+    )
+
+    assert len(papers) == 2
+    assert audit == []
 
 
 def test_s2orc_conflict_blocks_title_author_year_fallback() -> None:

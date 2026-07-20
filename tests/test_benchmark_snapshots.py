@@ -48,7 +48,9 @@ def no_real_project_env_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_benchmark, "load_project_env", lambda root: False)
 
 
-def _paper(title: str = "Snapshot Paper") -> Paper:
+def _paper(
+    title: str = "Snapshot Paper", *, s2orc_corpus_id: str | None = None
+) -> Paper:
     return Paper(
         title=title,
         authors=["Snapshot Author"],
@@ -57,6 +59,7 @@ def _paper(title: str = "Snapshot Paper") -> Paper:
         identifiers=PaperIdentifiers(
             doi="10.1234/snapshot",
             openalex_id="W123",
+            s2orc_corpus_id=s2orc_corpus_id,
         ),
         sources=["openalex"],
     )
@@ -123,9 +126,11 @@ def _runtime(
     )
 
 
-def _success_result(title: str = "Snapshot Paper") -> ConnectorSearchResult:
+def _success_result(
+    title: str = "Snapshot Paper", *, s2orc_corpus_id: str | None = None
+) -> ConnectorSearchResult:
     return ConnectorSearchResult(
-        papers=[_paper(title)],
+        papers=[_paper(title, s2orc_corpus_id=s2orc_corpus_id)],
         diagnostics=ConnectorDiagnostics(
             request_count=2,
             retry_count=1,
@@ -367,7 +372,10 @@ def test_record_and_replay_return_same_normalized_response_without_live_call(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "snapshot"
-    recorded = _record_search(_runtime(root, "record"))
+    recorded = _record_search(
+        _runtime(root, "record"),
+        _success_result(s2orc_corpus_id="123456"),
+    )
     calls = 0
 
     def forbidden(query: str, limit: int) -> ConnectorSearchResult:
@@ -386,6 +394,7 @@ def test_record_and_replay_return_same_normalized_response_without_live_call(
 
     assert calls == 0
     assert replayed.papers == recorded.papers
+    assert replayed.papers[0].identifiers.s2orc_corpus_id == "123456"
     assert replayed.snapshot_provenance == "snapshot_replay"
     assert replayed.diagnostics == ConnectorDiagnostics()
 
