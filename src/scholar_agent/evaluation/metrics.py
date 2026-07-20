@@ -52,6 +52,7 @@ def canonical_paper_id(
     arxiv_id: str | None = None,
     openalex_id: str | None = None,
     semantic_scholar_id: str | None = None,
+    s2orc_corpus_id: str | int | None = None,
     pubmed_id: str | None = None,
     title: str | None = None,
     year: int | None = None,
@@ -63,6 +64,7 @@ def canonical_paper_id(
         "arxiv_id": arxiv_id,
         "openalex_id": openalex_id,
         "semantic_scholar_id": semantic_scholar_id,
+        "s2orc_corpus_id": s2orc_corpus_id,
         "pubmed_id": pubmed_id,
         "title": title,
         "year": year,
@@ -82,7 +84,7 @@ def canonical_paper_id(
         if normalized_doi:
             return f"doi:{normalized_doi}"
     identifiers = paper_identifier_set(paper)
-    for prefix in ("arxiv:", "openalex:", "s2:", "pubmed:"):
+    for prefix in ("arxiv:", "openalex:", "s2:", "s2orc:", "pubmed:"):
         matches = sorted(item for item in identifiers if item.startswith(prefix))
         if matches:
             return matches[0]
@@ -407,7 +409,14 @@ def _match_key(
 
 
 def _preferred_identifier(identifiers: set[str]) -> str | None:
-    for prefix in ("arxiv:", "doi:", "openalex:", "s2:", "pubmed:"):
+    for prefix in (
+        "arxiv:",
+        "doi:",
+        "openalex:",
+        "s2:",
+        "s2orc:",
+        "pubmed:",
+    ):
         matches = sorted(item for item in identifiers if item.startswith(prefix))
         if matches:
             return matches[0]
@@ -473,6 +482,7 @@ def _overlay_values(paper: Any, values: Mapping[str, Any]) -> Any:
                 "arxiv_id",
                 "openalex_id",
                 "semantic_scholar_id",
+                "s2orc_corpus_id",
                 "pubmed_id",
                 "title",
                 "year",

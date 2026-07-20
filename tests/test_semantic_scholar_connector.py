@@ -67,6 +67,7 @@ def test_search_semantic_scholar_parses_normal_response(monkeypatch) -> None:
                             "DOI": "10.1234/s2",
                             "ArXiv": "2501.00001",
                             "PubMed": "987654",
+                            "CorpusId": 123456,
                         },
                         "url": "https://www.semanticscholar.org/paper/S2PAPER123",
                         "citationCount": 42,
@@ -90,6 +91,7 @@ def test_search_semantic_scholar_parses_normal_response(monkeypatch) -> None:
     assert paper.identifiers.doi == "10.1234/s2"
     assert paper.identifiers.arxiv_id == "2501.00001"
     assert paper.identifiers.semantic_scholar_id == "S2PAPER123"
+    assert paper.identifiers.s2orc_corpus_id == "123456"
     assert paper.identifiers.pubmed_id == "987654"
     assert paper.urls.landing_page == "https://www.semanticscholar.org/paper/S2PAPER123"
     assert paper.sources == ["semantic_scholar"]

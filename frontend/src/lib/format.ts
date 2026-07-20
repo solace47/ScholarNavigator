@@ -17,6 +17,7 @@ export function identifierEntries(identifiers: PaperIdentifiers): Array<[string,
     doi: "DOI",
     arxiv_id: "arXiv",
     semantic_scholar_id: "S2",
+    s2orc_corpus_id: "S2ORC Corpus",
     openalex_id: "OpenAlex",
     pubmed_id: "PubMed",
   };

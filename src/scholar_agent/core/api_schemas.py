@@ -195,6 +195,7 @@ class PaperIdentifiers(BaseModel):
     doi: str | None = None
     arxiv_id: str | None = None
     semantic_scholar_id: str | None = None
+    s2orc_corpus_id: str | None = None
     openalex_id: str | None = None
     pubmed_id: str | None = None
 

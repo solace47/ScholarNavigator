@@ -6,6 +6,7 @@ from scholar_agent.core.dedup import (
     paper_identity_evidence,
 )
 from scholar_agent.core.identity import build_identity_profile, normalize_title
+from scholar_agent.core.identity import identity_evidence, paper_identifier_set
 import scholar_agent.core.dedup as dedup_module
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers, PaperUrls
 
@@ -18,6 +19,7 @@ def make_paper(
     arxiv_id: str | None = None,
     openalex_id: str | None = None,
     semantic_scholar_id: str | None = None,
+    s2orc_corpus_id: str | None = None,
     pubmed_id: str | None = None,
     sources: list[str] | None = None,
     citation_count: int = 0,
@@ -38,6 +40,7 @@ def make_paper(
             arxiv_id=arxiv_id,
             openalex_id=openalex_id,
             semantic_scholar_id=semantic_scholar_id,
+            s2orc_corpus_id=s2orc_corpus_id,
             pubmed_id=pubmed_id,
         ),
         urls=PaperUrls(landing_page=landing_page, pdf=pdf),
@@ -273,9 +276,58 @@ def test_deduplicate_by_other_identifiers() -> None:
             make_paper("OpenAlex Paper Copy", openalex_id="w123"),
             make_paper("S2 Paper", semantic_scholar_id="S2-1"),
             make_paper("S2 Paper Copy", semantic_scholar_id="s2-1"),
+            make_paper("S2ORC Paper", s2orc_corpus_id="CorpusId:123"),
+            make_paper("S2ORC Paper Copy", s2orc_corpus_id="123"),
             make_paper("PubMed Paper", pubmed_id="https://pubmed.ncbi.nlm.nih.gov/999/"),
             make_paper("PubMed Paper Copy", pubmed_id="999"),
         ]
     )
 
-    assert len(papers) == 3
+    assert len(papers) == 4
+
+
+def test_s2orc_aliases_and_numeric_values_use_exact_identity() -> None:
+    assert paper_identifier_set({"corpus_id": 123}) == {"s2orc:123"}
+    assert paper_identifier_set({"identifiers": {"corpusId": "123"}}) == {
+        "s2orc:123"
+    }
+    assert paper_identifier_set({"metadata": {"s2orc_corpus_id": "123"}}) == {
+        "s2orc:123"
+    }
+    assert identity_evidence(
+        {"s2orc_corpus_id": 123},
+        {"identifiers": {"CorpusId": "CorpusId:123"}},
+    ).equivalent
+
+
+def test_s2orc_conflict_blocks_title_author_year_fallback() -> None:
+    shared_metadata = {
+        "title": "An Exact Shared Title",
+        "authors": ["Alice"],
+        "year": 2024,
+    }
+    conflict = identity_evidence(
+        {**shared_metadata, "s2orc_corpus_id": "123"},
+        {**shared_metadata, "s2orc_corpus_id": "456"},
+    )
+    missing_candidate_id = identity_evidence(
+        {**shared_metadata, "s2orc_corpus_id": "123"},
+        shared_metadata,
+    )
+
+    assert conflict.equivalent is False
+    assert conflict.rule == "conflicting_stable_identifier"
+    assert conflict.conflicting_identifiers == ("s2orc_corpus_id:123!=456",)
+    assert missing_candidate_id.equivalent is False
+    assert missing_candidate_id.rule == "s2orc_requires_exact_identifier"
+
+
+def test_old_paper_payload_without_s2orc_field_remains_compatible() -> None:
+    paper = Paper.model_validate(
+        {
+            "title": "Legacy snapshot paper",
+            "identifiers": {"semantic_scholar_id": "S2-legacy"},
+        }
+    )
+
+    assert paper.identifiers.s2orc_corpus_id is None

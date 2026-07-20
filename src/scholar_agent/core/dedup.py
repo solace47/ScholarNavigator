@@ -97,6 +97,7 @@ def _merge_identifiers(left: PaperIdentifiers, right: PaperIdentifiers) -> Paper
         doi=left.doi or right.doi,
         arxiv_id=left.arxiv_id or right.arxiv_id,
         semantic_scholar_id=left.semantic_scholar_id or right.semantic_scholar_id,
+        s2orc_corpus_id=left.s2orc_corpus_id or right.s2orc_corpus_id,
         openalex_id=left.openalex_id or right.openalex_id,
         pubmed_id=left.pubmed_id or right.pubmed_id,
     )

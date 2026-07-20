@@ -447,6 +447,9 @@ def _parse_paper(item: dict[str, Any]) -> Paper | None:
             doi=_normalize_doi(external_ids.get("DOI")),
             arxiv_id=_normalize_space(external_ids.get("ArXiv")),
             semantic_scholar_id=paper_id,
+            s2orc_corpus_id=_normalize_space(
+                external_ids.get("CorpusId") or item.get("corpusId")
+            ),
             pubmed_id=_normalize_pubmed_id(external_ids.get("PubMed")),
         ),
         urls=PaperUrls(landing_page=landing_page),

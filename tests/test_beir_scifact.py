@@ -39,6 +39,11 @@ def test_scifact_sampling_is_sha256_deterministic_and_preserves_metadata(tmp_pat
         for query in first
         for paper in query.gold_papers
     )
+    assert all(
+        paper.s2orc_corpus_id == paper.metadata["s2orc_corpus_id"]
+        for query in first
+        for paper in query.gold_papers
+    )
     assert any(
         paper.metadata["abstract"] == "B"
         and paper.title is None

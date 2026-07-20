@@ -16,7 +16,19 @@ _IDENTIFIER_FIELDS = (
     ("arxiv_id", "arxiv"),
     ("openalex_id", "openalex"),
     ("semantic_scholar_id", "s2"),
+    ("s2orc_corpus_id", "s2orc"),
     ("pubmed_id", "pubmed"),
+)
+_S2ORC_FIELD_ALIASES = (
+    "s2orc_corpus_id",
+    "s2orc_id",
+    "corpus_id",
+    "corpusId",
+    "CorpusId",
+)
+_S2ORC_PREFIX_RE = re.compile(
+    r"^(?:s2orc(?:[_ -]?corpus)?[_ -]?id|corpus[_ -]?id)\s*:\s*",
+    re.IGNORECASE,
 )
 
 
@@ -104,6 +116,16 @@ def normalize_simple_id(value: str | None) -> str | None:
     return text.strip() or None
 
 
+def normalize_s2orc_corpus_id(value: Any | None) -> str | None:
+    """Normalize only representation details around an exact S2ORC Corpus ID."""
+
+    text = _clean(value)
+    if not text:
+        return None
+    text = _S2ORC_PREFIX_RE.sub("", text).strip()
+    return text or None
+
+
 def normalize_title(value: str | None) -> str:
     if not value:
         return ""
@@ -173,6 +195,11 @@ def identity_evidence_from_profiles(
     if shared:
         return IdentityEvidence(True, "shared_stable_identifier", shared)
 
+    # A Corpus ID is dataset identity, not title evidence. If either side carries
+    # one, equivalence must come from an exact shared stable identifier above.
+    if left_values.get("s2orc_corpus_id") or right_values.get("s2orc_corpus_id"):
+        return IdentityEvidence(False, "s2orc_requires_exact_identifier")
+
     left_title = left.title
     right_title = right.title
     left_year = left.year
@@ -202,6 +229,8 @@ def _identifier_values(paper: Any) -> dict[str, str | None]:
             if field == "doi"
             else normalize_arxiv_id(_value(paper, field))
             if field == "arxiv_id"
+            else normalize_s2orc_corpus_id(_value(paper, field))
+            if field == "s2orc_corpus_id"
             else normalize_simple_id(_value(paper, field))
         )
         for field, _ in _IDENTIFIER_FIELDS
@@ -227,15 +256,34 @@ def _value(paper: Any, field: str) -> Any:
         if field in paper:
             return paper[field]
         identifiers = paper.get("identifiers") or {}
+        if field == "s2orc_corpus_id":
+            return _first_alias_value(paper, identifiers, paper.get("metadata") or {})
         return identifiers.get(field)
     value = getattr(paper, field, None)
     if value is not None:
         return value
     identifiers = getattr(paper, "identifiers", None)
+    if field == "s2orc_corpus_id":
+        metadata = getattr(paper, "metadata", None)
+        return _first_alias_value(paper, identifiers, metadata)
     return getattr(identifiers, field, None) if identifiers is not None else None
 
 
-def _clean(value: str | None) -> str | None:
+def _first_alias_value(*containers: Any) -> Any:
+    for container in containers:
+        if container is None:
+            continue
+        for alias in _S2ORC_FIELD_ALIASES:
+            if isinstance(container, dict):
+                value = container.get(alias)
+            else:
+                value = getattr(container, alias, None)
+            if value is not None and _clean(value):
+                return value
+    return None
+
+
+def _clean(value: Any | None) -> str | None:
     if value is None:
         return None
     return " ".join(str(value).split()).strip() or None

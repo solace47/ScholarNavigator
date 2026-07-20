@@ -188,6 +188,7 @@ export interface PaperIdentifiers {
   doi?: string | null;
   arxiv_id?: string | null;
   semantic_scholar_id?: string | null;
+  s2orc_corpus_id?: string | null;
   openalex_id?: string | null;
   pubmed_id?: string | null;
 }

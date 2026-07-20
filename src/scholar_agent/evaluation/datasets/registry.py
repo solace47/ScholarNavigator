@@ -35,6 +35,7 @@ class BenchmarkDatasetReport(BaseModel):
     gold_with_arxiv_id: int = Field(ge=0)
     gold_with_openalex_id: int = Field(ge=0)
     gold_with_semantic_scholar_id: int = Field(ge=0)
+    gold_with_s2orc_corpus_id: int = Field(ge=0)
     gold_with_pubmed_id: int = Field(ge=0)
     gold_with_title_year_only: int = Field(ge=0)
     invalid_case_count: int = Field(ge=0)
@@ -106,6 +107,9 @@ def inspect_dataset(
             gold_with_semantic_scholar_id=sum(
                 bool(item.semantic_scholar_id) for item in gold
             ),
+            gold_with_s2orc_corpus_id=sum(
+                bool(item.s2orc_corpus_id) for item in gold
+            ),
             gold_with_pubmed_id=sum(bool(item.pubmed_id) for item in gold),
             gold_with_title_year_only=sum(_is_title_year_only(item) for item in gold),
             invalid_case_count=0,
@@ -149,6 +153,9 @@ def inspect_dataset(
         gold_with_semantic_scholar_id=sum(
             bool(item.semantic_scholar_id) for item in gold
         ),
+        gold_with_s2orc_corpus_id=sum(
+            bool(item.s2orc_corpus_id) for item in gold
+        ),
         gold_with_pubmed_id=sum(bool(item.pubmed_id) for item in gold),
         gold_with_title_year_only=sum(_is_title_year_only(item) for item in gold),
         invalid_case_count=invalid_count,
@@ -179,6 +186,7 @@ def _is_title_year_only(paper: EvalGoldPaper) -> bool:
             paper.arxiv_id,
             paper.openalex_id,
             paper.semantic_scholar_id,
+            paper.s2orc_corpus_id,
             paper.pubmed_id,
         )
     )

@@ -9,6 +9,7 @@ class PaperIdentifiers(BaseModel):
     doi: str | None = None
     arxiv_id: str | None = None
     semantic_scholar_id: str | None = None
+    s2orc_corpus_id: str | None = None
     openalex_id: str | None = None
     pubmed_id: str | None = None
 
@@ -28,4 +29,3 @@ class Paper(BaseModel):
     urls: PaperUrls = Field(default_factory=PaperUrls)
     sources: list[str] = Field(default_factory=list)
     citation_count: int = 0
-

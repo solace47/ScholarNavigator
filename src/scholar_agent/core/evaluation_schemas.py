@@ -16,6 +16,7 @@ class EvalGoldPaper(BaseModel):
     arxiv_id: str | None = None
     openalex_id: str | None = None
     semantic_scholar_id: str | None = None
+    s2orc_corpus_id: str | int | None = None
     pubmed_id: str | None = None
     relevance_grade: float = Field(default=1.0, ge=0.0)
     metadata: dict[str, Any] = Field(default_factory=dict)

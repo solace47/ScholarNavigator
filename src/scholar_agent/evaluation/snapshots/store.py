@@ -459,7 +459,8 @@ class SnapshotStore:
             raise SnapshotIntegrityError(f"snapshot_schema_incompatible:{kind}:{key}")
         if entry.key != key:
             raise SnapshotIntegrityError(f"snapshot_key_mismatch:{kind}:{key}")
-        if entry.content_hash != entry_content_hash(entry) and not (
+        parsed_hash_matches = entry.content_hash == entry_content_hash(entry)
+        legacy_reference_matches = (
             kind == "references"
             and not any(
                 field in raw_payload
@@ -471,6 +472,10 @@ class SnapshotStore:
                 )
             )
             and entry.content_hash == entry_content_hash(raw_payload)
+        )
+        legacy_s2orc_matches = _legacy_s2orc_hash_matches(entry, raw_payload)
+        if not (
+            parsed_hash_matches or legacy_reference_matches or legacy_s2orc_matches
         ):
             raise SnapshotIntegrityError(f"snapshot_hash_mismatch:{kind}:{key}")
         return entry
@@ -561,6 +566,36 @@ class SnapshotStore:
             os.replace(temporary, path)
         finally:
             temporary.unlink(missing_ok=True)
+
+
+def _legacy_s2orc_hash_matches(
+    entry: RetrievalSnapshotEntry | ReferenceSnapshotEntry,
+    raw_payload: dict[str, Any],
+) -> bool:
+    """Accept an old hash only when it differs by the new empty ID field."""
+
+    raw_papers = raw_payload.get("papers")
+    if not isinstance(raw_papers, list) or not raw_papers:
+        return False
+    if any(
+        isinstance(paper, dict)
+        and isinstance(paper.get("identifiers"), dict)
+        and "s2orc_corpus_id" in paper["identifiers"]
+        for paper in raw_papers
+    ):
+        return False
+    compatible = entry.model_dump(mode="json")
+    for paper in compatible.get("papers", []):
+        identifiers = paper.get("identifiers") if isinstance(paper, dict) else None
+        if not isinstance(identifiers, dict):
+            return False
+        if identifiers.get("s2orc_corpus_id") is not None:
+            return False
+        identifiers.pop("s2orc_corpus_id", None)
+    return (
+        entry.content_hash == entry_content_hash(raw_payload)
+        and entry.content_hash == entry_content_hash(compatible)
+    )
 
 
 def connector_version(source: str, *, references: bool = False) -> str:

@@ -158,6 +158,26 @@ def test_query_normalization_preserves_syntax_quotes_and_order() -> None:
     assert normalized != reversed_query
 
 
+def test_old_snapshot_without_s2orc_field_keeps_original_hash(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    runtime = _runtime(root, "record")
+    _record_search(runtime)
+    path = next((root / "retrieval").glob("*.json"))
+    key = path.stem
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for paper in payload["papers"]:
+        paper["identifiers"].pop("s2orc_corpus_id", None)
+    payload["content_hash"] = entry_content_hash(payload)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    restored = SnapshotStore(root).read_retrieval(key)
+
+    assert restored.papers[0].identifiers.s2orc_corpus_id is None
+
+
 def test_retrieval_key_is_stable_and_has_no_case_or_gold_input() -> None:
     kwargs = {
         "source": "openalex",

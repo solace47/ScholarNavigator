@@ -123,6 +123,7 @@ def test_paper_fields_identifiers_urls_and_sources_are_preserved() -> None:
         arxiv_id="2401.00001",
         openalex_id="W123",
         semantic_scholar_id="S2-123",
+        s2orc_corpus_id="123456",
         pubmed_id="PMID-123",
         sources=["openalex", "arxiv"],
     )
@@ -140,6 +141,7 @@ def test_paper_fields_identifiers_urls_and_sources_are_preserved() -> None:
     assert mapped.identifiers.arxiv_id == "2401.00001"
     assert mapped.identifiers.openalex_id == "W123"
     assert mapped.identifiers.semantic_scholar_id == "S2-123"
+    assert mapped.identifiers.s2orc_corpus_id == "123456"
     assert mapped.identifiers.pubmed_id == "PMID-123"
     assert mapped.urls.landing_page == "https://example.test/mapped-paper"
     assert mapped.urls.pdf == "https://example.test/mapped-paper.pdf"
@@ -476,7 +478,11 @@ def test_query_evolution_and_refchain_debug_info_do_not_crash_mapper() -> None:
 
 def test_synthesis_output_maps_to_api_result_synthesis() -> None:
     ranked = [
-        _ranked(_paper("Highly", doi="10.123/high"), rank=1, category="highly_relevant"),
+        _ranked(
+            _paper("Highly", doi="10.123/high", s2orc_corpus_id="123456"),
+            rank=1,
+            category="highly_relevant",
+        ),
         _ranked(
             _paper("Partial", doi="10.123/partial"),
             rank=2,
@@ -492,6 +498,7 @@ def test_synthesis_output_maps_to_api_result_synthesis() -> None:
     assert response.synthesis.status == "succeeded"
     assert response.synthesis.evidence_table[0].citation_key == "R1"
     assert response.synthesis.evidence_table[0].identifiers.doi == "10.123/high"
+    assert response.synthesis.evidence_table[0].identifiers.s2orc_corpus_id == "123456"
     assert response.synthesis.key_findings[0].citation_keys == ["R1"]
     assert response.synthesis.citation_coverage.ranked_paper_count == 2
     assert response.highly_relevant_papers[0].paper.title == "Highly"
@@ -560,6 +567,7 @@ def _paper(
     arxiv_id: str | None = None,
     openalex_id: str | None = None,
     semantic_scholar_id: str | None = None,
+    s2orc_corpus_id: str | None = None,
     pubmed_id: str | None = None,
     sources: list[str] | None = None,
     abstract: str = "A mapped paper about LLM reranking and scientific retrieval.",
@@ -577,6 +585,7 @@ def _paper(
             arxiv_id=arxiv_id,
             openalex_id=openalex_id,
             semantic_scholar_id=semantic_scholar_id,
+            s2orc_corpus_id=s2orc_corpus_id,
             pubmed_id=pubmed_id,
         ),
         urls=PaperUrls(

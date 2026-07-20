@@ -26,6 +26,7 @@ def make_paper(
     arxiv_id: str | None = None,
     openalex_id: str | None = None,
     semantic_scholar_id: str | None = None,
+    s2orc_corpus_id: str | None = None,
     pubmed_id: str | None = None,
 ) -> Paper:
     return Paper(
@@ -39,6 +40,7 @@ def make_paper(
             arxiv_id=arxiv_id,
             openalex_id=openalex_id,
             semantic_scholar_id=semantic_scholar_id,
+            s2orc_corpus_id=s2orc_corpus_id,
             pubmed_id=pubmed_id,
         ),
         sources=["fixture"],
@@ -142,6 +144,42 @@ def test_semantic_scholar_prefixes_match() -> None:
     ranked = [make_paper("S2", semantic_scholar_id="CorpusId:abcdef")]
 
     assert recall_at_k(ranked, gold, 1) == pytest.approx(1.0)
+
+
+def test_s2orc_matches_exact_id_and_never_infers_from_title() -> None:
+    gold = [
+        EvalGoldPaper(
+            title="Shared Title",
+            year=2024,
+            s2orc_corpus_id=123,
+        )
+    ]
+    exact = make_paper("Different title", s2orc_corpus_id="CorpusId:123")
+    title_only = make_paper("Shared Title", year=2024)
+
+    assert canonical_paper_id(gold[0]) == "s2orc:123"
+    assert matched_paper_ids([exact], gold) == ["s2orc:123"]
+    assert matched_paper_ids([title_only], gold) == []
+
+
+def test_s2orc_conflict_prevents_other_shared_identifier_match() -> None:
+    gold = [EvalGoldPaper(doi="10.123/shared", s2orc_corpus_id="123")]
+    ranked = [
+        make_paper(
+            "Conflicting Corpus ID",
+            doi="10.123/shared",
+            s2orc_corpus_id="456",
+        )
+    ]
+
+    assert matched_paper_ids(ranked, gold) == []
+
+
+def test_s2orc_gold_can_match_another_shared_stable_identifier() -> None:
+    gold = [EvalGoldPaper(doi="10.123/shared", s2orc_corpus_id="123")]
+    ranked = [make_paper("DOI match", doi="https://doi.org/10.123/shared")]
+
+    assert matched_paper_ids(ranked, gold) == ["doi:10.123/shared"]
 
 
 @pytest.mark.parametrize(

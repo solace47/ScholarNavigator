@@ -72,6 +72,7 @@ def load_beir_scifact(path: str | Path) -> list[EvalQuery]:
             gold.append(
                 EvalGoldPaper(
                     title=title,
+                    s2orc_corpus_id=doc_id,
                     relevance_grade=float(grade),
                     metadata={
                         "dataset": DATASET_NAME,
