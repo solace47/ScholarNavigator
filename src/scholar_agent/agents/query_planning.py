@@ -124,6 +124,7 @@ TASK_TERMS = (
 )
 PURPOSE_FACETS: dict[str, tuple[QueryFacetType, ...]] = {
     "original_query": ("topic",),
+    "concept_projection": ("topic",),
     "normalized_keywords": ("topic",),
     "method_dimension": ("topic", "method"),
     "dataset_dimension": ("topic", "dataset"),
@@ -185,6 +186,45 @@ _UNRELIABLE_INFERRED_FACET_TERMS = {
     "method",
     "proposed",
     "study",
+}
+CONCEPT_PROJECTION_NON_CONCEPT_TERMS = PLANNER_STOPWORDS | {
+    "current",
+    "earliest",
+    "eight",
+    "excluding",
+    "except",
+    "few",
+    "first",
+    "five",
+    "four",
+    "last",
+    "many",
+    "new",
+    "newest",
+    "nine",
+    "no",
+    "not",
+    "one",
+    "previous",
+    "recently",
+    "second",
+    "seven",
+    "several",
+    "six",
+    "ten",
+    "third",
+    "three",
+    "top",
+    "two",
+    "without",
+    "year",
+    "years",
+    "不",
+    "无",
+    "最新",
+    "近年",
+    "论文",
+    "研究",
 }
 
 
@@ -603,6 +643,157 @@ def summarize_current_rules_planning(
         duplicate_count=max(0, len(annotated) - len({_query_key(i.query) for i in annotated})),
     )
     return annotated, result
+
+
+def plan_concept_projection(
+    query_analysis: QueryAnalysis,
+    *,
+    current_subqueries: list[SearchSubquery],
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> tuple[list[SearchSubquery], QueryPlanningResult]:
+    """Replace one derived query with an ordered verbatim concept projection.
+
+    The projection consumes only rule-derived topic facets and explicit must-have
+    constraints. Every emitted concept must be recoverable verbatim from the
+    original query; source syntax remains the query adapter's responsibility.
+    """
+
+    selected = list(current_subqueries[:max_subqueries])
+    facets = identify_query_facets(query_analysis)
+    input_concepts, projected_concepts = _concept_projection_terms(
+        query_analysis,
+        facets,
+    )
+    projection = " ".join(projected_concepts).strip()
+    replaced_query: str | None = None
+    replaced_purpose: str | None = None
+    skip_reason: str | None = None
+
+    if not input_concepts:
+        skip_reason = "no_must_have_or_topic_concepts"
+    elif not projection:
+        skip_reason = "no_eligible_verbatim_concepts"
+    elif _query_key(projection) == _query_key(query_analysis.original_query):
+        skip_reason = "equivalent_to_original_query"
+    elif any(_query_key(item.query) == _query_key(projection) for item in selected):
+        skip_reason = "equivalent_existing_query"
+    else:
+        replaceable = [
+            (item.priority, index)
+            for index, item in enumerate(selected)
+            if item.purpose != "original_query"
+        ]
+        if not replaceable:
+            skip_reason = "no_derived_query_to_replace"
+        else:
+            _, replace_index = max(replaceable)
+            replaced = selected[replace_index]
+            replaced_query = replaced.query
+            replaced_purpose = replaced.purpose
+            selected[replace_index] = SearchSubquery(
+                query=projection,
+                source_hints=list(selected_sources),
+                priority=replaced.priority,
+                purpose="concept_projection",
+                facet_types=["topic"],
+                provenance=[
+                    "concept_projection:verbatim_must_have_topic",
+                    f"replaced:{replaced.purpose}",
+                ],
+            )
+
+    skipped = [f"concept_projection:{skip_reason}"] if skip_reason else []
+    result = _planning_result(
+        policy="concept_projection",
+        facets=facets,
+        selected=selected,
+        skipped_facets=skipped,
+        duplicate_count=max(
+            0,
+            len(selected) - len({_query_key(item.query) for item in selected}),
+        ),
+    )
+    result = result.model_copy(
+        update={
+            "concept_projection_input_concepts": input_concepts,
+            "concept_projection_selected_concepts": projected_concepts,
+            "concept_projection_query": projection or None,
+            "concept_projection_replaced_query": replaced_query,
+            "concept_projection_replaced_purpose": replaced_purpose,
+            "concept_projection_skip_reason": skip_reason,
+        }
+    )
+    return selected, result
+
+
+def _concept_projection_terms(
+    query_analysis: QueryAnalysis,
+    facets: list[QueryFacet],
+) -> tuple[list[str], list[str]]:
+    topic = next((item for item in facets if item.facet_type == "topic"), None)
+    raw_concepts = _dedupe(
+        [
+            *query_analysis.constraints.must_include_terms,
+            *(topic.terms if topic is not None else []),
+        ]
+    )
+    original = query_analysis.original_query
+    located: list[tuple[int, int, str, str]] = []
+    unlocated: list[tuple[int, str]] = []
+    for index, concept in enumerate(raw_concepts):
+        normalized = " ".join(str(concept).split()).strip()
+        if not normalized:
+            continue
+        match = _verbatim_concept_match(original, normalized)
+        if match is None:
+            unlocated.append((index, normalized))
+            continue
+        located.append((match.start(), index, normalized, match.group(0)))
+
+    located.sort(key=lambda item: (item[0], item[1]))
+    input_concepts = [item[2] for item in located]
+    input_concepts.extend(item[1] for item in unlocated)
+    excluded = _casefold_set(query_analysis.constraints.exclude_terms)
+    projected: list[str] = []
+    seen: set[str] = set()
+    for _, _, normalized, surface in located:
+        key = _concept_projection_key(normalized)
+        surface_key = _concept_projection_key(surface)
+        if (
+            not key
+            or key in CONCEPT_PROJECTION_NON_CONCEPT_TERMS
+            or re.fullmatch(r"\d+(?:st|nd|rd|th)?", key)
+            or _concept_conflicts_with_exclusion(key, excluded)
+            or surface_key in seen
+        ):
+            continue
+        projected.append(surface)
+        seen.add(surface_key)
+    return input_concepts, projected
+
+
+def _concept_projection_key(value: str) -> str:
+    normalized = " ".join(value.casefold().split())
+    return re.sub(r"^\W+|\W+$", "", normalized, flags=re.UNICODE)
+
+
+def _verbatim_concept_match(query: str, concept: str) -> re.Match[str] | None:
+    pattern = re.escape(concept).replace(r"\ ", r"\s+")
+    if concept[0].isalnum():
+        pattern = rf"(?<!\w){pattern}"
+    if concept[-1].isalnum():
+        pattern = rf"{pattern}(?!\w)"
+    return re.search(pattern, query, flags=re.IGNORECASE)
+
+
+def _concept_conflicts_with_exclusion(key: str, excluded: set[str]) -> bool:
+    return any(
+        key == value
+        or _contains_term(key, value)
+        or _contains_term(value, key)
+        for value in excluded
+    )
 
 
 def identify_query_facets(query_analysis: QueryAnalysis) -> list[QueryFacet]:

@@ -90,6 +90,7 @@ def retrieval_snapshot_key(
         payload["query_evolution_policy"] = query_evolution_policy
     # current_rules 保留历史键；候选 planner 使用独立版本化命名空间。
     if query_planning_policy in {
+        "concept_projection",
         "controlled_relaxation",
         "disjunctive_facets",
         "current_plus_disjunctive",

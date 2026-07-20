@@ -171,7 +171,7 @@ def _run(
         "sources": ["arxiv"],
         "query_adapter_policy": "adaptive",
         "query_planning_policy": policy,
-        "query_planner_version": "1.7.0",
+        "query_planner_version": "1.8.1",
         "judgement_policy": "current_rules",
         "judgement_config_hash": "hash",
         "run_profile": "balanced",

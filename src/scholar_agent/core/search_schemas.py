@@ -34,6 +34,7 @@ RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
 QueryPlanningPolicy = Literal[
     "current_rules",
+    "concept_projection",
     "controlled_relaxation",
     "disjunctive_facets",
     "current_plus_disjunctive",
@@ -103,7 +104,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.7.0"
+QUERY_PLANNER_VERSION = "1.8.1"
 LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 
@@ -310,6 +311,12 @@ class QueryPlanningResult(BaseModel):
     dataset_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     task_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     paper_type_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    concept_projection_input_concepts: list[str] = Field(default_factory=list)
+    concept_projection_selected_concepts: list[str] = Field(default_factory=list)
+    concept_projection_query: str | None = None
+    concept_projection_replaced_query: str | None = None
+    concept_projection_replaced_purpose: str | None = None
+    concept_projection_skip_reason: str | None = None
     provider: str | None = None
     model: str | None = None
     prompt_name: str | None = None

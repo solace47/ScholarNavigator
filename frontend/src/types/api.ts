@@ -4,6 +4,7 @@ export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
 export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
 export type QueryPlanningPolicy =
   | "current_rules"
+  | "concept_projection"
   | "controlled_relaxation"
   | "disjunctive_facets"
   | "current_plus_disjunctive"
@@ -314,6 +315,12 @@ export interface SearchPlan {
     dataset_coverage: number;
     task_coverage: number;
     paper_type_coverage: number;
+    concept_projection_input_concepts: string[];
+    concept_projection_selected_concepts: string[];
+    concept_projection_query: string | null;
+    concept_projection_replaced_query: string | null;
+    concept_projection_replaced_purpose: string | null;
+    concept_projection_skip_reason: string | null;
     provider: string | null;
     model: string | null;
     prompt_name: string | null;

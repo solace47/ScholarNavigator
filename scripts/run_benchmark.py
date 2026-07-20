@@ -1162,6 +1162,7 @@ def _parser() -> argparse.ArgumentParser:
         "--query-planning-policy",
         choices=[
             "current_rules",
+            "concept_projection",
             "controlled_relaxation",
             "disjunctive_facets",
             "current_plus_disjunctive",
