@@ -16,6 +16,27 @@ DEFAULT_ENV_FILE = ".env"
 _KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
+def load_project_env(project_root: str | Path | None = None) -> bool:
+    """Load the repository runtime environment using the application rule.
+
+    A configured ``SCHOLAR_AGENT_ENV_FILE`` keeps its existing path semantics;
+    otherwise the repository root is used instead of the process cwd. This
+    makes CLI startup independent of the directory from which it is launched,
+    while :func:`load_env_file` still keeps pre-existing environment variables
+    authoritative.
+    """
+
+    configured_path = os.getenv(ENV_FILE_ENV)
+    if configured_path:
+        return load_env_file(configured_path)
+    root = (
+        Path(project_root).expanduser().resolve()
+        if project_root is not None
+        else Path(__file__).resolve().parents[3]
+    )
+    return load_env_file(root / DEFAULT_ENV_FILE)
+
+
 def load_env_file(path: str | Path | None = None, *, override: bool = False) -> bool:
     """Load KEY=VALUE pairs from a dotenv-style file if it exists.
 

@@ -27,6 +27,7 @@ for import_root in (REPO_ROOT, SRC_ROOT):
 
 from scripts.evaluate_search_batch import evaluate_batch_results  # noqa: E402
 from scholar_agent.core.api_schemas import CostReport  # noqa: E402
+from scholar_agent.core.env_loader import load_project_env  # noqa: E402
 from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
@@ -1212,6 +1213,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_project_env(REPO_ROOT)
     parser = _parser()
     args = parser.parse_args(argv)
     try:

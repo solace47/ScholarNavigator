@@ -8,11 +8,11 @@ import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from scholar_agent.core.env_loader import load_env_file
+from scholar_agent.core.env_loader import load_project_env
 
 
 if "pytest" not in sys.modules:
-    load_env_file()
+    load_project_env()
 
 from .api.routes import router  # noqa: E402
 

@@ -41,6 +41,13 @@ from scholar_agent.services.search_service import SearchService
 from scholar_agent.services.search_budget import SearchBudgetRuntime
 
 
+@pytest.fixture(autouse=True)
+def no_real_project_env_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI unit tests isolated from the developer's local .env."""
+
+    monkeypatch.setattr(run_benchmark, "load_project_env", lambda root: False)
+
+
 def _paper(title: str = "Snapshot Paper") -> Paper:
     return Paper(
         title=title,
@@ -739,3 +746,33 @@ def test_replay_cli_returns_nonzero_when_any_case_is_incomplete(
         ]
     )
     assert code == 2
+
+
+def test_benchmark_cli_bootstraps_project_env_before_running(monkeypatch) -> None:
+    loaded_roots: list[Path] = []
+
+    def fake_load_project_env(root) -> bool:  # noqa: ANN001
+        loaded_roots.append(Path(root))
+        return True
+
+    monkeypatch.setattr(run_benchmark, "load_project_env", fake_load_project_env)
+    monkeypatch.setattr(
+        run_benchmark,
+        "run_benchmark",
+        lambda options: SimpleNamespace(
+            run_dir=Path("offline-run"),
+            result_rows=[{"status": "succeeded"}],
+        ),
+    )
+
+    code = run_benchmark.main(
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "env-bootstrap",
+        ]
+    )
+
+    assert code == 0
+    assert loaded_roots == [run_benchmark.REPO_ROOT]

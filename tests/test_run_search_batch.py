@@ -31,7 +31,7 @@ from scripts import run_search_batch  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def no_real_env_file_load(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(run_search_batch, "load_env_file", lambda path: False)
+    monkeypatch.setattr(run_search_batch, "load_project_env", lambda path: False)
 
 
 def test_batch_runs_two_queries_and_writes_succeeded_jsonl(
@@ -217,7 +217,7 @@ def test_batch_cli_loads_repo_env_file(tmp_path: Path, monkeypatch) -> None:
         loaded_paths.append(Path(path))
         return True
 
-    monkeypatch.setattr(run_search_batch, "load_env_file", fake_load_env_file)
+    monkeypatch.setattr(run_search_batch, "load_project_env", fake_load_env_file)
     monkeypatch.setattr(run_search_batch, "SearchService", _fake_service_class())
 
     code = run_search_batch.main(
@@ -225,7 +225,7 @@ def test_batch_cli_loads_repo_env_file(tmp_path: Path, monkeypatch) -> None:
     )
 
     assert code == 0
-    assert loaded_paths == [run_search_batch.REPO_ROOT / ".env"]
+    assert loaded_paths == [run_search_batch.REPO_ROOT]
 
 
 def test_row_parameters_override_cli_defaults(tmp_path: Path, monkeypatch) -> None:
