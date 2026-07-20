@@ -87,6 +87,19 @@ PYTHONPATH=src python scripts/run_judgement_holdout.py \
 
 SciFact 的 evaluator 另使用版本化 `benchmark/beir_scifact_s2_crosswalk.json`：采集器只向 Semantic Scholar 官方 Graph API 发出 `CorpusId` 精确查询，并只保留响应中的 `paperId`、`corpusId` 与 `externalIds` 稳定标识。crosswalk 由 `scripts/build_scifact_crosswalk.py` 依次执行 `preflight`、串行 `record-missing` 和严格 `replay` 构建；它只丰富 `EvalGoldPaper`，不进入查询、Prompt、检索、排序、候选补全或生产 API。统一 `identity.py` 对 DOI、arXiv、PMID、Semantic Scholar ID 和 S2ORC Corpus ID 做精确规范化；任一同类标识冲突均阻止匹配，标题不会为带 Corpus ID 的记录兜底。官方精确查询的 `unavailable`/`failed` 终态在 gold 诊断中单列为 `identity_crosswalk_*`，不进入 Retrieval miss 或 Recall/F1 分母；旧数据不含 crosswalk metadata 时仍保持原有身份口径。
 
+SciFact BM25 上界审计位于 `scripts/audit_scifact_bm25.py` 和 `scholar_agent.evaluation.scifact_bm25_audit`，不接入 `SearchService`。索引固定覆盖官方 5,183 篇 corpus，文档文本为未加权的 `title + abstract`；查询只使用 manifest 中 50 条原始 query text。实现固定为 `rank_bm25==0.2.2` 的 `BM25Okapi` 默认参数（`k1=1.5`、`b=0.75`、`epsilon=0.25`），tokenizer 仅做 Unicode `\w+` 与 casefold，不使用停用词、词干、扩展或 gold 信息。20/50/100/200 指标均从同一次完整语料排序的前缀计算，以 Corpus ID 精确评测；外部基线交集使用冻结 Replay 的 `initial_retrieval` 候选和同一统一身份规则。配置、输入哈希、汇总与产物哈希记录在 `benchmark/beir_scifact_bm25_audit_manifest.json`。该结果仅表示语料已知时的离线词法召回上界，不是产品可实现成绩。
+
+复现命令：
+
+```bash
+PYTHONPATH=src python scripts/audit_scifact_bm25.py \
+  --dataset-path outputs/benchmark_inputs/beir_scifact/scifact.zip \
+  --sample-manifest benchmark/beir_scifact_sample_manifest.json \
+  --crosswalk benchmark/beir_scifact_s2_crosswalk.json \
+  --external-run-dir outputs/benchmark_runs/beir_scifact_crosswalk_replay_commit_47c2168/current_rules_50_replay_r1 \
+  --output-dir outputs/benchmark_runs/beir_scifact_bm25_audit_47c2168/run1
+```
+
 检查与运行示例（需先取得官方归档）：
 
 ```bash
