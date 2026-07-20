@@ -488,6 +488,10 @@ class SnapshotRuntime:
             recorded_latency_seconds=elapsed,
             recorded_at=utc_now(),
             content_hash="0" * 64,
+            reference_batch_status=result.reference_batch_status,
+            missing_reference_ids=list(result.missing_reference_ids),
+            reference_batch_count=result.reference_batch_count,
+            supplemental_request_count=result.supplemental_request_count,
         )
         entry = entry.model_copy(update={"content_hash": entry_content_hash(entry)})
         overwrite = self.overwrite_snapshots or bool(
@@ -551,6 +555,7 @@ class SnapshotRuntime:
     def _entry_result(
         entry: RetrievalSnapshotEntry | ReferenceSnapshotEntry,
     ) -> ConnectorSearchResult:
+        is_reference = isinstance(entry, ReferenceSnapshotEntry)
         return ConnectorSearchResult(
             papers=[paper.model_copy(deep=True) for paper in entry.papers],
             error_message=entry.error_message,
@@ -562,6 +567,14 @@ class SnapshotRuntime:
             snapshot_hit=True,
             recorded_diagnostics=entry.diagnostics.model_copy(deep=True),
             recorded_latency_seconds=entry.recorded_latency_seconds,
+            reference_batch_status=(entry.reference_batch_status if is_reference else None),
+            missing_reference_ids=(
+                list(entry.missing_reference_ids) if is_reference else []
+            ),
+            reference_batch_count=(entry.reference_batch_count if is_reference else 0),
+            supplemental_request_count=(
+                entry.supplemental_request_count if is_reference else 0
+            ),
         )
 
     def _observe(self, kind: str, key: str) -> None:

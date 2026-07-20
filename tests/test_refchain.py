@@ -201,6 +201,27 @@ def test_detailed_fetcher_diagnostics_are_aggregated() -> None:
     assert output.record.diagnostics == output.diagnostics
 
 
+def test_partial_reference_batch_keeps_papers_and_reports_missing_ids() -> None:
+    ranked = [make_ranked(make_paper("Seed", openalex_id="WSEED"), rank=1)]
+
+    def fake_fetcher(paper: Paper, limit: int) -> ConnectorSearchResult:
+        del paper, limit
+        return ConnectorSearchResult(
+            papers=[make_paper("Returned Reference", openalex_id="WREF")],
+            error_message="OpenAlex reference missing work id:W2",
+            reference_batch_status="partial_success",
+            missing_reference_ids=["W2"],
+            supplemental_request_count=1,
+        )
+
+    output = expand_refchain(make_query_analysis(), ranked, fake_fetcher)
+
+    assert [paper.title for paper in output.references] == ["Returned Reference"]
+    assert output.record.seed_diagnostics[0].skip_reason == (
+        "partial_success_missing_ids"
+    )
+
+
 def test_fetcher_exception_warns_and_continues() -> None:
     ranked = [
         make_ranked(make_paper("Failing Seed", openalex_id="WFAIL"), rank=1),

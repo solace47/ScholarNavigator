@@ -448,14 +448,30 @@ class SnapshotStore:
         if not path.is_file():
             raise SnapshotMissingError(f"snapshot_missing:{kind}:{key}")
         try:
-            entry = model.model_validate_json(path.read_text(encoding="utf-8"))
+            raw_text = path.read_text(encoding="utf-8")
+            raw_payload = json.loads(raw_text)
+            entry = model.model_validate(raw_payload)
         except (OSError, ValidationError) as exc:
+            raise SnapshotIntegrityError(f"snapshot_invalid:{kind}:{key}") from exc
+        except json.JSONDecodeError as exc:
             raise SnapshotIntegrityError(f"snapshot_invalid:{kind}:{key}") from exc
         if entry.schema_version != SNAPSHOT_SCHEMA_VERSION:
             raise SnapshotIntegrityError(f"snapshot_schema_incompatible:{kind}:{key}")
         if entry.key != key:
             raise SnapshotIntegrityError(f"snapshot_key_mismatch:{kind}:{key}")
-        if entry.content_hash != entry_content_hash(entry):
+        if entry.content_hash != entry_content_hash(entry) and not (
+            kind == "references"
+            and not any(
+                field in raw_payload
+                for field in (
+                    "reference_batch_status",
+                    "missing_reference_ids",
+                    "reference_batch_count",
+                    "supplemental_request_count",
+                )
+            )
+            and entry.content_hash == entry_content_hash(raw_payload)
+        ):
             raise SnapshotIntegrityError(f"snapshot_hash_mismatch:{kind}:{key}")
         return entry
 

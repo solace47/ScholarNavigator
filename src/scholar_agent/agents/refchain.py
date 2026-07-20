@@ -160,6 +160,11 @@ class RefChainAgent:
                 )
             skip_reason = _seed_fetch_skip_reason(
                 fetch_error,
+                batch_status=(
+                    fetch_result.reference_batch_status
+                    if isinstance(fetch_result, ConnectorSearchResult)
+                    else None
+                ),
                 returned_for_seed=returned_for_seed,
                 unique_for_seed=unique_for_seed,
             )
@@ -310,12 +315,15 @@ def _seed_diagnostic(
 def _seed_fetch_skip_reason(
     error_message: str | None,
     *,
+    batch_status: str | None = None,
     returned_for_seed: int,
     unique_for_seed: int,
 ) -> str | None:
     normalized = (error_message or "").casefold()
     if "cooldown" in normalized or "429" in normalized:
         return "source_cooldown"
+    if batch_status == "partial_success" and returned_for_seed:
+        return "partial_success_missing_ids"
     if error_message:
         return "source_failure"
     if returned_for_seed == 0:

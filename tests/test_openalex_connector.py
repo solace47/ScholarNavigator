@@ -562,6 +562,145 @@ def test_fetch_openalex_references_detailed_counts_batch_retry(monkeypatch) -> N
     assert result.diagnostics.error_count == 0
 
 
+def test_fetch_openalex_references_keeps_partial_batch_and_supplements_missing(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        del timeout
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/W1",
+                        "https://openalex.org/W2",
+                        "https://openalex.org/W3",
+                    ],
+                }
+            )
+        decoded = unquote(request.full_url)
+        if "filter=openalex_id:W1|W2|W3" in decoded:
+            return MockResponse(
+                {
+                    "results": [
+                        _openalex_work("W3", "Third"),
+                        _openalex_work("W1", "First"),
+                    ]
+                }
+            )
+        if "filter=openalex_id:W2" in decoded:
+            return MockResponse({"results": [_openalex_work("W2", "Second")]})
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    result = fetch_openalex_references_detailed(
+        Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+    )
+
+    assert [paper.title for paper in result.papers] == ["First", "Second", "Third"]
+    assert result.reference_batch_status == "success"
+    assert result.missing_reference_ids == []
+    assert result.reference_batch_count == 1
+    assert result.supplemental_request_count == 1
+    assert result.diagnostics.request_count == 3
+
+
+def test_fetch_openalex_references_marks_partial_success_and_terminal_missing(
+    monkeypatch,
+) -> None:
+    def fake_urlopen(request, timeout):
+        del timeout
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/W1",
+                        "https://openalex.org/W2",
+                    ],
+                }
+            )
+        decoded = unquote(request.full_url)
+        if "filter=openalex_id:W1|W2" in decoded:
+            return MockResponse({"results": [_openalex_work("W2", "Second")]})
+        if "filter=openalex_id:W1" in decoded:
+            return MockResponse({"results": []})
+        raise AssertionError(f"unexpected url: {request.full_url}")
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    result = fetch_openalex_references_detailed(
+        Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+    )
+
+    assert [paper.title for paper in result.papers] == ["Second"]
+    assert result.reference_batch_status == "partial_success"
+    assert result.missing_reference_ids == ["W1"]
+    assert "missing work id:W1" in result.error_message
+    assert result.supplemental_request_count == 1
+
+
+def test_fetch_openalex_references_all_missing_is_terminal_per_id(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        del timeout
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/W1",
+                        "https://openalex.org/W2",
+                    ],
+                }
+            )
+        return MockResponse({"results": []})
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    result = fetch_openalex_references_detailed(
+        Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+    )
+
+    assert result.papers == []
+    assert result.reference_batch_status == "failed"
+    assert result.missing_reference_ids == ["W1", "W2"]
+    assert result.diagnostics.error_count == 2
+    assert result.supplemental_request_count == 2
+    assert "missing work id:W1" in result.error_message
+    assert "missing work id:W2" in result.error_message
+
+
+def test_fetch_openalex_references_deduplicates_reference_ids_and_records(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        del timeout
+        if request.full_url.endswith("/WSEED"):
+            return MockResponse(
+                {
+                    "id": "https://openalex.org/WSEED",
+                    "referenced_works": [
+                        "https://openalex.org/W1",
+                        "https://openalex.org/W1",
+                    ],
+                }
+            )
+        return MockResponse(
+            {
+                "results": [
+                    _openalex_work("W1", "First"),
+                    _openalex_work("W1", "First duplicate"),
+                ]
+            }
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.openalex.urlopen", fake_urlopen)
+    result = fetch_openalex_references_detailed(
+        Paper(title="Seed", identifiers=PaperIdentifiers(openalex_id="WSEED"))
+    )
+
+    assert [paper.title for paper in result.papers] == ["First"]
+    assert result.reference_batch_status == "success"
+    assert result.reference_batch_count == 1
+    assert result.supplemental_request_count == 0
+
+
 def _openalex_work(openalex_id: str, title: str) -> dict:
     return {
         "id": f"https://openalex.org/{openalex_id}",

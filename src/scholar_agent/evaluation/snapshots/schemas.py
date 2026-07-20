@@ -68,6 +68,12 @@ class ReferenceSnapshotEntry(BaseModel):
     recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
     recorded_at: str
     content_hash: str = Field(min_length=64, max_length=64)
+    reference_batch_status: Literal[
+        "success", "partial_success", "missing_id", "failed"
+    ] | None = None
+    missing_reference_ids: list[str] = Field(default_factory=list)
+    reference_batch_count: int = Field(default=0, ge=0)
+    supplemental_request_count: int = Field(default=0, ge=0)
 
 
 class SnapshotGroupObservation(BaseModel):

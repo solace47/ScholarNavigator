@@ -175,8 +175,23 @@ def fetch_openalex_references_detailed(
 
     works_by_id: dict[str, dict[str, Any]] = {}
     errors: list[str] = []
+    batch_count = 0
+
+    def add_works(payload: dict[str, Any] | None) -> bool:
+        results = (payload or {}).get("results", [])
+        if not isinstance(results, list):
+            return False
+        for work in results:
+            if not isinstance(work, dict):
+                continue
+            work_id = _normalize_openalex_id(work.get("id"))
+            if work_id:
+                works_by_id.setdefault(work_id.casefold(), work)
+        return True
+
     for offset in range(0, len(reference_ids), MAX_OPENALEX_BATCH_IDS):
         batch_ids = reference_ids[offset : offset + MAX_OPENALEX_BATCH_IDS]
+        batch_count += 1
         payload, error, batch_warnings, batch_diagnostics = (
             _fetch_works_by_openalex_ids_detailed(
                 batch_ids,
@@ -191,8 +206,7 @@ def fetch_openalex_references_detailed(
         if error is not None:
             errors.append(error)
             continue
-        results = (payload or {}).get("results", [])
-        if not isinstance(results, list):
+        if not add_works(payload):
             message = "OpenAlex reference batch response missing list results"
             warnings.append(message)
             errors.append(message)
@@ -200,24 +214,57 @@ def fetch_openalex_references_detailed(
                 update={"error_count": diagnostics.error_count + 1}
             )
             continue
-        for work in results:
-            if not isinstance(work, dict):
+    missing_ids = [
+        reference_id
+        for reference_id in reference_ids
+        if reference_id.casefold() not in works_by_id
+    ]
+    supplemental_request_count = 0
+    supplemental_success_count = 0
+    for reference_id in missing_ids:
+        supplemental_request_count += 1
+        payload, error, supplement_warnings, supplement_diagnostics = (
+            _fetch_works_by_openalex_ids_detailed(
+                [reference_id],
+                max_retries=max_retries,
+                retry_sleep=retry_sleep,
+            )
+        )
+        diagnostics = merge_connector_diagnostics(
+            [diagnostics, supplement_diagnostics]
+        )
+        warnings.extend(supplement_warnings)
+        if error is None and add_works(payload):
+            if reference_id.casefold() in works_by_id:
+                supplemental_success_count += 1
                 continue
-            work_id = _normalize_openalex_id(work.get("id"))
-            if work_id:
-                works_by_id[work_id.casefold()] = work
+        if error:
+            errors.append(error)
 
     missing_ids = [
         reference_id
         for reference_id in reference_ids
         if reference_id.casefold() not in works_by_id
     ]
-    if missing_ids and not errors:
-        message = "OpenAlex reference batch missing work ids:" + ",".join(missing_ids)
-        warnings.append(message)
-        errors.append(message)
+    if missing_ids:
+        missing_message = "OpenAlex reference missing work ids:" + ",".join(
+            missing_ids
+        )
+        warnings.append(missing_message)
+        errors.extend(
+            f"OpenAlex reference missing work id:{reference_id}"
+            for reference_id in missing_ids
+        )
         diagnostics = diagnostics.model_copy(
-            update={"error_count": diagnostics.error_count + 1}
+            update={
+                "error_count": diagnostics.error_count + len(missing_ids),
+            }
+        )
+    if supplemental_request_count:
+        warnings.append(
+            "OpenAlex reference supplemental requests:"
+            f"{supplemental_request_count}"
+            f" (success:{supplemental_success_count})"
         )
 
     papers: list[Paper] = []
@@ -241,6 +288,16 @@ def fetch_openalex_references_detailed(
         warnings=warnings,
         latency_seconds=time.perf_counter() - start,
         diagnostics=_with_total_latency(diagnostics, start),
+        reference_batch_status=(
+            "success"
+            if not missing_ids and not errors
+            else "partial_success"
+            if papers
+            else "failed"
+        ),
+        missing_reference_ids=missing_ids,
+        reference_batch_count=batch_count,
+        supplemental_request_count=supplemental_request_count,
     )
 
 

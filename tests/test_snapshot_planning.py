@@ -356,6 +356,45 @@ def test_reference_plan_waits_until_evolved_retrieval_dependencies_exist(
     assert all(item.entry_type != "reference" for item in runtime.plan_entries())
 
 
+def test_reference_snapshot_preserves_partial_batch_diagnostics(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    record = SnapshotRuntime(_store(root), mode="record", group_name="refchain_only")
+    record.begin_case("case-0")
+
+    result = record.fetch_references(
+        _paper(),
+        5,
+        lambda paper, limit: ConnectorSearchResult(
+            papers=[_paper()],
+            error_message="OpenAlex reference missing work id:W2",
+            warnings=["OpenAlex reference supplemental requests:1 (success:0)"],
+            diagnostics=ConnectorDiagnostics(request_count=3, error_count=1),
+            reference_batch_status="partial_success",
+            missing_reference_ids=["W2"],
+            reference_batch_count=1,
+            supplemental_request_count=1,
+        ),
+    )
+    record.finish_case()
+
+    stored = SnapshotStore(root).read_reference(result.snapshot_key or "")
+    assert stored.reference_batch_status == "partial_success"
+    assert stored.missing_reference_ids == ["W2"]
+    assert stored.reference_batch_count == 1
+    assert stored.supplemental_request_count == 1
+
+    replay = SnapshotRuntime(_store(root), mode="replay", group_name="refchain_only")
+    replay.begin_case("case-0")
+    replayed = replay.fetch_references(
+        _paper(),
+        5,
+        lambda paper, limit: pytest.fail("reference replay must not call network"),
+    )
+    assert replayed.reference_batch_status == "partial_success"
+    assert replayed.missing_reference_ids == ["W2"]
+    assert replayed.supplemental_request_count == 1
+
+
 def test_present_and_failed_snapshot_are_covered_but_not_both_success(
     tmp_path: Path,
 ) -> None:

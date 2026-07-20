@@ -23,3 +23,9 @@ class ConnectorSearchResult(BaseModel):
     snapshot_hit: bool = False
     recorded_diagnostics: ConnectorDiagnostics | None = None
     recorded_latency_seconds: float = 0.0
+    reference_batch_status: Literal[
+        "success", "partial_success", "missing_id", "failed"
+    ] | None = None
+    missing_reference_ids: list[str] = Field(default_factory=list)
+    reference_batch_count: int = Field(default=0, ge=0)
+    supplemental_request_count: int = Field(default=0, ge=0)
