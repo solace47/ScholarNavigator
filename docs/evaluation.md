@@ -21,6 +21,21 @@
 
 没有有效 gold 的 batch case 记录在 `missing_gold_cases`，不进入两套指标分母；gold 存在但 batch 缺失的案例记录在 `missing_result_cases`，并以零分进入端到端指标。
 
+### 受约束 LLM 改写的离线因果审计
+
+`scripts/audit_llm_constrained_rewrite.py` 只读取成对的 Benchmark Replay 与
+Retrieval Snapshot，不初始化 SearchService、connector 或 LLM。审计按
+`(case, source)` 重建原始查询、被替换派生查询和已接受改写的实际列表；只有
+三者已执行请求均成功，且基线/实验中的原始查询终态与候选身份顺序一致时，
+才计算独立候选、独立 gold 与反事实结果。fallback、校验拒绝、失败请求、
+原始列表漂移均单独标记为不可归因。
+
+反事实以基线去重后候选为冻结底座：先移除仅由被替换查询贡献的候选，再加入
+改写列表，继续使用统一身份、`current_rules` judgement/reranker、候选预算、
+正式结果过滤与 Top-20 指标。审计同时提供逐源单因素反事实；它们是诊断结果，
+不得描述为线上可实现成绩。输出不含时间戳，两次相同输入应产生字节一致的
+`case_audit.jsonl` 与 `aggregate.json`。
+
 ## 离线消融组
 
 | 分组 | 查询演化 | RefChain |
