@@ -81,6 +81,25 @@ PYTHONPATH=src python scripts/run_judgement_holdout.py \
 
 当前接入 `benchmark/AutoScholarQuery_test.jsonl`：1000 条 test 查询、2403 条 gold 论文，所有 gold 均带 arXiv ID；原数据没有分级相关性，适配器按其二元 gold 关系使用 `relevance_grade=1`。查询、标题、标识符和源文件顺序均保持不变。仓库中的 LitSearch 目录目前只有代码，没有本地 query/corpus 数据，因此未建立 LitSearch Adapter。
 
+### BEIR SciFact 泛化适配
+
+`beir_scifact` 适配器只接受 BEIR 官方 TU Darmstadt `scifact.zip` 的解压目录或归档，固定使用 `qrels/test.tsv`，并按 query ID 的 SHA-256 升序稳定抽取 50 条 query。每条正相关关系保留 qrel grade；当前 SciFact test qrels 的正相关 grade 为 1，适配器仍将 grade 写入 gold metadata，便于离线敏感性复核。语料的 `_id` 作为 `s2orc_corpus_id` 审计元数据，缺失语料映射会在加载阶段失败，不会被计为检索未命中。官方来源、固定 BEIR commit、归档校验值和抽样口径记录在 `benchmark/beir_scifact_manifest.json`；原始归档只保存在被忽略的本地输入目录中。
+
+检查与运行示例（需先取得官方归档）：
+
+```bash
+PYTHONPATH=src python scripts/inspect_benchmark.py \
+  --dataset beir_scifact \
+  --path outputs/benchmark_inputs/beir_scifact/scifact.zip
+
+PYTHONPATH=src python scripts/run_benchmark.py \
+  --dataset beir_scifact \
+  --dataset-path outputs/benchmark_inputs/beir_scifact/scifact.zip \
+  --dataset-split test --run-id beir_scifact_current_rules_50 \
+  --retrieval-mode record-missing \
+  --snapshot-dir outputs/benchmark_snapshots/beir_scifact_current_rules_50
+```
+
 数据检查不访问外网：
 
 ```bash

@@ -7,6 +7,7 @@ from scholar_agent.evaluation.datasets.registry import (
     load_dataset,
     supported_datasets,
 )
+from scholar_agent.evaluation.datasets.beir_scifact import load_beir_scifact
 
 __all__ = [
     "BenchmarkDatasetReport",
@@ -14,4 +15,5 @@ __all__ = [
     "inspect_dataset",
     "load_dataset",
     "supported_datasets",
+    "load_beir_scifact",
 ]

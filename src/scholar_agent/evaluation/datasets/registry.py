@@ -15,6 +15,10 @@ from scholar_agent.evaluation.datasets.auto_scholar_query import (
     parse_auto_scholar_query_record,
     read_jsonl_records,
 )
+from scholar_agent.evaluation.datasets.beir_scifact import (
+    DATASET_NAME as BEIR_SCI_FACT,
+    load_beir_scifact,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -47,7 +51,17 @@ _DATASETS = {
     AUTO_SCHOLAR_QUERY: _DatasetDefinition(
         source_path=REPO_ROOT / "benchmark" / "AutoScholarQuery_test.jsonl",
         loader=load_auto_scholar_query,
-    )
+    ),
+    BEIR_SCI_FACT: _DatasetDefinition(
+        source_path=(
+            REPO_ROOT
+            / "outputs"
+            / "benchmark_inputs"
+            / "beir_scifact"
+            / "extracted"
+        ),
+        loader=load_beir_scifact,
+    ),
 }
 
 
@@ -76,6 +90,27 @@ def inspect_dataset(
 ) -> BenchmarkDatasetReport:
     normalized_name = _normalize_name(name)
     source_path = dataset_source_path(normalized_name, path)
+    if normalized_name == BEIR_SCI_FACT:
+        queries = load_beir_scifact(source_path)
+        gold = [paper for query in queries for paper in query.gold_papers]
+        return BenchmarkDatasetReport(
+            dataset=normalized_name,
+            source_path=str(source_path),
+            case_count=len(queries),
+            query_count=len(queries),
+            gold_paper_count=len(gold),
+            cases_without_gold=sum(not q.gold_papers for q in queries),
+            gold_with_doi=sum(bool(item.doi) for item in gold),
+            gold_with_arxiv_id=sum(bool(item.arxiv_id) for item in gold),
+            gold_with_openalex_id=sum(bool(item.openalex_id) for item in gold),
+            gold_with_semantic_scholar_id=sum(
+                bool(item.semantic_scholar_id) for item in gold
+            ),
+            gold_with_pubmed_id=sum(bool(item.pubmed_id) for item in gold),
+            gold_with_title_year_only=sum(_is_title_year_only(item) for item in gold),
+            invalid_case_count=0,
+            duplicate_case_id_count=0,
+        )
     if normalized_name != AUTO_SCHOLAR_QUERY:
         raise ValueError(f"inspection is not implemented for dataset: {normalized_name}")
 

@@ -78,6 +78,7 @@ experiments/logs/
 experiments/outputs/
 outputs/benchmark_runs/
 outputs/benchmark_snapshots/
+outputs/benchmark_inputs/beir_scifact/
 
 # === coverage 覆盖率文件 ===
 .coverage
