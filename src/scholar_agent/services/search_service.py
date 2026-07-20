@@ -7,9 +7,11 @@ It is used by the Real Search FastAPI lifecycle endpoints.
 from __future__ import annotations
 
 import os
+import pickle
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from collections.abc import Callable
+from multiprocessing import get_context
 from threading import RLock
 from typing import Any, Protocol
 
@@ -80,9 +82,28 @@ from scholar_agent.services.search_budget import BudgetedLLMClient, SearchBudget
 
 ENABLE_LLM_QUERY_UNDERSTANDING_ENV = "SCHOLAR_AGENT_ENABLE_LLM_QUERY_UNDERSTANDING"
 ENABLE_LLM_JUDGEMENT_ENV = "SCHOLAR_AGENT_ENABLE_LLM_JUDGEMENT"
+RETRIEVAL_CLEANUP_GRACE_SECONDS = 0.25
 
 EventCallback = Callable[[str, dict[str, Any]], None]
 ShouldCancel = Callable[[], bool]
+
+
+def _isolated_retriever_entry(
+    connection: Any,
+    retriever: Any,
+    query: str,
+    limit_per_source: int,
+    sources: list[str],
+) -> None:
+    """Spawn-safe bridge for retrievers that do not share run state."""
+
+    try:
+        result = retriever(query, limit_per_source=limit_per_source, sources=sources)
+        connection.send(("ok", result))
+    except BaseException as exc:  # pragma: no cover - exercised in child process
+        connection.send(("error", type(exc).__name__, str(exc)[:500]))
+    finally:
+        connection.close()
 
 
 class SearchCancelled(RuntimeError):
@@ -90,6 +111,14 @@ class SearchCancelled(RuntimeError):
 
     def __init__(self, stage: str) -> None:
         super().__init__(f"search_cancelled:{stage}")
+        self.stage = stage
+
+
+class SearchDeadlineExceeded(RuntimeError):
+    """Search budget deadline reached before a retrieval task completed."""
+
+    def __init__(self, stage: str) -> None:
+        super().__init__(f"search_deadline_exceeded:{stage}")
         self.stage = stage
 
 
@@ -105,6 +134,20 @@ class _ExecutionSignals:
         self._budget_reasons: set[str] = set()
         self._warning_events: set[str] = set()
         self._lock = RLock()
+        self._deadline: float | None = None
+
+    def set_deadline(self, deadline: float) -> None:
+        self._deadline = deadline
+
+    def remaining_seconds(self) -> float | None:
+        if self._deadline is None:
+            return None
+        return max(0.0, self._deadline - time.perf_counter())
+
+    def check_deadline(self, stage: str) -> None:
+        remaining = self.remaining_seconds()
+        if remaining is not None and remaining <= 0:
+            raise SearchDeadlineExceeded(stage)
 
     def emit(self, event_name: str, payload: dict[str, Any] | None = None) -> None:
         if self._event_callback is None:
@@ -260,12 +303,53 @@ class SearchService:
             retriever is retrieve_papers
             or getattr(retriever, "emits_connector_events", False)
         )
+        self._process_isolation_available = self._can_isolate_retriever(retriever)
+        self._isolated_processes: set[Any] = set()
+        self._isolated_processes_lock = RLock()
         self._reference_fetcher = reference_fetcher
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
         self._llm_planning_runtime = llm_planning_runtime
         self._judgement_policy = judgement_policy
         self._judgement_config = judgement_config
+
+    @staticmethod
+    def _can_isolate_retriever(retriever: Any) -> bool:
+        """Only isolate stateless, pickleable test/synthetic retrievers.
+
+        The production retriever carries the per-run cache/locks and therefore
+        stays in-process; its connector clients enforce their own HTTP bounds.
+        Stateless retrievers are isolated so an uncooperative fake cannot leak
+        a worker thread past a query deadline.
+        """
+
+        if retriever is retrieve_papers:
+            return False
+        try:
+            pickle.dumps(retriever)
+        except (pickle.PickleError, AttributeError, TypeError):
+            return False
+        return True
+
+    def _register_isolated_process(self, process: Any) -> None:
+        with self._isolated_processes_lock:
+            self._isolated_processes.add(process)
+
+    def _unregister_isolated_process(self, process: Any) -> None:
+        with self._isolated_processes_lock:
+            self._isolated_processes.discard(process)
+
+    def _terminate_isolated_processes(self) -> None:
+        with self._isolated_processes_lock:
+            processes = list(self._isolated_processes)
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=1.0)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=1.0)
+            self._unregister_isolated_process(process)
 
     def run_search(
         self,
@@ -305,6 +389,11 @@ class SearchService:
                 if callable(elapsed_seconds_provider)
                 else None
             ),
+        )
+        signals.set_deadline(
+            runtime.started_at
+            + runtime.budget.max_latency_seconds
+            + RETRIEVAL_CLEANUP_GRACE_SECONDS
         )
         adaptive_budget_tracker = _AdaptiveBudgetTracker(runtime)
         effective_judgement_policy = judgement_policy or self._judgement_policy
@@ -1342,44 +1431,107 @@ class SearchService:
         signals.check_cancelled(f"{failure_source}:before_batch")
         worker_count = min(self._max_workers, len(subqueries))
         results: list[RetrievalOutput | None] = [None] * len(subqueries)
+        executor = ThreadPoolExecutor(max_workers=worker_count)
+        pending: dict[Future[_RetrievalTaskResult], int] = {}
+        next_index = 0
+        aborted = False
 
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            pending: dict[Future[_RetrievalTaskResult], int] = {}
-            next_index = 0
-
-            def submit_available() -> None:
-                nonlocal next_index
-                while next_index < len(subqueries) and len(pending) < worker_count:
-                    signals.check_cancelled(
-                        f"{failure_source}:before_subquery:{next_index}"
+        def terminal_output(index: int, status: str) -> RetrievalOutput:
+            message = f"{status}:{failure_source}:{index}"
+            return RetrievalOutput(
+                query=subqueries[index].query,
+                requested_sources=list(subqueries[index].source_hints or selected_sources),
+                raw_count=0,
+                deduplicated_count=0,
+                papers=[],
+                source_stats=[
+                    SourceStats(
+                        source=failure_source,
+                        terminal_status=status,
+                        query=subqueries[index].query,
+                        returned_count=0,
+                        error_message=message,
                     )
-                    future = executor.submit(
-                        self._retrieve_one_subquery,
-                        next_index,
-                        subqueries[next_index],
-                        selected_sources,
-                        limit_per_source,
-                        failure_prefix,
-                        failure_source,
-                        signals,
-                        constraints,
-                        run_context,
-                        len(subqueries) - next_index - 1,
-                        query_adapter_policy,
-                        adaptive_budget_check,
-                    )
-                    pending[future] = next_index
-                    next_index += 1
+                ],
+                warnings=[message],
+                latency_seconds=0.0,
+            )
 
+        def submit_available() -> None:
+            nonlocal next_index
+            while next_index < len(subqueries) and len(pending) < worker_count:
+                signals.check_cancelled(
+                    f"{failure_source}:before_subquery:{next_index}"
+                )
+                signals.check_deadline(
+                    f"{failure_source}:before_subquery:{next_index}"
+                )
+                future = executor.submit(
+                    self._retrieve_one_subquery,
+                    next_index,
+                    subqueries[next_index],
+                    selected_sources,
+                    limit_per_source,
+                    failure_prefix,
+                    failure_source,
+                    signals,
+                    constraints,
+                    run_context,
+                    len(subqueries) - next_index - 1,
+                    query_adapter_policy,
+                    adaptive_budget_check,
+                )
+                pending[future] = next_index
+                next_index += 1
+
+        try:
             submit_available()
             while pending:
-                completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                remaining = signals.remaining_seconds()
+                if remaining is not None and remaining <= 0:
+                    aborted = True
+                    for future, index in pending.items():
+                        future.cancel()
+                        results[index] = terminal_output(index, "timeout")
+                    pending.clear()
+                    while next_index < len(subqueries):
+                        results[next_index] = terminal_output(next_index, "not_started")
+                        next_index += 1
+                    self._terminate_isolated_processes()
+                    break
+                completed, _ = wait(
+                    pending,
+                    timeout=(0.05 if remaining is None else min(0.05, remaining)),
+                    return_when=FIRST_COMPLETED,
+                )
+                if not completed:
+                    signals.check_cancelled(f"{failure_source}:between_subqueries")
+                    continue
                 for future in completed:
                     pending.pop(future, None)
                     result = future.result()
                     results[result.index] = result.output
                 signals.check_cancelled(f"{failure_source}:between_subqueries")
                 submit_available()
+        except SearchCancelled:
+            aborted = True
+            for future in pending:
+                future.cancel()
+            self._terminate_isolated_processes()
+            raise
+        except SearchDeadlineExceeded:
+            aborted = True
+            for future, index in pending.items():
+                future.cancel()
+                results[index] = terminal_output(index, "timeout")
+            pending.clear()
+            while next_index < len(subqueries):
+                results[next_index] = terminal_output(next_index, "not_started")
+                next_index += 1
+            self._terminate_isolated_processes()
+        finally:
+            # Never let executor __exit__ wait on an uncooperative connector.
+            executor.shutdown(wait=not aborted, cancel_futures=True)
 
         return [output for output in results if output is not None]
 
@@ -1415,7 +1567,15 @@ class SearchService:
                 )
         start = time.perf_counter()
         try:
-            if self._retriever_emits_connector_events:
+            if self._process_isolation_available:
+                output = self._run_isolated_retriever(
+                    subquery.query,
+                    limit_per_source,
+                    sources,
+                    signals,
+                    index,
+                )
+            elif self._retriever_emits_connector_events:
                 output = self._retriever(
                     subquery.query,
                     limit_per_source=limit_per_source,
@@ -1447,6 +1607,28 @@ class SearchService:
             signals.check_cancelled(f"{failure_source}:subquery:{index}:after")
         except SearchCancelled:
             raise
+        except SearchDeadlineExceeded:
+            latency_seconds = time.perf_counter() - start
+            message = f"timeout:{failure_source}:{index}"
+            output = RetrievalOutput(
+                query=subquery.query,
+                requested_sources=list(sources),
+                raw_count=0,
+                deduplicated_count=0,
+                papers=[],
+                source_stats=[
+                    SourceStats(
+                        source=failure_source,
+                        terminal_status="timeout",
+                        query=subquery.query,
+                        returned_count=0,
+                        latency_seconds=latency_seconds,
+                        error_message=message,
+                    )
+                ],
+                warnings=[message],
+                latency_seconds=latency_seconds,
+            )
         except Exception as exc:  # noqa: BLE001 - isolate one subquery failure
             message = f"{failure_prefix}:{index}:{exc}"
             latency_seconds = time.perf_counter() - start
@@ -1459,6 +1641,7 @@ class SearchService:
                 source_stats=[
                     SourceStats(
                         source=failure_source,
+                        terminal_status="source_failure",
                         query=subquery.query,
                         combination_mode=subquery.combination_mode,
                         returned_count=0,
@@ -1500,6 +1683,57 @@ class SearchService:
                     },
                 )
         return _RetrievalTaskResult(index=index, output=output)
+
+    def _run_isolated_retriever(
+        self,
+        query: str,
+        limit_per_source: int,
+        sources: list[str],
+        signals: _ExecutionSignals,
+        index: int,
+    ) -> RetrievalOutput:
+        """Run a stateless retriever in a killable spawn child.
+
+        A pipe is drained before joining the child, avoiding the feeder-pipe
+        deadlock that occurs when a successful result contains many papers.
+        """
+
+        context = get_context("spawn")
+        receive, send = context.Pipe(duplex=False)
+        process = context.Process(
+            target=_isolated_retriever_entry,
+            args=(send, self._retriever, query, limit_per_source, sources),
+            daemon=True,
+        )
+        process.start()
+        self._register_isolated_process(process)
+        send.close()
+        try:
+            while True:
+                signals.check_cancelled(f"retrieval:isolated:{index}")
+                remaining = signals.remaining_seconds()
+                if remaining is not None and remaining <= 0:
+                    raise SearchDeadlineExceeded(f"retrieval:isolated:{index}")
+                poll_for = 0.05 if remaining is None else min(0.05, remaining)
+                if receive.poll(poll_for):
+                    message = receive.recv()
+                    if message[0] == "ok":
+                        process.join(timeout=1.0)
+                        return message[1]
+                    raise RuntimeError(
+                        f"isolated_retriever_failed:{message[1]}:{message[2]}"
+                    )
+                if not process.is_alive():
+                    raise RuntimeError("isolated_retriever_exited_without_result")
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=1.0)
+                if process.is_alive():
+                    process.kill()
+                    process.join(timeout=1.0)
+            receive.close()
+            self._unregister_isolated_process(process)
 
     @staticmethod
     def _handle_connector_event(

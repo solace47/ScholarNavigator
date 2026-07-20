@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from scholar_agent.agents.judgement_config import (
 )
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
+    RetrievalRunContext,
     SourceStats,
     clear_retrieval_cache,
     clear_source_cooldowns,
@@ -24,9 +26,14 @@ from scholar_agent.core.search_schemas import (
     QueryConstraint,
     QueryEvolutionRecord,
     SearchBudget,
+    SearchSubquery,
 )
 from scholar_agent.services import search_service
-from scholar_agent.services.search_service import SearchCancelled, SearchService
+from scholar_agent.services.search_service import (
+    SearchCancelled,
+    SearchService,
+    _ExecutionSignals,
+)
 
 
 def make_paper(
@@ -77,6 +84,156 @@ def make_output(
         warnings=warnings or [],
         latency_seconds=0.01,
     )
+
+
+class _SpawnSafeBlockingRetriever:
+    def __call__(
+        self,
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        del limit_per_source, sources
+        if query == "block":
+            while True:
+                time.sleep(0.01)
+        return RetrievalOutput(
+            query=query,
+            requested_sources=["openalex"],
+            raw_count=0,
+            deduplicated_count=0,
+            papers=[],
+            source_stats=[SourceStats(source="openalex", query=query)],
+        )
+
+
+class _SpawnSafeLargeRetriever:
+    def __call__(
+        self,
+        query: str,
+        limit_per_source: int = 20,
+        sources: list[str] | None = None,
+    ) -> RetrievalOutput:
+        del limit_per_source, sources
+        papers = [
+            make_paper(f"large-{index}", doi=f"10.123/large-{index}")
+            for index in range(300)
+        ]
+        return RetrievalOutput(
+            query=query,
+            requested_sources=["openalex"],
+            raw_count=len(papers),
+            deduplicated_count=len(papers),
+            papers=papers,
+            source_stats=[SourceStats(source="openalex", query=query, returned_count=len(papers))],
+        )
+
+
+def _batch_signals(seconds: float) -> _ExecutionSignals:
+    signals = _ExecutionSignals(None, None)
+    signals.set_deadline(time.perf_counter() + seconds)
+    return signals
+
+
+def test_uncooperative_retriever_is_terminated_and_next_task_completes() -> None:
+    service = SearchService(retriever=_SpawnSafeBlockingRetriever(), max_workers=2)
+    before = {thread.ident for thread in threading.enumerate() if thread.ident}
+    started = time.perf_counter()
+    outputs = service._retrieve_query_batch(  # noqa: SLF001
+        [
+            SearchSubquery(query="block", purpose="original_query"),
+            SearchSubquery(query="ok", purpose="original_query"),
+        ],
+        selected_sources=["openalex"],
+        limit_per_source=20,
+        failure_prefix="test_failed",
+        failure_source="test",
+        signals=_batch_signals(0.8),
+        constraints=QueryConstraint(),
+        run_context=RetrievalRunContext(),
+        query_adapter_policy="adaptive",
+        adaptive_budget_check=lambda papers: None,
+    )
+    elapsed = time.perf_counter() - started
+    assert elapsed < 1.5
+    assert [item.query for item in outputs] == ["block", "ok"]
+    assert outputs[0].source_stats[0].error_message == "timeout:test:0"
+    assert outputs[0].source_stats[0].terminal_status == "timeout"
+    assert outputs[1].source_stats[0].error_message is None
+    time.sleep(0.1)
+    leaked = [
+        thread
+        for thread in threading.enumerate()
+        if thread.ident not in before and "ThreadPoolExecutor" in thread.name
+    ]
+    assert leaked == []
+
+
+def test_isolated_retriever_drains_large_payload_before_join() -> None:
+    service = SearchService(retriever=_SpawnSafeLargeRetriever(), max_workers=1)
+    outputs = service._retrieve_query_batch(  # noqa: SLF001
+        [SearchSubquery(query="large", purpose="original_query")],
+        selected_sources=["openalex"],
+        limit_per_source=20,
+        failure_prefix="test_failed",
+        failure_source="test",
+        signals=_batch_signals(2.0),
+        constraints=QueryConstraint(),
+        run_context=RetrievalRunContext(),
+        query_adapter_policy="adaptive",
+        adaptive_budget_check=lambda papers: None,
+    )
+    assert len(outputs) == 1
+    assert outputs[0].raw_count == 300
+
+
+def test_deadline_marks_queued_work_not_started() -> None:
+    service = SearchService(retriever=_SpawnSafeBlockingRetriever(), max_workers=1)
+    outputs = service._retrieve_query_batch(  # noqa: SLF001
+        [
+            SearchSubquery(query="block", purpose="original_query"),
+            SearchSubquery(query="queued", purpose="original_query"),
+        ],
+        selected_sources=["openalex"],
+        limit_per_source=20,
+        failure_prefix="test_failed",
+        failure_source="test",
+        signals=_batch_signals(0.8),
+        constraints=QueryConstraint(),
+        run_context=RetrievalRunContext(),
+        query_adapter_policy="adaptive",
+        adaptive_budget_check=lambda papers: None,
+    )
+    assert [item.source_stats[0].error_message for item in outputs] == [
+        "timeout:test:0",
+        "not_started:test:1",
+    ]
+    assert outputs[1].source_stats[0].terminal_status == "not_started"
+
+
+def test_cancellation_terminates_isolated_children_without_new_tasks() -> None:
+    cancel_at = time.perf_counter() + 0.1
+
+    def should_cancel() -> bool:
+        return time.perf_counter() >= cancel_at
+
+    service = SearchService(retriever=_SpawnSafeBlockingRetriever(), max_workers=1)
+    signals = _ExecutionSignals(None, should_cancel)
+    signals.set_deadline(time.perf_counter() + 2.0)
+    with pytest.raises(SearchCancelled):
+        service._retrieve_query_batch(  # noqa: SLF001
+            [SearchSubquery(query="block", purpose="original_query")],
+            selected_sources=["openalex"],
+            limit_per_source=20,
+            failure_prefix="test_failed",
+            failure_source="test",
+            signals=signals,
+            constraints=QueryConstraint(),
+            run_context=RetrievalRunContext(),
+            query_adapter_policy="adaptive",
+            adaptive_budget_check=lambda papers: None,
+        )
+    assert not service._isolated_processes  # noqa: SLF001
 
 
 def test_run_search_complete_pipeline_with_injected_retriever() -> None:
@@ -1724,6 +1881,7 @@ def test_run_search_subquery_failure_keeps_other_results_and_warnings() -> None:
     ]
     assert output.retrieval_outputs[1].raw_count == 0
     assert output.retrieval_outputs[1].source_stats[0].source == "subquery"
+    assert output.retrieval_outputs[1].source_stats[0].terminal_status == "source_failure"
     assert output.retrieval_outputs[1].source_stats[0].error_message is not None
     assert "subquery_failed:1:mock subquery outage" in output.warnings
     assert output.warnings.count("retriever_warning") == 1

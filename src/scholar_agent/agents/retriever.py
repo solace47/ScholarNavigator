@@ -77,6 +77,7 @@ class RetrievalSufficiency(BaseModel):
 
 class SourceStats(BaseModel):
     source: str
+    terminal_status: str | None = None
     query: str | None = None
     returned_count: int = 0
     latency_seconds: float = 0.0
