@@ -12,6 +12,7 @@ export type QueryPlanningPolicy =
   | "facet_balanced"
   | "llm_semantic";
 export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";
+export type RankingPolicy = "current_rules" | "rrf_fusion";
 export type QueryFacetType =
   | "topic"
   | "method"
@@ -100,6 +101,7 @@ export interface SearchRunCreateRequest {
   };
   options?: {
     query_planning_policy?: QueryPlanningPolicy;
+    ranking_policy?: RankingPolicy;
     judgement_policy?: JudgementPolicy;
     enable_query_evolution?: boolean;
     query_evolution_policy?: QueryEvolutionPolicy;
@@ -121,6 +123,7 @@ export interface InternalSearchPreviewRequest {
   enable_query_evolution?: boolean;
   query_evolution_policy?: QueryEvolutionPolicy;
   query_planning_policy?: QueryPlanningPolicy;
+  ranking_policy?: RankingPolicy;
   judgement_policy?: JudgementPolicy;
   enable_llm_query_understanding?: boolean | null;
   enable_llm_judgement?: boolean | null;
@@ -268,6 +271,16 @@ export interface RankedPaper {
   matched_constraints: string[];
   ranking_reason: string;
   evidence: EvidenceItem[];
+  rrf_score?: number | null;
+  rrf_contributions: Array<{
+    source: string;
+    subquery: string;
+    rank: number;
+    reciprocal_score: number;
+  }>;
+  original_rank?: number | null;
+  rrf_top_20_change?: string | null;
+  rrf_rank_change_reason?: string | null;
 }
 
 export interface QueryAnalysis {
@@ -282,6 +295,7 @@ export interface SearchPlan {
   source_preferences: string[];
   max_rounds: number;
   query_planning_policy: QueryPlanningPolicy;
+  ranking_policy: RankingPolicy;
   query_planning: {
     policy: QueryPlanningPolicy;
     planner_version: string;

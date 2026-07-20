@@ -36,6 +36,7 @@ from scholar_agent.core.search_schemas import (  # noqa: E402
     QUERY_PLANNER_VERSION,
     QueryEvolutionPolicy,
     QueryPlanningPolicy,
+    RankingPolicy,
     SUPPORTED_SEARCH_SOURCES,
     SearchBudget,
 )
@@ -113,6 +114,7 @@ class BenchmarkRunOptions(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    ranking_policy: RankingPolicy = "current_rules"
     judgement_policy: JudgementPolicy = "current_rules"
     judgement_config_path: Path | None = None
     enable_refchain: bool = False
@@ -632,6 +634,7 @@ def _build_config(
             else "off"
         ),
         "query_planning_policy": options.query_planning_policy,
+        "ranking_policy": options.ranking_policy,
         "query_planner_version": QUERY_PLANNER_VERSION,
         "judgement_policy": options.judgement_policy,
         "judgement_config": judgement_config.model_dump(mode="json"),
@@ -828,6 +831,7 @@ def _run_case(
             enable_query_evolution=options.enable_query_evolution,
             query_evolution_policy=options.query_evolution_policy,
             query_planning_policy=options.query_planning_policy,
+            ranking_policy=options.ranking_policy,
             enable_refchain=options.enable_refchain,
             enable_synthesis=True,
             current_year=options.current_year,
@@ -1177,6 +1181,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=["current_rules", "calibrated_rules_v1"],
         default="current_rules",
     )
+    parser.add_argument(
+        "--ranking-policy",
+        choices=["current_rules", "rrf_fusion"],
+        default="current_rules",
+    )
     parser.add_argument("--judgement-config", default=None)
     parser.add_argument("--enable-refchain", action="store_true")
     parser.add_argument("--enable-llm-query-understanding", action="store_true")
@@ -1262,6 +1271,7 @@ def main(argv: list[str] | None = None) -> int:
             enable_query_evolution=args.enable_query_evolution,
             query_evolution_policy=args.query_evolution_policy,
             query_planning_policy=args.query_planning_policy,
+            ranking_policy=args.ranking_policy,
             judgement_policy=args.judgement_policy,
             judgement_config_path=(
                 Path(args.judgement_config) if args.judgement_config else None

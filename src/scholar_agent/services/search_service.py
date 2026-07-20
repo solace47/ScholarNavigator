@@ -29,6 +29,10 @@ from scholar_agent.agents.query_evolution import (
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.reranker import rerank_papers
+from scholar_agent.agents.rrf_fusion import (
+    build_retrieval_ranked_lists,
+    fuse_ranked_papers,
+)
 from scholar_agent.agents.retriever import (
     RetrievalOutput,
     RetrievalRunContext,
@@ -58,6 +62,7 @@ from scholar_agent.core.search_schemas import (
     QueryEvolutionPolicy,
     QueryEvolutionRecord,
     QueryPlanningPolicy,
+    RankingPolicy,
     RankedPaper,
     RefChainOptions,
     RefChainOutput,
@@ -360,6 +365,7 @@ class SearchService:
         enable_query_evolution: bool = False,
         query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
         query_planning_policy: QueryPlanningPolicy = "current_rules",
+        ranking_policy: RankingPolicy = "current_rules",
         enable_synthesis: bool = True,
         current_year: int | None = None,
         enable_llm_query_understanding: bool | None = None,
@@ -455,6 +461,7 @@ class SearchService:
             update={
                 "enable_query_evolution": enable_query_evolution,
                 "query_evolution_policy": effective_query_evolution_policy,
+                "ranking_policy": ranking_policy,
             }
         )
         signals.check_cancelled("query_understanding:after")
@@ -633,6 +640,8 @@ class SearchService:
                 search_plan.query_analysis,
                 judgements,
                 top_k,
+                ranking_policy=ranking_policy,
+                retrieval_outputs=retrieval_outputs,
             )
             diagnostics.snapshot_ranked("initial_reranked", all_ranked_papers)
             signals.check_cancelled("reranking:after")
@@ -899,6 +908,8 @@ class SearchService:
                         search_plan.query_analysis,
                         judgements,
                         top_k,
+                        ranking_policy=ranking_policy,
+                        retrieval_outputs=retrieval_outputs,
                     )
                     diagnostics.snapshot_ranked(
                         "post_evolution_reranked",
@@ -1109,6 +1120,8 @@ class SearchService:
                     search_plan.query_analysis,
                     judgements,
                     top_k,
+                    ranking_policy=ranking_policy,
+                    retrieval_outputs=retrieval_outputs,
                 )
                 diagnostics.snapshot_ranked(
                     "post_refchain_reranked",
@@ -1783,6 +1796,7 @@ def run_search(
     enable_query_evolution: bool = False,
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
     query_planning_policy: QueryPlanningPolicy = "current_rules",
+    ranking_policy: RankingPolicy = "current_rules",
     enable_synthesis: bool = True,
     current_year: int | None = None,
     enable_llm_query_understanding: bool | None = None,
@@ -1804,6 +1818,7 @@ def run_search(
         enable_query_evolution=enable_query_evolution,
         query_evolution_policy=query_evolution_policy,
         query_planning_policy=query_planning_policy,
+        ranking_policy=ranking_policy,
         enable_synthesis=enable_synthesis,
         current_year=current_year,
         enable_llm_query_understanding=enable_llm_query_understanding,
@@ -1821,12 +1836,21 @@ def _rerank_all_and_top(
     query_analysis: QueryAnalysis,
     judgements: list[JudgementResult],
     top_k: int,
+    *,
+    ranking_policy: RankingPolicy = "current_rules",
+    retrieval_outputs: list[RetrievalOutput] | None = None,
 ) -> tuple[list[RankedPaper], list[RankedPaper]]:
     all_ranked_papers = rerank_papers(
         query_analysis,
         judgements,
         top_k=len(judgements),
     )
+    if ranking_policy == "rrf_fusion":
+        all_ranked_papers = fuse_ranked_papers(
+            all_ranked_papers,
+            build_retrieval_ranked_lists(retrieval_outputs or []),
+            top_k=top_k,
+        )
     if top_k <= 0:
         return all_ranked_papers, []
     return all_ranked_papers, all_ranked_papers[:top_k]

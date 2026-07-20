@@ -86,6 +86,36 @@ def test_benchmark_default_and_cli_support_adaptive(tmp_path: Path) -> None:
     assert parsed.query_adapter_policy == "adaptive"
 
 
+def test_ranking_policy_is_default_off_recorded_and_passed_to_service(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    assert _options(tmp_path, dataset, run_id="ranking-default").ranking_policy == (
+        "current_rules"
+    )
+    service = FakeService()
+    options = _options(tmp_path, dataset, run_id="rrf").model_copy(
+        update={"ranking_policy": "rrf_fusion"}
+    )
+
+    result = run_benchmark.run_benchmark(options, service=service)
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "rrf-cli",
+            "--ranking-policy",
+            "rrf_fusion",
+        ]
+    )
+
+    assert result.config["ranking_policy"] == "rrf_fusion"
+    assert service.kwargs[0]["ranking_policy"] == "rrf_fusion"
+    assert parsed.ranking_policy == "rrf_fusion"
+    assert run_benchmark._ablation_group_name(options) == "baseline"  # noqa: SLF001
+
+
 def test_query_evolution_policy_is_recorded_and_passed_to_service(
     tmp_path: Path,
 ) -> None:

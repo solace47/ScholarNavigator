@@ -37,6 +37,7 @@ from ...core.search_schemas import (
     QueryEvolutionPolicy,
     JudgementPolicy,
     QueryPlanningPolicy,
+    RankingPolicy,
     RunProfile,
     SearchBudget,
     TimeRange,
@@ -96,6 +97,7 @@ class InternalSearchPreviewRequest(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    ranking_policy: RankingPolicy = "current_rules"
     judgement_policy: JudgementPolicy = "current_rules"
     enable_llm_query_understanding: bool | None = None
     enable_llm_judgement: bool | None = None
@@ -542,6 +544,11 @@ def internal_search_preview(
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
             **(
+                {"ranking_policy": request.ranking_policy}
+                if request.ranking_policy != "current_rules"
+                else {}
+            ),
+            **(
                 {"judgement_policy": request.judgement_policy}
                 if request.judgement_policy != "current_rules"
                 else {}
@@ -596,6 +603,11 @@ def internal_search_preview_api_result(
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
             **(
+                {"ranking_policy": request.ranking_policy}
+                if request.ranking_policy != "current_rules"
+                else {}
+            ),
+            **(
                 {"judgement_policy": request.judgement_policy}
                 if request.judgement_policy != "current_rules"
                 else {}
@@ -635,6 +647,11 @@ def _execute_real_search_run(run_id: str) -> None:
             enable_query_evolution=request.options.enable_query_evolution,
             query_evolution_policy=request.options.query_evolution_policy,
             query_planning_policy=request.options.query_planning_policy,
+            **(
+                {"ranking_policy": request.options.ranking_policy}
+                if request.options.ranking_policy != "current_rules"
+                else {}
+            ),
             **(
                 {"judgement_policy": request.options.judgement_policy}
                 if request.options.judgement_policy != "current_rules"

@@ -44,6 +44,7 @@ class CandidateProvenance(BaseModel):
     purpose: str | None = None
     cache_hit: bool = False
     source_skipped_reason: str | None = None
+    source_rank: int | None = Field(default=None, ge=1)
 
 
 class RetrievalCallTrace(BaseModel):
@@ -91,6 +92,11 @@ class DiagnosticCandidate(BaseModel):
     matched_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     judgement_features: JudgementFeatureVector | None = None
+    rrf_score: float | None = Field(default=None, ge=0.0)
+    rrf_contributions: list[dict[str, object]] = Field(default_factory=list)
+    original_rank: int | None = Field(default=None, ge=1)
+    rrf_top_20_change: str | None = None
+    rrf_rank_change_reason: str | None = None
 
 
 class StageCandidateSnapshot(BaseModel):
@@ -200,7 +206,9 @@ class PipelineDiagnosticsCollector:
                         query_provenance=list(stats.query_provenance),
                     )
                 )
-                for paper in stats.diagnostic_papers:
+                for source_rank, paper in enumerate(
+                    stats.diagnostic_papers, start=1
+                ):
                     traced_paper = True
                     logical_provenance = stats.query_provenance or [
                         QueryAdaptationProvenance(
@@ -230,6 +238,7 @@ class PipelineDiagnosticsCollector:
                                     if query_provenance.origin_subquery == output.query
                                     else None
                                 ),
+                                source_rank=source_rank,
                             ),
                         )
                     papers.append(paper)
@@ -354,6 +363,14 @@ class PipelineDiagnosticsCollector:
                         "final_score": ranked.final_score,
                         "matched_terms": list(ranked.matched_terms),
                         "warnings": list(ranked.warnings),
+                        "rrf_score": ranked.rrf_score,
+                        "rrf_contributions": [
+                            item.model_dump(mode="json")
+                            for item in ranked.rrf_contributions
+                        ],
+                        "original_rank": ranked.original_rank,
+                        "rrf_top_20_change": ranked.rrf_top_20_change,
+                        "rrf_rank_change_reason": ranked.rrf_rank_change_reason,
                     }
                 )
             )
@@ -443,6 +460,7 @@ def _stable_provenance(
             str | None,
             bool,
             str | None,
+            int | None,
         ]
     ] = set()
     for value in values:
@@ -456,6 +474,7 @@ def _stable_provenance(
             value.purpose,
             value.cache_hit,
             value.source_skipped_reason,
+            value.source_rank,
         )
         if key in seen:
             continue

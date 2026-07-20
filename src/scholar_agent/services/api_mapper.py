@@ -134,6 +134,14 @@ def map_ranked_paper(ranked: InternalRankedPaper) -> api.RankedPaper:
         matched_constraints=list(ranked.matched_terms),
         ranking_reason=ranked.ranking_reason,
         evidence=[map_evidence_item(item) for item in ranked.evidence],
+        rrf_score=ranked.rrf_score,
+        rrf_contributions=[
+            api.RRFListContribution(**item.model_dump(mode="json"))
+            for item in ranked.rrf_contributions
+        ],
+        original_rank=ranked.original_rank,
+        rrf_top_20_change=ranked.rrf_top_20_change,
+        rrf_rank_change_reason=ranked.rrf_rank_change_reason,
     )
 
 
@@ -283,6 +291,7 @@ def map_search_plan(
         source_preferences=list(search_plan.selected_sources),
         max_rounds=_search_rounds(output, search_plan),
         query_planning_policy=search_plan.query_planning_policy,
+        ranking_policy=search_plan.ranking_policy,
         query_planning=search_plan.query_planning,
         query_evolution_policy=search_plan.query_evolution_policy,
     )

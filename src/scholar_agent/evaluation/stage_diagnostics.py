@@ -352,6 +352,14 @@ def _final_returned_snapshot(
                 final_score=ranked.final_score,
                 matched_terms=list(ranked.matched_terms),
                 warnings=list(ranked.warnings),
+                rrf_score=ranked.rrf_score,
+                rrf_contributions=[
+                    item.model_dump(mode="json")
+                    for item in ranked.rrf_contributions
+                ],
+                original_rank=ranked.original_rank,
+                rrf_top_20_change=ranked.rrf_top_20_change,
+                rrf_rank_change_reason=ranked.rrf_rank_change_reason,
             )
         )
     return StageCandidateSnapshot(stage="final_returned", candidates=candidates)

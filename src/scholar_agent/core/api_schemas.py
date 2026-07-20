@@ -15,6 +15,7 @@ from scholar_agent.core.search_schemas import (
     QueryEvolutionPolicy,
     QueryPlanningPolicy,
     QueryPlanningResult,
+    RankingPolicy,
     SearchBudget,
     SourceName,
     TimeRange,
@@ -111,6 +112,7 @@ class SearchBudgets(SearchBudget):
 
 class SearchOptions(BaseModel):
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    ranking_policy: RankingPolicy = "current_rules"
     judgement_policy: JudgementPolicy = "current_rules"
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
@@ -266,6 +268,13 @@ class SynthesisOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class RRFListContribution(BaseModel):
+    source: str
+    subquery: str
+    rank: int = Field(ge=1)
+    reciprocal_score: float = Field(ge=0.0)
+
+
 class RankedPaper(BaseModel):
     rank: int
     paper: Paper
@@ -274,6 +283,11 @@ class RankedPaper(BaseModel):
     matched_constraints: list[str] = Field(default_factory=list)
     ranking_reason: str
     evidence: list[EvidenceItem] = Field(default_factory=list)
+    rrf_score: float | None = Field(default=None, ge=0.0)
+    rrf_contributions: list[RRFListContribution] = Field(default_factory=list)
+    original_rank: int | None = Field(default=None, ge=1)
+    rrf_top_20_change: str | None = None
+    rrf_rank_change_reason: str | None = None
 
 
 class QueryAnalysis(BaseModel):
@@ -288,6 +302,7 @@ class SearchPlan(BaseModel):
     source_preferences: list[str] = Field(default_factory=list)
     max_rounds: int = 1
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    ranking_policy: RankingPolicy = "current_rules"
     query_planning: QueryPlanningResult = Field(
         default_factory=QueryPlanningResult
     )

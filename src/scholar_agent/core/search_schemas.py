@@ -44,6 +44,7 @@ QueryPlanningPolicy = Literal[
 ]
 CombinationMode = Literal["all", "any"]
 JudgementPolicy = Literal["current_rules", "calibrated_rules_v1"]
+RankingPolicy = Literal["current_rules", "rrf_fusion"]
 QueryFacetType = Literal[
     "topic",
     "method",
@@ -355,6 +356,7 @@ class SearchPlan(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
+    ranking_policy: RankingPolicy = "current_rules"
     query_planning: QueryPlanningResult = Field(
         default_factory=QueryPlanningResult
     )
@@ -491,6 +493,13 @@ class RerankScoreBreakdown(BaseModel):
     metadata_weight: float = Field(ge=0.0, le=1.0)
 
 
+class RRFListContribution(BaseModel):
+    source: str
+    subquery: str
+    rank: int = Field(ge=1)
+    reciprocal_score: float = Field(ge=0.0)
+
+
 class RankedPaper(BaseModel):
     rank: int = Field(ge=1)
     paper: Paper
@@ -501,6 +510,11 @@ class RankedPaper(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    rrf_score: float | None = Field(default=None, ge=0.0)
+    rrf_contributions: list[RRFListContribution] = Field(default_factory=list)
+    original_rank: int | None = Field(default=None, ge=1)
+    rrf_top_20_change: str | None = None
+    rrf_rank_change_reason: str | None = None
 
 
 class QueryEvolutionOptions(BaseModel):
