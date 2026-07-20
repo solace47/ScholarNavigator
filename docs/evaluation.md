@@ -106,6 +106,8 @@ SciFact BM25 上界审计位于 `scripts/audit_scifact_bm25.py` 和 `scholar_age
 
 SciFact 跨源可索引性审计位于 `scripts/audit_scifact_source_index.py` 和 `scholar_agent.evaluation.scifact_source_index_audit`，同样与产品检索路径隔离。它只对 crosswalk 状态为 success 的 gold 使用来源支持的稳定标识：arXiv `id_list`、OpenAlex 单 work lookup、Semantic Scholar paper stable-ID lookup、PubMed PMID EFetch；不发送标题或 query，不使用模糊匹配。四源结果通过统一 `identity.py` 验证，同类稳定标识冲突保持不匹配。`record-missing` 串行执行并为每个请求保存不可变 Snapshot；`replay` 严格校验 request/key/content hash，外部失败与 not-found 分开。总体互斥归因优先保留正常查询命中，其次为精确可定位但查询未召回；只有全部适用源明确 not-found 才归为未定位，任何失败均保持不可判定。该 oracle 仅量化来源收录与查询命中缺口，不向查询、Prompt、候选或生产 API 注入 gold。
 
+SciFact 的 current-rules 查询深度审计位于 `scripts/audit_scifact_query_depth.py` 和 `scholar_agent.evaluation.scifact_query_depth_audit`。请求计划只读取冻结 Benchmark 的 `initial_retrieval.retrieval_calls`，保留全部 source-adapted query 及原顺序，不含 case 或 gold 字段。arXiv/OpenAlex 单次请求 200 条，Semantic Scholar/PubMed 固定读取 offset 0/100 两页；20/50/100/200 曲线只取同一有序结果的前缀。Record 对每页使用可终止进程隔离、父级来源限流和连续两次 429 熔断；Replay 严格校验全部 request/key，只在返回结果后以统一精确稳定标识匹配 gold。外部失败、部分分页和 source outage 均保持不可判定，不能转为深度 200 miss。候选曲线同时给出去重后未裁剪池与冻结 200 篇全局预算后的指标，最终 Top-20 继续使用现有 judgement/reranking。固定输入、采集终态、成本及结果哈希记录在 `benchmark/beir_scifact_query_depth_audit_manifest.json`。
+
 复现命令：
 
 ```bash
