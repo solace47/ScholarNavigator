@@ -209,6 +209,8 @@ PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
 
 `scripts/audit_current_rules_subqueries.py` 对冻结的 `current_rules` Replay 做纯离线子查询边际审计。它按 planning 的优先级以及 `(case, source, subquery)` 重建实际 Snapshot 列表，使用统一身份去重，再在 gold 仅进入 evaluator 后计算独立候选、独立 gold、首次命中和计划顺序边际。`failed`、缺失 Snapshot 与 `not_started` 分别记录；失败或缺失列表不会被记作零贡献。反事实固定使用现有去重、候选预算、规则 Judgement、排序、过滤和 Top-20：一组只保留 `original_query`，另一组每次全局移除一种通用派生 purpose。共享 Snapshot key 只有在所有 owner 都被移除时才计请求节省。输出不调用 SearchService、connector 或 LLM，并将网络请求、LLM 请求和 Snapshot 写入固定记录为 0。
 
+`scripts/audit_current_rules_sources.py` 在同一冻结输入上按 query 计划顺序和来源顺序重建各来源候选，并分别计算单源保留与 leave-one-out。全量结果明确标记为已观测 Snapshot 下界；严格来源子集只纳入该 case 中至少一个实际来源请求成功、且该来源没有 failed、缺失或终态不一致的记录。未启动适配请求不产生候选或请求成本，但整项来源都未启动时不进入严格子集。独立候选/gold 只有在同 case 四源均成功时才具有严格归因资格；否则只输出 `observed` 值，不作为安全删除证据。请求、重试、延迟和限流节省按唯一 Snapshot key 聚合，离线执行继续固定为 0 网络、0 LLM、0 Snapshot 写入。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。
