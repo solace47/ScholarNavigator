@@ -1,6 +1,7 @@
 import sys
 from types import SimpleNamespace
 from pathlib import Path
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -13,12 +14,29 @@ from scripts.audit_cross_source_gold import (  # noqa: E402
     _request,
     _source_outage_response,
     _request_aborted_response,
+    _should_record_missing,
+    _exception_response,
+    _run_isolated,
+    _parent_throttle,
     _is_failed_request_status,
     _validate_probe_evidence,
     _validate_snapshot_payload,
     classify_source,
     potential_coverage_upper_bound,
 )
+
+
+def _blocking_target() -> str:
+    time.sleep(5)
+    return "late"
+
+
+def _quick_target() -> str:
+    return "completed"
+
+
+def _large_payload_target() -> str:
+    return "x" * (4 * 1024 * 1024)
 
 
 def test_classification_is_mutually_exclusive_and_prioritizes_current_candidate() -> None:
@@ -159,6 +177,56 @@ def test_source_outage_evidence_is_structured_and_zero_request() -> None:
     assert attempted["warnings"] == ["attempted_then_terminated_after_stall"]
     assert attempted["latency_seconds"] == 0.0
     assert _is_failed_request_status("request_aborted") is True
+
+
+def test_record_missing_retries_per_request_failures_but_preserves_source_outage() -> None:
+    assert _should_record_missing({"status": "failed"}) is False
+    assert _should_record_missing({"status": "request_aborted"}) is True
+    assert _should_record_missing({"status": "source_outage"}) is False
+    assert _should_record_missing({"status": "success"}) is False
+    assert _should_record_missing(None) is True
+
+
+def test_unexpected_worker_exception_is_a_terminal_auditable_failure() -> None:
+    response = _exception_response(TimeoutError("connector stalled"))
+    assert response["status"] == "failed"
+    assert response["failure_layer"] == "worker_exception"
+    assert response["diagnostics"]["error_count"] == 1
+
+
+def test_wall_clock_timeout_terminates_one_request_and_next_request_completes() -> None:
+    timed_out = _run_isolated(_blocking_target, (), 0.1)
+    assert timed_out["failure_layer"] == "audit_wall_clock_timeout"
+    assert _run_isolated(_quick_target, (), 2) == "completed"
+
+
+def test_large_success_payload_is_read_before_child_join() -> None:
+    payload = _run_isolated(_large_payload_target, (), 5)
+    assert isinstance(payload, str)
+    assert len(payload) == 4 * 1024 * 1024
+
+
+def test_parent_throttle_preserves_interval_across_isolated_requests(monkeypatch) -> None:
+    from scholar_agent.connectors.arxiv import _reset_arxiv_throttle_for_tests
+
+    monkeypatch.setenv("SCHOLAR_AGENT_ARXIV_MIN_INTERVAL_SECONDS", "3")
+    _reset_arxiv_throttle_for_tests()
+    clock = [0.0]
+    sleeps = []
+
+    def monotonic() -> float:
+        return clock[0]
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+
+    assert _parent_throttle("arxiv", sleep=sleep, monotonic=monotonic) == 0.0
+    clock[0] = 1.0
+    assert _parent_throttle("arxiv", sleep=sleep, monotonic=monotonic) == 2.0
+    assert sleeps == [2.0]
+    assert _parent_throttle("openalex", sleep=sleep, monotonic=monotonic) == 0.0
+    assert sleeps == [2.0]
 
 
 def test_current_signal_isolated_to_candidate_source_and_duplicate_title() -> None:

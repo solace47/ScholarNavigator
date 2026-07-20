@@ -6,11 +6,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import multiprocessing
 import re
 import sys
 import time
 from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Empty
 from pathlib import Path
 from typing import Any
 
@@ -20,10 +21,17 @@ for item in (ROOT, SRC):
     if str(item) not in sys.path:
         sys.path.insert(0, str(item))
 
-from scholar_agent.connectors.arxiv import search_arxiv_detailed  # noqa: E402
+from scholar_agent.connectors.arxiv import (  # noqa: E402
+    _throttle_arxiv_request,
+    search_arxiv_detailed,
+)
 from scholar_agent.connectors.openalex import search_openalex_detailed  # noqa: E402
-from scholar_agent.connectors.pubmed import search_pubmed_detailed  # noqa: E402
+from scholar_agent.connectors.pubmed import (  # noqa: E402
+    _throttle_pubmed_request,
+    search_pubmed_detailed,
+)
 from scholar_agent.connectors.semantic_scholar import (  # noqa: E402
+    _throttle_semantic_scholar_request,
     search_semantic_scholar_detailed,
 )
 from scholar_agent.core.dedup import normalize_title  # noqa: E402
@@ -34,6 +42,7 @@ SOURCES = ("arxiv", "openalex", "semantic_scholar", "pubmed")
 # kept as a separate oracle request.  Normalized title matching is performed
 # against the returned records, not by issuing a result-dependent query.
 KINDS = ("identifier", "exact_title", "fixed_depth_title")
+DEFAULT_REQUEST_WALL_TIMEOUT_SECONDS = 30.0
 SOURCE_ID_FIELDS = {
     "arxiv": ("arxiv_id",),
     "openalex": ("openalex_id", "doi", "arxiv_id"),
@@ -105,14 +114,32 @@ def _fetch(source: str, query: str | None, limit: int) -> dict[str, Any]:
         return {
             "status": "failed",
             "error_message": f"audit_connector_exception:{type(exc).__name__}",
+            "error_type": type(exc).__name__,
+            "failure_layer": "connector_exception",
             "warnings": [],
             "diagnostics": {"request_count": 0, "retry_count": 0, "error_count": 1},
             "latency_seconds": time.perf_counter() - started,
             "papers": [],
         }
+    error_message = result.error_message
+    failure_layer = None
+    if error_message:
+        lowered = error_message.lower()
+        if "429" in lowered:
+            failure_layer = "http_429_rate_limit"
+        elif "http error" in lowered or "non-2xx" in lowered or "status" in lowered:
+            failure_layer = "http_error"
+        elif "timeout" in lowered or "timed out" in lowered or "urlerror" in lowered:
+            failure_layer = "network_error"
+        elif "json" in lowered or "response missing" in lowered or "parse" in lowered:
+            failure_layer = "response_schema_or_parse"
+        else:
+            failure_layer = "connector_error"
     return {
-        "status": "failed" if result.error_message else "success",
-        "error_message": result.error_message,
+        "status": "failed" if error_message else "success",
+        "error_message": error_message,
+        "error_type": failure_layer,
+        "failure_layer": failure_layer,
         "warnings": result.warnings,
         "diagnostics": result.diagnostics.model_dump(mode="json"),
         "latency_seconds": max(result.latency_seconds, time.perf_counter() - started),
@@ -174,6 +201,101 @@ def _request_aborted_response(source: str, evidence: dict[str, Any], *, requeste
         "abort_evidence": evidence,
         "abort_evidence_hash": _hash(evidence),
     }
+
+
+def _exception_response(exc: BaseException) -> dict[str, Any]:
+    """Convert an unexpected worker failure into an auditable terminal response."""
+
+    return {
+        "status": "failed",
+        "error_message": f"audit_worker_exception:{type(exc).__name__}",
+        "error_type": type(exc).__name__,
+        "failure_layer": "worker_exception",
+        "warnings": [],
+        "diagnostics": {"request_count": 0, "retry_count": 0, "error_count": 1},
+        "latency_seconds": 0.0,
+        "papers": [],
+    }
+
+
+def _process_entry(function: Any, args: tuple[Any, ...], result_queue: Any) -> None:
+    try:
+        result_queue.put({"ok": True, "value": function(*args)})
+    except BaseException as exc:  # noqa: BLE001 - return child failure to parent
+        result_queue.put({"ok": False, "value": _exception_response(exc)})
+
+
+def _run_isolated(function: Any, args: tuple[Any, ...], timeout: float) -> Any:
+    """Run one connector request in a killable process with a wall-clock bound."""
+
+    # Fixed spawn avoids inheriting connector throttle globals, locks, or I/O
+    # handles from the parent on Linux where the default is fork.
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(target=_process_entry, args=(function, args, result_queue))
+    process.start()
+    try:
+        # Read before join: joining first can deadlock when the child feeder
+        # is still flushing a large successful response into this queue.
+        try:
+            result = result_queue.get(timeout=timeout)
+        except Empty:
+            if process.is_alive():
+                process.terminate()
+                process.join(2)
+                if process.is_alive() and hasattr(process, "kill"):
+                    process.kill()
+                    process.join(2)
+            return {
+                "status": "failed",
+                "error_message": "audit_request_wall_clock_timeout",
+                "error_type": "TimeoutError",
+                "failure_layer": "audit_wall_clock_timeout",
+                "warnings": ["attempted_then_terminated_after_wall_clock_timeout"],
+                "diagnostics": {"request_count": 1, "retry_count": 0, "error_count": 1},
+                "latency_seconds": timeout,
+                "papers": [],
+                "requested": True,
+            }
+        process.join(2)
+        if process.is_alive():
+            process.terminate()
+            process.join(2)
+        return result["value"]
+    except Exception as exc:  # noqa: BLE001 - child exited without a response
+        return _exception_response(exc)
+    finally:
+        result_queue.close()
+        result_queue.join_thread()
+
+
+def _fetch_isolated(request: dict[str, Any], timeout: float) -> dict[str, Any]:
+    return _run_isolated(_fetch, (request["source"], request["query"], request["limit"]), timeout)
+
+
+def _parent_throttle(
+    source: str,
+    *,
+    sleep: Any | None = None,
+    monotonic: Any | None = None,
+) -> float:
+    """Preserve connector rate limits across the per-request child processes."""
+
+    throttles = {
+        "arxiv": _throttle_arxiv_request,
+        "semantic_scholar": _throttle_semantic_scholar_request,
+        "pubmed": _throttle_pubmed_request,
+    }
+    throttle = throttles.get(source)
+    return throttle(sleep=sleep, monotonic=monotonic) if throttle else 0.0
+
+
+def _should_record_missing(response: dict[str, Any] | None) -> bool:
+    """Retry only per-request terminal failures; preserve source-level outage evidence."""
+
+    if not response:
+        return True
+    return response.get("status") == "request_aborted"
 
 
 def _request(source: str, kind: str, gold: dict[str, Any], limit: int) -> dict[str, Any]:
@@ -360,6 +482,8 @@ def build_request_plan(
 
 
 def _run(args: argparse.Namespace) -> int:
+    if args.workers != 1:
+        raise SystemExit("audit_record_workers_must_be_1_for_process_isolation")
     out = Path(args.output).resolve()
     snap = Path(args.snapshot).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -377,7 +501,8 @@ def _run(args: argparse.Namespace) -> int:
         if probe is None:
             print(json.dumps({"source": source, "status": "unavailable"}))
         else:
-            response = _fetch(probe["source"], probe["query"], probe["limit"])
+            _parent_throttle(probe["source"])
+            response = _fetch_isolated(probe, args.request_timeout)
             print(json.dumps({"source": source, "kind": probe["kind"], "probe_evidence": _probe_evidence(response, source)}, ensure_ascii=False))
         return 0
     if args.mode == "source-outage":
@@ -422,18 +547,16 @@ def _run(args: argparse.Namespace) -> int:
                 continue
             try:
                 existing = json.loads(path.read_text())
-                if existing.get("response", {}).get("status") == "source_outage":
+                if _should_record_missing(existing.get("response")):
                     pending.append(req)
             except (OSError, json.JSONDecodeError):
                 pending.append(req)
-        with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-            futures = {pool.submit(_fetch, req["source"], req["query"], req["limit"]): req for req in pending}
-            for index, future in enumerate(as_completed(futures), 1):
-                req = futures[future]
-                response = future.result()
-                path = snap / f"{req['key']}.json"
-                path.write_text(json.dumps({"request": req, "response": response}, ensure_ascii=False, indent=2))
-                print(f"[{index}/{len(pending)}] {req['source']} {req['kind']} {response['status']}", flush=True)
+        for index, req in enumerate(pending, 1):
+            _parent_throttle(req["source"])
+            response = _fetch_isolated(req, args.request_timeout)
+            path = snap / f"{req['key']}.json"
+            path.write_text(json.dumps({"request": req, "response": response}, ensure_ascii=False, indent=2))
+            print(f"[{index}/{len(pending)}] {req['source']} {req['kind']} {response['status']}", flush=True)
         return 0
     if args.mode == "replay":
         if any(not (snap / f"{key}.json").exists() for key in requests):
@@ -584,6 +707,7 @@ def main() -> int:
     parser.add_argument("--output", default="outputs/benchmark_runs/cross_source_gold_d889")
     parser.add_argument("--current-root", default="outputs/benchmark_runs")
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--request-timeout", type=float, default=DEFAULT_REQUEST_WALL_TIMEOUT_SECONDS)
     parser.add_argument("--source", choices=SOURCES)
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--probe-evidence")
