@@ -826,7 +826,10 @@ def _initial_query_planning_diagnostics(
     all_ids = set().union(*candidate_sets.values()) if candidate_sets else set()
     planning = output.search_plan.query_planning
     planning_payload = planning.model_dump(mode="json")
-    if output.search_plan.query_planning_policy != "llm_semantic":
+    if output.search_plan.query_planning_policy not in {
+        "llm_semantic",
+        "llm_constrained_rewrite",
+    }:
         for field in (
             "provider",
             "model",
@@ -851,6 +854,13 @@ def _initial_query_planning_diagnostics(
             "llm_completion_tokens",
             "llm_total_tokens",
             "recorded_llm_latency_seconds",
+            "constrained_rewrite_input_summary",
+            "constrained_rewrite_query",
+            "constrained_rewrite_replaced_index",
+            "constrained_rewrite_replaced_query",
+            "constrained_rewrite_replaced_purpose",
+            "constrained_rewrite_skip_reason",
+            "constrained_rewrite_validation_rejections",
         ):
             planning_payload.pop(field, None)
     return {

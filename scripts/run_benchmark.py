@@ -95,6 +95,9 @@ _SENSITIVE_ENV_NAMES = (
     "NCBI_API_KEY",
     "PUBMED_API_KEY",
 )
+_LLM_PLANNING_POLICIES = frozenset(
+    {"llm_semantic", "llm_constrained_rewrite"}
+)
 
 
 class BenchmarkRunOptions(BaseModel):
@@ -226,8 +229,12 @@ def _snapshot_manifest(
         llm_enabled=bool((config.get("llm") or {}).get("llm_enabled")),
         query_understanding_prompt=prompt("query_understanding"),
         llm_query_planning_prompt=(
-            prompt("llm_query_planning")
-            if options.query_planning_policy == "llm_semantic"
+            prompt(
+                "llm_constrained_rewrite"
+                if options.query_planning_policy == "llm_constrained_rewrite"
+                else "llm_query_planning"
+            )
+            if options.query_planning_policy in _LLM_PLANNING_POLICIES
             else {}
         ),
         judgement_prompt=prompt("relevance_judgement"),
@@ -442,7 +449,10 @@ def run_benchmark(
 
     snapshot_runtime: SnapshotRuntime | None = None
     llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None
-    if options.query_planning_policy == "llm_semantic" and options.llm_mode != "live":
+    if (
+        options.query_planning_policy in _LLM_PLANNING_POLICIES
+        and options.llm_mode != "live"
+    ):
         if service is not None:
             raise ValueError("LLM snapshot modes require the real SearchService")
         if options.llm_snapshot_dir is None:
@@ -561,12 +571,15 @@ def _validate_llm_planning_runtime(
     *,
     service: Any | None,
 ) -> None:
-    if options.query_planning_policy != "llm_semantic" or service is not None:
+    if (
+        options.query_planning_policy not in _LLM_PLANNING_POLICIES
+        or service is not None
+    ):
         return
     runtime = get_llm_runtime_config()
     if options.llm_mode in {"live", "record"} and not runtime.available:
         raise ValueError(
-            "llm_semantic requires an available LLM provider in live/record mode"
+            "LLM query planning requires an available LLM provider in live/record mode"
         )
     if options.llm_mode == "live":
         return
@@ -611,7 +624,7 @@ def _build_config(
     requested_llm = (
         options.enable_llm_query_understanding
         or options.enable_llm_judgement
-        or options.query_planning_policy == "llm_semantic"
+        or options.query_planning_policy in _LLM_PLANNING_POLICIES
     )
     semantic_config = {
         "dataset": options.dataset,
@@ -674,6 +687,9 @@ def _build_config(
             "judgement": options.enable_llm_judgement,
             "semantic_query_planning": (
                 options.query_planning_policy == "llm_semantic"
+            ),
+            "constrained_query_rewrite": (
+                options.query_planning_policy == "llm_constrained_rewrite"
             ),
             "provider": llm_runtime.provider,
             "model": llm_runtime.model,
@@ -1173,6 +1189,7 @@ def _parser() -> argparse.ArgumentParser:
             "facet_union",
             "facet_balanced",
             "llm_semantic",
+            "llm_constrained_rewrite",
         ],
         default="current_rules",
     )

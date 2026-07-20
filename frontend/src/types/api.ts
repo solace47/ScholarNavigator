@@ -10,7 +10,8 @@ export type QueryPlanningPolicy =
   | "current_plus_disjunctive"
   | "facet_union"
   | "facet_balanced"
-  | "llm_semantic";
+  | "llm_semantic"
+  | "llm_constrained_rewrite";
 export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";
 export type RankingPolicy = "current_rules" | "rrf_fusion";
 export type QueryFacetType =
@@ -335,6 +336,13 @@ export interface SearchPlan {
     concept_projection_replaced_query: string | null;
     concept_projection_replaced_purpose: string | null;
     concept_projection_skip_reason: string | null;
+    constrained_rewrite_input_summary: Record<string, unknown>;
+    constrained_rewrite_query: string | null;
+    constrained_rewrite_replaced_index: number | null;
+    constrained_rewrite_replaced_query: string | null;
+    constrained_rewrite_replaced_purpose: string | null;
+    constrained_rewrite_skip_reason: string | null;
+    constrained_rewrite_validation_rejections: string[];
     provider: string | null;
     model: string | null;
     prompt_name: string | null;

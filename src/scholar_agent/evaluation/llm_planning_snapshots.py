@@ -77,6 +77,7 @@ def llm_planning_snapshot_key(request: LLMPlanningRequest) -> tuple[str, str]:
     normalized_input_hash = hashlib.sha256(normalized_input.encode("utf-8")).hexdigest()
     payload = {
         "schema_version": request.schema_version,
+        "query_planning_policy": request.query_planning_policy,
         "provider": request.provider,
         "model": request.model,
         "base_url_host": request.base_url_host,
@@ -233,7 +234,7 @@ class LLMPlanningSnapshotRuntime:
                     case_id=self._request_cases.get(key, self._case_id),
                     stage="llm_query_planning",
                     generated_by="llm_query_planning",
-                    query_planning_policy="llm_semantic",
+                    query_planning_policy=request.query_planning_policy,
                     query_planner_version=request.prompt_version,
                     priority=1,
                     already_present=False,

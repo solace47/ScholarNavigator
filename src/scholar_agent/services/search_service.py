@@ -427,7 +427,8 @@ class SearchService:
         resolved_llm_client = self._resolve_llm_client(
             use_llm_query_understanding
             or use_llm_judgement
-            or query_planning_policy == "llm_semantic"
+            or query_planning_policy
+            in {"llm_semantic", "llm_constrained_rewrite"}
         )
         llm_client = (
             BudgetedLLMClient(resolved_llm_client, runtime)

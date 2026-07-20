@@ -21,6 +21,7 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
     assert manifest["query_understanding"].runtime_enabled is True
     assert manifest["relevance_judgement"].runtime_enabled is True
     assert manifest["llm_query_planning"].runtime_enabled is True
+    assert manifest["llm_constrained_rewrite"].runtime_enabled is True
     assert manifest["query_evolution"].runtime_enabled is False
     assert manifest["reranking"].runtime_enabled is False
     assert manifest["synthesis"].runtime_enabled is False
@@ -28,7 +29,12 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["query_understanding", "relevance_judgement", "llm_query_planning"],
+    [
+        "query_understanding",
+        "relevance_judgement",
+        "llm_query_planning",
+        "llm_constrained_rewrite",
+    ],
 )
 def test_active_prompt_loads_with_version_and_hash(name: str) -> None:
     prompt = load_prompt(name)
@@ -144,6 +150,16 @@ def test_llm_query_planning_prompt_has_strict_bounded_schema() -> None:
     assert "supplemental_queries" in text
     assert "最多两条" in text
     assert "不得猜测具体论文标题" in text
+    assert "DOI" in text
+
+
+def test_llm_constrained_rewrite_prompt_has_strict_safety_contract() -> None:
+    text = load_prompt("llm_constrained_rewrite").system_text
+
+    assert '"rewritten_query"' in text
+    assert "只生成一条" in text
+    assert "protected_terms" in text
+    assert "不得猜测或生成论文标题" in text
     assert "DOI" in text
 
 

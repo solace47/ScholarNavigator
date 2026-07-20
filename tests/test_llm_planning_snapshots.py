@@ -122,6 +122,15 @@ def test_llm_planning_snapshot_key_is_stable() -> None:
     assert llm_planning_snapshot_key(request) == llm_planning_snapshot_key(request)
 
 
+def test_llm_planning_snapshot_key_is_namespaced_by_policy() -> None:
+    semantic_key, _ = llm_planning_snapshot_key(_request())
+    rewrite_key, _ = llm_planning_snapshot_key(
+        _request(query_planning_policy="llm_constrained_rewrite")
+    )
+
+    assert semantic_key != rewrite_key
+
+
 @pytest.mark.parametrize(
     "field_update",
     [

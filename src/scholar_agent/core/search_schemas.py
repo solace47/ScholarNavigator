@@ -41,6 +41,7 @@ QueryPlanningPolicy = Literal[
     "facet_union",
     "facet_balanced",
     "llm_semantic",
+    "llm_constrained_rewrite",
 ]
 CombinationMode = Literal["all", "any"]
 JudgementPolicy = Literal["current_rules", "calibrated_rules_v1"]
@@ -294,6 +295,18 @@ class LLMQueryPlanningOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list, max_length=12)
 
 
+class LLMConstrainedRewriteOutput(BaseModel):
+    """受约束检索改写 Prompt 的严格 JSON 输出。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    input_summary: str = Field(min_length=1, max_length=240)
+    rewritten_query: str = Field(min_length=1, max_length=200)
+    preserved_terms: list[str] = Field(default_factory=list, max_length=24)
+    generic_synonyms_used: list[str] = Field(default_factory=list, max_length=12)
+    warnings: list[str] = Field(default_factory=list, max_length=12)
+
+
 class QueryPlanningResult(BaseModel):
     policy: QueryPlanningPolicy = "current_rules"
     planner_version: str = QUERY_PLANNER_VERSION
@@ -318,6 +331,17 @@ class QueryPlanningResult(BaseModel):
     concept_projection_replaced_query: str | None = None
     concept_projection_replaced_purpose: str | None = None
     concept_projection_skip_reason: str | None = None
+    constrained_rewrite_input_summary: dict[str, object] = Field(
+        default_factory=dict
+    )
+    constrained_rewrite_query: str | None = None
+    constrained_rewrite_replaced_index: int | None = Field(default=None, ge=0)
+    constrained_rewrite_replaced_query: str | None = None
+    constrained_rewrite_replaced_purpose: str | None = None
+    constrained_rewrite_skip_reason: str | None = None
+    constrained_rewrite_validation_rejections: list[str] = Field(
+        default_factory=list
+    )
     provider: str | None = None
     model: str | None = None
     prompt_name: str | None = None

@@ -190,6 +190,8 @@ PYTHONPATH=src python scripts/inspect_benchmark_snapshot.py \
 
 `llm_semantic` 评测固定使用同一 arXiv-only、adaptive、balanced、Top-20 配置，开发集为 offset 0 的 10 条，独立验证集为 offset 10 的 5 条；每例最多一次温度为 0 的 LLM 调用和两条补充查询。LLM 规划快照与检索快照独立冻结，动态计划先补 LLM 键再发现检索键；最终比较必须同时使用 LLM replay 与 retrieval replay，执行期两类网络请求、重试和网络等待均为 0。当前进程的 LLM provider 为 disabled，因此只重放了 `current_rules` 基线，未运行或伪造 LLM 指标。开发/验证基线的候选 Recall、F1@20、Recall@20 分别为 0.1500/0.0179/0.1250 和 0.2000/0.0190/0.2000；分析产物位于 `outputs/benchmark_runs/llm_query_planning_analysis/`，验收状态为未执行。
 
+`llm_constrained_rewrite` 的正式配对口径固定为 SciFact 50 条、AutoScholarQuery development offset 0/10 与 validation offset 10/5。基线和实验组均使用产品默认来源、adaptive、balanced、Top-20，并关闭 Query Evolution、RefChain、concept projection、RRF 及其他 LLM 能力；实验组每例至多一次温度为 0 的严格 JSON 调用，原始查询保持首位，唯一改写只替换最低优先级派生查询，因此子查询数和计划请求预算不变。LLM Record 仅报告真实请求、Token、延迟和失败，正式召回/F1 只取同一 LLM 与 retrieval 快照的 Replay；Schema 失败、本地拒绝、fallback 和来源失败必须单列，fallback 不得计作改写收益。只有三个集合均不退化且至少两个集合的最终 Recall@20 或 F1@20 严格提升，才可建议继续评估；否则策略保持默认关闭。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。

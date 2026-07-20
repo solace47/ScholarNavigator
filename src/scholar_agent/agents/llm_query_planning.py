@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import time
 from collections import Counter
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -40,6 +40,9 @@ class LLMPlanningRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: str = LLM_QUERY_PLANNING_SCHEMA_VERSION
+    query_planning_policy: Literal[
+        "llm_semantic", "llm_constrained_rewrite"
+    ] = "llm_semantic"
     provider: str
     model: str | None = None
     base_url_host: str | None = None

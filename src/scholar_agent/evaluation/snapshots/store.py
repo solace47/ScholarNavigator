@@ -97,6 +97,7 @@ def retrieval_snapshot_key(
         "facet_union",
         "facet_balanced",
         "llm_semantic",
+        "llm_constrained_rewrite",
     }:
         payload["query_planning_policy"] = query_planning_policy
         payload["query_planner_version"] = query_planner_version

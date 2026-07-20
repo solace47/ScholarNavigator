@@ -20,6 +20,9 @@ from scholar_agent.agents.llm_query_planning import (
     LLMPlanningRuntime,
     plan_llm_semantic,
 )
+from scholar_agent.agents.llm_constrained_rewrite import (
+    plan_llm_constrained_rewrite,
+)
 from scholar_agent.core.search_schemas import (
     QueryAnalysis,
     QueryConstraint,
@@ -250,9 +253,12 @@ class QueryUnderstandingAgent:
         options: QueryUnderstandingOptions | None = None,
     ) -> SearchPlan:
         options = options or QueryUnderstandingOptions()
-        # llm_semantic 独立消费规则解析结果，不能先调用通用 Query Understanding
-        # 再进行第二次 LLM 规划。
-        if options.use_llm and options.query_planning_policy != "llm_semantic":
+        # 两种独立 LLM 规划都消费规则解析结果，不能先调用通用 Query
+        # Understanding 再进行第二次 LLM 调用。
+        if options.use_llm and options.query_planning_policy not in {
+            "llm_semantic",
+            "llm_constrained_rewrite",
+        }:
             return self._analyze_with_optional_llm(query, options)
         return self._analyze_rules(query, options)
 
@@ -372,6 +378,19 @@ class QueryUnderstandingAgent:
                     current_result=query_planning,
                     selected_sources=selected_sources,
                     max_subqueries=max_subqueries,
+                    run_profile=options.run_profile,
+                    explicit_constraints=options.explicit_constraints,
+                    llm_client=self._llm_client,
+                    runtime=self._llm_planning_runtime,
+                )
+                subqueries = outcome.subqueries
+                query_planning = outcome.result
+                warnings = _dedupe([*warnings, *outcome.warnings])
+            if options.query_planning_policy == "llm_constrained_rewrite":
+                outcome = plan_llm_constrained_rewrite(
+                    query_analysis,
+                    current_subqueries=subqueries,
+                    current_result=query_planning,
                     run_profile=options.run_profile,
                     explicit_constraints=options.explicit_constraints,
                     llm_client=self._llm_client,

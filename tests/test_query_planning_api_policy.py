@@ -91,6 +91,17 @@ def test_api_accepts_llm_semantic_planning() -> None:
     assert request.options.query_planning_policy == "llm_semantic"
 
 
+def test_api_accepts_llm_constrained_rewrite_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "llm_constrained_rewrite"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "llm_constrained_rewrite"
+
+
 def test_api_rejects_unknown_planning_policy() -> None:
     with pytest.raises(ValidationError):
         SearchRunCreateRequest.model_validate(

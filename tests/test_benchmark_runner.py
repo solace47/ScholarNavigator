@@ -272,6 +272,34 @@ def test_llm_semantic_cli_is_supported_but_live_run_requires_configuration(
         run_benchmark.run_benchmark(options)
 
 
+def test_llm_constrained_rewrite_cli_is_supported_and_namespaced(
+    tmp_path: Path,
+) -> None:
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        [
+            "--dataset",
+            "auto_scholar_query",
+            "--run-id",
+            "rewrite-cli",
+            "--query-planning-policy",
+            "llm_constrained_rewrite",
+            "--llm-mode",
+            "replay",
+            "--llm-snapshot-dir",
+            str(tmp_path / "llm"),
+        ]
+    )
+    options = _options(tmp_path, _dataset(tmp_path, count=1), run_id="rewrite")
+    options = options.model_copy(
+        update={"query_planning_policy": "llm_constrained_rewrite"}
+    )
+
+    assert parsed.query_planning_policy == "llm_constrained_rewrite"
+    assert run_benchmark._ablation_group_name(options) == (  # noqa: SLF001
+        "llm_constrained_rewrite"
+    )
+
+
 def test_runner_writes_required_outputs_and_uses_shared_metrics(
     tmp_path: Path,
 ) -> None:
@@ -386,6 +414,7 @@ def test_config_records_llm_prompt_budget_and_code_metadata(tmp_path: Path) -> N
     assert config["llm"]["llm_enabled"] is False
     assert config["llm"]["requested"] is False
     assert {item["name"] for item in config["prompts"]} == {
+        "llm_constrained_rewrite",
         "llm_query_planning",
         "query_understanding",
         "relevance_judgement",

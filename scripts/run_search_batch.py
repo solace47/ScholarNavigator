@@ -34,6 +34,7 @@ QUERY_PLANNING_POLICIES = {
     "facet_union",
     "facet_balanced",
     "llm_semantic",
+    "llm_constrained_rewrite",
 }
 JUDGEMENT_POLICIES = {"current_rules", "calibrated_rules_v1"}
 

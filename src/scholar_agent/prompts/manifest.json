@@ -17,6 +17,12 @@
     "system": "llm_query_planning/system.md",
     "user": "llm_query_planning/user.md"
   },
+  "llm_constrained_rewrite": {
+    "version": "1.0.0",
+    "runtime_enabled": true,
+    "system": "llm_constrained_rewrite/system.md",
+    "user": "llm_constrained_rewrite/user.md"
+  },
   "query_evolution": {
     "version": "0.1.0",
     "runtime_enabled": false,
