@@ -408,10 +408,20 @@ class SearchService:
             stage_start = time.perf_counter()
             initial_subqueries = search_plan.subqueries
             if initial_subqueries:
-                if query_planning_policy == "current_plus_disjunctive":
+                if query_planning_policy in {
+                    "current_plus_disjunctive",
+                    "facet_union",
+                }:
                     retrieval_outputs = (
-                        self._retrieve_current_plus_disjunctive(
+                        self._retrieve_baseline_then_supplemental(
                             search_plan,
+                            supplemental_purpose=(
+                                "current_plus_disjunctive_any"
+                                if query_planning_policy
+                                == "current_plus_disjunctive"
+                                else "facet_union_"
+                            ),
+                            warning_prefix=query_planning_policy,
                             signals=signals,
                             runtime=runtime,
                             run_context=retrieval_run_context,
@@ -1166,27 +1176,36 @@ class SearchService:
             adaptive_budget_check=adaptive_budget_check,
         )
 
-    def _retrieve_current_plus_disjunctive(
+    def _retrieve_baseline_then_supplemental(
         self,
         search_plan: SearchPlan,
         *,
+        supplemental_purpose: str,
+        warning_prefix: str,
         signals: _ExecutionSignals,
         runtime: SearchBudgetRuntime,
         run_context: RetrievalRunContext,
         query_adapter_policy: QueryAdapterPolicy,
         adaptive_budget_check: Callable[[list[Paper]], str | None],
     ) -> list[RetrievalOutput]:
-        """先完整执行旧规则查询，再用剩余候选预算执行单条 OR。"""
+        """先完整执行旧规则查询，再用剩余候选预算执行单条补充查询。"""
+
+        def is_supplemental(item: SearchSubquery) -> bool:
+            return (
+                item.purpose == supplemental_purpose
+                if not supplemental_purpose.endswith("_")
+                else item.purpose.startswith(supplemental_purpose)
+            )
 
         baseline = [
             item
             for item in search_plan.subqueries
-            if item.purpose != "current_plus_disjunctive_any"
+            if not is_supplemental(item)
         ]
         supplemental = [
             item
             for item in search_plan.subqueries
-            if item.purpose == "current_plus_disjunctive_any"
+            if is_supplemental(item)
         ]
         outputs = self._retrieve_subqueries(
             search_plan,
@@ -1210,10 +1229,11 @@ class SearchService:
             skip_reason = runtime.candidate_stop_reason(baseline_unique_count)
         if skip_reason is not None:
             outputs.extend(
-                _skipped_current_plus_disjunctive_outputs(
+                _skipped_supplemental_outputs(
                     supplemental,
                     selected_sources=search_plan.selected_sources,
                     reason=skip_reason,
+                    warning_prefix=warning_prefix,
                 )
             )
             return outputs
@@ -1728,13 +1748,14 @@ def _collect_retrieval_outputs(
     return papers, source_stats, warnings
 
 
-def _skipped_current_plus_disjunctive_outputs(
+def _skipped_supplemental_outputs(
     subqueries: list[SearchSubquery],
     *,
     selected_sources: list[str],
     reason: str,
+    warning_prefix: str,
 ) -> list[RetrievalOutput]:
-    """保留未执行 OR 的稳定诊断，不产生 connector 调用。"""
+    """保留未执行补充查询的稳定诊断，不产生 connector 调用。"""
 
     outputs: list[RetrievalOutput] = []
     for subquery in subqueries[:1]:
@@ -1756,7 +1777,7 @@ def _skipped_current_plus_disjunctive_outputs(
                     for source in sources
                 ],
                 warnings=[
-                    f"current_plus_disjunctive_skipped:{reason}"
+                    f"{warning_prefix}_skipped:{reason}"
                 ],
             )
         )

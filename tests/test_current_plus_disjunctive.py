@@ -37,7 +37,7 @@ def test_current_queries_are_retained_before_single_or_query() -> None:
     assert candidate.subqueries[-1].combination_mode == "any"
     assert candidate.subqueries[-1].priority == len(candidate.subqueries)
     assert candidate.query_planning.policy == "current_plus_disjunctive"
-    assert candidate.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.6.0"
+    assert candidate.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.7.0"
 
 
 def test_current_queries_finish_before_or_execution() -> None:

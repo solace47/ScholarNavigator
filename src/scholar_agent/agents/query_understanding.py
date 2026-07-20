@@ -12,6 +12,7 @@ from scholar_agent.agents.query_planning import (
     plan_current_plus_disjunctive,
     plan_disjunctive_facets,
     plan_facet_balanced,
+    plan_facet_union,
     summarize_current_rules_planning,
 )
 from scholar_agent.agents.llm_query_planning import (
@@ -344,6 +345,13 @@ class QueryUnderstandingAgent:
             )
             if options.query_planning_policy == "current_plus_disjunctive":
                 subqueries, query_planning = plan_current_plus_disjunctive(
+                    query_analysis,
+                    current_subqueries=subqueries,
+                    selected_sources=selected_sources,
+                    max_subqueries=max_subqueries,
+                )
+            if options.query_planning_policy == "facet_union":
+                subqueries, query_planning = plan_facet_union(
                     query_analysis,
                     current_subqueries=subqueries,
                     selected_sources=selected_sources,
@@ -1117,6 +1125,13 @@ def _search_plan_from_llm_json(
         )
         if options.query_planning_policy == "current_plus_disjunctive":
             subqueries, query_planning = plan_current_plus_disjunctive(
+                query_analysis,
+                current_subqueries=subqueries,
+                selected_sources=selected_sources,
+                max_subqueries=max_subqueries,
+            )
+        if options.query_planning_policy == "facet_union":
+            subqueries, query_planning = plan_facet_union(
                 query_analysis,
                 current_subqueries=subqueries,
                 selected_sources=selected_sources,

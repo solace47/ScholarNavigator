@@ -37,6 +37,7 @@ QueryPlanningPolicy = Literal[
     "controlled_relaxation",
     "disjunctive_facets",
     "current_plus_disjunctive",
+    "facet_union",
     "facet_balanced",
     "llm_semantic",
 ]
@@ -102,7 +103,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.6.0"
+QUERY_PLANNER_VERSION = "1.7.0"
 LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 

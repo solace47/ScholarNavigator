@@ -11,35 +11,32 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analyze_current_plus_disjunctive import (
-    _assert_zero_replay_cost,
-    build_current_plus_analysis,
-)
+from scripts.analyze_facet_union import build_facet_union_analysis
 
 
-def test_analysis_accepts_additive_strategy_and_reports_retention(
+def test_analysis_accepts_new_gold_and_attributes_facet_type(
     tmp_path: Path,
 ) -> None:
-    development_current = _run(tmp_path, "dev-current", "current_rules", 210)
+    development_current = _run(tmp_path, "dev-current", "current_rules", 250)
     development_candidate = _run(
         tmp_path,
         "dev-candidate",
-        "current_plus_disjunctive",
-        210,
+        "facet_union",
+        250,
         found={0, 1, 2, 3, 4},
         requests=60,
     )
-    validation_current = _run(tmp_path, "val-current", "current_rules", 230)
+    validation_current = _run(tmp_path, "val-current", "current_rules", 270)
     validation_candidate = _run(
         tmp_path,
         "val-candidate",
-        "current_plus_disjunctive",
-        230,
+        "facet_union",
+        270,
         found={0, 1, 2, 3, 4},
         requests=60,
     )
 
-    result = build_current_plus_analysis(
+    result = build_facet_union_analysis(
         development_current=development_current,
         development_candidate=development_candidate,
         validation_current=validation_current,
@@ -48,100 +45,108 @@ def test_analysis_accepts_additive_strategy_and_reports_retention(
     )
 
     retention = result["gold_retention"]["validation"]
-    assert retention == {
-        "baseline_retrieved_gold_count": 4,
-        "candidate_retrieved_gold_count": 5,
-        "retained_baseline_gold_count": 4,
-        "lost_baseline_gold_count": 0,
-        "net_new_gold_count": 1,
-        "all_baseline_gold_retained": True,
-    }
+    assert retention["retained_baseline_gold_count"] == 4
+    assert retention["lost_baseline_gold_count"] == 0
+    assert retention["net_new_gold_count"] == 1
     assert result["validation_acceptance"]["accepted"] is True
-    assert result["high_recall_profile_candidate"] is True
-    candidate = result["splits"]["validation"]["current_plus_disjunctive"]
-    assert candidate["gold_judgement_retained_count"] == 5
-    assert candidate["final_returned_gold_count"] == 5
-    assert candidate["or_query_contribution"]["logical_query_count"] == 20
-    assert candidate["or_query_contribution"]["exclusive_candidate_count"] == 40
-    assert candidate["or_execution"]["executed_query_count"] == 20
+    assert result["rule_query_planning_frozen"] is False
+    diagnostics = result["splits"]["validation"]["facet_union"][
+        "facet_union_diagnostics"
+    ]
+    assert diagnostics["logical_query_count"] == 20
+    assert diagnostics["exclusive_candidate_count"] == 40
+    assert diagnostics["post_run_unique_gold_hit_count"] == 1
+    assert diagnostics["by_facet_type"]["method"]["logical_query_count"] == 20
     assert (tmp_path / "analysis" / "comparison.json").is_file()
-    assert (tmp_path / "analysis" / "development_query_diagnostics.jsonl").is_file()
-    assert (tmp_path / "analysis" / "validation_query_diagnostics.jsonl").is_file()
     assert (tmp_path / "analysis" / "summary.md").is_file()
 
 
-def test_analysis_rejects_loss_of_baseline_gold(tmp_path: Path) -> None:
-    development_current = _run(tmp_path, "dev-current", "current_rules", 210)
-    development_candidate = _run(
-        tmp_path,
-        "dev-candidate",
-        "current_plus_disjunctive",
-        210,
-        found={0, 1, 2, 4, 5},
-    )
-    validation_current = _run(tmp_path, "val-current", "current_rules", 230)
-    validation_candidate = _run(
-        tmp_path,
-        "val-candidate",
-        "current_plus_disjunctive",
-        230,
-        found={0, 1, 2, 4, 5},
-    )
+def test_analysis_rejects_without_new_gold_and_freezes_rules(
+    tmp_path: Path,
+) -> None:
+    paths = {
+        "development_current": _run(
+            tmp_path, "dev-current", "current_rules", 250
+        ),
+        "development_candidate": _run(
+            tmp_path, "dev-candidate", "facet_union", 250
+        ),
+        "validation_current": _run(
+            tmp_path, "val-current", "current_rules", 270
+        ),
+        "validation_candidate": _run(
+            tmp_path, "val-candidate", "facet_union", 270
+        ),
+    }
 
-    result = build_current_plus_analysis(
-        development_current=development_current,
-        development_candidate=development_candidate,
-        validation_current=validation_current,
-        validation_candidate=validation_candidate,
+    result = build_facet_union_analysis(
+        **paths,
         output_dir=tmp_path / "analysis",
     )
 
-    retention = result["gold_retention"]["validation"]
-    assert retention["lost_baseline_gold_count"] == 1
-    assert retention["net_new_gold_count"] == 2
     assert result["validation_acceptance"]["checks"][
-        "all_baseline_gold_retained"
+        "at_least_one_net_new_unique_gold"
     ] is False
     assert result["validation_acceptance"]["accepted"] is False
-
-
-def test_analysis_enforces_fixed_slice_and_shared_protocol(tmp_path: Path) -> None:
-    development_current = _run(tmp_path, "dev-current", "current_rules", 210)
-    development_candidate = _run(
-        tmp_path, "dev-candidate", "current_plus_disjunctive", 210
+    assert result["rule_query_planning_frozen"] is True
+    assert result["next_planning_direction"] == (
+        "llm_semantic_or_other_semantic_retrieval"
     )
-    validation_current = _run(tmp_path, "val-current", "current_rules", 230)
-    validation_candidate = _run(
-        tmp_path, "val-candidate", "current_plus_disjunctive", 230
-    )
-    config_path = validation_candidate / "config.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["sources"] = ["openalex"]
-    _json(config_path, config)
 
-    with pytest.raises(ValueError, match="incompatible current-plus runs"):
-        build_current_plus_analysis(
-            development_current=development_current,
-            development_candidate=development_candidate,
-            validation_current=validation_current,
-            validation_candidate=validation_candidate,
+
+def test_analysis_enforces_exact_fixed_slice(tmp_path: Path) -> None:
+    paths = {
+        "development_current": _run(
+            tmp_path, "dev-current", "current_rules", 250
+        ),
+        "development_candidate": _run(
+            tmp_path, "dev-candidate", "facet_union", 250
+        ),
+        "validation_current": _run(
+            tmp_path, "val-current", "current_rules", 270
+        ),
+        "validation_candidate": _run(
+            tmp_path, "val-candidate", "facet_union", 270
+        ),
+    }
+    for group in ("validation_current", "validation_candidate"):
+        config_path = paths[group] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["case_ids"][-1] = "AutoScholarQuery_test_999"
+        _json(config_path, config)
+
+    with pytest.raises(ValueError, match="case ids mismatch"):
+        build_facet_union_analysis(
+            **paths,
             output_dir=tmp_path / "analysis",
         )
 
 
-def test_analysis_requires_zero_network_replay() -> None:
-    metrics = {
-        "snapshot_costs": {
-            "replay_execution_request_count": 0,
-            "replay_execution_retry_count": 0,
-            "replay_execution_network_wait_seconds": 0,
-        }
+def test_analysis_rejects_nonzero_replay_network_cost(tmp_path: Path) -> None:
+    paths = {
+        "development_current": _run(
+            tmp_path, "dev-current", "current_rules", 250
+        ),
+        "development_candidate": _run(
+            tmp_path, "dev-candidate", "facet_union", 250
+        ),
+        "validation_current": _run(
+            tmp_path, "val-current", "current_rules", 270
+        ),
+        "validation_candidate": _run(
+            tmp_path, "val-candidate", "facet_union", 270
+        ),
     }
-    _assert_zero_replay_cost(metrics)
-    metrics["snapshot_costs"]["replay_execution_retry_count"] = 1
+    metrics_path = paths["validation_candidate"] / "metrics.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metrics["snapshot_costs"]["replay_execution_request_count"] = 1
+    _json(metrics_path, metrics)
 
     with pytest.raises(ValueError, match="executed network work"):
-        _assert_zero_replay_cost(metrics)
+        build_facet_union_analysis(
+            **paths,
+            output_dir=tmp_path / "analysis",
+        )
 
 
 def _run(
@@ -185,16 +190,16 @@ def _run(
     }
     results = []
     for index, case_id in enumerate(case_ids):
-        candidate = policy == "current_plus_disjunctive"
+        candidate = policy == "facet_union"
         gold_found = index in found
         subqueries = []
         if candidate:
             subqueries.append(
                 {
-                    "purpose": "current_plus_disjunctive_any",
-                    "combination_mode": "any",
+                    "purpose": "facet_union_method",
+                    "combination_mode": "all",
                     "status": "executed",
-                    "adapted_queries": ["(all:graph OR all:retrieval)"],
+                    "adapted_queries": ["contrastive learning"],
                     "raw_candidate_count": 4,
                     "unique_candidate_count": 3,
                     "exclusive_candidate_count": 2,
@@ -263,10 +268,10 @@ def _run(
         "gold_count": 20,
         "initial_retrieval_recall": len(found) / 20,
         "initial_query_planning": {
-            "subquery_count": 60 + int(policy == "current_plus_disjunctive") * 20,
-            "average_subquery_count": 3.0 + int(policy == "current_plus_disjunctive"),
-            "adapted_query_count": 60 + int(policy == "current_plus_disjunctive") * 20,
-            "average_adapted_query_count": 3.0 + int(policy == "current_plus_disjunctive"),
+            "subquery_count": 60 + int(policy == "facet_union") * 20,
+            "average_subquery_count": 3.0 + int(policy == "facet_union"),
+            "adapted_query_count": 60 + int(policy == "facet_union") * 20,
+            "average_adapted_query_count": 3.0 + int(policy == "facet_union"),
             "unique_candidate_count": 200,
             "duplicate_candidate_ratio": 0.2,
             "unique_gold_count": len(found),

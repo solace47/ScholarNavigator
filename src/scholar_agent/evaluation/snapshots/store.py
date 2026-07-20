@@ -93,6 +93,7 @@ def retrieval_snapshot_key(
         "controlled_relaxation",
         "disjunctive_facets",
         "current_plus_disjunctive",
+        "facet_union",
         "facet_balanced",
         "llm_semantic",
     }:

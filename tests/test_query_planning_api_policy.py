@@ -58,6 +58,17 @@ def test_api_accepts_current_plus_disjunctive_planning() -> None:
     assert request.options.query_planning_policy == "current_plus_disjunctive"
 
 
+def test_api_accepts_facet_union_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "facet_union"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "facet_union"
+
+
 def test_api_accepts_llm_semantic_planning() -> None:
     request = SearchRunCreateRequest.model_validate(
         {

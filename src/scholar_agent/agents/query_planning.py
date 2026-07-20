@@ -141,6 +141,8 @@ DISJUNCTIVE_FACETS_MAX_SUPPLEMENTAL_QUERIES = 2
 DISJUNCTIVE_FACETS_MIN_ANY_TERMS = 4
 DISJUNCTIVE_FACETS_MAX_ANY_TERMS = 8
 CURRENT_PLUS_DISJUNCTIVE_MAX_TOTAL_QUERIES = 5
+FACET_UNION_MAX_TOTAL_QUERIES = 5
+FACET_UNION_MAX_TERMS = 3
 CONTROLLED_RELAXATION_STOPWORDS = PLANNER_STOPWORDS | {
     "advancement",
     "any",
@@ -532,6 +534,56 @@ def plan_current_plus_disjunctive(
     )
 
 
+def plan_facet_union(
+    query_analysis: QueryAnalysis,
+    *,
+    current_subqueries: list[SearchSubquery],
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> tuple[list[SearchSubquery], QueryPlanningResult]:
+    """完整保留旧规则查询，再追加至多一条独立分面查询。"""
+
+    facets = identify_query_facets(query_analysis)
+    selected = [item.model_copy(deep=True) for item in current_subqueries]
+    skipped: list[str] = []
+    duplicate_count = 0
+    maximum = min(
+        FACET_UNION_MAX_TOTAL_QUERIES,
+        max(1, max_subqueries) + 1,
+    )
+    if len(selected) >= maximum:
+        skipped.append("budget:facet_union")
+        return selected, _planning_result(
+            policy="facet_union",
+            facets=facets,
+            selected=selected,
+            skipped_facets=skipped,
+            duplicate_count=duplicate_count,
+        )
+
+    candidate = _facet_union_candidate(
+        query_analysis,
+        facets,
+        selected_sources=selected_sources,
+        priority=min(len(selected) + 1, 5),
+    )
+    if candidate is None:
+        skipped.append("no_eligible_facet:facet_union")
+    elif _similar_subquery(selected, candidate) is not None:
+        duplicate_count = 1
+        skipped.append(f"duplicate:{candidate.purpose}")
+    else:
+        selected.append(candidate)
+
+    return selected, _planning_result(
+        policy="facet_union",
+        facets=facets,
+        selected=selected,
+        skipped_facets=skipped,
+        duplicate_count=duplicate_count,
+    )
+
+
 def summarize_current_rules_planning(
     query_analysis: QueryAnalysis,
     subqueries: list[SearchSubquery],
@@ -883,6 +935,114 @@ def _explicit_must_have(query_analysis: QueryAnalysis) -> list[str]:
     if "must_include_terms" not in constraints.explicit_fields:
         return []
     return list(constraints.must_include_terms)
+
+
+def _facet_union_candidate(
+    query_analysis: QueryAnalysis,
+    facets: list[QueryFacet],
+    *,
+    selected_sources: list[str],
+    priority: int,
+) -> SearchSubquery | None:
+    explicit_must = _explicit_must_have(query_analysis)
+    selected_facet: QueryFacet | None = None
+    selected_terms: list[str] = []
+    for facet_type, minimum_confidence, explicit_only in (
+        ("dataset", 1.0, True),
+        ("method", 0.8, False),
+        ("task", 0.75, False),
+        ("topic", 0.8, False),
+    ):
+        facet = next(
+            (item for item in facets if item.facet_type == facet_type),
+            None,
+        )
+        if (
+            facet is None
+            or facet.confidence < minimum_confidence
+            or (explicit_only and facet.source != "explicit")
+        ):
+            continue
+        terms = _reliable_facet_terms(
+            query_analysis,
+            facet,
+            excluded=explicit_must,
+        )
+        if facet_type == "topic":
+            terms = _high_information_topic_terms(terms)
+            if len(terms) < 2:
+                continue
+        else:
+            terms = terms[:FACET_UNION_MAX_TERMS]
+        if not terms:
+            continue
+        selected_facet = facet
+        selected_terms = terms
+        break
+
+    if selected_facet is None:
+        return None
+    domain_terms = _explicit_domain_terms(
+        query_analysis,
+        excluded=[*explicit_must, *selected_terms],
+    )
+    query_terms = _dedupe(
+        [*explicit_must, *selected_terms, *domain_terms]
+    )
+    if not query_terms:
+        return None
+    facet_type = selected_facet.facet_type
+    return SearchSubquery(
+        query=_render_logical_terms(query_terms),
+        combination_mode="all",
+        source_hints=selected_sources,
+        priority=priority,
+        purpose=f"facet_union_{facet_type}",
+        facet_types=[facet_type],
+        provenance=_dedupe(
+            [
+                f"{facet_type}:{selected_facet.source}",
+                *("must_have:explicit_hard" for _ in explicit_must[:1]),
+                *("domain:explicit" for _ in domain_terms[:1]),
+                "execution_tier:supplemental_after_current_rules",
+            ]
+        ),
+    )
+
+
+def _explicit_domain_terms(
+    query_analysis: QueryAnalysis,
+    *,
+    excluded: list[str],
+) -> list[str]:
+    constraints = query_analysis.constraints
+    if "domains" not in constraints.explicit_fields:
+        return []
+    excluded_keys = _casefold_set(excluded)
+    return [
+        item
+        for item in _dedupe(constraints.domains)
+        if item.casefold() not in excluded_keys
+    ][:1]
+
+
+def _high_information_topic_terms(terms: list[str]) -> list[str]:
+    candidates: list[tuple[int, int, str]] = []
+    for index, term in enumerate(terms):
+        tokens = _query_terms(term)
+        information = sum(len(token) for token in tokens)
+        if not tokens or information < 5:
+            continue
+        candidates.append((index, information, term))
+    ranked = sorted(candidates, key=lambda item: (-item[1], item[0]))[
+        :FACET_UNION_MAX_TERMS
+    ]
+    chosen_indexes = {item[0] for item in ranked}
+    return [
+        term
+        for index, _, term in candidates
+        if index in chosen_indexes
+    ]
 
 
 def _disjunctive_facet_terms(

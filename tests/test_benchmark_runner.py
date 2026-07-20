@@ -141,7 +141,7 @@ def test_query_planning_policy_is_recorded_passed_and_namespaced(
     )
 
     assert result.config["query_planning_policy"] == "facet_balanced"
-    assert result.config["query_planner_version"] == "1.6.0"
+    assert result.config["query_planner_version"] == "1.7.0"
     assert service.kwargs[0]["query_planning_policy"] == "facet_balanced"
     assert parsed.query_planning_policy == "facet_balanced"
     assert run_benchmark._ablation_group_name(options) == "facet_balanced"  # noqa: SLF001
