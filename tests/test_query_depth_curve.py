@@ -40,6 +40,7 @@ def test_deeper_and_miss_categories_are_mutually_explicit() -> None:
     assert _classify(None, False, False) == "depth_200_miss"
     assert _classify(None, False, True) == "identity_match_uncertain"
     assert _classify(None, True, False) == "source_unavailable"
+    assert _classify(None, True, False, True) == "source_unavailable"
     assert _classify(None, unavailable=False, uncertain=False, incomplete=True) == "source_unavailable_or_incomplete"
     assert _classify(None, unavailable=False, uncertain=False, incomplete=True) != "depth_200_miss"
 

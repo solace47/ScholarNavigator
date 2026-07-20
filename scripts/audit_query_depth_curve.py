@@ -110,10 +110,10 @@ def _classify(first_rank: int | None, unavailable: bool, uncertain: bool, incomp
         return "current_depth_hit"
     if first_rank in {50, 100, 200}:
         return "deeper_position_hit"
-    if incomplete:
-        return "source_unavailable_or_incomplete"
     if unavailable:
         return "source_unavailable"
+    if incomplete:
+        return "source_unavailable_or_incomplete"
     if uncertain:
         return "identity_match_uncertain"
     return "depth_200_miss"
