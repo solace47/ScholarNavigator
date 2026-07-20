@@ -384,6 +384,70 @@ def test_chat_json_does_not_retry_unrelated_http_error(
     assert exc_info.value.details.http_status == 429
 
 
+def test_chat_json_retries_transient_503_and_reports_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    monkeypatch.setattr(provider.time, "sleep", lambda _: None)
+    attempts = 0
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        nonlocal attempts
+        del timeout
+        attempts += 1
+        if attempts < 3:
+            raise HTTPError(
+                url=request.full_url,
+                code=503,
+                msg="Service Unavailable",
+                hdrs=None,
+                fp=FakeErrorBody(
+                    "ResourceExhausted: Worker local total request limit reached"
+                ),
+            )
+        return FakeResponse(
+            {"choices": [{"message": {"content": '{"ok":true}'}}]}
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    client = provider.OpenAICompatibleLLMClient.from_env()
+    assert client.chat_json([{"role": "user", "content": "query"}]) == {
+        "ok": True
+    }
+    assert attempts == 3
+    assert client.last_call_diagnostics is not None
+    assert client.last_call_diagnostics.http_attempts == 3
+
+
+def test_chat_json_retries_transient_timeout_once_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_enabled_env(monkeypatch)
+    monkeypatch.setattr(provider.time, "sleep", lambda _: None)
+    attempts = 0
+
+    def fake_urlopen(request, timeout: float):  # noqa: ANN001
+        nonlocal attempts
+        del request, timeout
+        attempts += 1
+        if attempts == 1:
+            raise socket.timeout("upstream timeout")
+        return FakeResponse(
+            {"choices": [{"message": {"content": '{"ok":true}'}}]}
+        )
+
+    monkeypatch.setattr(provider, "urlopen", fake_urlopen)
+
+    client = provider.OpenAICompatibleLLMClient.from_env()
+    assert client.chat_json([{"role": "user", "content": "query"}]) == {
+        "ok": True
+    }
+    assert attempts == 2
+    assert client.last_call_diagnostics is not None
+    assert client.last_call_diagnostics.http_attempts == 2
+
+
 def test_chat_json_result_can_be_strictly_schema_validated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

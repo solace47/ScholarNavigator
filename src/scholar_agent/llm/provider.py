@@ -26,6 +26,8 @@ SUPPORTED_PROVIDER = "openai_compatible"
 DISABLED_PROVIDER = "disabled"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_TOKENS = 1024
+TRANSIENT_RETRY_STATUS_CODES = frozenset({408, 425, 500, 502, 503, 504})
+TRANSIENT_RETRY_DELAYS_SECONDS = (1.0, 3.0)
 JSON_ONLY_COMPATIBILITY_INSTRUCTION = (
     "Compatibility requirement: return exactly one valid JSON object and no "
     "markdown, prose, or code fences."
@@ -271,14 +273,20 @@ class OpenAICompatibleLLMClient:
         http_attempts = 1
         fallback_reason: str | None = None
         try:
-            parsed_response = self._send_request(payload, timeout=timeout_seconds)
+            parsed_response, http_attempts = self._send_with_retries(
+                payload,
+                timeout=timeout_seconds,
+            )
         except LLMProviderError as exc:
             fallback = self._compatibility_fallback(payload, exc)
             if fallback is None:
                 raise
             payload, mode, fallback_reason = fallback
-            http_attempts += 1
-            parsed_response = self._send_request(payload, timeout=timeout_seconds)
+            parsed_response, fallback_attempts = self._send_with_retries(
+                payload,
+                timeout=timeout_seconds,
+            )
+            http_attempts += fallback_attempts
 
         self.last_call_diagnostics = LLMCallDiagnostics(
             mode=mode,
@@ -300,6 +308,33 @@ class OpenAICompatibleLLMClient:
         if not isinstance(parsed_content, dict):
             raise LLMResponseError("llm_json_content_not_object")
         return parsed_content
+
+    def _send_with_retries(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout: float,
+    ) -> tuple[dict[str, Any], int]:
+        """Retry only provider/network failures that are safe to repeat.
+
+        The request is a deterministic, non-streaming JSON planning call. A
+        bounded retry is appropriate for transient 5xx responses and socket
+        timeouts, while schema/4xx errors must still surface immediately.
+        """
+
+        attempts = 0
+        for retry_index, delay in enumerate((0.0, *TRANSIENT_RETRY_DELAYS_SECONDS)):
+            if delay:
+                time.sleep(delay)
+            attempts += 1
+            try:
+                return self._send_request(payload, timeout=timeout), attempts
+            except LLMProviderError as exc:
+                if not _is_transient_error(exc) or retry_index >= len(
+                    TRANSIENT_RETRY_DELAYS_SECONDS
+                ):
+                    raise
+        raise AssertionError("transient retry loop did not return or raise")
 
     def _send_request(
         self,
@@ -495,6 +530,12 @@ def _http_provider_error(error: HTTPError) -> LLMProviderError:
     if summary:
         message_parts.append(f"summary={summary}")
     return LLMProviderError(":".join(message_parts), details=details)
+
+
+def _is_transient_error(error: LLMProviderError) -> bool:
+    if isinstance(error, LLMTimeoutError):
+        return True
+    return error.details.http_status in TRANSIENT_RETRY_STATUS_CODES
 
 
 def _extract_unsupported_parameters(

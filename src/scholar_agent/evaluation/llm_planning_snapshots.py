@@ -23,6 +23,7 @@ from scholar_agent.evaluation.snapshots.store import (
     SnapshotMissingError,
     utc_now,
 )
+from scholar_agent.llm.provider import get_llm_request_options
 
 
 LLMPlanningMode = Literal["live", "record", "replay", "record-missing"]
@@ -370,7 +371,7 @@ def collect_llm_plan_entry(
         request,
         render_messages(request.prompt_name, request.input_payload),
         client,
-        timeout=20.0,
+        timeout=float(get_llm_request_options()["timeout_seconds"]),
     )
     if execution.snapshot_key != entry.key:
         raise SnapshotIntegrityError("llm_planning_plan_key_mismatch")

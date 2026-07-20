@@ -28,7 +28,6 @@ from scholar_agent.prompts.loader import load_prompt, render_messages
 
 
 LLM_QUERY_PLANNING_PROMPT = "llm_query_planning"
-LLM_QUERY_PLANNING_TIMEOUT_SECONDS = 20.0
 MAX_SUPPLEMENTAL_QUERIES = 2
 MAX_QUERY_CHARACTERS = 200
 MAX_QUERY_TERMS = 24
@@ -169,14 +168,14 @@ def plan_llm_semantic(
                 request,
                 messages,
                 llm_client,
-                timeout=LLM_QUERY_PLANNING_TIMEOUT_SECONDS,
+                timeout=float(request_options["timeout_seconds"]),
             )
             if runtime is not None
             else _execute_live(
                 request,
                 messages,
                 llm_client,
-                timeout=LLM_QUERY_PLANNING_TIMEOUT_SECONDS,
+                timeout=float(request_options["timeout_seconds"]),
             )
         )
         output = LLMQueryPlanningOutput.model_validate(execution.raw_response)
