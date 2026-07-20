@@ -119,6 +119,17 @@ def evaluable_gold_count(gold_papers: Sequence[Any]) -> int:
     return len(_positive_gold_records(gold_papers))
 
 
+def gold_crosswalk_status(paper: Any) -> str | None:
+    """Return an evaluator-only crosswalk terminal status when present."""
+
+    unwrapped = _unwrap_ranked_paper(paper)
+    metadata = _get_value(unwrapped, "metadata")
+    crosswalk = _get_value(metadata, "evaluator_crosswalk")
+    status = _get_value(crosswalk, "status")
+    normalized = str(status).strip().lower() if status is not None else ""
+    return normalized or None
+
+
 def recall_at_k(ranked_papers: Sequence[Any], gold_papers: Sequence[Any], k: int) -> float:
     if k <= 0:
         return 0.0
@@ -380,6 +391,8 @@ def _positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
     for index, paper in enumerate(gold_papers):
         grade = _relevance_grade(paper)
         if grade <= 0:
+            continue
+        if gold_crosswalk_status(paper) in {"unavailable", "failed"}:
             continue
         identifiers = paper_identifier_set(paper)
         title_year = paper_title_year_key(paper) if not identifiers else None

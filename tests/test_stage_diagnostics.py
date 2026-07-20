@@ -212,6 +212,26 @@ def test_not_retrieved_drop_reason() -> None:
     assert result["gold_diagnostics"][0]["drop_reason"] == "not_retrieved"
 
 
+def test_failed_gold_crosswalk_is_not_reported_as_retrieval_miss() -> None:
+    gold = EvalGoldPaper(
+        title="Unresolved official identity",
+        s2orc_corpus_id="123",
+        metadata={"evaluator_crosswalk": {"status": "failed"}},
+    )
+    result = analyze_search_stages(
+        _query([gold]),
+        _output(_base_snapshots(initial=[])),
+        result_policy="highly_and_partial",
+    )
+
+    assert result["evaluable_gold_count"] == 0
+    assert result["gold_diagnostics"][0]["drop_reason"] == (
+        "identity_crosswalk_failed"
+    )
+    assert result["stage_metrics"]["candidate_recall"]["initial_retrieval"] is None
+    assert result["stage_metrics"]["recall_at_k"]["final_returned"]["20"] is None
+
+
 @pytest.mark.parametrize(
     ("category", "reason"),
     [

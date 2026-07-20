@@ -18,6 +18,7 @@ from scholar_agent.core.pipeline_diagnostics import (
 from scholar_agent.evaluation.metrics import (
     canonical_paper_id,
     evaluable_gold_count,
+    gold_crosswalk_status,
     matched_paper_ids,
     paper_identifier_set,
     recall_at_k,
@@ -157,6 +158,7 @@ def analyze_search_stages(
     return {
         "snapshots": [item.model_dump(mode="json") for item in snapshots],
         "gold_diagnostics": [item.model_dump(mode="json") for item in gold_diagnostics],
+        "evaluable_gold_count": evaluable_gold_count(eval_query.gold_papers),
         "stage_metrics": stage_metrics,
         "judgement": judgement,
         "reranking": reranking,
@@ -222,7 +224,10 @@ def aggregate_stage_diagnostics(
     }
     judgement = _aggregate_judgement(case_diagnostics)
     reranking = _aggregate_reranking(case_diagnostics)
-    sources = _aggregate_sources(case_diagnostics, len(gold_rows))
+    evaluable_gold_total = sum(
+        int(case.get("evaluable_gold_count") or 0) for case in case_diagnostics
+    )
+    sources = _aggregate_sources(case_diagnostics, evaluable_gold_total)
     retrieval_diagnostics = _aggregate_retrieval_diagnostics(case_diagnostics)
     query_strategy_contribution = _aggregate_strategy_contribution(
         case_diagnostics
@@ -258,6 +263,7 @@ def aggregate_stage_diagnostics(
     stage_metrics = {
         "case_count": len(case_diagnostics),
         "gold_count": len(gold_rows),
+        "evaluable_gold_count": evaluable_gold_total,
         "candidate_recall": candidate_recall,
         "recall_at_k": recall_at_k,
         "initial_retrieval_recall": candidate_recall.get("initial_retrieval"),
@@ -429,6 +435,9 @@ def _drop_reason(
     if stage_matches.get("final_returned"):
         return "returned"
     if not found:
+        crosswalk_status = gold_crosswalk_status(gold)
+        if crosswalk_status in {"unavailable", "failed"}:
+            return f"identity_crosswalk_{crosswalk_status}"
         initial = snapshots.get("initial_retrieval")
         if initial and initial.skipped_reason == "budget_stopped_before_retrieval":
             return "budget_stopped_before_retrieval"
@@ -464,6 +473,7 @@ def _case_stage_metrics(
     eval_query: EvalQuery,
     snapshots: dict[str, StageCandidateSnapshot],
 ) -> dict[str, Any]:
+    has_evaluable_gold = evaluable_gold_count(eval_query.gold_papers) > 0
     candidate_stage_names = (
         "initial_retrieval",
         "initial_deduplicated",
@@ -510,7 +520,9 @@ def _case_stage_metrics(
         recall_maps[stage] = {
             str(k): (
                 recall_at_k(snapshot.candidates, eval_query.gold_papers, k)
-                if snapshot is not None and snapshot.status == "completed"
+                if snapshot is not None
+                and snapshot.status == "completed"
+                and has_evaluable_gold
                 else None
             )
             for k in DIAGNOSTIC_K_VALUES
@@ -623,7 +635,7 @@ def _source_contribution(
         stats[source]["returned_candidate_count"] += source_stat.returned_count
         stats[source]["latency_seconds"] += source_stat.latency_seconds
 
-    total_gold = max(1, evaluable_gold_count(eval_query.gold_papers))
+    total_gold = evaluable_gold_count(eval_query.gold_papers)
     for source, item in stats.items():
         source_candidates = candidate_ids_by_source.get(source, set())
         source_gold = gold_ids_by_source.get(source, set())
@@ -637,7 +649,9 @@ def _source_contribution(
         item["unique_candidate_count"] = len(source_candidates)
         item["gold_hit_count"] = len(source_gold)
         item["unique_gold_hit_count"] = len(source_gold - other_gold)
-        item["gold_recall_contribution"] = len(source_gold - other_gold) / total_gold
+        item["gold_recall_contribution"] = (
+            len(source_gold - other_gold) / total_gold if total_gold else 0.0
+        )
 
     overlap: dict[str, dict[str, int]] = {}
     for left, right in combinations(sorted(stats), 2):
@@ -2510,7 +2524,7 @@ def _candidate_recall(
         return None
     gold_count = evaluable_gold_count(gold_papers)
     if not gold_count:
-        return 0.0
+        return None
     return len(matched_paper_ids(snapshot.candidates, gold_papers)) / gold_count
 
 

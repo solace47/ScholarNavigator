@@ -85,6 +85,8 @@ PYTHONPATH=src python scripts/run_judgement_holdout.py \
 
 `beir_scifact` 适配器只接受 BEIR 官方 TU Darmstadt `scifact.zip` 的解压目录或归档，固定使用 `qrels/test.tsv`，并按 query ID 的 SHA-256 升序稳定抽取 50 条 query。每条正相关关系保留 qrel grade；当前 SciFact test qrels 的正相关 grade 为 1，适配器仍将 grade 写入 gold metadata，便于离线敏感性复核。语料的 `_id` 同时写入 gold 的顶层 `s2orc_corpus_id` 与审计 metadata，并由统一身份实现规范化为 `s2orc:<corpus-id>`；Semantic Scholar connector 显式请求官方 `corpusId` 字段并保留来源返回的精确值，字段采集版本为 `search-v2`。该标识只允许精确 ID 匹配，候选缺失 Corpus ID 时不会通过标题推断。缺失语料映射会在加载阶段失败，不会被计为检索未命中。官方来源、固定 BEIR commit、归档校验值和抽样口径记录在 `benchmark/beir_scifact_manifest.json`；原始归档只保存在被忽略的本地输入目录中。
 
+SciFact 的 evaluator 另使用版本化 `benchmark/beir_scifact_s2_crosswalk.json`：采集器只向 Semantic Scholar 官方 Graph API 发出 `CorpusId` 精确查询，并只保留响应中的 `paperId`、`corpusId` 与 `externalIds` 稳定标识。crosswalk 由 `scripts/build_scifact_crosswalk.py` 依次执行 `preflight`、串行 `record-missing` 和严格 `replay` 构建；它只丰富 `EvalGoldPaper`，不进入查询、Prompt、检索、排序、候选补全或生产 API。统一 `identity.py` 对 DOI、arXiv、PMID、Semantic Scholar ID 和 S2ORC Corpus ID 做精确规范化；任一同类标识冲突均阻止匹配，标题不会为带 Corpus ID 的记录兜底。官方精确查询的 `unavailable`/`failed` 终态在 gold 诊断中单列为 `identity_crosswalk_*`，不进入 Retrieval miss 或 Recall/F1 分母；旧数据不含 crosswalk metadata 时仍保持原有身份口径。
+
 检查与运行示例（需先取得官方归档）：
 
 ```bash

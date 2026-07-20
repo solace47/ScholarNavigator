@@ -17,7 +17,7 @@ from scholar_agent.evaluation.datasets.auto_scholar_query import (
 )
 from scholar_agent.evaluation.datasets.beir_scifact import (
     DATASET_NAME as BEIR_SCI_FACT,
-    load_beir_scifact,
+    load_beir_scifact_enriched,
 )
 
 
@@ -61,7 +61,7 @@ _DATASETS = {
             / "beir_scifact"
             / "extracted"
         ),
-        loader=load_beir_scifact,
+        loader=load_beir_scifact_enriched,
     ),
 }
 
@@ -92,7 +92,7 @@ def inspect_dataset(
     normalized_name = _normalize_name(name)
     source_path = dataset_source_path(normalized_name, path)
     if normalized_name == BEIR_SCI_FACT:
-        queries = load_beir_scifact(source_path)
+        queries = _dataset_definition(normalized_name).loader(source_path)
         gold = [paper for query in queries for paper in query.gold_papers]
         return BenchmarkDatasetReport(
             dataset=normalized_name,

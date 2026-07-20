@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from scholar_agent.core.evaluation_schemas import EvalGoldPaper, EvalQuery
+from scholar_agent.core.identity import identity_evidence
+from scholar_agent.evaluation.datasets.scifact_crosswalk import (
+    CROSSWALK_CONNECTOR_VERSION,
+    CROSSWALK_SOURCE,
+    SciFactCrosswalkArtifact,
+    SciFactCrosswalkEntry,
+    load_crosswalk,
+)
 
 
 DATASET_NAME = "beir_scifact"
@@ -20,6 +28,8 @@ OFFICIAL_URL = (
 OFFICIAL_BEIR_COMMIT = "6ef8c90"
 LICENSE = "Apache-2.0 (BEIR repository); SciFact data attribution follows BEIR release"
 SAMPLE_SIZE = 50
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_CROSSWALK_PATH = REPO_ROOT / "benchmark" / "beir_scifact_s2_crosswalk.json"
 
 
 def load_beir_scifact(path: str | Path) -> list[EvalQuery]:
@@ -100,6 +110,84 @@ def load_beir_scifact(path: str | Path) -> list[EvalQuery]:
             )
         )
     return result
+
+
+def load_beir_scifact_enriched(
+    path: str | Path,
+    *,
+    crosswalk_path: str | Path = DEFAULT_CROSSWALK_PATH,
+) -> list[EvalQuery]:
+    """Load SciFact and enrich only evaluator gold with official stable IDs."""
+
+    queries = load_beir_scifact(path)
+    artifact = load_crosswalk(crosswalk_path)
+    by_corpus_id = _crosswalk_index(artifact)
+    enriched: list[EvalQuery] = []
+    for query in queries:
+        gold_papers: list[EvalGoldPaper] = []
+        for gold in query.gold_papers:
+            corpus_id = str(gold.s2orc_corpus_id or "").strip()
+            entry = by_corpus_id.get(corpus_id)
+            if entry is None:
+                raise ValueError(
+                    f"SciFact crosswalk missing expected Corpus ID: {corpus_id}"
+                )
+            gold_papers.append(_enrich_gold(gold, entry))
+        enriched.append(query.model_copy(update={"gold_papers": gold_papers}))
+    return enriched
+
+
+def _crosswalk_index(
+    artifact: SciFactCrosswalkArtifact,
+) -> dict[str, SciFactCrosswalkEntry]:
+    result: dict[str, SciFactCrosswalkEntry] = {}
+    for entry in artifact.entries:
+        prior = result.get(entry.s2orc_corpus_id)
+        if prior is not None and prior != entry:
+            raise ValueError(
+                f"conflicting duplicate SciFact crosswalk ID: {entry.s2orc_corpus_id}"
+            )
+        result[entry.s2orc_corpus_id] = entry
+    return result
+
+
+def _enrich_gold(
+    gold: EvalGoldPaper,
+    entry: SciFactCrosswalkEntry,
+) -> EvalGoldPaper:
+    metadata = dict(gold.metadata)
+    metadata["evaluator_crosswalk"] = {
+        "source": CROSSWALK_SOURCE,
+        "connector_version": CROSSWALK_CONNECTOR_VERSION,
+        "status": entry.status,
+        "external_id_fields": list(entry.external_id_fields),
+        "error_type": entry.error_type,
+        "http_status": entry.http_status,
+    }
+    if entry.status != "success":
+        metadata["identity_status"] = f"crosswalk_{entry.status}"
+        return gold.model_copy(update={"metadata": metadata})
+
+    enriched = gold.model_copy(
+        update={
+            "doi": entry.doi or gold.doi,
+            "arxiv_id": entry.arxiv_id or gold.arxiv_id,
+            "semantic_scholar_id": (
+                entry.semantic_scholar_id or gold.semantic_scholar_id
+            ),
+            "pubmed_id": entry.pubmed_id or gold.pubmed_id,
+            "metadata": {
+                **metadata,
+                "identity_status": "official_crosswalk_resolved",
+            },
+        }
+    )
+    evidence = identity_evidence(gold, enriched)
+    if not evidence.equivalent or evidence.conflicting_identifiers:
+        raise ValueError(
+            "SciFact crosswalk conflicts with an existing stable identifier"
+        )
+    return enriched
 
 
 def _open_dataset(path: Path) -> tuple[Path, Any | None]:

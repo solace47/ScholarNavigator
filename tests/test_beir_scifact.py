@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from scholar_agent.evaluation.datasets.beir_scifact import load_beir_scifact
+from scholar_agent.evaluation.datasets.beir_scifact import (
+    load_beir_scifact,
+    load_beir_scifact_enriched,
+)
+from scholar_agent.evaluation.datasets.scifact_crosswalk import (
+    SciFactCrosswalkArtifact,
+    SciFactCrosswalkEntry,
+    write_crosswalk,
+)
 
 
 def _fixture(tmp_path: Path) -> Path:
@@ -63,3 +71,41 @@ def test_scifact_rejects_unmapped_qrels(tmp_path: Path) -> None:
 def test_scifact_requires_complete_layout(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="missing corpus"):
         load_beir_scifact(tmp_path)
+
+
+def test_scifact_enrichment_changes_only_offline_gold(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    plain = load_beir_scifact(root)
+    corpus_ids = sorted(
+        {
+            str(gold.s2orc_corpus_id)
+            for query in plain
+            for gold in query.gold_papers
+        }
+    )
+    crosswalk = tmp_path / "crosswalk.json"
+    write_crosswalk(
+        crosswalk,
+        SciFactCrosswalkArtifact(
+            entries=[
+                SciFactCrosswalkEntry(
+                    s2orc_corpus_id=corpus_id,
+                    status="success",
+                    doi=f"10.1000/{corpus_id}",
+                    external_id_fields=["DOI"],
+                )
+                for corpus_id in corpus_ids
+            ]
+        ),
+    )
+    enriched = load_beir_scifact_enriched(root, crosswalk_path=crosswalk)
+    assert [query.query for query in enriched] == [query.query for query in plain]
+    assert [query.metadata for query in enriched] == [query.metadata for query in plain]
+    assert all(
+        gold.doi and gold.metadata["identity_status"] == "official_crosswalk_resolved"
+        for query in enriched
+        for gold in query.gold_papers
+    )
+    assert all(
+        "evaluator_crosswalk" not in query.metadata for query in enriched
+    )

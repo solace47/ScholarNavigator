@@ -17,5 +17,31 @@
   "sample_size": 50,
   "sample_order": "sha256(query_id) ascending, query_id tie-break",
   "sample_manifest": "benchmark/beir_scifact_sample_manifest.json",
-  "gold_identity": "s2orc_corpus_id from corpus _id; unresolved identities excluded from retrieval-miss denominator"
+  "gold_identity": "s2orc_corpus_id from corpus _id, enriched only in the offline evaluator with exact official Semantic Scholar CorpusId responses; unavailable/failed crosswalk records are excluded from retrieval-miss denominators",
+  "evaluator_crosswalk": {
+    "source": "Semantic Scholar Graph API /paper/CorpusId:{id}",
+    "connector_version": "semantic-scholar-corpusid-v1",
+    "schema_version": "1",
+    "requested_fields": ["paperId", "corpusId", "externalIds"],
+    "artifact": "benchmark/beir_scifact_s2_crosswalk.json",
+    "artifact_sha256": "ec7406107d13ddfd81ea1eca6f065c85dda25276f4ddb33abd568c5dd9d94d1c",
+    "gold_relation_count": 51,
+    "unique_corpus_id_count": 48,
+    "unique_terminal_counts": {
+      "success": 39,
+      "unavailable": 3,
+      "failed": 6
+    },
+    "gold_relation_terminal_counts": {
+      "success": 42,
+      "unavailable": 3,
+      "failed": 6
+    },
+    "external_id_coverage_unique": {
+      "DOI": 38,
+      "PubMed": 38,
+      "ArXiv": 0
+    },
+    "collection_snapshot_name": "beir_scifact_s2_crosswalk_v1_4b4fdff"
+  }
 }
