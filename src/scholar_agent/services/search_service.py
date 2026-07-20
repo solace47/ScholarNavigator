@@ -408,14 +408,26 @@ class SearchService:
             stage_start = time.perf_counter()
             initial_subqueries = search_plan.subqueries
             if initial_subqueries:
-                retrieval_outputs = self._retrieve_subqueries(
-                    search_plan,
-                    subqueries=initial_subqueries,
-                    signals=signals,
-                    run_context=retrieval_run_context,
-                    query_adapter_policy=query_adapter_policy,
-                    adaptive_budget_check=adaptive_budget_tracker.check,
-                )
+                if query_planning_policy == "current_plus_disjunctive":
+                    retrieval_outputs = (
+                        self._retrieve_current_plus_disjunctive(
+                            search_plan,
+                            signals=signals,
+                            runtime=runtime,
+                            run_context=retrieval_run_context,
+                            query_adapter_policy=query_adapter_policy,
+                            adaptive_budget_check=adaptive_budget_tracker.check,
+                        )
+                    )
+                else:
+                    retrieval_outputs = self._retrieve_subqueries(
+                        search_plan,
+                        subqueries=initial_subqueries,
+                        signals=signals,
+                        run_context=retrieval_run_context,
+                        query_adapter_policy=query_adapter_policy,
+                        adaptive_budget_check=adaptive_budget_tracker.check,
+                    )
                 runtime.record_search_round()
             signals.check_cancelled("retrieval:after_initial_batch")
             retrieval_latency = time.perf_counter() - stage_start
@@ -1135,11 +1147,16 @@ class SearchService:
         run_context: RetrievalRunContext,
         query_adapter_policy: QueryAdapterPolicy,
         adaptive_budget_check: Callable[[list[Paper]], str | None],
+        limit_per_source: int | None = None,
     ) -> list[RetrievalOutput]:
         return self._retrieve_query_batch(
             search_plan.subqueries if subqueries is None else subqueries,
             selected_sources=search_plan.selected_sources,
-            limit_per_source=search_plan.limit_per_source,
+            limit_per_source=(
+                search_plan.limit_per_source
+                if limit_per_source is None
+                else limit_per_source
+            ),
             failure_prefix="subquery_failed",
             failure_source="subquery",
             signals=signals,
@@ -1148,6 +1165,74 @@ class SearchService:
             query_adapter_policy=query_adapter_policy,
             adaptive_budget_check=adaptive_budget_check,
         )
+
+    def _retrieve_current_plus_disjunctive(
+        self,
+        search_plan: SearchPlan,
+        *,
+        signals: _ExecutionSignals,
+        runtime: SearchBudgetRuntime,
+        run_context: RetrievalRunContext,
+        query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
+    ) -> list[RetrievalOutput]:
+        """先完整执行旧规则查询，再用剩余候选预算执行单条 OR。"""
+
+        baseline = [
+            item
+            for item in search_plan.subqueries
+            if item.purpose != "current_plus_disjunctive_any"
+        ]
+        supplemental = [
+            item
+            for item in search_plan.subqueries
+            if item.purpose == "current_plus_disjunctive_any"
+        ]
+        outputs = self._retrieve_subqueries(
+            search_plan,
+            subqueries=baseline,
+            signals=signals,
+            run_context=run_context,
+            query_adapter_policy=query_adapter_policy,
+            adaptive_budget_check=adaptive_budget_check,
+        )
+        if not supplemental:
+            return outputs
+
+        baseline_papers, _, _ = _collect_retrieval_outputs(outputs)
+        baseline_unique_count = len(deduplicate_papers(baseline_papers))
+        remaining_candidates = max(
+            0,
+            runtime.budget.max_candidate_papers - baseline_unique_count,
+        )
+        skip_reason = runtime.latency_stop_reason()
+        if skip_reason is None and remaining_candidates == 0:
+            skip_reason = runtime.candidate_stop_reason(baseline_unique_count)
+        if skip_reason is not None:
+            outputs.extend(
+                _skipped_current_plus_disjunctive_outputs(
+                    supplemental,
+                    selected_sources=search_plan.selected_sources,
+                    reason=skip_reason,
+                )
+            )
+            return outputs
+
+        outputs.extend(
+            self._retrieve_subqueries(
+                search_plan,
+                subqueries=supplemental[:1],
+                signals=signals,
+                run_context=run_context,
+                query_adapter_policy=query_adapter_policy,
+                adaptive_budget_check=adaptive_budget_check,
+                limit_per_source=min(
+                    search_plan.limit_per_source,
+                    remaining_candidates,
+                ),
+            )
+        )
+        return outputs
 
     def _judge_papers(
         self,
@@ -1641,6 +1726,41 @@ def _collect_retrieval_outputs(
         source_stats.extend(output.source_stats)
         warnings.extend(output.warnings)
     return papers, source_stats, warnings
+
+
+def _skipped_current_plus_disjunctive_outputs(
+    subqueries: list[SearchSubquery],
+    *,
+    selected_sources: list[str],
+    reason: str,
+) -> list[RetrievalOutput]:
+    """保留未执行 OR 的稳定诊断，不产生 connector 调用。"""
+
+    outputs: list[RetrievalOutput] = []
+    for subquery in subqueries[:1]:
+        sources = subquery.source_hints or selected_sources
+        outputs.append(
+            RetrievalOutput(
+                query=subquery.query,
+                requested_sources=list(sources),
+                raw_count=0,
+                deduplicated_count=0,
+                source_stats=[
+                    SourceStats(
+                        source=source,
+                        query=subquery.query,
+                        combination_mode=subquery.combination_mode,
+                        logical_call_executed=False,
+                        source_skipped_reason=reason,
+                    )
+                    for source in sources
+                ],
+                warnings=[
+                    f"current_plus_disjunctive_skipped:{reason}"
+                ],
+            )
+        )
+    return outputs
 
 
 def _filter_new_evolved_queries(

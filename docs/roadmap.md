@@ -25,6 +25,7 @@
 - 已在固定 20 条开发集和独立 20 条验证集完成 arXiv/OpenAlex 单源与双源互补性 Replay；OpenAlex 最终路径全部失败且未新增 gold，故未形成 `high_recall` 候选，默认来源不变。
 - 已实现实验性 `disjunctive_facets` v1.5：保留原查询，使用至多一条有界 OR 分面查询和一条可选组合查询；固定 20 条开发集冻结后，独立 20 条验证集新增 1 个唯一 gold，候选 Recall 提升且 F1@20、Recall@20 不退化，API 比为 1.0417，但 OR 查询本身未产生独占 gold，产品默认仍为 `current_rules`。
 - 全新 `offset=170, limit=40` 保留集已在冷却后续跑完成：析取策略提高候选 Recall 但未净增 gold，F1@20、Recall@20、MRR 与 nDCG@20 均回退，故不进入 high_recall profile，不再围绕该保留集调参。
+- 已实现 `current_plus_disjunctive` v1.6：完整保留旧查询后只用剩余候选预算追加一条 OR；固定 20 条开发集与独立 20 条验证集均未净增 gold，验证集 API 增至 1.39 倍，故停止继续扩展 OR，产品默认仍为 `current_rules`。
 - sample fixture 只证明工程链路可运行，不代表检索性能已通过正式 benchmark 验证。
 
 ## P0

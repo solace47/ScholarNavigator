@@ -6,6 +6,7 @@ export type QueryPlanningPolicy =
   | "current_rules"
   | "controlled_relaxation"
   | "disjunctive_facets"
+  | "current_plus_disjunctive"
   | "facet_balanced"
   | "llm_semantic";
 export type JudgementPolicy = "current_rules" | "calibrated_rules_v1";

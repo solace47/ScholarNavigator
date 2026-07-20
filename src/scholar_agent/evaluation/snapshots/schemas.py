@@ -8,7 +8,10 @@ from pydantic import BaseModel, Field
 
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
-from scholar_agent.core.search_schemas import QUERY_PLANNER_VERSION
+from scholar_agent.core.search_schemas import (
+    QUERY_PLANNER_VERSION,
+    QueryPlanningPolicy,
+)
 
 
 SNAPSHOT_SCHEMA_VERSION = "1"
@@ -68,13 +71,7 @@ class ReferenceSnapshotEntry(BaseModel):
 
 
 class SnapshotGroupObservation(BaseModel):
-    query_planning_policy: Literal[
-        "current_rules",
-        "controlled_relaxation",
-        "disjunctive_facets",
-        "facet_balanced",
-        "llm_semantic",
-    ] | None = None
+    query_planning_policy: QueryPlanningPolicy | None = None
     query_planner_version: str | None = None
     judgement_policy: Literal["current_rules", "calibrated_rules_v1"] = (
         "current_rules"
@@ -119,13 +116,7 @@ class SnapshotPlanEntry(BaseModel):
     query_evolution_policy: Literal[
         "off", "seed_expansion", "coverage_gap"
     ] | None = None
-    query_planning_policy: Literal[
-        "current_rules",
-        "controlled_relaxation",
-        "disjunctive_facets",
-        "facet_balanced",
-        "llm_semantic",
-    ] | None = None
+    query_planning_policy: QueryPlanningPolicy | None = None
     query_planner_version: str | None = None
     dependency_keys: list[str] = Field(default_factory=list)
     priority: int = Field(ge=1)

@@ -92,6 +92,7 @@ def retrieval_snapshot_key(
     if query_planning_policy in {
         "controlled_relaxation",
         "disjunctive_facets",
+        "current_plus_disjunctive",
         "facet_balanced",
         "llm_semantic",
     }:

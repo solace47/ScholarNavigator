@@ -140,6 +140,7 @@ CONTROLLED_RELAXATION_MAX_CORE_TERMS = 8
 DISJUNCTIVE_FACETS_MAX_SUPPLEMENTAL_QUERIES = 2
 DISJUNCTIVE_FACETS_MIN_ANY_TERMS = 4
 DISJUNCTIVE_FACETS_MAX_ANY_TERMS = 8
+CURRENT_PLUS_DISJUNCTIVE_MAX_TOTAL_QUERIES = 5
 CONTROLLED_RELAXATION_STOPWORDS = PLANNER_STOPWORDS | {
     "advancement",
     "any",
@@ -446,6 +447,84 @@ def plan_disjunctive_facets(
 
     return selected, _planning_result(
         policy="disjunctive_facets",
+        facets=facets,
+        selected=selected,
+        skipped_facets=skipped,
+        duplicate_count=duplicate_count,
+    )
+
+
+def plan_current_plus_disjunctive(
+    query_analysis: QueryAnalysis,
+    *,
+    current_subqueries: list[SearchSubquery],
+    selected_sources: list[str],
+    max_subqueries: int,
+) -> tuple[list[SearchSubquery], QueryPlanningResult]:
+    """完整保留旧规则查询，仅在额外配额中追加一条析取查询。"""
+
+    facets = identify_query_facets(query_analysis)
+    selected = [item.model_copy(deep=True) for item in current_subqueries]
+    skipped: list[str] = []
+    duplicate_count = 0
+    maximum = min(
+        CURRENT_PLUS_DISJUNCTIVE_MAX_TOTAL_QUERIES,
+        max(1, max_subqueries) + 1,
+    )
+    if len(selected) >= maximum:
+        skipped.append("budget:current_plus_disjunctive_any")
+        return selected, _planning_result(
+            policy="current_plus_disjunctive",
+            facets=facets,
+            selected=selected,
+            skipped_facets=skipped,
+            duplicate_count=duplicate_count,
+        )
+
+    explicit_must = _explicit_must_have(query_analysis)
+    any_terms, any_types, any_provenance = _disjunctive_facet_terms(
+        query_analysis,
+        facets,
+        explicit_must,
+    )
+    if len(any_terms) < DISJUNCTIVE_FACETS_MIN_ANY_TERMS:
+        skipped.append(
+            "insufficient_high_confidence_terms:current_plus_disjunctive_any"
+        )
+        return selected, _planning_result(
+            policy="current_plus_disjunctive",
+            facets=facets,
+            selected=selected,
+            skipped_facets=skipped,
+            duplicate_count=duplicate_count,
+        )
+
+    candidate = SearchSubquery(
+        query=_render_logical_terms(any_terms),
+        combination_mode="any",
+        source_hints=selected_sources,
+        priority=min(len(selected) + 1, 5),
+        purpose="current_plus_disjunctive_any",
+        facet_types=any_types,
+        provenance=_dedupe(
+            [
+                *any_provenance,
+                *(
+                    "must_have:explicit_hard"
+                    for _ in explicit_must[:1]
+                ),
+                "execution_tier:supplemental_after_current_rules",
+            ]
+        ),
+    )
+    if any(_query_key(item.query) == _query_key(candidate.query) for item in selected):
+        duplicate_count = 1
+        skipped.append("duplicate:current_plus_disjunctive_any")
+    else:
+        selected.append(candidate)
+
+    return selected, _planning_result(
+        policy="current_plus_disjunctive",
         facets=facets,
         selected=selected,
         skipped_facets=skipped,

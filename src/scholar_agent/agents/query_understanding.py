@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 from scholar_agent.agents.query_planning import (
     plan_controlled_relaxation,
+    plan_current_plus_disjunctive,
     plan_disjunctive_facets,
     plan_facet_balanced,
     summarize_current_rules_planning,
@@ -341,6 +342,13 @@ class QueryUnderstandingAgent:
                 query_analysis,
                 subqueries,
             )
+            if options.query_planning_policy == "current_plus_disjunctive":
+                subqueries, query_planning = plan_current_plus_disjunctive(
+                    query_analysis,
+                    current_subqueries=subqueries,
+                    selected_sources=selected_sources,
+                    max_subqueries=max_subqueries,
+                )
             if options.query_planning_policy == "llm_semantic":
                 outcome = plan_llm_semantic(
                     query_analysis,
@@ -1107,6 +1115,13 @@ def _search_plan_from_llm_json(
             query_analysis,
             subqueries,
         )
+        if options.query_planning_policy == "current_plus_disjunctive":
+            subqueries, query_planning = plan_current_plus_disjunctive(
+                query_analysis,
+                current_subqueries=subqueries,
+                selected_sources=selected_sources,
+                max_subqueries=max_subqueries,
+            )
 
     return SearchPlan(
         query_analysis=query_analysis,

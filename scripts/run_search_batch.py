@@ -30,6 +30,7 @@ QUERY_PLANNING_POLICIES = {
     "current_rules",
     "controlled_relaxation",
     "disjunctive_facets",
+    "current_plus_disjunctive",
     "facet_balanced",
     "llm_semantic",
 }
