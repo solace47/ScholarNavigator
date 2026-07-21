@@ -332,6 +332,30 @@ bootstrap CI `[0, 0.021875]`，双侧 permutation `p=0.5`），F1@20 从
 `outputs/benchmark_runs/lexical_normalization_record160_813cf3a_r{5,6}/`。
 人工 Precision 完成前策略继续默认关闭。
 
+`scripts/build_lexical_record160_precision_package.py generate` 为上述 160 条扩大
+验证建立穷举的 Top-20 变更盲标包。生成器只读取冻结 Record、Retrieval Snapshot
+与两组已冻结的返回身份集合，以无 gold 的方式重建 query、title、abstract、year；
+它不读取 candidate diagnostics 中的 `is_gold`/qrels 字段，也不发起网络、LLM 或
+Snapshot 写入。纳入条件固定为跨越 Top-20 边界：实验换入 339 个关系、基线换出
+132 个关系，共 471 个 query-paper 关系；双方共有但只发生榜内排名变化的论文不
+进入本包。
+
+公共包 `benchmark/lexical_normalization_record160_precision_annotation/` 仅公开
+`sample_id/query/title/abstract/year` 五个扁平字段。全部 471 个关系中，439 个
+生成新的随机化盲标项；另 32 个通过“规范 query + 统一身份等价”命中既有 65 条
+审计的 200 项包，私有 mapping 引用原 sample ID 而不重复标注。递归字段泄漏检查
+为 0，覆盖关系 439+32=471、未覆盖 0。两次生成的公共包、私有映射、双人模板、
+仲裁模板和 manifest 逐字节一致，包树 SHA-256 为
+`3d8df8680acdbe078eb175c31addeddb8feb106cf7a5273803424d75077fad94`。
+
+两位标注者继续使用 `relevant / partially_relevant / not_relevant /
+insufficient_information` 四分类并独立作答，分歧项必须仲裁。`score` 子命令在新包
+和被引用旧包的人工标签均闭合后计算变更项两组 precision、Top-20 配对差值、换入
+误放率、换出相关率、Cohen's kappa 及成功来源数/既有 dev-val 重叠分层。由于本包
+刻意不重复标注双方共有的 Top-20 论文，绝对 Precision@20 在该 change-only 包中
+保持 null；配对差值中的共有项严格抵消。当前所有模板为空，因此 Precision、差值、
+误放率、相关率与 kappa 全部为 null，不形成任何人工精度结论。
+
 `scripts/check_current_rules_regression.py check` 是默认 `current_rules` 的只读持续回归门禁。版本化协议和完整逐 case 语义基准分别位于 `benchmark/current_rules_regression_manifest.json` 与 `benchmark/current_rules_regression_baseline.json`；基准固定 SciFact 50 条、AutoScholarQuery dev 0/10、val 10/5 的四源 Replay，关闭 Query Evolution、RefChain、Semantic Seed、LLM 与其余实验开关。命令不构造网络连接器、不加载运行时密钥，也不调用 SearchService 的可写 Snapshot runtime；它只从 required retrieval key 读取冻结响应，再用当前统一身份去重、`current_rules` Judgement、Reranker、Top-20 选择与 evaluator 重建语义结果。
 
 门禁逐次校验数据、原始配置/结果和 Snapshot tree 指纹，要求 SciFact/Auto dev/val 的 264/72/34 个 required retrieval key 与各自 group 完全一致、0 missing、0 reference key，并逐 key 比较来源、查询和成功/失败终态。语义基准逐 query 固定候选身份集合、最终返回顺序、Candidate Recall、Recall@20、F1@20、matched gold 和互斥 gold 终态；manifest 同时记录候选、核心指标、gold diagnostics 和来源终态的分区 SHA-256。`started_at`、代码提交/运行时 hash、resume signature 以及仓库外临时根路径显式排除或规范化，其他字段精确比较。漂移报告递归定位到最小 JSON path；候选/required-key 集合额外输出 added/removed，不允许用自动刷新基准掩盖回归。
