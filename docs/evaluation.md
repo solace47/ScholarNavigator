@@ -537,6 +537,50 @@ PYTHONPATH=src python scripts/check_structured_output_provenance.py \
 保留每个 case 的闭合终态及每项结构化声明的 source path。该门禁只证明冻结
 输出与冻结候选之间的可追溯性，不证明论文事实本身正确，也不是官方赛题成绩。
 
+## AutoScholarQuery query→gold 信息泄漏门禁
+
+`scripts/audit_query_gold_leakage.py` 只在 benchmark/evaluator 隔离层读取 query 与
+gold，不导入 SearchService、connector、排序或 Prompt。检测规则在查看统计前冻结于
+`benchmark/autoscholar_query_gold_leakage_protocol.json`：query/title 统一做 HTML
+反转义、Unicode NFKC、casefold、Unicode 标点分词和空白折叠；标题规则仅适用于
+规范后至少 24 字符且至少 3 个 token 的标题。互斥优先级固定为稳定标识或 URL
+精确出现、引号内完整标题、规范标题完整出现、标题 informative token 覆盖、未检测
+到泄漏。高覆盖要求至少 5 个去停用词 token 且覆盖率不低于 0.8，不使用模糊匹配、
+Embedding、外部搜索或人工词典。
+
+版本化 manifest、逐关系/逐 query 基准和汇总位于
+`benchmark/autoscholar_query_gold_leakage_manifest.json`、
+`benchmark/autoscholar_query_gold_leakage_baseline/` 与
+`benchmark/autoscholar_query_gold_leakage_result.json`。普通 check 会重新计算 1000
+条 query 与 2403 条 query-gold 关系，校验原数据、gold identity 基线、协议、冻结
+Replay 及 SciFact 输入 SHA-256，并逐 JSON path 比较终态、证据和汇总；数据、规则或
+基准漂移都会失败。socket 护栏与 Snapshot 树前后签名保证运行是 0 网络、0 LLM、
+0 Snapshot 写入。该门禁只审计内部评测有效性，不是检索指标或官方 scorer。
+
+冻结统计为 15/2403（0.6242%）关系和 14/1000（1.4%）query 命中检测规则：
+0 条标识/URL、0 条引号标题、5 条关系（涉及 4 个 query）规范标题完整出现、10 条
+关系/10 个 query 高 token 覆盖。预注册风险阈值据此给出 moderate：未达到“直接
+泄漏 query 至少 1% 或任意泄漏至少 5%”的 high 条件，但也不是低于 1% 的 low。
+跨 query 重复涉及 657 条关系、268 个重复 identity；其中 5 条泄漏关系，5 个重复
+identity 在不同 query 间呈混合泄漏状态，因此重复论文不应被当作独立污染来源。
+
+冻结命中分层只复用已有命中诊断，不重算 Recall/F1。Auto dev 10 和 val 5 中均无
+检测泄漏，已有最终命中分别为 2 和 1 条非泄漏关系。Record160 主分析中 2/160 query
+命中泄漏规则，已有 candidate-hit 为泄漏 2、非泄漏 15，final-hit 为泄漏 1、
+非泄漏 11；另有 2 条无成功来源保持单列。SciFact 50 中 1 条 query 命中规则，
+candidate-hit 为泄漏 1、非泄漏 30，final-hit 为泄漏 1、非泄漏 18。小泄漏分层
+出现命中集中迹象但样本过小，不能作因果或显著性结论。后续内部报告应同时给出
+全量结果和非泄漏诊断分层，不自动删除样本，也不得用分层结果替代全量结果或冒充
+官方成绩。
+
+```bash
+PYTHONPATH=src python scripts/audit_query_gold_leakage.py check \
+  --manifest benchmark/autoscholar_query_gold_leakage_manifest.json \
+  --output outputs/benchmark_runs/autoscholar_query_gold_leakage_gate
+
+PYTHONPATH=src pytest -q -m query_gold_leakage_regression
+```
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
