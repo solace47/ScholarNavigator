@@ -31,6 +31,7 @@ from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.semantic_seed_expansion import (
     RecommendationFetcher,
+    SeedResolver,
     expand_semantic_seeds,
 )
 from scholar_agent.agents.reranker import rerank_papers
@@ -47,6 +48,7 @@ from scholar_agent.agents.retriever import (
 from scholar_agent.connectors.openalex import fetch_openalex_references_detailed
 from scholar_agent.connectors.semantic_scholar import (
     recommend_semantic_scholar_papers_detailed,
+    resolve_semantic_scholar_paper_ids_detailed,
 )
 from scholar_agent.core.dedup import deduplicate_papers, deduplicate_papers_with_audit
 from scholar_agent.core.diagnostics_schemas import (
@@ -315,6 +317,9 @@ class SearchService:
         recommendation_fetcher: RecommendationFetcher = (
             recommend_semantic_scholar_papers_detailed
         ),
+        semantic_seed_resolver: SeedResolver = (
+            resolve_semantic_scholar_paper_ids_detailed
+        ),
         max_workers: int = 4,
         llm_client: Any | None = None,
         llm_planning_runtime: Any | None = None,
@@ -331,6 +336,7 @@ class SearchService:
         self._isolated_processes_lock = RLock()
         self._reference_fetcher = reference_fetcher
         self._recommendation_fetcher = recommendation_fetcher
+        self._semantic_seed_resolver = semantic_seed_resolver
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
         self._llm_planning_runtime = llm_planning_runtime
@@ -741,6 +747,7 @@ class SearchService:
                 semantic_seed_expansion_output = expand_semantic_seeds(
                     all_ranked_papers,
                     self._recommendation_fetcher,
+                    resolve_seed_ids=self._semantic_seed_resolver,
                     max_seeds=3,
                     limit=100,
                 )
@@ -773,11 +780,13 @@ class SearchService:
                         ),
                         logical_call_executed=bool(
                             semantic_seed_expansion_output.record.seeds
+                            or semantic_seed_expansion_output.record.resolution_request_identifier_count
                         ),
                         warnings=list(semantic_seed_expansion_output.warnings),
                         diagnostics=semantic_seed_expansion_output.diagnostics,
                         snapshot_key=(
                             semantic_seed_expansion_output.record.snapshot_key
+                            or semantic_seed_expansion_output.record.resolution_snapshot_key
                         ),
                         recorded_diagnostics=(
                             semantic_seed_expansion_output.record.recorded_diagnostics

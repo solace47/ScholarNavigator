@@ -21,6 +21,7 @@ CONNECTOR_VERSIONS = {
     "openalex": "search-v1",
     "semantic_scholar": "search-v2",
     "semantic_scholar_recommendations": "recommendations-v1",
+    "semantic_scholar_paper_batch": "paper-batch-v1",
     "pubmed": "search-v1",
     "openalex_references": "references-v1",
 }
@@ -32,6 +33,7 @@ SnapshotGeneratedBy = Literal[
     "query_evolution",
     "refchain",
     "semantic_seed_expansion",
+    "semantic_seed_resolution",
 ]
 
 

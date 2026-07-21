@@ -22,6 +22,7 @@ for import_root in (REPO_ROOT, SRC_ROOT):
 from scholar_agent.connectors import (  # noqa: E402
     fetch_openalex_references_detailed,
     recommend_semantic_scholar_papers_detailed,
+    resolve_semantic_scholar_paper_ids_detailed,
     search_arxiv_detailed,
     search_openalex_detailed,
     search_pubmed_detailed,
@@ -74,6 +75,9 @@ def collect_plan(
     ),
     recommendation_fetcher: Callable[[list[str], int], ConnectorSearchResult] = (
         recommend_semantic_scholar_papers_detailed
+    ),
+    semantic_seed_resolver: Callable[[list[str]], ConnectorSearchResult] = (
+        resolve_semantic_scholar_paper_ids_detailed
     ),
     clock: Callable[[], float] = time.monotonic,
     cancel_check: Callable[[], bool] = lambda: False,
@@ -160,6 +164,7 @@ def collect_plan(
                 registry,
                 reference_fetcher,
                 recommendation_fetcher,
+                semantic_seed_resolver,
             )
             diagnostics = result.recorded_diagnostics or result.diagnostics
             request_count += diagnostics.request_count
@@ -230,6 +235,7 @@ def _collect_entry(
     registry: dict[str, Callable[[str, int], ConnectorSearchResult]],
     reference_fetcher: Callable[[Paper, int], ConnectorSearchResult],
     recommendation_fetcher: Callable[[list[str], int], ConnectorSearchResult],
+    semantic_seed_resolver: Callable[[list[str]], ConnectorSearchResult],
 ) -> ConnectorSearchResult:
     if entry.entry_type == "retrieval":
         search = registry.get(entry.source)
@@ -250,6 +256,13 @@ def _collect_entry(
         )
     if entry.entry_type != "reference" or entry.seed_identifier is None:
         raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
+    if entry.generated_by == "semantic_seed_resolution":
+        if not entry.seed_identifiers:
+            raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
+        return runtime.resolve_semantic_seed_ids(
+            entry.seed_identifiers,
+            semantic_seed_resolver,
+        )
     if entry.generated_by == "semantic_seed_expansion":
         if not entry.seed_identifiers:
             raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")

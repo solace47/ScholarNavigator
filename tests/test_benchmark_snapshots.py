@@ -304,6 +304,66 @@ def test_manifest_group_records_query_evolution_policy(tmp_path: Path) -> None:
     assert stored.query_evolution_policy == "coverage_gap"
 
 
+def test_semantic_seed_plan_freezes_initial_retrieval_to_baseline_group(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshot"
+    baseline = _runtime(root, "record", group="baseline")
+    baseline.search(
+        "openalex",
+        "shared first round",
+        5,
+        "safe_original",
+        lambda query, limit: _success_result("Shared Candidate"),
+    )
+    baseline_group = baseline.finish_group(completed=True)
+
+    unrelated = _runtime(root, "record", group="prf_v1")
+    unrelated.search(
+        "openalex",
+        "existing but not baseline",
+        5,
+        "safe_original",
+        lambda query, limit: _success_result("Unpaired Candidate"),
+    )
+    unrelated.finish_group(completed=True)
+
+    plan = _runtime(root, "plan", group="semantic_seed_expansion")
+    shared = plan.search(
+        "openalex",
+        "shared first round",
+        5,
+        "safe_original",
+        lambda query, limit: pytest.fail("plan must not call a connector"),
+    )
+    unpaired = plan.search(
+        "openalex",
+        "existing but not baseline",
+        5,
+        "safe_original",
+        lambda query, limit: pytest.fail("plan must not call a connector"),
+    )
+    semantic_group = plan.finish_group(completed=True)
+
+    assert [entry.key for entry in plan.plan_entries()] == [
+        baseline_group.retrieval_keys[0]
+    ]
+    assert semantic_group.retrieval_keys == baseline_group.retrieval_keys
+    assert shared.papers[0].title == "Shared Candidate"
+    assert unpaired.papers == []
+    assert unpaired.error_message is not None
+    assert "snapshot_paired_baseline_not_started" in unpaired.error_message
+    assert semantic_group.missing_retrieval_keys == []
+
+    replay = _runtime(root, "replay", group="semantic_seed_expansion")
+    assert replay.has_recorded_retrieval_request(
+        "openalex", "shared first round", 5, "safe_original"
+    )
+    assert not replay.has_recorded_retrieval_request(
+        "openalex", "existing but not baseline", 5, "safe_original"
+    )
+
+
 def test_judgement_config_is_audited_without_changing_retrieval_keys(
     tmp_path: Path,
 ) -> None:

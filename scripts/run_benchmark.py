@@ -31,6 +31,7 @@ from scholar_agent.core.env_loader import load_project_env  # noqa: E402
 from scholar_agent.connectors import (  # noqa: E402
     fetch_openalex_references_detailed,
     recommend_semantic_scholar_papers_detailed,
+    resolve_semantic_scholar_paper_ids_detailed,
 )
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
@@ -58,6 +59,7 @@ from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshots import (  # noqa: E402
     SnapshotAwareReferenceFetcher,
     SnapshotAwareRecommendationFetcher,
+    SnapshotAwareSemanticSeedResolver,
     SnapshotAwareRetriever,
     SnapshotManifest,
     SnapshotRuntime,
@@ -507,6 +509,10 @@ def run_benchmark(
             recommendation_fetcher=SnapshotAwareRecommendationFetcher(
                 snapshot_runtime,
                 recommend_semantic_scholar_papers_detailed,
+            ),
+            semantic_seed_resolver=SnapshotAwareSemanticSeedResolver(
+                snapshot_runtime,
+                resolve_semantic_scholar_paper_ids_detailed,
             ),
             max_workers=options.max_workers,
             llm_planning_runtime=llm_planning_runtime,

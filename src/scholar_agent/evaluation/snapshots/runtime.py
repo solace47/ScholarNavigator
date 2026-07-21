@@ -43,6 +43,7 @@ RetrievalMode = Literal["live", "record", "replay", "record-missing", "plan"]
 LiveSearch = Callable[[str, int], ConnectorSearchResult]
 LiveReferenceFetcher = Callable[[Paper, int], list[Paper] | ConnectorSearchResult]
 LiveRecommendationFetcher = Callable[[list[str], int], ConnectorSearchResult]
+LiveSemanticSeedResolver = Callable[[list[str]], ConnectorSearchResult]
 
 
 def _stable_append(values: list[str], value: str) -> None:
@@ -104,6 +105,15 @@ class SnapshotRuntime:
         manifest = store.read_manifest()
         existing = manifest.groups.get(group_name)
         self._prior_group = existing
+        paired_baseline_name = _paired_semantic_seed_baseline_group(group_name)
+        paired_baseline = (
+            manifest.groups.get(paired_baseline_name)
+            if paired_baseline_name is not None
+            else None
+        )
+        self._paired_baseline_retrieval_keys = (
+            set(paired_baseline.retrieval_keys) if paired_baseline is not None else None
+        )
         # Plan 每轮都重新走真实流水线，required key 只来自本轮实际路径，
         # 避免保留因上游结果变化而不再可达的动态键。
         self._group_retrieval = (
@@ -276,6 +286,15 @@ class SnapshotRuntime:
             query_planning_policy=effective_planning_policy,
             query_planner_version=effective_planner_version,
         )
+        if self._outside_paired_initial_retrieval(key, generated_by):
+            return ConnectorSearchResult(
+                error_message=f"snapshot_paired_baseline_not_started:retrieval:{key}",
+                warnings=["snapshot_paired_baseline_not_started:retrieval"],
+                snapshot_provenance=(
+                    "snapshot_plan" if self.mode == "plan" else "snapshot_replay"
+                ),
+                snapshot_key=key,
+            )
         self._observe("retrieval", key)
         try:
             existing = self._read_optional("retrieval", key)
@@ -412,10 +431,23 @@ class SnapshotRuntime:
                 query_planner_version or self.query_planner_version
             ),
         )
+        if self._outside_paired_initial_retrieval(key, "initial_retrieval"):
+            return False
         with self._lock:
             if self._prior_group is not None:
                 return key in self._prior_group.retrieval_keys
         return self._read_optional("retrieval", key) is not None
+
+    def _outside_paired_initial_retrieval(
+        self,
+        key: str,
+        generated_by: str,
+    ) -> bool:
+        return bool(
+            generated_by == "initial_retrieval"
+            and self._paired_baseline_retrieval_keys is not None
+            and key not in self._paired_baseline_retrieval_keys
+        )
 
     def fetch_references(
         self,
@@ -668,6 +700,151 @@ class SnapshotRuntime:
             recorded_latency_seconds=elapsed,
             recorded_at=utc_now(),
             content_hash="0" * 64,
+        )
+        entry = entry.model_copy(update={"content_hash": entry_content_hash(entry)})
+        overwrite = self.overwrite_snapshots or bool(
+            existing is not None
+            and existing.status == "failed"
+            and self.retry_failed_snapshots
+        )
+        try:
+            wrote = self.store.write_reference(entry, overwrite=overwrite)
+        except SnapshotError as exc:
+            self._mark_fatal(str(exc))
+            raise
+        self._mark_available("references", key)
+        if wrote:
+            self.store.invalidate_verified_groups(key)
+        self._record_cost("references", entry.diagnostics, elapsed, wrote=wrote)
+        return result.model_copy(
+            update={
+                "snapshot_provenance": "snapshot_record",
+                "snapshot_key": key,
+                "snapshot_hit": False,
+                "recorded_diagnostics": entry.diagnostics,
+                "recorded_latency_seconds": elapsed,
+            },
+            deep=True,
+        )
+
+    def resolve_semantic_seed_ids(
+        self,
+        stable_identifiers: list[str],
+        live_resolver: LiveSemanticSeedResolver,
+    ) -> ConnectorSearchResult:
+        identifiers = _canonical_resolution_identifiers(stable_identifiers)
+        if not identifiers:
+            return ConnectorSearchResult(
+                error_message="snapshot_seed_resolution_missing_identifier",
+                diagnostics=ConnectorDiagnostics(error_count=1),
+            )
+        if self.mode == "plan":
+            unresolved_retrieval = [
+                entry.key
+                for entry in self.plan_entries()
+                if entry.entry_type == "retrieval" and not entry.already_present
+            ]
+            if unresolved_retrieval:
+                return ConnectorSearchResult(
+                    error_message=(
+                        "snapshot_plan_dependency_missing:semantic_seed_resolution"
+                    ),
+                    warnings=[
+                        "snapshot_plan_dependency_missing:semantic_seed_resolution"
+                    ],
+                    snapshot_provenance="snapshot_plan",
+                )
+        version = connector_version("semantic_scholar_paper_batch")
+        combined_seed = "s2resolve:" + ",".join(identifiers)
+        key = reference_snapshot_key(
+            seed_identifier=combined_seed,
+            limit=len(identifiers),
+            connector_version=version,
+            source="semantic_scholar",
+        )
+        self._observe("references", key)
+        try:
+            existing = self._read_optional("references", key)
+        except SnapshotError as exc:
+            self._mark_fatal(str(exc))
+            raise
+        if self.mode == "plan":
+            self._record_plan_entry(
+                SnapshotPlanEntry(
+                    key=key,
+                    entry_type="reference",
+                    source="semantic_scholar",
+                    seed_identifier=combined_seed,
+                    seed_identifiers=identifiers,
+                    limit=len(identifiers),
+                    connector_version=version,
+                    required_by_group=self.group_name,
+                    case_id=self._case_id,
+                    stage="semantic_seed_expansion_resolution",
+                    origin_subquery=None,
+                    generated_by="semantic_seed_resolution",
+                    dependency_keys=self._dependency_keys(
+                        key, "semantic_seed_resolution"
+                    ),
+                    priority=3,
+                    already_present=existing is not None,
+                    existing_status=existing.status if existing is not None else None,
+                )
+            )
+            if existing is None:
+                self._mark_missing("references", key)
+                return ConnectorSearchResult(
+                    error_message=f"snapshot_plan_missing:references:{key}",
+                    warnings=[f"snapshot_plan_missing:references:{key}"],
+                    snapshot_provenance="snapshot_plan",
+                    snapshot_key=key,
+                )
+            return self._replay_reference(existing)
+        if self.mode == "replay":
+            if existing is None:
+                self._mark_missing("references", key)
+                raise SnapshotMissingError(f"snapshot_missing:references:{key}")
+            return self._replay_reference(existing)
+        if self.mode == "record-missing" and existing is not None:
+            if existing.status == "success" or not self.retry_failed_snapshots:
+                return self._replay_reference(existing)
+
+        started = time.perf_counter()
+        try:
+            result = live_resolver(identifiers)
+        except Exception as exc:  # noqa: BLE001 - record terminal resolution failure
+            elapsed = time.perf_counter() - started
+            result = ConnectorSearchResult(
+                error_message=_sanitize_text(str(exc)),
+                warnings=["connector_failed:semantic_scholar_paper_batch"],
+                latency_seconds=elapsed,
+                diagnostics=ConnectorDiagnostics(
+                    error_count=1,
+                    latency_seconds=elapsed,
+                ),
+                reference_batch_status="failed",
+                missing_reference_ids=list(identifiers),
+                reference_batch_count=1,
+            )
+        elapsed = max(result.latency_seconds, time.perf_counter() - started)
+        entry = ReferenceSnapshotEntry(
+            key=key,
+            source="semantic_scholar",
+            seed_identifier=combined_seed,
+            seed_identifiers=identifiers,
+            limit=len(identifiers),
+            connector_version=version,
+            status="failed" if result.error_message else "success",
+            papers=[paper.model_copy(deep=True) for paper in result.papers],
+            error_message=_sanitize_text(result.error_message),
+            warnings=[_sanitize_text(item) or "" for item in result.warnings],
+            diagnostics=result.diagnostics.model_copy(deep=True),
+            recorded_latency_seconds=elapsed,
+            recorded_at=utc_now(),
+            content_hash="0" * 64,
+            reference_batch_status=result.reference_batch_status,
+            missing_reference_ids=list(result.missing_reference_ids),
+            reference_batch_count=result.reference_batch_count,
         )
         entry = entry.model_copy(update={"content_hash": entry_content_hash(entry)})
         overwrite = self.overwrite_snapshots or bool(
@@ -992,6 +1169,31 @@ class SnapshotAwareRecommendationFetcher:
         )
 
 
+class SnapshotAwareSemanticSeedResolver:
+    def __init__(
+        self,
+        runtime: SnapshotRuntime,
+        live_resolver: LiveSemanticSeedResolver,
+    ) -> None:
+        self.runtime = runtime
+        self.live_resolver = live_resolver
+
+    def __call__(self, stable_identifiers: list[str]) -> ConnectorSearchResult:
+        return self.runtime.resolve_semantic_seed_ids(
+            stable_identifiers,
+            self.live_resolver,
+        )
+
+
+def _paired_semantic_seed_baseline_group(group_name: str) -> str | None:
+    if group_name == "semantic_seed_expansion":
+        return "baseline"
+    suffix = "_semantic_seed_expansion"
+    if group_name.endswith(suffix):
+        return group_name[: -len(suffix)]
+    return None
+
+
 def _canonical_semantic_seed_ids(seed_paper_ids: list[str]) -> list[str]:
     values: list[str] = []
     seen: set[str] = set()
@@ -1005,3 +1207,18 @@ def _canonical_semantic_seed_ids(seed_paper_ids: list[str]) -> list[str]:
         if len(values) >= 3:
             break
     return values
+
+
+def _canonical_resolution_identifiers(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = str(raw_value).strip()
+        key = value.casefold()
+        if not value or key in seen:
+            continue
+        normalized.append(value)
+        seen.add(key)
+        if len(normalized) >= 100:
+            break
+    return normalized

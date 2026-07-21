@@ -711,6 +711,18 @@ class SemanticSeedExpansionSeed(BaseModel):
     semantic_scholar_id: str
     rank: int = Field(ge=1)
     title: str
+    source: Literal["direct", "resolved"] = "direct"
+    resolution_identifier: str | None = None
+
+
+class SemanticSeedResolutionRecord(BaseModel):
+    requested_identifier: str
+    rank: int = Field(ge=1)
+    status: Literal["resolved", "missing", "conflict", "source_failure"]
+    semantic_scholar_id: str | None = None
+    identity_rule: str | None = None
+    shared_identifiers: list[str] = Field(default_factory=list)
+    conflicting_identifiers: list[str] = Field(default_factory=list)
 
 
 class SemanticSeedExpansionRecord(BaseModel):
@@ -719,6 +731,26 @@ class SemanticSeedExpansionRecord(BaseModel):
     ] = "disabled"
     seeds: list[SemanticSeedExpansionSeed] = Field(default_factory=list)
     snapshot_key: str | None = None
+    resolution_snapshot_key: str | None = None
+    resolution_status: Literal[
+        "not_needed", "not_attempted", "success", "partial_success", "source_failure"
+    ] = "not_needed"
+    resolution_candidate_count: int = Field(default=0, ge=0)
+    resolution_request_identifier_count: int = Field(default=0, ge=0)
+    resolved_candidate_count: int = Field(default=0, ge=0)
+    resolution_conflict_count: int = Field(default=0, ge=0)
+    resolution_missing_count: int = Field(default=0, ge=0)
+    direct_seed_count: int = Field(default=0, ge=0)
+    resolved_seed_count: int = Field(default=0, ge=0)
+    resolutions: list[SemanticSeedResolutionRecord] = Field(default_factory=list)
+    resolution_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    recorded_resolution_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    resolution_latency_seconds: float = Field(default=0.0, ge=0.0)
+    recorded_resolution_latency_seconds: float = Field(default=0.0, ge=0.0)
     raw_recommendation_count: int = Field(default=0, ge=0)
     new_unique_candidate_count: int = Field(default=0, ge=0)
     duplicate_candidate_count: int = Field(default=0, ge=0)

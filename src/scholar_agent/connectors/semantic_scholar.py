@@ -27,6 +27,9 @@ SEMANTIC_SCHOLAR_SEARCH_URL = (
 SEMANTIC_SCHOLAR_RECOMMENDATIONS_URL = (
     "https://api.semanticscholar.org/recommendations/v1/papers"
 )
+SEMANTIC_SCHOLAR_PAPER_BATCH_URL = (
+    "https://api.semanticscholar.org/graph/v1/paper/batch"
+)
 SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
 SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS_ENV = (
     "SCHOLAR_AGENT_SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS"
@@ -39,6 +42,7 @@ DEFAULT_MIN_INTERVAL_SECONDS = 1.5
 DEFAULT_MIN_INTERVAL_WITH_KEY_SECONDS = 0.1
 MAX_SEMANTIC_SCHOLAR_LIMIT = 100
 MAX_SEMANTIC_SCHOLAR_RECOMMENDATION_SEEDS = 3
+MAX_SEMANTIC_SCHOLAR_BATCH_IDS = 100
 SEARCH_FIELDS = ",".join(
     [
         "paperId",
@@ -252,6 +256,128 @@ def recommend_semantic_scholar_papers_detailed(
     )
 
 
+def resolve_semantic_scholar_paper_ids_detailed(
+    paper_ids: list[str],
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
+) -> ConnectorSearchResult:
+    """Resolve exact DOI/arXiv/PMID/CorpusId values with the official batch API."""
+
+    start = time.perf_counter()
+    normalized_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in paper_ids:
+        paper_id = str(raw_id).strip()
+        key = paper_id.casefold()
+        if not paper_id or key in seen:
+            continue
+        normalized_ids.append(paper_id)
+        seen.add(key)
+        if len(normalized_ids) >= MAX_SEMANTIC_SCHOLAR_BATCH_IDS:
+            break
+    if not normalized_ids:
+        latency = time.perf_counter() - start
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar paper batch requires an exact identifier",
+            warnings=["semantic_scholar_paper_batch_missing_identifier"],
+            latency_seconds=latency,
+            diagnostics=ConnectorDiagnostics(error_count=1, latency_seconds=latency),
+            reference_batch_status="failed",
+        )
+
+    request = Request(
+        f"{SEMANTIC_SCHOLAR_PAPER_BATCH_URL}?{urlencode({'fields': SEARCH_FIELDS})}",
+        data=json.dumps(
+            {"ids": normalized_ids},
+            separators=(",", ":"),
+        ).encode("utf-8"),
+        headers={
+            **_semantic_scholar_headers(),
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    payload, error_message, warnings, diagnostics = _request_json_detailed(
+        request,
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
+        throttle_sleep=throttle_sleep,
+        monotonic=monotonic,
+        operation="paper batch",
+    )
+    if payload is None:
+        return ConnectorSearchResult(
+            error_message=error_message,
+            warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
+            reference_batch_status="failed",
+            missing_reference_ids=list(normalized_ids),
+            reference_batch_count=1,
+        )
+    if not isinstance(payload, list):
+        message = "Semantic Scholar paper batch response must be a list"
+        return ConnectorSearchResult(
+            error_message=message,
+            warnings=[*warnings, message],
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
+            reference_batch_status="failed",
+            missing_reference_ids=list(normalized_ids),
+            reference_batch_count=1,
+        )
+
+    papers: list[Paper] = []
+    missing_ids: list[str] = []
+    malformed_count = 0
+    for index, requested_id in enumerate(normalized_ids):
+        item = payload[index] if index < len(payload) else None
+        if item is None:
+            missing_ids.append(requested_id)
+            continue
+        if not isinstance(item, dict):
+            malformed_count += 1
+            missing_ids.append(requested_id)
+            continue
+        try:
+            paper = _parse_paper(item)
+        except Exception:  # noqa: BLE001 - isolate malformed batch rows
+            paper = None
+        if paper is None or not paper.identifiers.semantic_scholar_id:
+            malformed_count += 1
+            missing_ids.append(requested_id)
+            continue
+        papers.append(paper)
+    if len(payload) > len(normalized_ids):
+        malformed_count += len(payload) - len(normalized_ids)
+    if malformed_count:
+        warnings.append(f"semantic_scholar_paper_batch_malformed_rows:{malformed_count}")
+    status = (
+        "success"
+        if not missing_ids and not malformed_count
+        else "partial_success"
+        if papers
+        else "missing_id"
+    )
+    return ConnectorSearchResult(
+        papers=papers,
+        warnings=warnings,
+        latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
+        reference_batch_status=status,
+        missing_reference_ids=missing_ids,
+        reference_batch_count=1,
+    )
+
+
 def _semantic_scholar_headers() -> dict[str, str]:
     headers = {"User-Agent": "ScholarNavigator"}
     api_key = os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip()
@@ -269,7 +395,7 @@ def _request_json_detailed(
     monotonic: Callable[[], float] | None = None,
     operation: str = "search",
 ) -> tuple[
-    dict[str, Any] | None,
+    Any | None,
     str | None,
     list[str],
     ConnectorDiagnostics,

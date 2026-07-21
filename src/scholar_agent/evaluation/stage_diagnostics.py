@@ -1381,6 +1381,37 @@ def _semantic_seed_expansion_diagnostics(
             len(record.seeds) if record is not None else 0
         ),
         "seed_without_supported_identifier_count": 0,
+        "resolution_attempted_case_count": int(
+            bool(record is not None and record.resolution_request_identifier_count)
+        ),
+        "resolution_candidate_count": (
+            record.resolution_candidate_count if record is not None else 0
+        ),
+        "resolution_request_identifier_count": (
+            record.resolution_request_identifier_count if record is not None else 0
+        ),
+        "resolved_candidate_count": (
+            record.resolved_candidate_count if record is not None else 0
+        ),
+        "resolution_conflict_count": (
+            record.resolution_conflict_count if record is not None else 0
+        ),
+        "resolution_missing_count": (
+            record.resolution_missing_count if record is not None else 0
+        ),
+        "direct_seed_count": record.direct_seed_count if record is not None else 0,
+        "resolved_seed_count": record.resolved_seed_count if record is not None else 0,
+        "resolution_status": (
+            record.resolution_status if record is not None else "not_needed"
+        ),
+        "resolution_snapshot_key": (
+            record.resolution_snapshot_key if record is not None else None
+        ),
+        "resolutions": (
+            [item.model_dump(mode="json") for item in record.resolutions]
+            if record is not None
+            else []
+        ),
         "reference_request_count": (
             expansion.diagnostics.request_count if expansion is not None else 0
         ),
@@ -1918,6 +1949,14 @@ def _aggregate_module_diagnostics(
             "selected_seed_count",
             "seed_with_supported_identifier_count",
             "seed_without_supported_identifier_count",
+            "resolution_attempted_case_count",
+            "resolution_candidate_count",
+            "resolution_request_identifier_count",
+            "resolved_candidate_count",
+            "resolution_conflict_count",
+            "resolution_missing_count",
+            "direct_seed_count",
+            "resolved_seed_count",
             "reference_request_count",
             "recorded_reference_request_count",
             "raw_reference_count",
@@ -1939,11 +1978,14 @@ def _aggregate_module_diagnostics(
     policies = Counter()
     quality_gate_counts = Counter()
     quality_gate_reasons = Counter()
+    resolution_statuses = Counter()
     for module in modules:
         categories.update((module.get("new_candidate_categories") or {}).get("counts") or {})
         skip_reasons.update(module.get("skipped_reasons") or [])
         if module.get("policy"):
             policies[str(module["policy"])] += 1
+        if module.get("resolution_status"):
+            resolution_statuses[str(module["resolution_status"])] += 1
         quality_gate = module.get("quality_gate") or {}
         for key in (
             "raw_candidate_count",
@@ -1963,6 +2005,7 @@ def _aggregate_module_diagnostics(
         "enabled_case_count": sum(bool(module.get("enabled")) for module in modules),
         "triggered_case_count": sum(bool(module.get("triggered")) for module in modules),
         "policies": dict(sorted(policies.items())),
+        "resolution_statuses": dict(sorted(resolution_statuses.items())),
         **{
             key: sum(int(module.get(key) or 0) for module in modules)
             for key in count_keys

@@ -12,6 +12,7 @@ from .schemas import ConnectorSearchResult
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from .semantic_scholar import (
     recommend_semantic_scholar_papers_detailed,
+    resolve_semantic_scholar_paper_ids_detailed,
     search_semantic_scholar,
     search_semantic_scholar_detailed,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "search_pubmed",
     "search_pubmed_detailed",
     "recommend_semantic_scholar_papers_detailed",
+    "resolve_semantic_scholar_paper_ids_detailed",
     "search_semantic_scholar",
     "search_semantic_scholar_detailed",
 ]

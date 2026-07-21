@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
 
@@ -11,13 +12,14 @@ import scholar_agent.connectors.semantic_scholar as semantic_scholar_connector
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.connectors.semantic_scholar import (
     recommend_semantic_scholar_papers_detailed,
+    resolve_semantic_scholar_paper_ids_detailed,
     search_semantic_scholar,
     search_semantic_scholar_detailed,
 )
 
 
 class MockResponse:
-    def __init__(self, payload: dict, status: int = 200, headers: dict | None = None):
+    def __init__(self, payload: Any, status: int = 200, headers: dict | None = None):
         self.payload = payload
         self.status = status
         self.headers = headers or {}
@@ -214,6 +216,73 @@ def test_recommendations_timeout_is_terminal_and_auditable(monkeypatch) -> None:
     assert result.error_message == "Semantic Scholar recommendations failed: timed out"
     assert result.diagnostics.request_count == 1
     assert result.diagnostics.error_count == 1
+
+
+def test_paper_batch_resolves_exact_ids_and_preserves_partial_rows(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout):
+        captured["method"] = request.get_method()
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["url"] = request.full_url
+        return MockResponse(
+            [
+                {
+                    "paperId": "S2-DOI",
+                    "title": "DOI mapping",
+                    "externalIds": {"DOI": "10.1/exact"},
+                },
+                None,
+                {
+                    "paperId": "S2-PMID",
+                    "title": "PMID mapping",
+                    "externalIds": {"PubMed": "123"},
+                },
+            ]
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = resolve_semantic_scholar_paper_ids_detailed(
+        ["DOI:10.1/exact", "doi:10.1/exact", "ARXIV:1234.5678", "PMID:123"]
+    )
+
+    assert captured["method"] == "POST"
+    assert captured["body"] == {
+        "ids": ["DOI:10.1/exact", "ARXIV:1234.5678", "PMID:123"]
+    }
+    assert "paper/batch" in str(captured["url"])
+    assert [paper.identifiers.semantic_scholar_id for paper in result.papers] == [
+        "S2-DOI",
+        "S2-PMID",
+    ]
+    assert result.reference_batch_status == "partial_success"
+    assert result.missing_reference_ids == ["ARXIV:1234.5678"]
+    assert result.reference_batch_count == 1
+
+
+def test_paper_batch_timeout_and_429_are_terminal_and_auditable(monkeypatch) -> None:
+    errors = [
+        TimeoutError("timed out"),
+        HTTPError("https://example.invalid", 429, "rate limited", None, None),
+    ]
+    for error in errors:
+        monkeypatch.setattr(
+            "scholar_agent.connectors.semantic_scholar.urlopen",
+            lambda request, timeout, error=error: (_ for _ in ()).throw(error),
+        )
+        result = resolve_semantic_scholar_paper_ids_detailed(
+            ["DOI:10.1/exact"],
+            max_retries=0,
+        )
+        assert result.papers == []
+        assert result.error_message is not None
+        assert result.reference_batch_status == "failed"
+        assert result.missing_reference_ids == ["DOI:10.1/exact"]
+        assert result.diagnostics.request_count == 1
+        assert result.diagnostics.error_count == 1
 
 
 def test_search_semantic_scholar_detailed_retries_429_then_succeeds(
