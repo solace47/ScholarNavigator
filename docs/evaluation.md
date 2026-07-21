@@ -303,6 +303,47 @@ AutoScholarQuery dev 的候选 Recall 保持 0.1500，Recall@20/F1@20 从 0.1250
 
 按预注册的 0.01 绝对最小提升，合并 Recall@20 的观测方差估计需要约 1,477 条 query 达到 80% power，1,000 条估计 power 约 0.635；SciFact/Auto dev 分别约需 1,915/491 条。合并 F1@20 的方差估计约需 23 条，但当前实际效应仅由两条 query 驱动，正态近似和小样本稀疏性限制必须同时保留。统计未提供“无效果”证据，也不改变先前的正向点估计；它只说明现有 41/10/5 小集合不足以证明收益超出随机符号波动。人工 Precision 审计完成前不得建议默认开启。两次统计产物逐字节一致，`statistics.json`、`paired_queries.jsonl`、manifest SHA-256 分别为 `7574bf06481d8547454623e396cdb0dac97dde225da80019389ff22a232beee5`、`0b459be237db291cea9b82a49359c6b146e012805206fdc60c9ec01946b165fa`、`a540f7d43bddb6e19f981056ecdac9f3e0e988b7dcc8361eb65a3ea98dce4af8`；摘要见 `benchmark/lexical_normalization_significance_result.json`，产物位于 `outputs/benchmark_runs/lexical_normalization_significance_3cd47c1_r{1,2}/`。这些仍是内部 Benchmark 指标，不是官方赛题成绩。
 
+`scripts/audit_cluster_significance.py` 在旧 query 级结果之上增加连通分量级推断，
+但不覆盖任何历史统计产物。协议在查看新结果前冻结于
+`benchmark/lexical_normalization_cluster_significance_manifest.json`：AutoScholarQuery
+严格复用既有独立性门禁的 `component_id`，不重算边或簇；同一分量先对 query
+差值等权平均，再令每个分量等权。SciFact 不属于该图，因此每条 query 作为显式
+外部单例分量。主检验固定使用 20,000 次分量 bootstrap 百分位 95% CI 和 20,000
+次双侧 cluster sign-flip，随机种子均为 20260721；旧 query 等权结果只读保留并
+作为对照。全量与预注册去污染视图并列，不按效应、p 值或 case 拆合分量。
+
+Record160 的 160 条主分析 query 归入 134 个分量；Recall@20/F1@20 分量等权差值
+为 +0.009328/+0.001333，CI `[0, 0.026119]`/`[0, 0.003376]`，双侧 p 为
+0.4938/0.4969。去污染 88 条各自位于 88 个分量，差值 +0.011364/+0.001082，
+CI `[0, 0.034091]`/`[0, 0.003247]`，p 均为 1.0。既有 65 条中 56 条可评估，
+归入 55 个分量；差值 +0.022727/+0.003247，CI `[0, 0.063636]`/
+`[0, 0.008225]`，p 为 0.5071/0.4959。其独立可评估部分只剩 41 条 SciFact
+单例，差值 +0.024390/+0.002323，CI `[0, 0.073171]`/`[0, 0.006969]`，p
+均为 1.0。所有视图 Candidate Recall 差值均为 0。
+
+cluster-aware 结论与旧 query 级结论不变：点估计方向为正，但全部区间包含 0，
+有效改善只来自极少分量，不能证明收益超出分量级符号波动。Record160 最大的
+14-query 分量效应为 0，不是结果来源；但 Recall 的两个非零分量中单个分量占
+绝对总贡献 80%，仍显示明显稀疏性。按 Record160 分量差值标准差 0.08889 和冻结
+1000 条的 715 个分量，检测绝对 Recall 提升 0.01 的正态近似估计为约 85.3%
+power，达到 80% 约需 621 个分量；该估计仅用于规划，且结构性 query ESS 约
+98.56，不能当作正式效果证据。人工 Precision 完成前策略继续默认关闭，统计不显著
+也不等于无效果。
+
+版本化基准位于
+`benchmark/lexical_normalization_cluster_significance_baseline/`，摘要为
+`benchmark/lexical_normalization_cluster_significance_result.json`。回归门禁同时
+检查冻结输入、实现 hash、逐 query 归簇、逐分量贡献及统计结果，且禁止网络、LLM
+和 Snapshot 写入：
+
+```bash
+PYTHONPATH=src python scripts/audit_cluster_significance.py check \
+  --manifest benchmark/lexical_normalization_cluster_significance_manifest.json \
+  --output outputs/benchmark_runs/lexical_cluster_significance_gate
+
+PYTHONPATH=src pytest -q -m cluster_significance_regression
+```
+
 `scripts/audit_lexical_normalization_expanded.py` 将同一冻结词法规则扩展到
 AutoScholarQuery 1000 条基线运行中已经落盘的 162 条 Record 前缀。该审计只读
 Record、retrieval Snapshot 与 gold 身份基线：每个实际 key 都重新校验 source、
