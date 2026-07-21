@@ -10,6 +10,21 @@
 
 核心排名指标为 F1@K，同时输出 Precision@K、Recall@K、MRR 和 nDCG@K；默认 K 为 5、10、20。Precision@K 的分母固定为 K。
 
+### 官方计分器对齐门槛
+
+2026-07-21 对用户提供的三页官方赛题 DOCX、仓库当前规范、历史评分说明以及
+本地留存的 AstaBench/PaSa 官方参考仓库进行了纯离线审计。赛题 DOCX 只规定
+F1 Score、运行效率和结构化回复分别占自动评分的 70%/20%/10%，没有提供
+F1 精确公式、K、输入格式、论文身份与重复处理、未知文档、不可评估 gold 或
+宏/微平均规则，也没有附带 scorer。AstaBench 和 PaSa 在文档中仅被列为参考
+数据集/系统；两者现有计分实现语义也不同，不能任选其一充当赛题官方 scorer。
+
+因此当前统一 F1@K 只能继续作为项目内部冻结指标，尚不能声明可直接用于赛题
+成绩判断。本轮没有实现 scorer adapter，也没有运行 AutoScholarQuery/SciFact
+对齐；获得版本化官方 scorer 或完整官方计分规范前，不得推测差异为零。来源
+哈希、缺失语义和被排除的参考实现记录在
+`benchmark/official_scorer_alignment_blocked.json`。
+
 跨来源论文身份由 `scholar_agent.core.identity` 统一解析，并同时用于候选去重、API 结构化 ID 和离线 gold 匹配。DOI、arXiv（忽略版本号）、OpenAlex、Semantic Scholar 与 PubMed 的规范化稳定标识相交时直接判定同一论文；没有共同稳定标识时，只有规范标题、年份和至少一名共同作者同时一致才合并。稳定标识冲突始终保持分离。规则不使用 gold、查询文本或相似度阈值；去重函数为每次合并保留规则、共享标识和冲突标识审计证据。
 
 聚合报告同时包含：
