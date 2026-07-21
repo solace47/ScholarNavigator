@@ -59,6 +59,11 @@ from scholar_agent.core.result_lineage import (
     opaque_query_identity,
     restrict_result_lineage_document,
 )
+from scholar_agent.core.untrusted_metadata import (
+    UntrustedMetadataObserver,
+    protect_source_error,
+    safe_diagnostic_message,
+)
 from scholar_agent.core.diagnostics_schemas import (
     ConnectorDiagnostics,
     merge_connector_diagnostics,
@@ -245,7 +250,7 @@ class _ExecutionSignals:
 
     def emit_warnings(self, warnings: list[str], stage: str) -> None:
         for warning in warnings:
-            item = warning.strip()
+            item = safe_diagnostic_message(warning)
             if not item or item in self._warning_events:
                 continue
             self._warning_events.add(item)
@@ -441,6 +446,7 @@ class SearchService:
         query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
         result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
         resource_accounting_observer: Any | None = None,
+        untrusted_metadata_observer: UntrustedMetadataObserver | None = None,
     ) -> SearchServiceOutput:
         signals = _ExecutionSignals(
             event_callback,
@@ -690,6 +696,7 @@ class SearchService:
                 signals=signals,
                 judgement_policy=effective_judgement_policy,
                 judgement_config=effective_judgement_config,
+                metadata_observer=untrusted_metadata_observer,
             )
             diagnostics.snapshot_judgements("initial_judged", judgements)
             signals.check_cancelled("judgement:after")
@@ -887,6 +894,7 @@ class SearchService:
                         signals=signals,
                         judgement_policy=effective_judgement_policy,
                         judgement_config=effective_judgement_config,
+                        metadata_observer=untrusted_metadata_observer,
                     )
                     diagnostics.snapshot_judgements(
                         "post_semantic_seed_expansion_judged",
@@ -1136,6 +1144,7 @@ class SearchService:
                         signals=signals,
                         judgement_policy=effective_judgement_policy,
                         judgement_config=effective_judgement_config,
+                        metadata_observer=untrusted_metadata_observer,
                     )
                     diagnostics.snapshot_judgements(
                         "post_evolution_judged",
@@ -1348,6 +1357,7 @@ class SearchService:
                     signals=signals,
                     judgement_policy=effective_judgement_policy,
                     judgement_config=effective_judgement_config,
+                    metadata_observer=untrusted_metadata_observer,
                 )
                 diagnostics.snapshot_judgements(
                     "post_refchain_judged",
@@ -1541,7 +1551,11 @@ class SearchService:
                             "cache_hit": item.cache_hit,
                             "logical_call_executed": item.logical_call_executed,
                             "source_skipped_reason": item.source_skipped_reason,
-                            "error_message": item.error_message,
+                            "error_message": (
+                                safe_diagnostic_message(item.error_message)
+                                if item.error_message is not None
+                                else None
+                            ),
                         }
                         for item in source_stats
                     ]
@@ -1560,12 +1574,30 @@ class SearchService:
         signals.emit_budget_stops(runtime, "completed")
         signals.emit_warnings(output.warnings, "completed")
         if result_lineage_callback is not None:
+            query_identity = opaque_query_identity(query)
+            if untrusted_metadata_observer is not None:
+                for item in source_stats:
+                    if item.error_message is not None:
+                        protect_source_error(
+                            item.error_message,
+                            source=item.source,
+                            query_identity=query_identity,
+                            observer=untrusted_metadata_observer,
+                        )
+            isolation_document = (
+                untrusted_metadata_observer.document(query_identity).model_dump(
+                    mode="json"
+                )
+                if untrusted_metadata_observer is not None
+                else None
+            )
             _, _, lineage = deduplicate_papers_with_lineage(
                 raw_papers,
-                query_identity=opaque_query_identity(query),
+                query_identity=query_identity,
                 source_terminals=_result_lineage_source_terminals(
                     source_stats, search_plan.selected_sources, raw_papers
                 ),
+                untrusted_metadata_isolation=isolation_document,
             )
             result_lineage_callback(
                 restrict_result_lineage_document(
@@ -1821,11 +1853,13 @@ class SearchService:
         signals: _ExecutionSignals,
         judgement_policy: JudgementPolicy,
         judgement_config: JudgementRuleConfig,
+        metadata_observer: UntrustedMetadataObserver | None = None,
     ) -> tuple[list[JudgementResult], int]:
         agent = JudgementAgent(
             llm_client=llm_client,
             policy=judgement_policy,
             config=judgement_config,
+            metadata_observer=metadata_observer,
         )
         judgements = agent.judge(
             search_plan.query_analysis,
@@ -2138,9 +2172,17 @@ class SearchService:
                         "adaptation_strategy": stats.adaptation_strategy,
                         "combination_mode": stats.combination_mode,
                         "run_dedupe_hit": stats.run_dedupe_hit,
-                        "source_skipped_reason": stats.source_skipped_reason,
+                        "source_skipped_reason": (
+                            safe_diagnostic_message(stats.source_skipped_reason)
+                            if stats.source_skipped_reason is not None
+                            else None
+                        ),
                         "remaining_subquery_count": stats.remaining_subquery_count,
-                        "error_message": stats.error_message,
+                        "error_message": (
+                            safe_diagnostic_message(stats.error_message)
+                            if stats.error_message is not None
+                            else None
+                        ),
                     },
                 )
         return _RetrievalTaskResult(index=index, output=output)
@@ -2258,6 +2300,7 @@ def run_search(
     collect_diagnostics: bool = False,
     result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
     resource_accounting_observer: Any | None = None,
+    untrusted_metadata_observer: UntrustedMetadataObserver | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
@@ -2269,6 +2312,11 @@ def run_search(
     resource_kwargs = (
         {"resource_accounting_observer": resource_accounting_observer}
         if resource_accounting_observer is not None
+        else {}
+    )
+    isolation_kwargs = (
+        {"untrusted_metadata_observer": untrusted_metadata_observer}
+        if untrusted_metadata_observer is not None
         else {}
     )
     return SearchService().run_search(
@@ -2293,6 +2341,7 @@ def run_search(
         collect_diagnostics=collect_diagnostics,
         **lineage_kwargs,
         **resource_kwargs,
+        **isolation_kwargs,
     )
 
 

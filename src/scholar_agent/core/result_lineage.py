@@ -27,6 +27,7 @@ from scholar_agent.core.identity import (
     normalize_title,
 )
 from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.untrusted_metadata import UntrustedMetadataIsolationDocument
 
 
 RESULT_LINEAGE_CONTRACT = "result_lineage_v1"
@@ -194,6 +195,7 @@ class ResultLineageDocument(BaseModel):
     results: list[ResultLineage]
     final_result_order: list[str]
     final_results_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    untrusted_metadata_isolation: UntrustedMetadataIsolationDocument | None = None
 
 
 def build_result_lineage_document(
@@ -204,6 +206,7 @@ def build_result_lineage_document(
     cluster_indexes: Sequence[Sequence[int]],
     cluster_member_evidence: Sequence[Sequence[IdentityEvidence]],
     source_terminals: Sequence[Mapping[str, Any]] | None = None,
+    untrusted_metadata_isolation: Mapping[str, Any] | None = None,
 ) -> ResultLineageDocument:
     """Build lineage from the exact clusters produced by production dedup."""
 
@@ -238,6 +241,13 @@ def build_result_lineage_document(
         final_result_order=final_order,
         final_results_sha256=stable_sha256(
             [paper.model_dump(mode="json") for paper in final_papers]
+        ),
+        untrusted_metadata_isolation=(
+            UntrustedMetadataIsolationDocument.model_validate(
+                untrusted_metadata_isolation
+            )
+            if untrusted_metadata_isolation is not None
+            else None
         ),
     )
 

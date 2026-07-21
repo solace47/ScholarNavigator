@@ -12,6 +12,21 @@ export function formatSeconds(value: number): string {
   return `${value.toFixed(1)}s`;
 }
 
+export function safeExternalUrl(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function identifierEntries(identifiers: PaperIdentifiers): Array<[string, string]> {
   const labels: Record<keyof PaperIdentifiers, string> = {
     doi: "DOI",

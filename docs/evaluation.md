@@ -793,6 +793,30 @@ PYTHONPATH=src pytest -q -m resource_accounting_integrity_regression
 实验成本分析或官方 scorer。完整协议和退出码见
 [`docs/resource-accounting-integrity.md`](resource-accounting-integrity.md)。
 
+## 非可信学术元数据隔离
+
+`untrusted_metadata_isolation_v1` 使用本地四源形态恶意 fixture 和 fake LLM，检查论文标题、
+摘要、作者、venue、URL 及来源错误始终留在数据角色中。门禁覆盖伪 system/tool 消息、
+XML/Markdown/JSON 边界、控制与双向字符、超长输入、危险 URL、敏感资源请求、Schema
+走私及跨 query 污染；业务阶段真实网络、LLM、工具、子进程、Snapshot 写入和质量指标均
+为 0。权威论文原值与身份不改写，只有 LLM 传输、活动链接、诊断和导出使用有血缘的派生
+表示。
+
+```bash
+PYTHONPATH=src python scripts/check_untrusted_metadata_isolation.py check-fixture
+PYTHONPATH=src python scripts/check_untrusted_metadata_isolation.py \
+  check-fixture --fault role_escape
+PYTHONPATH=src python scripts/check_untrusted_metadata_isolation.py \
+  check-fixture --fault cross_query_pollution
+PYTHONPATH=src python scripts/check_untrusted_metadata_isolation.py audit-frozen
+PYTHONPATH=src pytest -q -m untrusted_metadata_isolation_regression
+```
+
+退出码 `0/2/3/4` 分别表示通过、隔离违规、`not_eligible` 和用法错误。旧
+Record160/Full1000 缺少原始来源字段、消息边界及隔离观察记录，只读资格为
+`not_eligible`；该状态不能用于反推历史抗注入能力。完整字段规则和安全边界见
+[`docs/untrusted-metadata-isolation.md`](untrusted-metadata-isolation.md)。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

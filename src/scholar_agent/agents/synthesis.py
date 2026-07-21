@@ -12,6 +12,7 @@ from scholar_agent.core.synthesis_schemas import (
     SynthesisOptions,
     SynthesisOutput,
 )
+from scholar_agent.core.untrusted_metadata import safe_diagnostic_message
 from scholar_agent.services.search_service import SearchServiceOutput
 
 
@@ -252,10 +253,15 @@ def _coverage(
 
 def _collect_limitations(search_output: SearchServiceOutput) -> list[str]:
     limitations: list[str] = []
-    limitations.extend(search_output.warnings)
+    limitations.extend(
+        safe_diagnostic_message(item) for item in search_output.warnings
+    )
     for stats in search_output.source_stats:
         if stats.error_message:
-            limitations.append(f"source_error:{stats.source}:{stats.error_message}")
+            limitations.append(
+                f"source_error:{stats.source}:"
+                f"{safe_diagnostic_message(stats.error_message)}"
+            )
     if search_output.refchain_output is None:
         limitations.append("refchain_not_enabled_or_not_available")
     else:

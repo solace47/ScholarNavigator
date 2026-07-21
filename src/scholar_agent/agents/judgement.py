@@ -7,7 +7,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from pydantic import BaseModel, ConfigDict, ValidationError
+
 from scholar_agent.core.paper_schemas import Paper
+from scholar_agent.core.result_lineage import opaque_query_identity
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
     JudgementCategory,
@@ -34,7 +37,19 @@ from scholar_agent.agents.judgement_config import (
 from scholar_agent.agents.query_planning import identify_query_facets
 from scholar_agent.llm.provider import chat_json as provider_chat_json
 from scholar_agent.llm.provider import is_llm_enabled
-from scholar_agent.prompts.loader import PromptLoadError, render_messages
+from scholar_agent.prompts.loader import (
+    PromptLoadError,
+    render_untrusted_metadata_messages,
+)
+from scholar_agent.core.untrusted_metadata import (
+    UntrustedMetadataObserver,
+    build_llm_paper_payload,
+    safe_diagnostic_message,
+)
+
+# Keep the established test/extension seam while routing this metadata-bearing
+# prompt through the stricter renderer.
+render_messages = render_untrusted_metadata_messages
 
 
 STOPWORDS = {
@@ -168,6 +183,33 @@ class LLMJsonClient(Protocol):
         ...
 
 
+class _StrictLLMEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Any = None
+    text: Any = None
+    confidence: Any = None
+
+
+class _StrictLLMJudgement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    paper_index: Any = None
+    score: Any = None
+    category: Any = None
+    reasoning: Any = None
+    evidence: list[_StrictLLMEvidence] | _StrictLLMEvidence | None = None
+    matched_terms: Any = None
+    warnings: Any = None
+
+
+class _StrictLLMJudgementResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    judgements: list[_StrictLLMJudgement]
+    warnings: Any = None
+
+
 class JudgementAgent:
     """Metadata-only relevance judgement with optional LLM JSON enhancement."""
 
@@ -177,11 +219,13 @@ class JudgementAgent:
         *,
         policy: JudgementPolicy = "current_rules",
         config: JudgementRuleConfig | None = None,
+        metadata_observer: UntrustedMetadataObserver | None = None,
     ) -> None:
         self._llm_client = llm_client
         self.policy = policy
         self.config = resolve_judgement_config(policy, config)
         self.llm_call_count = 0
+        self._metadata_observer = metadata_observer
 
     def judge(
         self,
@@ -279,6 +323,7 @@ class JudgementAgent:
                     query_analysis,
                     batch_papers,
                     start_index=start,
+                    metadata_observer=self._metadata_observer,
                 )
             except PromptLoadError:
                 results[start:end] = _with_warning(
@@ -321,6 +366,7 @@ def judge_papers(
     before_llm_batch: Callable[[], None] | None = None,
     policy: JudgementPolicy = "current_rules",
     config: JudgementRuleConfig | None = None,
+    metadata_observer: UntrustedMetadataObserver | None = None,
 ) -> list[JudgementResult]:
     """Judge paper relevance using metadata rules or optional LLM JSON."""
 
@@ -328,6 +374,7 @@ def judge_papers(
         llm_client=llm_client,
         policy=policy,
         config=config,
+        metadata_observer=metadata_observer,
     ).judge(
         query_analysis,
         papers,
@@ -1643,7 +1690,9 @@ def _build_llm_judgement_messages(
     papers: list[Paper],
     *,
     start_index: int,
+    metadata_observer: UntrustedMetadataObserver | None = None,
 ) -> list[dict[str, str]]:
+    query_identity = opaque_query_identity(query_analysis.original_query)
     payload = {
         "query_analysis": {
             "original_query": query_analysis.original_query,
@@ -1655,14 +1704,11 @@ def _build_llm_judgement_messages(
         "papers": [
             {
                 "paper_index": start_index + index,
-                "title": paper.title,
-                "authors": paper.authors,
-                "year": paper.year,
-                "venue": paper.venue,
-                "abstract": _short_text(paper.abstract, limit=1200),
-                "identifiers": paper.identifiers.model_dump(mode="json"),
-                "sources": paper.sources,
-                "citation_count": paper.citation_count,
+                **build_llm_paper_payload(
+                    paper,
+                    query_identity=query_identity,
+                    observer=metadata_observer,
+                ),
             }
             for index, paper in enumerate(papers)
         ],
@@ -1678,11 +1724,14 @@ def _judgement_results_from_llm_json(
     rule_results: list[JudgementResult],
     start_index: int,
 ) -> list[JudgementResult]:
-    raw_judgements = raw_response.get("judgements")
-    if not isinstance(raw_judgements, list):
-        raise ValueError("llm_judgement_missing_judgements")
+    try:
+        strict_response = _StrictLLMJudgementResponse.model_validate(raw_response)
+    except ValidationError:
+        raise ValueError("llm_judgement_schema_rejected") from None
+    validated = strict_response.model_dump(mode="python")
+    raw_judgements = validated["judgements"]
 
-    global_warnings = _coerce_string_list(raw_response.get("warnings"))
+    global_warnings = _coerce_string_list(validated.get("warnings"))
     by_global_index: dict[int, dict[str, Any]] = {}
     invalid_warnings_by_index: dict[int, list[str]] = {}
     for raw_item in raw_judgements:
@@ -1995,5 +2044,4 @@ def _coerce_string_list(value: Any) -> list[str]:
 
 
 def _diagnostic_message(value: Any) -> str:
-    message = str(value).replace("\n", " ").strip()
-    return message[:160] or "unknown"
+    return safe_diagnostic_message(value) or "unknown"

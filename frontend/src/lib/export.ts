@@ -234,5 +234,15 @@ function citationGraphMarkdown(graph: CitationGraph): string[] {
 }
 
 function markdownText(value: string): string {
-  return value.replace(/\r?\n+/g, " ").trim() || "N/A";
+  const normalized = value
+    .normalize("NFKC")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu, (character) =>
+      `\\u${character.codePointAt(0)?.toString(16).padStart(4, "0")}`,
+    )
+    .replace(/\r?\n+/g, " ")
+    .trim();
+  if (!normalized) {
+    return "N/A";
+  }
+  return normalized.replace(/([\\`*_{}\[\]()<>#+.!|=-])/g, "\\$1");
 }

@@ -7,6 +7,13 @@ from collections import defaultdict
 from scholar_agent.core import api_schemas as api
 from scholar_agent.core.identity import paper_identifier_set
 from scholar_agent.core.paper_schemas import Paper as InternalPaper
+from scholar_agent.core.untrusted_metadata import (
+    opaque_record_identity,
+    protect_text,
+    protect_url,
+    safe_diagnostic_message,
+    stable_sha256,
+)
 from scholar_agent.core.search_schemas import (
     EvidenceItem as InternalEvidenceItem,
     QueryAnalysis as InternalQueryAnalysis,
@@ -42,6 +49,7 @@ _METHOD_CLUSTER_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("agent", ("agent", "agents")),
     ("recommendation", ("recommendation", "recommender", "recommend")),
 )
+_PUBLIC_QUERY_IDENTITY = f"query:{stable_sha256({'boundary': 'public_api'})}"
 
 
 def map_search_service_output_to_api_result(
@@ -87,7 +95,7 @@ def map_search_service_output_to_api_result(
         method_clusters=_method_clusters(output.search_plan.query_analysis, all_visible),
         timeline=_timeline(all_visible),
         citation_graph=_citation_graph(all_visible, output),
-        warnings=list(output.warnings),
+        warnings=[safe_diagnostic_message(item) for item in output.warnings],
         missing_evidence=_dedupe(missing_evidence),
         synthesis=map_synthesis_output(output.synthesis_output),
         retrieval_diagnostics=_retrieval_diagnostics(output),
@@ -101,12 +109,20 @@ def map_search_service_output_to_api_result(
 def map_paper(paper: InternalPaper) -> api.Paper:
     """Map an internal Paper into an API Paper."""
 
+    record_identity = opaque_record_identity(paper)
     return api.Paper(
-        title=paper.title,
-        authors=list(paper.authors),
+        title=_public_text(paper.title, "paper.title", record_identity),
+        authors=[
+            _public_text(author, "paper.author", record_identity)
+            for author in paper.authors
+        ],
         year=paper.year or 0,
-        venue=paper.venue,
-        abstract=paper.abstract,
+        venue=(
+            _public_text(paper.venue, "paper.venue", record_identity)
+            if paper.venue is not None
+            else None
+        ),
+        abstract=_public_text(paper.abstract, "paper.abstract", record_identity),
         identifiers=api.PaperIdentifiers(
             doi=paper.identifiers.doi,
             arxiv_id=paper.identifiers.arxiv_id,
@@ -116,8 +132,16 @@ def map_paper(paper: InternalPaper) -> api.Paper:
             pubmed_id=paper.identifiers.pubmed_id,
         ),
         urls=api.PaperUrls(
-            landing_page=paper.urls.landing_page,
-            pdf=paper.urls.pdf,
+            landing_page=_public_url(
+                paper.urls.landing_page,
+                "paper.urls.landing_page",
+                record_identity,
+            ),
+            pdf=_public_url(
+                paper.urls.pdf,
+                "paper.urls.pdf",
+                record_identity,
+            ),
         ),
         sources=list(paper.sources),
     )
@@ -150,7 +174,11 @@ def map_evidence_item(item: InternalEvidenceItem) -> api.EvidenceItem:
 
     return api.EvidenceItem(
         source=item.source,
-        text=item.text,
+        text=_public_text(
+            item.text,
+            "paper.abstract",
+            f"record:{stable_sha256({'evidence': item.model_dump(mode='json')})}",
+        ),
         confidence=item.confidence,
     )
 
@@ -163,7 +191,7 @@ def map_synthesis_output(
     if synthesis is None:
         return None
     return api.SynthesisOutput(
-        answer_summary=synthesis.answer_summary,
+        answer_summary=_public_generated_text(synthesis.answer_summary),
         status=synthesis.status,
         key_findings=[
             map_synthesis_finding(finding) for finding in synthesis.key_findings
@@ -172,8 +200,8 @@ def map_synthesis_output(
             map_synthesis_evidence_row(row) for row in synthesis.evidence_table
         ],
         citation_coverage=map_citation_coverage(synthesis.citation_coverage),
-        limitations=list(synthesis.limitations),
-        warnings=list(synthesis.warnings),
+        limitations=[_public_generated_text(item) for item in synthesis.limitations],
+        warnings=[safe_diagnostic_message(item) for item in synthesis.warnings],
     )
 
 
@@ -186,9 +214,9 @@ def map_synthesis_evidence_row(
         row_id=row.row_id,
         citation_key=row.citation_key,
         rank=row.rank,
-        paper_title=row.paper_title,
+        paper_title=_public_generated_text(row.paper_title),
         year=row.year,
-        venue=row.venue,
+        venue=_public_generated_text(row.venue) if row.venue is not None else None,
         sources=list(row.sources),
         identifiers=api.PaperIdentifiers(
             doi=row.identifiers.doi,
@@ -201,9 +229,9 @@ def map_synthesis_evidence_row(
         category=row.category,
         final_score=row.final_score,
         evidence_source=row.evidence_source,
-        evidence_text=row.evidence_text,
+        evidence_text=_public_generated_text(row.evidence_text),
         supported_terms=list(row.supported_terms),
-        supported_claim=row.supported_claim,
+        supported_claim=_public_generated_text(row.supported_claim),
     )
 
 
@@ -213,7 +241,7 @@ def map_synthesis_finding(
     """Map an internal synthesis finding into the API schema."""
 
     return api.SynthesisFinding(
-        text=finding.text,
+        text=_public_generated_text(finding.text),
         citation_keys=list(finding.citation_keys),
         confidence=finding.confidence,
         evidence_row_ids=list(finding.evidence_row_ids),
@@ -357,7 +385,11 @@ def _retrieval_diagnostics(output: SearchServiceOutput) -> api.RetrievalDiagnost
                 sufficiency_reasons=list(stats.sufficiency_reasons),
                 compact_query_executed=stats.compact_query_executed,
                 compact_query_skipped_reason=stats.compact_query_skipped_reason,
-                error_message=stats.error_message,
+                error_message=(
+                    safe_diagnostic_message(stats.error_message)
+                    if stats.error_message is not None
+                    else None
+                ),
                 diagnostics=stats.diagnostics,
             )
             for stats in output.source_stats
@@ -536,14 +568,19 @@ def _citation_graph(
 def _missing_evidence(output: SearchServiceOutput) -> list[str]:
     missing: list[str] = []
     missing.extend(
-        warning for warning in output.warnings if not _is_budget_diagnostic(warning)
+        safe_diagnostic_message(warning)
+        for warning in output.warnings
+        if not _is_budget_diagnostic(warning)
     )
     for stage, seconds in output.stage_latencies.items():
         missing.append(f"stage_latency:{stage}:{seconds:.6f}")
 
     for stats in output.source_stats:
         if stats.error_message and not _is_budget_diagnostic(stats.error_message):
-            missing.append(f"source_error:{stats.source}:{stats.error_message}")
+            missing.append(
+                f"source_error:{stats.source}:"
+                f"{safe_diagnostic_message(stats.error_message)}"
+            )
 
     for record in output.query_evolution_records:
         missing.append(
@@ -589,9 +626,14 @@ def _is_budget_diagnostic(value: str) -> bool:
 
 
 def _filtered_paper_diagnostic(ranked: InternalRankedPaper) -> str:
+    title = _public_text(
+        ranked.paper.title,
+        "paper.title",
+        opaque_record_identity(ranked.paper),
+    )
     return (
         f"filtered_paper:{ranked.rank}:{ranked.category}:"
-        f"{ranked.final_score:.4f}:{ranked.paper.title}"
+        f"{ranked.final_score:.4f}:{title}"
     )
 
 
@@ -611,6 +653,34 @@ def _paper_node_id(paper: api.Paper) -> str | None:
         if matches:
             return matches[0]
     return None
+
+
+def _public_text(value: object, field: str, record_identity: str) -> str:
+    return protect_text(
+        value,
+        field=field,
+        query_identity=_PUBLIC_QUERY_IDENTITY,
+        result_identity=record_identity,
+    )
+
+
+def _public_url(value: object, field: str, record_identity: str) -> str | None:
+    if value is None:
+        return None
+    return protect_url(
+        value,
+        field=field,
+        query_identity=_PUBLIC_QUERY_IDENTITY,
+        result_identity=record_identity,
+    )
+
+
+def _public_generated_text(value: object) -> str:
+    return _public_text(
+        value,
+        "paper.abstract",
+        f"record:{stable_sha256({'generated_text': str(value)})}",
+    )
 
 
 def _dedupe(values: list[str]) -> list[str]:

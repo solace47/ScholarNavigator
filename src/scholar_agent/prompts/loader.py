@@ -91,6 +91,46 @@ def render_messages(name: str, payload: object) -> list[dict[str, str]]:
     ]
 
 
+def render_untrusted_metadata_messages(
+    name: str, payload: object
+) -> list[dict[str, str]]:
+    """Render one data-only metadata envelope without changing message roles."""
+
+    prompt = load_prompt(name)
+    envelope = {
+        "boundary": {
+            "contract": "untrusted_metadata_isolation_v1",
+            "envelope_kind": "untrusted_academic_metadata_v1",
+            "instruction_capability": False,
+            "metadata_role": "untrusted_data",
+        },
+        "payload": payload,
+    }
+    payload_text = _serialize_payload(name, envelope, untrusted=True)
+    rendered_user = prompt.user_text.replace(PAYLOAD_PLACEHOLDER, payload_text)
+    messages = [
+        {"role": "system", "content": prompt.system_text},
+        {"role": "user", "content": rendered_user},
+    ]
+    validate_data_only_message_roles(messages)
+    return messages
+
+
+def validate_data_only_message_roles(messages: object) -> None:
+    """Reject role/tool smuggling before an LLM client sees the messages."""
+
+    if not isinstance(messages, list) or len(messages) != 2:
+        raise PromptLoadError("Untrusted metadata messages must contain two roles")
+    for index, expected_role in enumerate(("system", "user")):
+        message = messages[index]
+        if not isinstance(message, dict) or set(message) != {"role", "content"}:
+            raise PromptLoadError("Untrusted metadata message fields are invalid")
+        if message.get("role") != expected_role:
+            raise PromptLoadError("Untrusted metadata message role is invalid")
+        if not isinstance(message.get("content"), str):
+            raise PromptLoadError("Untrusted metadata message content is invalid")
+
+
 def _resource_root() -> Traversable:
     try:
         return resources.files(PROMPT_PACKAGE)
@@ -221,20 +261,31 @@ def _validate_runtime_template(
         )
 
 
-def _serialize_payload(name: str, payload: object) -> str:
+def _serialize_payload(
+    name: str, payload: object, *, untrusted: bool = False
+) -> str:
     serializable = (
         payload.model_dump(mode="json")
         if hasattr(payload, "model_dump")
         else payload
     )
     try:
-        return json.dumps(
+        serialized = json.dumps(
             serializable,
-            ensure_ascii=False,
+            ensure_ascii=untrusted,
             sort_keys=True,
             indent=2,
             allow_nan=False,
         )
+        if untrusted:
+            # Keep markup-looking delimiters inside JSON string data instead of
+            # allowing them to resemble prompt/template boundaries.
+            serialized = (
+                serialized.replace("<", "\\u003c")
+                .replace(">", "\\u003e")
+                .replace("&", "\\u0026")
+            )
+        return serialized
     except (TypeError, ValueError):
         raise PromptLoadError(
             f"Prompt payload is not JSON-serializable: {_normalize_name(name)}"

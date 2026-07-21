@@ -37,7 +37,13 @@ import {
   streamRealSearchRunEvents,
 } from "@/lib/api";
 import { exportSearchResultAsJson, exportSearchResultAsMarkdown } from "@/lib/export";
-import { formatNumber, formatScore, formatSeconds, identifierEntries } from "@/lib/format";
+import {
+  formatNumber,
+  formatScore,
+  formatSeconds,
+  identifierEntries,
+  safeExternalUrl,
+} from "@/lib/format";
 import type {
   CostReport,
   RankedPaper,
@@ -2183,15 +2189,17 @@ function PaperCard({ paper }: { paper: RankedPaper }) {
 }
 
 function PaperActionLinks({ urls }: { urls: RankedPaper["paper"]["urls"] }) {
-  if (!urls.landing_page && !urls.pdf) {
+  const landingPage = safeExternalUrl(urls.landing_page);
+  const pdf = safeExternalUrl(urls.pdf);
+  if (!landingPage && !pdf) {
     return null;
   }
 
   return (
     <div className="paper-action-row">
-      {urls.landing_page ? (
+      {landingPage ? (
         <a
-          href={urls.landing_page}
+          href={landingPage}
           target="_blank"
           rel="noreferrer"
           className="paper-action-link"
@@ -2200,9 +2208,9 @@ function PaperActionLinks({ urls }: { urls: RankedPaper["paper"]["urls"] }) {
           打开论文页
         </a>
       ) : null}
-      {urls.pdf ? (
+      {pdf ? (
         <a
-          href={urls.pdf}
+          href={pdf}
           target="_blank"
           rel="noreferrer"
           className="paper-action-link"

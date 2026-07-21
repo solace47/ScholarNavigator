@@ -31,6 +31,7 @@ def deduplicate_papers_with_audit(
     *,
     lineage_query_identity: str | None = None,
     lineage_source_terminals: Sequence[Mapping[str, Any]] | None = None,
+    lineage_untrusted_metadata_isolation: Mapping[str, Any] | None = None,
     lineage_sink: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[list[Paper], list[dict[str, object]]]:
     """Deduplicate and return an evidence row for every accepted merge.
@@ -93,6 +94,7 @@ def deduplicate_papers_with_audit(
             cluster_indexes=cluster_indexes,
             cluster_member_evidence=cluster_evidence,
             source_terminals=lineage_source_terminals,
+            untrusted_metadata_isolation=lineage_untrusted_metadata_isolation,
         )
         lineage_sink(document.model_dump(mode="json"))
 
@@ -104,6 +106,7 @@ def deduplicate_papers_with_lineage(
     *,
     query_identity: str,
     source_terminals: Sequence[Mapping[str, Any]] | None = None,
+    untrusted_metadata_isolation: Mapping[str, Any] | None = None,
 ) -> tuple[list[Paper], list[dict[str, object]], dict[str, Any]]:
     """Run production deduplication and return its observational lineage."""
 
@@ -112,6 +115,7 @@ def deduplicate_papers_with_lineage(
         papers,
         lineage_query_identity=query_identity,
         lineage_source_terminals=source_terminals,
+        lineage_untrusted_metadata_isolation=untrusted_metadata_isolation,
         lineage_sink=captured.append,
     )
     if len(captured) != 1:
