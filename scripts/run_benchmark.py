@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +64,11 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
 from scholar_agent.evaluation.crash_consistency import (  # noqa: E402
     BenchmarkRunCommitStore,
     durable_atomic_write_text,
+)
+from scholar_agent.evaluation.experiment_pairing import (  # noqa: E402
+    comparison_binding,
+    load_comparison_plan,
+    opaque_query_identity,
 )
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshot_resume import (  # noqa: E402
@@ -168,6 +173,8 @@ class BenchmarkRunOptions(BaseModel):
     plan_round: int = Field(default=1, ge=1)
     retry_failed_snapshots: bool = False
     overwrite_snapshots: bool = False
+    comparison_plan_path: Path | None = None
+    comparison_role: Literal["baseline", "candidate"] | None = None
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -187,6 +194,14 @@ class BenchmarkRunOptions(BaseModel):
         if not normalized:
             raise ValueError("sources must not be empty")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_comparison_binding(self) -> "BenchmarkRunOptions":
+        if (self.comparison_plan_path is None) != (self.comparison_role is None):
+            raise ValueError(
+                "comparison plan and role must be provided together"
+            )
+        return self
 
 
 class BenchmarkRunResult(BaseModel):
@@ -466,6 +481,7 @@ def run_benchmark(
     judgement_config = _resolve_options_judgement_config(options)
     all_queries = load_dataset(options.dataset, path=source_path)
     selected = _select_queries(all_queries, options.offset, options.limit)
+    _validate_comparison_population(options, selected)
     dataset_report = inspect_dataset(options.dataset, path=source_path)
     run_dir = options.output_root.expanduser().resolve() / options.run_id
     config = _build_config(options, source_path, selected)
@@ -821,6 +837,10 @@ def _build_config(
         "runtime_code_hash": _runtime_code_hash(),
         "code": _git_metadata(),
     }
+    if options.comparison_plan_path is not None and options.comparison_role is not None:
+        semantic_config["comparison"] = comparison_binding(
+            options.comparison_plan_path, options.comparison_role
+        )
     signature_payload = {
         key: value for key, value in semantic_config.items() if key != "code"
     }
@@ -837,6 +857,17 @@ def _build_config(
         "started_at": datetime.now(timezone.utc).isoformat(),
         "resume_signature": signature,
     }
+
+
+def _validate_comparison_population(
+    options: BenchmarkRunOptions, selected: list[EvalQuery]
+) -> None:
+    if options.comparison_plan_path is None:
+        return
+    plan = load_comparison_plan(options.comparison_plan_path)
+    observed = [opaque_query_identity(item.query_id) for item in selected]
+    if observed != plan.queries.identities:
+        raise ValueError("comparison plan query population or order mismatch")
 
 
 def _prompt_metadata() -> list[dict[str, Any]]:
@@ -1408,6 +1439,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--retry-failed-snapshots", action="store_true")
     parser.add_argument("--overwrite-snapshots", action="store_true")
     parser.add_argument(
+        "--comparison-plan",
+        default=None,
+        help="pre-bind this run to a comparison_plan_v1 before generation zero",
+    )
+    parser.add_argument(
+        "--comparison-role",
+        choices=["baseline", "candidate"],
+        default=None,
+    )
+    parser.add_argument(
         "--resume-manifest",
         type=Path,
         default=None,
@@ -1629,6 +1670,10 @@ def main(argv: list[str] | None = None) -> int:
             plan_round=args.plan_round,
             retry_failed_snapshots=args.retry_failed_snapshots,
             overwrite_snapshots=args.overwrite_snapshots,
+            comparison_plan_path=(
+                Path(args.comparison_plan) if args.comparison_plan else None
+            ),
+            comparison_role=args.comparison_role,
         )
         result = run_benchmark(options)
     except (ValueError, OSError) as exc:

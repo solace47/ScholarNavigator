@@ -129,6 +129,7 @@ class CapsuleManifestV1(BaseModel):
     configuration: dict[str, Any]
     evaluator: dict[str, Any]
     determinism: dict[str, Any]
+    comparison: dict[str, Any] | None = None
     generation_chain: dict[str, Any]
     entrypoint: dict[str, Any]
     files: list[CapsuleFile]
@@ -182,6 +183,18 @@ class CapsuleManifestV1(BaseModel):
             },
             "generation_chain",
         )
+        if self.comparison is not None:
+            _require_exact_keys(
+                self.comparison,
+                {
+                    "contract",
+                    "plan",
+                    "plan_sha256",
+                    "role",
+                    "common_execution_contract_sha256",
+                },
+                "comparison",
+            )
         _require_exact_keys(
             self.entrypoint,
             {"kind", "command", "execute_archived_code"},
@@ -396,6 +409,8 @@ def export_capsule(
     register("replay_protocol.json", "production_replay_protocol")
     register(run_manifest.queries.input.path, "query_input")
     register(run_manifest.prompt.manifest.path, "prompt_registry")
+    if run_manifest.comparison is not None:
+        register(run_manifest.comparison.plan.path, "comparison_plan_v1")
     if run_manifest.prompt.used:
         prompt_manifest = json.loads(
             _safe_root_path(source, run_manifest.prompt.manifest.path).read_text(
@@ -512,6 +527,8 @@ def export_capsule(
             "max_total_unpacked_bytes": MAX_TOTAL_BYTES,
         },
     }
+    if run_manifest.comparison is not None:
+        capsule_data["comparison"] = run_manifest.comparison.model_dump(mode="json")
     capsule_data["capsule_summary_sha256"] = stable_hash(capsule_data)
     manifest = CapsuleManifestV1.model_validate(capsule_data)
     _write_deterministic_tar(archive_path, manifest, content_by_member)
@@ -901,7 +918,9 @@ def _write_deterministic_tar(
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = archive_path.with_name(f".{archive_path.name}.pending")
     temporary.unlink(missing_ok=True)
-    manifest_bytes = stable_json_bytes(manifest.model_dump(mode="json"))
+    manifest_bytes = stable_json_bytes(
+        manifest.model_dump(mode="json", exclude_unset=True)
+    )
     members = {CAPSULE_MANIFEST_NAME: manifest_bytes, **dict(content_by_member)}
     try:
         with tarfile.open(temporary, mode="w", format=tarfile.USTAR_FORMAT) as archive:
@@ -1141,6 +1160,12 @@ def _verify_extracted_contract(
         ("configuration", run_manifest.configuration.model_dump(mode="json")),
         ("evaluator", run_manifest.evaluator.model_dump(mode="json")),
         ("determinism", run_manifest.determinism.model_dump(mode="json")),
+        (
+            "comparison",
+            run_manifest.comparison.model_dump(mode="json")
+            if run_manifest.comparison is not None
+            else None,
+        ),
     ):
         if getattr(manifest, field) != observed:
             raise CapsuleIntegrityError(
@@ -1275,7 +1300,7 @@ def _generation_chain_paths(
 
 
 def _capsule_summary_payload(manifest: CapsuleManifestV1) -> dict[str, Any]:
-    value = manifest.model_dump(mode="json")
+    value = manifest.model_dump(mode="json", exclude_unset=True)
     value.pop("capsule_summary_sha256", None)
     return value
 

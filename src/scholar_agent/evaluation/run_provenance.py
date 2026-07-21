@@ -224,6 +224,24 @@ class MetadataBinding(BaseModel):
         return self
 
 
+class ComparisonRunBinding(BaseModel):
+    """Pre-execution binding for one side of an offline paired experiment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract: Literal["comparison_plan_v1"] = "comparison_plan_v1"
+    plan: FileIdentity
+    plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    role: Literal["baseline", "candidate"]
+    common_execution_contract_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def validate_plan_identity(self) -> "ComparisonRunBinding":
+        if self.plan.sha256 != self.plan_sha256:
+            raise ValueError("comparison plan digest mismatch")
+        return self
+
+
 class RunManifestV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -243,6 +261,7 @@ class RunManifestV1(BaseModel):
     output_inventory_excludes: list[str] = Field(default_factory=list)
     outputs: list[OutputIdentity]
     metadata_bindings: list[MetadataBinding] = Field(default_factory=list)
+    comparison: ComparisonRunBinding | None = None
     score_scope: Literal["internal_not_official"] = "internal_not_official"
 
     @model_validator(mode="after")
@@ -337,6 +356,20 @@ def build_run_manifest(
             list(spec.get("outputs") or []), key=lambda value: str(value["path"])
         )
     ]
+    comparison_spec = spec.get("comparison")
+    comparison = None
+    if comparison_spec is not None:
+        if not isinstance(comparison_spec, Mapping):
+            raise RunProvenanceError("spec section invalid:comparison")
+        plan = file_identity(str(comparison_spec["plan_path"]), repository_root)
+        comparison = ComparisonRunBinding(
+            plan=plan,
+            plan_sha256=plan.sha256,
+            role=str(comparison_spec["role"]),
+            common_execution_contract_sha256=str(
+                comparison_spec["common_execution_contract_sha256"]
+            ),
+        )
     manifest = RunManifestV1(
         run_id=str(spec["run_id"]),
         dataset=dataset,
@@ -353,6 +386,7 @@ def build_run_manifest(
             str(value) for value in spec.get("output_inventory_excludes", [])
         ),
         outputs=outputs,
+        comparison=comparison,
         metadata_bindings=[
             MetadataBinding.model_validate(item)
             for item in sorted(
@@ -746,6 +780,19 @@ def _validate_manifest_recursive(
                 manifest.configuration.summary_sha256,
             )
         )
+    if manifest.comparison != parent_manifest.comparison:
+        violations.append(
+            _violation(
+                "lineage_comparison_binding_drift",
+                manifest.run_id,
+                parent_manifest.comparison.model_dump(mode="json")
+                if parent_manifest.comparison
+                else None,
+                manifest.comparison.model_dump(mode="json")
+                if manifest.comparison
+                else None,
+            )
+        )
     if manifest.progress.completed_count < parent_manifest.progress.completed_count:
         violations.append(
             _violation(
@@ -774,6 +821,7 @@ def _validate_manifest_files(
         *manifest.dataset.inputs,
         manifest.queries.input,
         manifest.prompt.manifest,
+        *([manifest.comparison.plan] if manifest.comparison is not None else []),
         *manifest.outputs,
     ]:
         _check_file_identity(item, repository_root, violations)

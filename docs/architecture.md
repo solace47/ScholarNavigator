@@ -81,6 +81,14 @@ SearchService fixture Replay 会在 hash seed、cwd/HOME/TMPDIR、时区、local
 同环境执行确定性、跨目录复现胶囊或质量评测。详见
 [`docs/runtime-hermeticity.md`](runtime-hermeticity.md)。
 
+离线 baseline/candidate 实验的处理隔离由 `experiment_pairing_integrity_v1` 验证。
+`comparison_plan_v1` 在执行前绑定同一 opaque query 集合、Replay/数据摘要、共同执行
+契约、精确叶子处理变量与预声明排除；其 SHA-256 同时写入 `run_manifest_v1` 和原子提交
+代的 generation-zero 配置。门禁保留成功、失败、取消和排除 query，不允许只分析共同
+成功项，并逐 query 核对来源终态。该元数据不进入 SearchService，不改变检索、排序、
+预算、事件或结果；只证明实验设计与覆盖完整性，不计算质量指标。详见
+[`docs/experiment-pairing-integrity.md`](experiment-pairing-integrity.md)。
+
 ## SearchService 流程
 
 ```mermaid

@@ -235,14 +235,22 @@ class BenchmarkRunCommitStore:
         expected_query_ids: Sequence[str],
         config: Mapping[str, Any],
         dataset_report: Mapping[str, Any],
+        comparison_binding: Mapping[str, Any] | None = None,
         injector: FaultInjector | None = None,
     ) -> CommittedRunState:
         if self.has_commits:
             raise CrashConsistencyError("run_store_already_initialized")
         expected = _validated_expected_ids(expected_query_ids)
+        normalized_config = dict(config)
+        if comparison_binding is not None:
+            if "comparison" in normalized_config:
+                raise CrashConsistencyError("comparison_binding_duplicated")
+            normalized_config["comparison"] = _validated_comparison_binding(
+                comparison_binding
+            )
         delta = {
             "kind": "initialize",
-            "config": dict(config),
+            "config": normalized_config,
             "dataset_report": dict(dataset_report),
         }
         return self._commit(
@@ -1281,6 +1289,28 @@ def _validated_expected_ids(values: Sequence[str]) -> tuple[str, ...]:
         raise CrashConsistencyError("expected_query_identities_invalid")
     if len(set(normalized)) != len(normalized):
         raise CrashConsistencyError("expected_query_identities_duplicate")
+    return normalized
+
+
+def _validated_comparison_binding(value: Mapping[str, Any]) -> dict[str, Any]:
+    expected_keys = {
+        "contract",
+        "plan_sha256",
+        "role",
+        "common_execution_contract_sha256",
+    }
+    if set(value) != expected_keys:
+        raise CrashConsistencyError("comparison_binding_fields_invalid")
+    normalized = {str(key): item for key, item in value.items()}
+    if normalized["contract"] != "comparison_plan_v1":
+        raise CrashConsistencyError("comparison_binding_contract_invalid")
+    if normalized["role"] not in {"baseline", "candidate"}:
+        raise CrashConsistencyError("comparison_binding_role_invalid")
+    for field in ("plan_sha256", "common_execution_contract_sha256"):
+        if not isinstance(normalized[field], str) or not re.fullmatch(
+            r"[0-9a-f]{64}", normalized[field]
+        ):
+            raise CrashConsistencyError("comparison_binding_digest_invalid")
     return normalized
 
 
