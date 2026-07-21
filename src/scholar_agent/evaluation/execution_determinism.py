@@ -549,6 +549,89 @@ def run_execution_determinism(
     }
 
 
+def replay_canonical_fixture(
+    protocol: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    snapshot_root: Path = DEFAULT_SNAPSHOT_ROOT,
+    fault: Literal["semantic_result_change"] | None = None,
+) -> dict[str, Any]:
+    """Replay one ordered fixture batch through SearchService and canonicalize it.
+
+    This is the reusable production Replay seam used by portable-capsule checks.
+    It deliberately returns no quality metric and only excludes the field paths
+    registered by ``execution_determinism_v1``.
+    """
+
+    queries, retrieval_outputs = load_query_fixtures(
+        protocol, repository_root=repository_root
+    )
+    rules = [
+        CanonicalizationRule.model_validate(item)
+        for item in protocol["canonicalization"]["excluded_fields"]
+    ]
+    execution = protocol["execution"]
+    run_config = dict(execution["search_service_arguments"])
+    if isinstance(run_config.get("budget"), Mapping):
+        run_config["budget"] = SearchBudget.model_validate(run_config["budget"])
+    backend = SearchServiceFixtureBackend(
+        retrieval_outputs,
+        service_max_workers=int(execution["service_max_workers"]),
+        run_config=run_config,
+    )
+    snapshot_before = tree_signature(snapshot_root)
+    attempts = {"network": 0}
+    with forbid_network(attempts):
+        raw_records = _execute_serial(backend, queries, "capsule_replay")
+    snapshot_after = tree_signature(snapshot_root)
+    records = []
+    for raw in raw_records:
+        canonical, _counts = canonicalize_execution_record(raw, rules)
+        records.append(
+            {
+                "case_id": raw.query_identity,
+                "status": raw.status,
+                "canonical_record": canonical,
+                "canonical_sha256": stable_hash(canonical),
+            }
+        )
+    if fault == "semantic_result_change":
+        if not records or not isinstance(records[0]["canonical_record"], dict):
+            raise FixtureNotEligible("fault_target_has_no_result")
+        canonical_record = records[0]["canonical_record"]
+        result = canonical_record.get("result")
+        if not isinstance(result, dict):
+            raise FixtureNotEligible("fault_target_has_no_result")
+        result["deduplicated_count"] = int(result.get("deduplicated_count") or 0) + 1
+        records[0]["canonical_sha256"] = stable_hash(canonical_record)
+    elif fault is not None:
+        raise ExecutionDeterminismError("unsupported_fault")
+    snapshot_write_count = int(snapshot_before != snapshot_after)
+    if attempts["network"] or snapshot_write_count:
+        raise ExecutionDeterminismError("offline_replay_side_effect_detected")
+    return {
+        "schema_version": "1",
+        "contract": "canonical_search_service_replay_v1",
+        "score_scope": "replay_semantics_only_not_quality_or_official_score",
+        "query_count": len(records),
+        "query_identity_order_sha256": stable_hash(
+            [item["case_id"] for item in records]
+        ),
+        "records": records,
+        "records_sha256": stable_hash(records),
+        "canonicalization": {
+            "policy": "explicit_field_paths_only_unknown_fields_preserved",
+            "excluded_fields": [item.model_dump(mode="json") for item in rules],
+        },
+        "execution": {
+            "network_request_count": attempts["network"],
+            "llm_request_count": 0,
+            "snapshot_write_count": snapshot_write_count,
+            "quality_metric_count": 0,
+        },
+    }
+
+
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
