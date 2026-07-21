@@ -390,6 +390,34 @@ PYTHONPATH=src python scripts/evaluate_search_batch.py \
 
 `--include-partial` 作为旧参数继续等价于 `--result-policy highly_and_partial`。与 `--result-policy highly_only` 同时使用会报错。
 
+## 结构化输出证据追溯门禁
+
+`scripts/check_structured_output_provenance.py` 对冻结 Replay 中已有的公共 API
+结构化结果执行只读门禁，不加载 gold，也不调用 connector、LLM 或 Snapshot
+写路径。版本化规则位于
+`benchmark/structured_output_provenance_gate_manifest.json`，固定覆盖 SciFact 50
+条与 AutoScholarQuery dev/val 15 条，并以公共 API 实际返回的
+`highly_relevant_papers + partially_relevant_papers` 作为唯一可引用论文集合。
+
+门禁先通过 `SearchRunResultResponse` 校验 Schema，再把返回论文的 rank 和统一
+身份对齐到冻结 `final_ranked`，并从 retrieval Snapshot 重建原始论文以核验标题、
+作者、年份、摘要、稳定标识、来源和 URL。身份判断只复用 `identity.py` 的稳定
+标识或严格标题-作者-年份规则，不使用模糊标题。证据表须精确引用返回候选及其
+原始 evidence 字段；finding、摘要引用、method group、timeline 和 citation graph
+继续逐级引用这些已验证对象。任何越界引用、身份冲突、重复论文、顺序或统计漂移
+都会形成 `failed_validation`，无法取得结构化输出或只读 Snapshot 时形成明确
+`blocked_*`，不会删除失败 case 或把无法证实的内容静默算作通过。
+
+```bash
+PYTHONPATH=src python scripts/check_structured_output_provenance.py \
+  --manifest benchmark/structured_output_provenance_gate_manifest.json \
+  --output outputs/benchmark_runs/structured_output_provenance_gate
+```
+
+产物为 `case_gate.jsonl`、`provenance.jsonl` 和 `aggregate.json`；前两者分别
+保留每个 case 的闭合终态及每项结构化声明的 source path。该门禁只证明冻结
+输出与冻结候选之间的可追溯性，不证明论文事实本身正确，也不是官方赛题成绩。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
