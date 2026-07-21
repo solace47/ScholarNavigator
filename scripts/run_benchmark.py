@@ -62,6 +62,15 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
     supported_datasets,
 )
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
+from scholar_agent.evaluation.snapshot_resume import (  # noqa: E402
+    ResumeRequest,
+    ResumeRuntimeConfig,
+    SnapshotResumeError,
+    execute_resume_manifest,
+    load_resume_manifest,
+    validate_manifest_required_plan,
+    validate_runtime_config,
+)
 from scholar_agent.evaluation.snapshots import (  # noqa: E402
     SnapshotAwareReferenceFetcher,
     SnapshotAwareRecommendationFetcher,
@@ -1352,13 +1361,137 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan-round", type=int, default=1)
     parser.add_argument("--retry-failed-snapshots", action="store_true")
     parser.add_argument("--overwrite-snapshots", action="store_true")
+    parser.add_argument(
+        "--resume-manifest",
+        type=Path,
+        default=None,
+        help=(
+            "execute only the immutable missing-key schedule; bypasses dataset "
+            "loading, SearchService, ranking and evaluation"
+        ),
+    )
+    parser.add_argument(
+        "--resume-manifest-dry-run",
+        action="store_true",
+        help="validate and recompute resume progress without network or writes",
+    )
     return parser
 
 
+def _resume_runtime_config(args: argparse.Namespace) -> ResumeRuntimeConfig:
+    default_budget = SearchBudget()
+    return ResumeRuntimeConfig(
+        dataset=args.dataset,
+        dataset_split=args.dataset_split,
+        offset=args.offset,
+        limit=args.limit,
+        run_profile=args.run_profile,
+        sources=_parse_sources(args.sources),
+        result_policy=args.result_policy,
+        top_k=args.top_k,
+        query_adapter_policy=args.query_adapter_policy,
+        query_planning_policy=args.query_planning_policy,
+        ranking_policy=args.ranking_policy,
+        judgement_policy=args.judgement_policy,
+        enable_query_evolution=args.enable_query_evolution,
+        query_evolution_policy=args.query_evolution_policy,
+        enable_refchain=args.enable_refchain,
+        enable_semantic_seed_expansion=args.enable_semantic_seed_expansion,
+        enable_llm_query_understanding=args.enable_llm_query_understanding,
+        enable_llm_judgement=args.enable_llm_judgement,
+        current_year=args.current_year,
+        budgets={
+            "max_search_rounds": (
+                default_budget.max_search_rounds
+                if args.max_search_rounds is None
+                else args.max_search_rounds
+            ),
+            "max_candidate_papers": (
+                default_budget.max_candidate_papers
+                if args.max_candidate_papers is None
+                else args.max_candidate_papers
+            ),
+            "max_llm_calls": (
+                default_budget.max_llm_calls
+                if args.max_llm_calls is None
+                else args.max_llm_calls
+            ),
+            "max_total_tokens": (
+                default_budget.max_total_tokens
+                if args.max_total_tokens is None
+                else args.max_total_tokens
+            ),
+            "max_latency_seconds": (
+                default_budget.max_latency_seconds
+                if args.max_latency_seconds is None
+                else args.max_latency_seconds
+            ),
+        },
+    )
+
+
+def _live_resume_executor(request: ResumeRequest):
+    from scholar_agent.connectors import (  # noqa: PLC0415
+        search_arxiv_detailed,
+        search_openalex_detailed,
+        search_pubmed_detailed,
+        search_semantic_scholar_detailed,
+    )
+
+    registry = {
+        "openalex": search_openalex_detailed,
+        "arxiv": search_arxiv_detailed,
+        "semantic_scholar": search_semantic_scholar_detailed,
+        "pubmed": search_pubmed_detailed,
+    }
+    try:
+        search = registry[request.source]
+    except KeyError as exc:
+        raise SnapshotResumeError(
+            f"unsupported resume source:{request.source}"
+        ) from exc
+    return search(request.adapted_query, request.limit)
+
+
+def _run_resume_manifest_cli(args: argparse.Namespace) -> int:
+    if args.resume_manifest_dry_run and args.resume_manifest is None:
+        raise SnapshotResumeError("--resume-manifest-dry-run requires --resume-manifest")
+    if args.retrieval_mode != "record-missing":
+        raise SnapshotResumeError("resume manifest requires --retrieval-mode record-missing")
+    if args.snapshot_dir is None:
+        raise SnapshotResumeError("resume manifest requires --snapshot-dir")
+    if args.limit is None:
+        raise SnapshotResumeError("resume manifest requires explicit --limit")
+    manifest = load_resume_manifest(args.resume_manifest)
+    validate_manifest_required_plan(manifest, repository_root=REPO_ROOT)
+    runtime_config = _resume_runtime_config(args)
+    validate_runtime_config(manifest, runtime_config)
+    snapshot_dir = Path(args.snapshot_dir).expanduser().resolve()
+    expected_snapshot_dir = (REPO_ROOT / manifest.snapshot_dir).resolve()
+    if snapshot_dir != expected_snapshot_dir:
+        raise SnapshotResumeError("resume snapshot directory drift")
+    if not args.resume_manifest_dry_run:
+        load_project_env(REPO_ROOT)
+    report = execute_resume_manifest(
+        manifest,
+        SnapshotStore(snapshot_dir),
+        executor=None if args.resume_manifest_dry_run else _live_resume_executor,
+        dry_run=args.resume_manifest_dry_run,
+    )
+    print(json.dumps(report.model_dump(mode="json"), ensure_ascii=False, sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    load_project_env(REPO_ROOT)
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.resume_manifest is not None or args.resume_manifest_dry_run:
+        try:
+            return _run_resume_manifest_cli(args)
+        except (SnapshotResumeError, ValueError, OSError) as exc:
+            print(_sanitize_message(str(exc)), file=sys.stderr)
+            return 1
+    load_project_env(REPO_ROOT)
     try:
         sources = _parse_sources(args.sources)
         default_budget = SearchBudget()

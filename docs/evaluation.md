@@ -288,6 +288,26 @@ AutoScholarQuery 全量规划门禁使用独立的 query-only 输入 `benchmark/
 
 冻结结果为 1000/1000 Schema 与 JSON round-trip 成功、0 错误、0 warning、0 空查询、0 重复子查询、0 缺字段和 1000/1000 预算一致。共生成 2410 条子查询：590 个 case 为 2 条、410 个为 3 条；四源逻辑请求槽总数 9640，410 个三查询 case 的请求返回容量上界 240 会由既有全局 200 候选预算裁剪，但没有增加配置预算。文本解析覆盖 method 305、dataset 65、time range 9 个 case；数据没有独立 API 显式约束输入。两次实测单条规则规划 p95 为 0.659/0.702 ms、p99 为 0.770/1.206 ms，最大值 7.162/7.409 ms；孤立最大值未改变计划内容，长尾中 3 子查询 case 略多，未发现结构化失败模式。两次 `plans.jsonl`、`summary.json` 和回归报告逐字节一致，前两者 SHA-256 分别为 `8442fd2ddba1ef29615749f7a1a75a77cb1f9393f9fc2bff9c96730dee198b37` 与 `00f2d2246dce4b2ee123aa0ffaef90215a52f9ca67b147d460ee8761281bb766`。
 
+`scripts/audit_autoscholar_snapshot_resume.py` 将上述 query-only 计划、冻结的 baseline `plan_round_2`、现有 retrieval Snapshot 与 Record 产物的顶层 `case_id/status` 合并为 gold-blind 缺失审计。Record JSONL 的其他字段由结构扫描器直接跳过，不加载数据集 adapter 或 evaluator。每个 required key 都重新计算 Snapshot key，并在已有文件上校验 source、规范查询、limit、adapter/query-adapter/connector 版本与 content hash；四类终态固定为已有 `success`、已有 `failed`、已结束 Record case 的 `missing`，以及尚未进入 Record case 的 `not_started`。来源、query-only manifest 顺序四分位、查询长度秩四分位、子查询数与 method/dataset/time 约束仅用于缺失机制审计，不生成 Recall/F1。
+
+版本化 `benchmark/autoscholar_full1000_resume/resume_manifest.json` 只调度 frozen failed、missing 与 not-started key；成功 key 永不覆盖，冻结失败 key只统一重试一次。调度使用按各来源剩余总量归一化的确定性公平轮转，并以配置来源顺序破除并列；每个来源内部按 query-only manifest case 顺序轮转，同 case 仍有替代项时避免相邻发送。canonical Runner 仅在显式提供 `--resume-manifest` 时进入该路径，重新校验 required plan hash、key/request signature 与全部 retrieval 语义配置；`--resume-manifest-dry-run` 在加载项目环境之前返回进度，0 网络、0 Snapshot 写入。实际执行仍使用原 connector、request body、limit、重试与 Snapshot key，只改变跨请求调度顺序；无参数时原 Benchmark 路径不变。
+
+网络恢复后的只读进度检查命令如下；移除 `--resume-manifest-dry-run` 才会按 manifest 串行补采，执行前必须再次确认外部来源可用：
+
+```bash
+PYTHONPATH=src python scripts/run_benchmark.py \
+  --dataset auto_scholar_query --dataset-split test --limit 1000 --offset 0 \
+  --run-id autoscholar-full1000-resume --run-profile balanced \
+  --sources openalex,arxiv,semantic_scholar,pubmed \
+  --result-policy highly_and_partial --top-k 20 \
+  --query-adapter-policy adaptive --query-planning-policy current_rules \
+  --ranking-policy current_rules --judgement-policy current_rules \
+  --query-evolution-policy off --retrieval-mode record-missing \
+  --snapshot-dir outputs/benchmark_snapshots/autoscholar_current_rules_full1000_3cd47c1 \
+  --resume-manifest benchmark/autoscholar_full1000_resume/resume_manifest.json \
+  --resume-manifest-dry-run
+```
+
 `scripts/build_lexical_precision_annotation.py` 为该实验建立默认无标签的盲化人工 Precision 闭环。固定 manifest 使用三个数据集和三类 strata：规范化新增返回、baseline 独有返回、双方共有且返回列表名次绝对变化至少 5；总上限 200，按固定 dataset/stratum 顺序做均衡水位分配，每个 cell 内用固定 seed 的 SHA-256 顺序选择，再用独立命名空间随机化展示顺序。抽样和包生成只重建冻结候选、Judgement 与 Top-20，不访问 gold/qrels、connector、LLM 或 Snapshot 写路径。
 
 正式盲包从 502 个 eligible query-paper 对中抽取 200 个唯一对：SciFact/Auto dev/val 为 84/71/45，新增/baseline 独有/共享显著变位为 71/48/81。公开 `blind_samples.jsonl` 每行严格只有不可编码隐藏字段的顺序 sample ID、query、标题、摘要和年份；策略、排名、case ID、来源、评分与 evaluator mapping 只存在于隔离的 `private/`。两位标注者分别使用四分类模板独立完成，分歧项才进入第三方仲裁。评分 CLI 在标签完整前只返回 `pending_human_labels` 和 null 指标；标签完成后计算仲裁前 Cohen's kappa、样本 Precision、带抽样覆盖说明的分层估计、新增候选误放率，并且仅在全部 Top-20 pair 均被人工覆盖时输出非空的完整 Precision@20。
