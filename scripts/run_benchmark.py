@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from collections import Counter
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -29,12 +30,17 @@ from scripts.evaluate_search_batch import evaluate_batch_results  # noqa: E402
 from scholar_agent.core.api_schemas import CostReport  # noqa: E402
 from scholar_agent.core.env_loader import load_project_env  # noqa: E402
 from scholar_agent.connectors import (  # noqa: E402
+    LocalBM25Config,
+    LocalBM25FieldConfig,
+    configure_local_bm25,
     fetch_openalex_references_detailed,
+    local_bm25_metadata,
     recommend_semantic_scholar_papers_detailed,
     resolve_semantic_scholar_paper_ids_detailed,
 )
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
+    DEFAULT_SEARCH_SOURCES,
     JudgementPolicy,
     JudgementRuleConfig,
     QUERY_PLANNER_VERSION,
@@ -79,7 +85,10 @@ from scholar_agent.evaluation.snapshots.planning import (  # noqa: E402
     plan_round_root,
     write_coverage_artifacts,
 )
-from scholar_agent.evaluation.snapshots.store import utc_now  # noqa: E402
+from scholar_agent.evaluation.snapshots.store import (  # noqa: E402
+    connector_version,
+    utc_now,
+)
 from scholar_agent.evaluation.stage_diagnostics import (  # noqa: E402
     aggregate_stage_diagnostics,
     analyze_search_stages,
@@ -116,8 +125,9 @@ class BenchmarkRunOptions(BaseModel):
     run_id: str = Field(pattern=_RUN_ID_PATTERN)
     run_profile: RunProfile = "balanced"
     sources: list[str] = Field(
-        default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
+        default_factory=lambda: list(DEFAULT_SEARCH_SOURCES)
     )
+    local_bm25_config: LocalBM25Config | None = None
     result_policy: ResultPolicy = "highly_and_partial"
     top_k: int = Field(default=20, ge=1, le=100)
     enable_query_evolution: bool = False
@@ -223,6 +233,9 @@ def _snapshot_manifest(
 
     now = utc_now()
     code = config.get("code") or {}
+    connector_versions = dict(CONNECTOR_VERSIONS)
+    if "local_bm25" in options.sources:
+        connector_versions["local_bm25"] = connector_version("local_bm25")
     return SnapshotManifest(
         snapshot_name=options.snapshot_dir.name,
         dataset=options.dataset,
@@ -247,7 +260,7 @@ def _snapshot_manifest(
             else {}
         ),
         judgement_prompt=prompt("relevance_judgement"),
-        connector_versions=dict(CONNECTOR_VERSIONS),
+        connector_versions=connector_versions,
         code_hash=str(config.get("runtime_code_hash") or ""),
         git_commit=code.get("commit"),
         dirty_worktree=bool(code.get("dirty")),
@@ -434,6 +447,7 @@ def run_benchmark(
     *,
     service: Any | None = None,
 ) -> BenchmarkRunResult:
+    _configure_local_bm25_for_run(options)
     _validate_llm_planning_runtime(options, service=service)
     source_path = dataset_source_path(options.dataset, options.dataset_path)
     judgement_config = _resolve_options_judgement_config(options)
@@ -631,6 +645,20 @@ def _select_queries(
     return selected
 
 
+def _configure_local_bm25_for_run(options: BenchmarkRunOptions) -> None:
+    if "local_bm25" not in options.sources:
+        configure_local_bm25(None)
+        return
+    if options.local_bm25_config is None:
+        raise ValueError(
+            "--local-bm25-corpus is required when local_bm25 is selected"
+        )
+    configure_local_bm25(
+        options.local_bm25_config,
+        build_index=options.retrieval_mode in {"live", "record", "record-missing"},
+    )
+
+
 def _build_config(
     options: BenchmarkRunOptions,
     source_path: Path,
@@ -643,6 +671,42 @@ def _build_config(
         or options.enable_llm_judgement
         or options.query_planning_policy in _LLM_PLANNING_POLICIES
     )
+    local_bm25 = None
+    if "local_bm25" in options.sources:
+        metadata = local_bm25_metadata()
+        fields = (
+            options.local_bm25_config.fields
+            if options.local_bm25_config
+            else None
+        )
+        local_bm25 = {
+            "connector_version": connector_version("local_bm25"),
+            "corpus_path": (
+                str(options.local_bm25_config.corpus_path.expanduser().resolve())
+                if options.local_bm25_config
+                else None
+            ),
+            "corpus_sha256": metadata.corpus_sha256,
+            "corpus_size_bytes": metadata.corpus_size_bytes,
+            "document_count": metadata.document_count,
+            "index_fingerprint": metadata.fingerprint,
+            "index_cache_path": metadata.cache_path,
+            "index_cache_hit": metadata.cache_hit,
+            "index_load_seconds": metadata.index_load_seconds,
+            "fields": asdict(fields) if fields is not None else None,
+            "parameters": (
+                {
+                    "k1": options.local_bm25_config.k1,
+                    "b": options.local_bm25_config.b,
+                    "epsilon": options.local_bm25_config.epsilon,
+                }
+                if options.local_bm25_config
+                else None
+            ),
+            "document_text": "title+abstract",
+            "query_input": "current_rules_generated_text_only",
+            "evaluator_data_access": False,
+        }
     semantic_config = {
         "dataset": options.dataset,
         "dataset_source_path": str(source_path),
@@ -655,6 +719,7 @@ def _build_config(
         "selection_order": "source_order",
         "result_policy": options.result_policy,
         "sources": list(options.sources),
+        "local_bm25": local_bm25,
         "run_profile": options.run_profile,
         "top_k": options.top_k,
         "enable_query_evolution": options.enable_query_evolution,
@@ -1187,8 +1252,34 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--sources",
-        default=",".join(SUPPORTED_SEARCH_SOURCES),
+        default=",".join(DEFAULT_SEARCH_SOURCES),
     )
+    parser.add_argument("--local-bm25-corpus", default=None)
+    parser.add_argument(
+        "--local-bm25-cache-dir",
+        default="outputs/benchmark_cache/local_bm25",
+    )
+    parser.add_argument("--local-bm25-document-id-field", default="_id")
+    parser.add_argument("--local-bm25-title-field", default="title")
+    parser.add_argument("--local-bm25-abstract-field", default="abstract")
+    parser.add_argument(
+        "--local-bm25-document-id-identity",
+        choices=[
+            "doi",
+            "arxiv_id",
+            "semantic_scholar_id",
+            "s2orc_corpus_id",
+            "openalex_id",
+            "pubmed_id",
+        ],
+        default="s2orc_corpus_id",
+    )
+    parser.add_argument("--local-bm25-doi-field", default=None)
+    parser.add_argument("--local-bm25-arxiv-id-field", default=None)
+    parser.add_argument("--local-bm25-semantic-scholar-id-field", default=None)
+    parser.add_argument("--local-bm25-s2orc-corpus-id-field", default=None)
+    parser.add_argument("--local-bm25-openalex-id-field", default=None)
+    parser.add_argument("--local-bm25-pubmed-id-field", default=None)
     parser.add_argument(
         "--result-policy",
         choices=["highly_only", "highly_and_partial"],
@@ -1308,6 +1399,28 @@ def main(argv: list[str] | None = None) -> int:
             run_id=args.run_id,
             run_profile=args.run_profile,
             sources=sources,
+            local_bm25_config=(
+                LocalBM25Config(
+                    corpus_path=Path(args.local_bm25_corpus),
+                    cache_dir=Path(args.local_bm25_cache_dir),
+                    fields=LocalBM25FieldConfig(
+                        document_id=args.local_bm25_document_id_field,
+                        title=args.local_bm25_title_field,
+                        abstract=args.local_bm25_abstract_field,
+                        document_id_identity=args.local_bm25_document_id_identity,
+                        doi=args.local_bm25_doi_field,
+                        arxiv_id=args.local_bm25_arxiv_id_field,
+                        semantic_scholar_id=(
+                            args.local_bm25_semantic_scholar_id_field
+                        ),
+                        s2orc_corpus_id=args.local_bm25_s2orc_corpus_id_field,
+                        openalex_id=args.local_bm25_openalex_id_field,
+                        pubmed_id=args.local_bm25_pubmed_id_field,
+                    ),
+                )
+                if "local_bm25" in sources and args.local_bm25_corpus
+                else None
+            ),
             result_policy=args.result_policy,
             top_k=args.top_k,
             enable_query_evolution=args.enable_query_evolution,

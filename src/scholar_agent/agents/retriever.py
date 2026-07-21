@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from scholar_agent.connectors import (
     ConnectorSearchResult,
     search_arxiv_detailed,
+    search_local_bm25_detailed,
     search_openalex_detailed,
     search_pubmed_detailed,
     search_semantic_scholar_detailed,
@@ -23,7 +24,12 @@ from scholar_agent.connectors import (
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from scholar_agent.core.paper_schemas import Paper
-from scholar_agent.core.search_schemas import CombinationMode, QueryConstraint
+from scholar_agent.core.search_schemas import (
+    CombinationMode,
+    DEFAULT_SEARCH_SOURCES,
+    QueryConstraint,
+    SUPPORTED_SEARCH_SOURCES,
+)
 from scholar_agent.retrieval.query_adapter import (
     DEFAULT_QUERY_ADAPTER_POLICY,
     MIN_COMPACT_RETENTION_RATIO,
@@ -33,7 +39,7 @@ from scholar_agent.retrieval.query_adapter import (
 )
 
 
-SUPPORTED_SOURCES = ("openalex", "arxiv", "semantic_scholar", "pubmed")
+SUPPORTED_SOURCES = SUPPORTED_SEARCH_SOURCES
 DEFAULT_CACHE_TTL_SECONDS = 15 * 60
 DEFAULT_CACHE_MAX_ENTRIES = 256
 DEFAULT_SOURCE_COOLDOWN_SECONDS = 60
@@ -1029,7 +1035,7 @@ def clear_source_cooldowns() -> None:
 
 def _normalize_sources(sources: list[str] | None) -> list[str]:
     if sources is None:
-        return list(SUPPORTED_SOURCES)
+        return list(DEFAULT_SEARCH_SOURCES)
 
     normalized: list[str] = []
     seen: set[str] = set()
@@ -1048,6 +1054,7 @@ def _source_registry() -> dict[str, Callable[[str, int], ConnectorSearchResult]]
         "arxiv": search_arxiv_detailed,
         "semantic_scholar": search_semantic_scholar_detailed,
         "pubmed": search_pubmed_detailed,
+        "local_bm25": search_local_bm25_detailed,
     }
 
 

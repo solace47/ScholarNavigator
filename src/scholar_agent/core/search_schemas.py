@@ -10,7 +10,13 @@ from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 
 
-SourceName = Literal["openalex", "arxiv", "semantic_scholar", "pubmed"]
+SourceName = Literal[
+    "openalex",
+    "arxiv",
+    "semantic_scholar",
+    "pubmed",
+    "local_bm25",
+]
 PaperType = Literal[
     "survey",
     "review",
@@ -92,11 +98,15 @@ JudgementCategory = Literal[
     "insufficient_evidence",
 ]
 
-SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = (
+DEFAULT_SEARCH_SOURCES: tuple[str, ...] = (
     "openalex",
     "arxiv",
     "semantic_scholar",
     "pubmed",
+)
+SUPPORTED_SEARCH_SOURCES: tuple[str, ...] = (
+    *DEFAULT_SEARCH_SOURCES,
+    "local_bm25",
 )
 SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "survey",
@@ -234,7 +244,7 @@ class SearchSubquery(BaseModel):
     query: str = Field(..., min_length=1)
     combination_mode: CombinationMode = "all"
     source_hints: list[SourceName] = Field(
-        default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
+        default_factory=lambda: list(DEFAULT_SEARCH_SOURCES)
     )
     priority: int = Field(default=1, ge=1, le=5)
     purpose: str = Field(..., min_length=1)
@@ -394,7 +404,7 @@ class SearchPlan(BaseModel):
     query_analysis: QueryAnalysis
     subqueries: list[SearchSubquery] = Field(default_factory=list)
     selected_sources: list[SourceName] = Field(
-        default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
+        default_factory=lambda: list(DEFAULT_SEARCH_SOURCES)
     )
     limit_per_source: int = Field(default=20, ge=1, le=100)
     top_k: int = Field(default=20, ge=1, le=100)
@@ -607,7 +617,7 @@ class QueryEvolutionQualityGate(BaseModel):
 class EvolvedSubquery(BaseModel):
     query: str = Field(..., min_length=1)
     source_hints: list[SourceName] = Field(
-        default_factory=lambda: list(SUPPORTED_SEARCH_SOURCES)
+        default_factory=lambda: list(DEFAULT_SEARCH_SOURCES)
     )
     priority: int = Field(default=1, ge=1, le=5)
     purpose: str = Field(..., min_length=1)
@@ -785,7 +795,7 @@ def normalize_search_sources(value: object) -> list[str]:
     """Normalize supported search sources with stable de-duplication."""
 
     if value is None:
-        return list(SUPPORTED_SEARCH_SOURCES)
+        return list(DEFAULT_SEARCH_SOURCES)
     if isinstance(value, str):
         raw_sources = [value]
     else:

@@ -8,6 +8,7 @@ from collections import Counter
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
+    DEFAULT_SEARCH_SOURCES,
     EvolvedSubquery,
     JudgementResult,
     QueryAnalysis,
@@ -949,7 +950,7 @@ def _used_query_keys(search_plan: SearchPlan, used_queries: set[str]) -> set[str
 def _safe_source_hints(search_plan: SearchPlan) -> list[str]:
     supported = set(SUPPORTED_SEARCH_SOURCES)
     sources = [source for source in search_plan.selected_sources if source in supported]
-    return sources or list(SUPPORTED_SEARCH_SOURCES)
+    return sources or list(DEFAULT_SEARCH_SOURCES)
 
 
 def _paper_key(paper: Paper) -> str:

@@ -12,6 +12,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import run_benchmark
+from scholar_agent.connectors.local_bm25 import (
+    LocalBM25Config,
+    LocalBM25FieldConfig,
+)
 from scholar_agent.agents.judgement_config import (
     CALIBRATED_RULES_V1_CONFIG,
     judgement_config_hash,
@@ -84,6 +88,46 @@ def test_benchmark_default_and_cli_support_adaptive(tmp_path: Path) -> None:
         ]
     )
     assert parsed.query_adapter_policy == "adaptive"
+
+
+def test_local_bm25_cli_is_default_off_and_records_public_index_config(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=1)
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text(
+        json.dumps({"_id": "1", "title": "Local paper", "text": "abstract"})
+        + "\n",
+        encoding="utf-8",
+    )
+    parsed = run_benchmark._parser().parse_args(  # noqa: SLF001
+        ["--dataset", "auto_scholar_query", "--run-id", "default-sources"]
+    )
+    assert "local_bm25" not in parsed.sources
+
+    options = _options(tmp_path, dataset, run_id="local-config").model_copy(
+        update={
+            "sources": ["local_bm25"],
+            "local_bm25_config": LocalBM25Config(
+                corpus_path=corpus,
+                cache_dir=tmp_path / "cache",
+                fields=LocalBM25FieldConfig(
+                    abstract="text",
+                    document_id_identity="s2orc_corpus_id",
+                ),
+            ),
+        }
+    )
+    result = run_benchmark.run_benchmark(options, service=FakeService())
+
+    assert result.config["sources"] == ["local_bm25"]
+    assert result.config["local_bm25"]["document_count"] == 1
+    assert result.config["local_bm25"]["parameters"] == {
+        "k1": 1.5,
+        "b": 0.75,
+        "epsilon": 0.25,
+    }
+    assert result.config["local_bm25"]["evaluator_data_access"] is False
 
 
 def test_ranking_policy_is_default_off_recorded_and_passed_to_service(

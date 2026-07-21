@@ -615,6 +615,12 @@ def _legacy_s2orc_hash_matches(
 
 
 def connector_version(source: str, *, references: bool = False) -> str:
+    if source == "local_bm25" and not references:
+        from scholar_agent.connectors.local_bm25 import (
+            local_bm25_connector_version,
+        )
+
+        return local_bm25_connector_version()
     key = "openalex_references" if references else source
     try:
         return CONNECTOR_VERSIONS[key]
