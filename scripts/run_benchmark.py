@@ -70,6 +70,11 @@ from scholar_agent.evaluation.experiment_pairing import (  # noqa: E402
     load_comparison_plan,
     opaque_query_identity,
 )
+from scholar_agent.evaluation.sharded_execution import (  # noqa: E402
+    load_shard_plan,
+    select_queries_for_shard,
+    shard_binding,
+)
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshot_resume import (  # noqa: E402
     ResumeRequest,
@@ -175,6 +180,14 @@ class BenchmarkRunOptions(BaseModel):
     overwrite_snapshots: bool = False
     comparison_plan_path: Path | None = None
     comparison_role: Literal["baseline", "candidate"] | None = None
+    shard_plan_path: Path | None = None
+    shard_index: int | None = Field(default=None, ge=0)
+    shard_attempt_id: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+    )
+    shard_supersedes_attempt_id: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+    )
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -201,6 +214,22 @@ class BenchmarkRunOptions(BaseModel):
             raise ValueError(
                 "comparison plan and role must be provided together"
             )
+        shard_fields = (
+            self.shard_plan_path,
+            self.shard_index,
+            self.shard_attempt_id,
+        )
+        if any(value is not None for value in shard_fields) and not all(
+            value is not None for value in shard_fields
+        ):
+            raise ValueError(
+                "shard plan, index and attempt id must be provided together"
+            )
+        if (
+            self.shard_supersedes_attempt_id is not None
+            and self.shard_plan_path is None
+        ):
+            raise ValueError("shard supersedes requires a shard plan")
         return self
 
 
@@ -480,8 +509,9 @@ def run_benchmark(
     source_path = dataset_source_path(options.dataset, options.dataset_path)
     judgement_config = _resolve_options_judgement_config(options)
     all_queries = load_dataset(options.dataset, path=source_path)
-    selected = _select_queries(all_queries, options.offset, options.limit)
-    _validate_comparison_population(options, selected)
+    population = _select_queries(all_queries, options.offset, options.limit)
+    _validate_comparison_population(options, population)
+    selected = _select_shard_population(options, population)
     dataset_report = inspect_dataset(options.dataset, path=source_path)
     run_dir = options.output_root.expanduser().resolve() / options.run_id
     config = _build_config(options, source_path, selected)
@@ -841,6 +871,17 @@ def _build_config(
         semantic_config["comparison"] = comparison_binding(
             options.comparison_plan_path, options.comparison_role
         )
+    if (
+        options.shard_plan_path is not None
+        and options.shard_index is not None
+        and options.shard_attempt_id is not None
+    ):
+        semantic_config["shard"] = shard_binding(
+            options.shard_plan_path,
+            options.shard_index,
+            options.shard_attempt_id,
+            options.shard_supersedes_attempt_id,
+        )
     signature_payload = {
         key: value for key, value in semantic_config.items() if key != "code"
     }
@@ -868,6 +909,20 @@ def _validate_comparison_population(
     observed = [opaque_query_identity(item.query_id) for item in selected]
     if observed != plan.queries.identities:
         raise ValueError("comparison plan query population or order mismatch")
+
+
+def _select_shard_population(
+    options: BenchmarkRunOptions, selected: list[EvalQuery]
+) -> list[EvalQuery]:
+    if options.shard_plan_path is None:
+        return selected
+    if options.shard_index is None:
+        raise ValueError("shard index is required")
+    plan = load_shard_plan(options.shard_plan_path)
+    try:
+        return select_queries_for_shard(selected, plan, options.shard_index)
+    except RuntimeError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def _prompt_metadata() -> list[dict[str, Any]]:
@@ -1449,6 +1504,14 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
     )
     parser.add_argument(
+        "--shard-plan",
+        default=None,
+        help="pre-bind this run to a shard_plan_v1 before generation zero",
+    )
+    parser.add_argument("--shard-index", type=int, default=None)
+    parser.add_argument("--shard-attempt-id", default=None)
+    parser.add_argument("--shard-supersedes-attempt-id", default=None)
+    parser.add_argument(
         "--resume-manifest",
         type=Path,
         default=None,
@@ -1674,6 +1737,10 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.comparison_plan) if args.comparison_plan else None
             ),
             comparison_role=args.comparison_role,
+            shard_plan_path=(Path(args.shard_plan) if args.shard_plan else None),
+            shard_index=args.shard_index,
+            shard_attempt_id=args.shard_attempt_id,
+            shard_supersedes_attempt_id=args.shard_supersedes_attempt_id,
         )
         result = run_benchmark(options)
     except (ValueError, OSError) as exc:

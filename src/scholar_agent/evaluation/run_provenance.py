@@ -242,6 +242,34 @@ class ComparisonRunBinding(BaseModel):
         return self
 
 
+class ShardRunBinding(BaseModel):
+    """Pre-execution binding for one attempt of a deterministic shard."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract: Literal["shard_plan_v1"] = "shard_plan_v1"
+    plan: FileIdentity
+    plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    shard_index: int = Field(ge=0)
+    shard_count: int = Field(ge=1)
+    expected_query_identities_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    common_execution_contract_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    attempt_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+    supersedes_attempt_id: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
+    )
+
+    @model_validator(mode="after")
+    def validate_plan_identity(self) -> "ShardRunBinding":
+        if self.plan.sha256 != self.plan_sha256:
+            raise ValueError("shard plan digest mismatch")
+        if self.shard_index >= self.shard_count:
+            raise ValueError("shard index exceeds shard count")
+        if self.supersedes_attempt_id == self.attempt_id:
+            raise ValueError("shard attempt cannot supersede itself")
+        return self
+
+
 class RunManifestV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -262,6 +290,7 @@ class RunManifestV1(BaseModel):
     outputs: list[OutputIdentity]
     metadata_bindings: list[MetadataBinding] = Field(default_factory=list)
     comparison: ComparisonRunBinding | None = None
+    shard: ShardRunBinding | None = None
     score_scope: Literal["internal_not_official"] = "internal_not_official"
 
     @model_validator(mode="after")
@@ -370,6 +399,30 @@ def build_run_manifest(
                 comparison_spec["common_execution_contract_sha256"]
             ),
         )
+    shard_spec = spec.get("shard")
+    shard = None
+    if shard_spec is not None:
+        if not isinstance(shard_spec, Mapping):
+            raise RunProvenanceError("spec section invalid:shard")
+        plan = file_identity(str(shard_spec["plan_path"]), repository_root)
+        shard = ShardRunBinding(
+            plan=plan,
+            plan_sha256=plan.sha256,
+            shard_index=int(shard_spec["shard_index"]),
+            shard_count=int(shard_spec["shard_count"]),
+            expected_query_identities_sha256=str(
+                shard_spec["expected_query_identities_sha256"]
+            ),
+            common_execution_contract_sha256=str(
+                shard_spec["common_execution_contract_sha256"]
+            ),
+            attempt_id=str(shard_spec["attempt_id"]),
+            supersedes_attempt_id=(
+                str(shard_spec["supersedes_attempt_id"])
+                if shard_spec.get("supersedes_attempt_id") is not None
+                else None
+            ),
+        )
     manifest = RunManifestV1(
         run_id=str(spec["run_id"]),
         dataset=dataset,
@@ -387,6 +440,7 @@ def build_run_manifest(
         ),
         outputs=outputs,
         comparison=comparison,
+        shard=shard,
         metadata_bindings=[
             MetadataBinding.model_validate(item)
             for item in sorted(
@@ -793,6 +847,19 @@ def _validate_manifest_recursive(
                 else None,
             )
         )
+    if manifest.shard != parent_manifest.shard:
+        violations.append(
+            _violation(
+                "lineage_shard_binding_drift",
+                manifest.run_id,
+                parent_manifest.shard.model_dump(mode="json")
+                if parent_manifest.shard
+                else None,
+                manifest.shard.model_dump(mode="json")
+                if manifest.shard
+                else None,
+            )
+        )
     if manifest.progress.completed_count < parent_manifest.progress.completed_count:
         violations.append(
             _violation(
@@ -822,6 +889,7 @@ def _validate_manifest_files(
         manifest.queries.input,
         manifest.prompt.manifest,
         *([manifest.comparison.plan] if manifest.comparison is not None else []),
+        *([manifest.shard.plan] if manifest.shard is not None else []),
         *manifest.outputs,
     ]:
         _check_file_identity(item, repository_root, violations)

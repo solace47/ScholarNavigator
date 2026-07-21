@@ -130,6 +130,7 @@ class CapsuleManifestV1(BaseModel):
     evaluator: dict[str, Any]
     determinism: dict[str, Any]
     comparison: dict[str, Any] | None = None
+    shard: dict[str, Any] | None = None
     generation_chain: dict[str, Any]
     entrypoint: dict[str, Any]
     files: list[CapsuleFile]
@@ -194,6 +195,22 @@ class CapsuleManifestV1(BaseModel):
                     "common_execution_contract_sha256",
                 },
                 "comparison",
+            )
+        if self.shard is not None:
+            _require_exact_keys(
+                self.shard,
+                {
+                    "contract",
+                    "plan",
+                    "plan_sha256",
+                    "shard_index",
+                    "shard_count",
+                    "expected_query_identities_sha256",
+                    "common_execution_contract_sha256",
+                    "attempt_id",
+                    "supersedes_attempt_id",
+                },
+                "shard",
             )
         _require_exact_keys(
             self.entrypoint,
@@ -411,6 +428,8 @@ def export_capsule(
     register(run_manifest.prompt.manifest.path, "prompt_registry")
     if run_manifest.comparison is not None:
         register(run_manifest.comparison.plan.path, "comparison_plan_v1")
+    if run_manifest.shard is not None:
+        register(run_manifest.shard.plan.path, "shard_plan_v1")
     if run_manifest.prompt.used:
         prompt_manifest = json.loads(
             _safe_root_path(source, run_manifest.prompt.manifest.path).read_text(
@@ -529,6 +548,8 @@ def export_capsule(
     }
     if run_manifest.comparison is not None:
         capsule_data["comparison"] = run_manifest.comparison.model_dump(mode="json")
+    if run_manifest.shard is not None:
+        capsule_data["shard"] = run_manifest.shard.model_dump(mode="json")
     capsule_data["capsule_summary_sha256"] = stable_hash(capsule_data)
     manifest = CapsuleManifestV1.model_validate(capsule_data)
     _write_deterministic_tar(archive_path, manifest, content_by_member)
@@ -1164,6 +1185,12 @@ def _verify_extracted_contract(
             "comparison",
             run_manifest.comparison.model_dump(mode="json")
             if run_manifest.comparison is not None
+            else None,
+        ),
+        (
+            "shard",
+            run_manifest.shard.model_dump(mode="json")
+            if run_manifest.shard is not None
             else None,
         ),
     ):

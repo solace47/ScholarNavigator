@@ -89,6 +89,15 @@ SearchService fixture Replay 会在 hash seed、cwd/HOME/TMPDIR、时区、local
 预算、事件或结果；只证明实验设计与覆盖完整性，不计算质量指标。详见
 [`docs/experiment-pairing-integrity.md`](experiment-pairing-integrity.md)。
 
+跨运行分片由 `sharded_execution_integrity_v1` 独立验证。`shard_plan_v1` 在执行前按
+opaque query 的全局稳定序号和 shard 数执行固定 round-robin 分配，并把 plan、shard、
+attempt 及显式 supersession 链同时绑定到 `run_manifest_v1` 和原子 generation-zero。
+归并只选择每个 shard 的唯一谱系末端，按 plan 全局顺序保留成功、失败、取消和排除记录，
+并登记 shard manifest、提交代、事件与血缘摘要；缺失 shard 返回 `not_ready`，重复、遗漏、
+后验过滤或较优 attempt 选择均失败。该元数据也可随复现胶囊迁移，但不改变 SearchService、
+排序、预算或事件语义。详情见
+[`docs/sharded-execution-integrity.md`](sharded-execution-integrity.md)。
+
 ## SearchService 流程
 
 ```mermaid

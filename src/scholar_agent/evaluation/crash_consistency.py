@@ -236,6 +236,7 @@ class BenchmarkRunCommitStore:
         config: Mapping[str, Any],
         dataset_report: Mapping[str, Any],
         comparison_binding: Mapping[str, Any] | None = None,
+        shard_binding: Mapping[str, Any] | None = None,
         injector: FaultInjector | None = None,
     ) -> CommittedRunState:
         if self.has_commits:
@@ -248,6 +249,10 @@ class BenchmarkRunCommitStore:
             normalized_config["comparison"] = _validated_comparison_binding(
                 comparison_binding
             )
+        if shard_binding is not None:
+            if "shard" in normalized_config:
+                raise CrashConsistencyError("shard_binding_duplicated")
+            normalized_config["shard"] = _validated_shard_binding(shard_binding)
         delta = {
             "kind": "initialize",
             "config": normalized_config,
@@ -1311,6 +1316,57 @@ def _validated_comparison_binding(value: Mapping[str, Any]) -> dict[str, Any]:
             r"[0-9a-f]{64}", normalized[field]
         ):
             raise CrashConsistencyError("comparison_binding_digest_invalid")
+    return normalized
+
+
+def _validated_shard_binding(value: Mapping[str, Any]) -> dict[str, Any]:
+    expected_keys = {
+        "contract",
+        "plan_sha256",
+        "shard_index",
+        "shard_count",
+        "expected_query_identities_sha256",
+        "common_execution_contract_sha256",
+        "attempt_id",
+        "supersedes_attempt_id",
+    }
+    if set(value) != expected_keys:
+        raise CrashConsistencyError("shard_binding_fields_invalid")
+    normalized = {str(key): item for key, item in value.items()}
+    if normalized["contract"] != "shard_plan_v1":
+        raise CrashConsistencyError("shard_binding_contract_invalid")
+    shard_index = normalized["shard_index"]
+    shard_count = normalized["shard_count"]
+    if (
+        not isinstance(shard_index, int)
+        or isinstance(shard_index, bool)
+        or not isinstance(shard_count, int)
+        or isinstance(shard_count, bool)
+        or shard_count < 1
+        or shard_index < 0
+        or shard_index >= shard_count
+    ):
+        raise CrashConsistencyError("shard_binding_index_invalid")
+    for field in (
+        "plan_sha256",
+        "expected_query_identities_sha256",
+        "common_execution_contract_sha256",
+    ):
+        if not isinstance(normalized[field], str) or not re.fullmatch(
+            r"[0-9a-f]{64}", normalized[field]
+        ):
+            raise CrashConsistencyError("shard_binding_digest_invalid")
+    attempt = normalized["attempt_id"]
+    supersedes = normalized["supersedes_attempt_id"]
+    attempt_pattern = r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}"
+    if not isinstance(attempt, str) or not re.fullmatch(attempt_pattern, attempt):
+        raise CrashConsistencyError("shard_binding_attempt_invalid")
+    if supersedes is not None and (
+        not isinstance(supersedes, str)
+        or not re.fullmatch(attempt_pattern, supersedes)
+        or supersedes == attempt
+    ):
+        raise CrashConsistencyError("shard_binding_supersedes_invalid")
     return normalized
 
 

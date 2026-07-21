@@ -745,6 +745,29 @@ PYTHONPATH=src python scripts/check_experiment_pairing.py audit-registry
 PYTHONPATH=src python scripts/check_experiment_pairing.py audit-frozen
 ```
 
+## 离线分片执行与确定性归并
+
+新式长任务可用 `shard_plan_v1` 在执行前冻结完整 opaque query 集合、全局顺序、
+数据/Replay 摘要、共同配置及固定 `ordered_round_robin_v1` 分配。每个 shard attempt
+必须把 plan SHA、shard 编号、预期 query 摘要和显式 supersession 关系同时绑定到
+`run_manifest_v1` 与 generation-zero；没有绑定的历史运行不能后验认定为合法分片。
+
+`scripts/check_sharded_execution.py` 检查分区闭合、attempt 唯一末端、共同配置、提交代、
+完整终态和全局顺序，并可生成只读 `shard_aggregate_v1`。aggregate 不会过滤失败、取消或
+排除项，不会选择表现较好的重试；任一 shard 未完成时退出码为 3 且不生成 completed
+产物。门禁只比较结果、排序、统一身份、终态、语义事件与字段血缘的跨运行等价性，
+不读取 gold/qrels、不计算质量指标，也不是官方 scorer。
+
+```bash
+PYTHONPATH=src python scripts/check_sharded_execution.py check-fixture
+PYTHONPATH=src python scripts/check_sharded_execution.py check-fixture --fault duplicate_query
+PYTHONPATH=src python scripts/check_sharded_execution.py audit-frozen
+PYTHONPATH=src pytest -q -m sharded_execution_integrity_regression
+```
+
+完整契约、attempt/retry 选择规则和退出码见
+[`docs/sharded-execution-integrity.md`](sharded-execution-integrity.md)。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
