@@ -136,6 +136,15 @@ def test_chat_json_records_token_usage(monkeypatch: pytest.MonkeyPatch) -> None:
     assert client.token_usage.prompt_tokens == 17
     assert client.token_usage.completion_tokens == 5
     assert client.token_usage.total_tokens == 22
+    assert client.last_call_usage is not None
+    assert client.last_call_usage.prompt_tokens == 17
+    assert client.last_call_usage.completion_tokens == 5
+    assert client.last_call_usage.total_tokens == 22
+    assert client.last_call_usage_fields == {
+        "prompt_tokens": 17,
+        "completion_tokens": 5,
+        "total_tokens": 22,
+    }
 
 
 def test_chat_json_missing_usage_keeps_zero_tokens(
@@ -158,6 +167,48 @@ def test_chat_json_missing_usage_keeps_zero_tokens(
     assert client.token_usage.prompt_tokens == 0
     assert client.token_usage.completion_tokens == 0
     assert client.token_usage.total_tokens == 0
+    assert client.last_call_usage is None
+    assert client.last_call_usage_fields is None
+
+
+def test_chat_json_clears_previous_call_usage_before_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = provider.OpenAICompatibleLLMClient(
+        base_url="https://api.example.test/v1",
+        api_key="sk-test-secret",
+        model="gpt-test",
+    )
+
+    monkeypatch.setattr(
+        client,
+        "_send_with_retries",
+        lambda payload, *, timeout: (
+            {
+                "choices": [{"message": {"content": json.dumps({"ok": True})}}],
+                "usage": {
+                    "prompt_tokens": 3,
+                    "completion_tokens": 2,
+                    "total_tokens": 5,
+                },
+            },
+            1,
+        ),
+    )
+    client.chat_json([{"role": "user", "content": "first"}])
+    assert client.last_call_usage is not None
+    assert client.last_call_diagnostics is not None
+
+    def fail(payload, *, timeout):  # noqa: ANN001, ARG001
+        raise RuntimeError("controlled failure")
+
+    monkeypatch.setattr(client, "_send_with_retries", fail)
+    with pytest.raises(RuntimeError, match="controlled failure"):
+        client.chat_json([{"role": "user", "content": "second"}])
+
+    assert client.last_call_usage is None
+    assert client.last_call_usage_fields is None
+    assert client.last_call_diagnostics is None
 
 
 def test_chat_json_uses_configured_max_tokens_and_thinking_false(

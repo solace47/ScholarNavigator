@@ -503,6 +503,24 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 
 两次生成的十个文件逐字节一致，包 tree SHA-256 为 `08a12db33a6d4705af1ccb2978437eea857290a45e963046d0ee3730c232c7a5`。冻结协议、待标注材料和私有映射位于 `benchmark/lexical_normalization_precision_annotation_manifest.json` 与 `benchmark/lexical_normalization_precision_annotation/`；统计与人工前置动作见 `benchmark/lexical_normalization_precision_annotation_result.json`。当前没有人工标签，因此不得报告 Cohen's kappa、Precision 或误放率，也不得据此改变默认策略。
 
+冻结 Record160 全量 Top-20 变更包还提供独立的
+`llm_relevance_judging_v1` 内部代理评审入口。协议把 439 个当前公开样本和 32 个既有包
+引用绑定为 471 个 opaque item；评审消息只含 query、title、abstract、year，完整剥离
+策略、方向、来源、排名、gold/qrels 和 case/query ID。两轮固定微批评审后只裁决标签
+分歧，所有 item 闭合并生成 hash lock 后才允许离线解盲。失败和
+`insufficient_information` 不会被强制当作负例。
+
+该盲包不包含双方共有 Top-20 候选，因此绝对 arm Precision@20 始终为 null；评分只报告
+变更项的 LLM-proxy 正类率及 candidate-minus-baseline 的 Top-20 正类贡献差值，并复用
+冻结查询连通分量做 20,000 次固定种子 bootstrap/sign-flip。结果不是人工 Precision、
+不是官方 scorer，也不自动改变 evidence registry。协议、resume/usage 语义与命令见
+[`docs/llm-relevance-judging.md`](llm-relevance-judging.md)。
+
+本次模型运行的第一轮仅锁定 447/471 项，3 个批次、24 项在两个有界 attempt 后仍为
+严格 Schema failure；第二轮、裁决、解盲和效果统计因此均未执行。该结果是可审计的
+不完整终态，不得据此给出 LLM-proxy Precision、置信区间或策略收益。脱敏调用证据和
+完整缺失清单位于 `benchmark/llm_relevance_judging_v1_record160_incomplete/`。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。

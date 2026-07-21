@@ -225,6 +225,11 @@ class OpenAICompatibleLLMClient:
     model: str
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     token_usage: LLMTokenUsage = field(default_factory=LLMTokenUsage)
+    last_call_usage: LLMTokenUsage | None = field(default=None, init=False)
+    last_call_usage_fields: dict[str, int] | None = field(
+        default=None,
+        init=False,
+    )
     last_call_diagnostics: LLMCallDiagnostics | None = field(
         default=None,
         init=False,
@@ -251,6 +256,12 @@ class OpenAICompatibleLLMClient:
         temperature: float = 0,
         timeout: float | None = None,
     ) -> dict[str, Any]:
+        # Per-call diagnostics must never leak forward from an earlier request.
+        # This matters to resumable audit callers that persist supplier usage
+        # and transport attempts even when the current request fails.
+        self.last_call_usage = None
+        self.last_call_usage_fields = None
+        self.last_call_diagnostics = None
         started = time.monotonic()
         timeout_seconds = timeout if timeout is not None else self.timeout_seconds
         payload: dict[str, Any] = {
@@ -294,7 +305,14 @@ class OpenAICompatibleLLMClient:
             latency_ms=max(0, round((time.monotonic() - started) * 1000)),
             fallback_reason=fallback_reason,
         )
-        self.token_usage.add(_parse_token_usage(parsed_response.get("usage")))
+        self.last_call_usage_fields = _parse_token_usage_fields(
+            parsed_response.get("usage")
+        )
+        self.last_call_usage = _token_usage_from_fields(
+            self.last_call_usage_fields
+        )
+        if self.last_call_usage is not None:
+            self.token_usage.add(self.last_call_usage)
 
         try:
             content = parsed_response["choices"][0]["message"]["content"]
@@ -457,13 +475,30 @@ def _nvidia_thinking_from_env() -> bool:
 
 
 def _parse_token_usage(raw_usage: object) -> LLMTokenUsage:
+    return _parse_token_usage_optional(raw_usage) or LLMTokenUsage()
+
+
+def _parse_token_usage_optional(raw_usage: object) -> LLMTokenUsage | None:
+    return _token_usage_from_fields(_parse_token_usage_fields(raw_usage))
+
+
+def _parse_token_usage_fields(raw_usage: object) -> dict[str, int] | None:
     if not isinstance(raw_usage, dict):
-        return LLMTokenUsage()
-    return LLMTokenUsage(
-        prompt_tokens=_token_count(raw_usage.get("prompt_tokens")),
-        completion_tokens=_token_count(raw_usage.get("completion_tokens")),
-        total_tokens=_token_count(raw_usage.get("total_tokens")),
-    )
+        return None
+    fields = {
+        name: _token_count(raw_usage[name])
+        for name in ("prompt_tokens", "completion_tokens", "total_tokens")
+        if name in raw_usage
+    }
+    return fields or None
+
+
+def _token_usage_from_fields(
+    fields: dict[str, int] | None,
+) -> LLMTokenUsage | None:
+    if fields is None:
+        return None
+    return LLMTokenUsage(**fields)
 
 
 def _token_count(value: object) -> int:
