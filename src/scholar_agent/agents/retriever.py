@@ -896,7 +896,8 @@ def _retrieve_adapted_query(
                 search,
             )
         except Exception as exc:  # noqa: BLE001 - isolate connector failures
-            message = f"{source} failed: {exc}"
+            safe_error = sanitize_connector_error_text(str(exc))
+            message = f"{source} failed: {safe_error}"
             if not replay_recorded_terminals:
                 if _is_final_rate_limit(message):
                     _record_source_cooldown(source)
@@ -912,12 +913,15 @@ def _retrieve_adapted_query(
                     and "snapshot_missing:" in str(exc)
                     else "source_failure"
                 ),
-                error_message=str(exc),
+                error_message=safe_error,
                 warnings=[message],
                 latency_seconds=time.perf_counter() - source_start,
                 diagnostics=ConnectorDiagnostics(
                     error_count=1,
                     latency_seconds=time.perf_counter() - source_start,
+                ),
+                snapshot_provenance=(
+                    "snapshot_replay" if replay_recorded_terminals else "live"
                 ),
             )
 
@@ -937,6 +941,14 @@ def _retrieve_adapted_query(
                 run_context.block_source(source, "run_rate_limit_cooldown")
         elif not replay_recorded_terminals and run_context is not None:
             run_context.record_transient_outcome(source, result.error_message)
+        safe_result_error = (
+            sanitize_connector_error_text(result.error_message)
+            if result.error_message is not None
+            else None
+        )
+        safe_result_warnings = [
+            sanitize_connector_error_text(item) for item in result.warnings
+        ]
         return SourceStats(
             **base,
             terminal_status=(
@@ -946,9 +958,9 @@ def _retrieve_adapted_query(
             ),
             returned_count=len(result.papers),
             latency_seconds=time.perf_counter() - source_start,
-            error_message=result.error_message,
+            error_message=safe_result_error,
             cache_hit=cache_hit,
-            warnings=list(result.warnings),
+            warnings=safe_result_warnings,
             diagnostic_papers=list(result.papers),
             diagnostics=result.diagnostics,
             snapshot_provenance=result.snapshot_provenance,
@@ -1247,6 +1259,49 @@ def _has_5xx_status(normalized_message: str) -> bool:
         or f"status: {status}" in normalized_message
         for status in range(500, 600)
     )
+
+
+def sanitize_connector_error_text(value: str, *, max_length: int = 500) -> str:
+    """Remove credentials, local paths, and raw control data from connector errors."""
+
+    sanitized = (
+        str(value)
+        .replace("\x00", " ")
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
+    sanitized = re.sub(
+        r"(?i)\bbearer\s+[a-z0-9._~+/=-]+",
+        "Bearer [redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)\b(authorization|proxy-authorization|x-api-key|api[_-]?key|"
+        r"access[_-]?token|refresh[_-]?token)(\s*[:=]\s*)[^\s,;&]+",
+        r"\1\2[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)([?&](?:api[_-]?key|access[_-]?token|token)=)[^&#\s]+",
+        r"\1[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)(?<![\w.])\.env(?:\.[^\s/\\]+)?(?![\w.])",
+        "[environment-file]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?<![:\w])/(?:Users|home|tmp|private|var|etc|opt)/[^\s,;]+",
+        "[absolute-path]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)\b[a-z]:\\(?:[^\\\s]+\\)*[^\s,;]+",
+        "[absolute-path]",
+        sanitized,
+    )
+    return sanitized[:max_length]
 
 
 def _float_env(name: str, default: float) -> float:

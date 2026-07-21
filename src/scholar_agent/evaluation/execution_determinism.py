@@ -277,6 +277,15 @@ def canonicalize_execution_record(
     """Replace only explicitly matched transient fields; preserve all ordering."""
 
     payload = record.model_dump(mode="json")
+    return canonicalize_explicit_fields(payload, rules)
+
+
+def canonicalize_explicit_fields(
+    payload: Any,
+    rules: Sequence[CanonicalizationRule],
+) -> tuple[Any, dict[str, int]]:
+    """Canonicalize only registered field paths without sorting list values."""
+
     counts = {rule.path: 0 for rule in rules}
 
     def visit(value: Any, path: tuple[str, ...]) -> Any:
@@ -291,7 +300,7 @@ def canonicalize_execution_record(
             return [visit(item, (*path, str(index))) for index, item in enumerate(value)]
         return value
 
-    return visit(payload, ()), counts
+    return visit(copy.deepcopy(payload), ()), counts
 
 
 def build_checkpoint(
@@ -371,9 +380,9 @@ def run_execution_determinism(
             "service_max_workers": service_workers,
         }
     )
-    snapshot_before = _tree_signature(snapshot_root)
+    snapshot_before = tree_signature(snapshot_root)
     attempts = {"network": 0}
-    with _forbid_network(attempts):
+    with forbid_network(attempts):
         baseline = _execute_serial(factory(), queries, "baseline")
 
         repeated_backend = factory()
@@ -419,7 +428,7 @@ def run_execution_determinism(
             should_cancel=lambda: False,
         )
 
-    snapshot_after = _tree_signature(snapshot_root)
+    snapshot_after = tree_signature(snapshot_root)
     scenarios = {
         "repeat_same_configuration": (repeat_first, repeat_second),
         "single_vs_batch": (baseline, singles),
@@ -733,7 +742,7 @@ def _repo_path(repository_root: Path, value: str) -> Path:
     return resolved
 
 
-def _tree_signature(root: Path) -> str | None:
+def tree_signature(root: Path) -> str | None:
     if not root.exists():
         return None
     digest = hashlib.sha256()
@@ -744,7 +753,7 @@ def _tree_signature(root: Path) -> str | None:
 
 
 @contextmanager
-def _forbid_network(attempts: dict[str, int]):
+def forbid_network(attempts: dict[str, int]):
     def blocked(*_args: Any, **_kwargs: Any) -> None:
         attempts["network"] += 1
         raise ExecutionDeterminismError("network_access_forbidden")
