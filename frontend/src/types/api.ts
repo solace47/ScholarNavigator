@@ -4,6 +4,7 @@ export type RunProfile = "fast" | "balanced" | "high_recall" | "evaluation";
 export type QueryEvolutionPolicy = "off" | "seed_expansion" | "coverage_gap";
 export type QueryPlanningPolicy =
   | "current_rules"
+  | "prf_v1"
   | "concept_projection"
   | "controlled_relaxation"
   | "disjunctive_facets"
@@ -336,6 +337,21 @@ export interface SearchPlan {
     concept_projection_replaced_query: string | null;
     concept_projection_replaced_purpose: string | null;
     concept_projection_skip_reason: string | null;
+    prf_seed_candidates: Array<{ rank: number; title: string }>;
+    prf_feedback_terms: Array<{
+      term: string;
+      ngram_size: 1 | 2;
+      document_frequency: number;
+      term_frequency: number;
+      rank_discounted_frequency: number;
+    }>;
+    prf_query: string | null;
+    prf_replaced_index: number | null;
+    prf_replaced_query: string | null;
+    prf_replaced_purpose: string | null;
+    prf_skip_reason: string | null;
+    prf_fallback_used: boolean;
+    prf_first_round_source_statuses: Record<string, string>;
     constrained_rewrite_input_summary: Record<string, unknown>;
     constrained_rewrite_query: string | null;
     constrained_rewrite_replaced_index: number | null;

@@ -860,3 +860,30 @@ def test_combined_discovers_refchain_only_after_qe_snapshots_are_collected(
     references = [item for item in second.entries if item.entry_type == "reference"]
     assert references
     assert all(item.dependency_keys for item in references)
+
+
+def test_snapshot_plan_collector_cli_loads_project_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded: list[Path] = []
+    monkeypatch.setattr(
+        collector_module,
+        "load_project_env",
+        lambda root: loaded.append(Path(root)) or True,
+    )
+    monkeypatch.setattr(
+        collector_module,
+        "collect_plan",
+        lambda *args, **kwargs: {"stop_reason": None},
+    )
+
+    assert collector_module.main(
+        [
+            "--collect-plan",
+            str(tmp_path / "plan.json"),
+            "--snapshot-dir",
+            str(tmp_path / "snapshots"),
+        ]
+    ) == 0
+    assert loaded == [collector_module.REPO_ROOT]

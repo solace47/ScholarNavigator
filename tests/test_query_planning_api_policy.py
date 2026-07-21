@@ -34,6 +34,17 @@ def test_api_accepts_concept_projection_planning() -> None:
     assert request.options.query_planning_policy == "concept_projection"
 
 
+def test_api_accepts_prf_v1_planning() -> None:
+    request = SearchRunCreateRequest.model_validate(
+        {
+            "query": "graph retrieval",
+            "options": {"query_planning_policy": "prf_v1"},
+        }
+    )
+
+    assert request.options.query_planning_policy == "prf_v1"
+
+
 def test_api_accepts_controlled_relaxation_planning() -> None:
     request = SearchRunCreateRequest.model_validate(
         {

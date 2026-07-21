@@ -28,6 +28,7 @@ from scholar_agent.connectors import (  # noqa: E402
 )
 from scholar_agent.connectors.schemas import ConnectorSearchResult  # noqa: E402
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers  # noqa: E402
+from scholar_agent.core.env_loader import load_project_env  # noqa: E402
 from scholar_agent.evaluation.snapshots import SnapshotRuntime, SnapshotStore  # noqa: E402
 from scholar_agent.evaluation.llm_planning_snapshots import (  # noqa: E402
     LLMPlanningSnapshotStore,
@@ -408,6 +409,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_project_env(REPO_ROOT)
     args = _parser().parse_args(argv)
     try:
         result = collect_plan(

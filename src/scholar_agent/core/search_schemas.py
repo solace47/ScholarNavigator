@@ -34,6 +34,7 @@ RunProfile = Literal["fast", "balanced", "high_recall", "evaluation"]
 QueryEvolutionPolicy = Literal["off", "seed_expansion", "coverage_gap"]
 QueryPlanningPolicy = Literal[
     "current_rules",
+    "prf_v1",
     "concept_projection",
     "controlled_relaxation",
     "disjunctive_facets",
@@ -106,7 +107,7 @@ SUPPORTED_PAPER_TYPES: tuple[str, ...] = (
     "application",
     "comparison",
 )
-QUERY_PLANNER_VERSION = "1.8.1"
+QUERY_PLANNER_VERSION = "1.9.0"
 LLM_QUERY_PLANNING_SCHEMA_VERSION = "1"
 
 
@@ -307,6 +308,19 @@ class LLMConstrainedRewriteOutput(BaseModel):
     warnings: list[str] = Field(default_factory=list, max_length=12)
 
 
+class PRFSeedCandidate(BaseModel):
+    rank: int = Field(ge=1)
+    title: str
+
+
+class PRFFeedbackTerm(BaseModel):
+    term: str
+    ngram_size: Literal[1, 2]
+    document_frequency: int = Field(ge=2)
+    term_frequency: int = Field(ge=2)
+    rank_discounted_frequency: float = Field(ge=0.0)
+
+
 class QueryPlanningResult(BaseModel):
     policy: QueryPlanningPolicy = "current_rules"
     planner_version: str = QUERY_PLANNER_VERSION
@@ -331,6 +345,15 @@ class QueryPlanningResult(BaseModel):
     concept_projection_replaced_query: str | None = None
     concept_projection_replaced_purpose: str | None = None
     concept_projection_skip_reason: str | None = None
+    prf_seed_candidates: list[PRFSeedCandidate] = Field(default_factory=list)
+    prf_feedback_terms: list[PRFFeedbackTerm] = Field(default_factory=list)
+    prf_query: str | None = None
+    prf_replaced_index: int | None = Field(default=None, ge=0)
+    prf_replaced_query: str | None = None
+    prf_replaced_purpose: str | None = None
+    prf_skip_reason: str | None = None
+    prf_fallback_used: bool = False
+    prf_first_round_source_statuses: dict[str, str] = Field(default_factory=dict)
     constrained_rewrite_input_summary: dict[str, object] = Field(
         default_factory=dict
     )

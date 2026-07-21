@@ -28,7 +28,7 @@ def _explicit_constraints() -> QueryConstraint:
 
 @pytest.mark.parametrize(
     "policy",
-    ["current_rules", "concept_projection", "facet_balanced"],
+    ["current_rules", "prf_v1", "concept_projection", "facet_balanced"],
 )
 def test_original_query_is_always_preserved(policy: str) -> None:
     query = "hybrid retrieval for clinical question answering"

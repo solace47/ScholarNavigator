@@ -350,6 +350,10 @@ class QueryUnderstandingAgent:
                 query_analysis,
                 subqueries,
             )
+            if options.query_planning_policy == "prf_v1":
+                query_planning = query_planning.model_copy(
+                    update={"policy": "prf_v1"}
+                )
             if options.query_planning_policy == "concept_projection":
                 subqueries, query_planning = plan_concept_projection(
                     query_analysis,

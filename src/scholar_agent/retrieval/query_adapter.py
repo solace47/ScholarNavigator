@@ -44,6 +44,13 @@ _ACADEMIC_QUERY_STOPWORDS = {
     "study", "tell", "that", "the", "there", "through", "to", "use", "used",
     "using", "what", "where", "which", "with", "works", "you", "your",
 }
+ACADEMIC_QUERY_STOPWORDS = frozenset(_ACADEMIC_QUERY_STOPWORDS)
+
+
+def tokenize_academic_text(value: str) -> list[str]:
+    """Tokenize academic search text with the production query-adapter rules."""
+
+    return _TOKEN_PATTERN.findall(unicodedata.normalize("NFKC", str(value)))
 
 
 class AdaptedQuery(BaseModel):

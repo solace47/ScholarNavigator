@@ -53,7 +53,7 @@ def test_disjunctive_plan_retains_original_and_bounds_queries() -> None:
     assert 4 <= adapted.query.count("all:") <= 8
     assert " OR " in adapted.query
     assert plan.query_planning.policy == "disjunctive_facets"
-    assert plan.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.8.1"
+    assert plan.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.9.0"
 
 
 def test_explicit_must_have_is_hard_outside_or_group() -> None:

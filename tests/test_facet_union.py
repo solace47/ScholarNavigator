@@ -49,7 +49,7 @@ def test_facet_union_retains_current_queries_and_adds_at_most_one() -> None:
     assert supplemental.facet_types == ["dataset"]
     assert "MS MARCO" in supplemental.query
     assert candidate.query_planning.policy == "facet_union"
-    assert candidate.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.8.1"
+    assert candidate.query_planning.planner_version == QUERY_PLANNER_VERSION == "1.9.0"
 
 
 @pytest.mark.parametrize(

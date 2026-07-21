@@ -26,6 +26,7 @@ from scholar_agent.agents.query_evolution import (
     evolve_queries,
     filter_evolved_candidates,
 )
+from scholar_agent.agents.pseudo_relevance_feedback import build_prf_plan
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
 from scholar_agent.agents.reranker import rerank_papers
@@ -505,7 +506,19 @@ class SearchService:
             stage_start = time.perf_counter()
             initial_subqueries = search_plan.subqueries
             if initial_subqueries:
-                if query_planning_policy in {
+                if query_planning_policy == "prf_v1":
+                    retrieval_outputs, search_plan = self._retrieve_prf_initial_queries(
+                        search_plan,
+                        signals=signals,
+                        run_context=retrieval_run_context,
+                        query_adapter_policy=query_adapter_policy,
+                        adaptive_budget_check=adaptive_budget_tracker.check,
+                        judgement_policy=effective_judgement_policy,
+                        judgement_config=effective_judgement_config,
+                        ranking_policy=ranking_policy,
+                    )
+                    initial_subqueries = search_plan.subqueries
+                elif query_planning_policy in {
                     "current_plus_disjunctive",
                     "facet_union",
                 }:
@@ -1286,6 +1299,137 @@ class SearchService:
             adaptive_budget_check=adaptive_budget_check,
         )
 
+    def _retrieve_prf_initial_queries(
+        self,
+        search_plan: SearchPlan,
+        *,
+        signals: _ExecutionSignals,
+        run_context: RetrievalRunContext,
+        query_adapter_policy: QueryAdapterPolicy,
+        adaptive_budget_check: Callable[[list[Paper]], str | None],
+        judgement_policy: JudgementPolicy,
+        judgement_config: JudgementRuleConfig,
+        ranking_policy: RankingPolicy,
+    ) -> tuple[list[RetrievalOutput], SearchPlan]:
+        """Run original-query feedback before the remaining fixed-size plan."""
+
+        original_index = next(
+            (
+                index
+                for index, item in enumerate(search_plan.subqueries)
+                if item.purpose == "original_query"
+            ),
+            None,
+        )
+        if original_index is None:
+            planning = search_plan.query_planning.model_copy(
+                update={
+                    "prf_skip_reason": "original_query_missing",
+                    "prf_fallback_used": True,
+                }
+            )
+            fallback_plan = search_plan.model_copy(
+                update={"query_planning": planning}
+            )
+            return (
+                self._retrieve_subqueries(
+                    fallback_plan,
+                    signals=signals,
+                    run_context=run_context,
+                    query_adapter_policy=query_adapter_policy,
+                    adaptive_budget_check=adaptive_budget_check,
+                ),
+                fallback_plan,
+            )
+
+        original = search_plan.subqueries[original_index]
+        first_outputs = self._retrieve_subqueries(
+            search_plan,
+            subqueries=[original],
+            signals=signals,
+            run_context=run_context,
+            query_adapter_policy=query_adapter_policy,
+            adaptive_budget_check=adaptive_budget_check,
+        )
+        first_papers, _, _ = _collect_retrieval_outputs(first_outputs)
+        source_statuses = _first_round_source_statuses(
+            first_outputs,
+            search_plan.selected_sources,
+        )
+        first_round_succeeded = any(
+            status in {"success", "partial_failure"}
+            for status in source_statuses.values()
+        )
+        first_unique = deduplicate_papers(first_papers)
+        preliminary_judgements, _ = self._judge_papers(
+            search_plan,
+            first_unique,
+            use_llm=False,
+            llm_client=None,
+            signals=signals,
+            judgement_policy=judgement_policy,
+            judgement_config=judgement_config,
+        )
+        preliminary_ranked, _ = _rerank_all_and_top(
+            search_plan.query_analysis,
+            preliminary_judgements,
+            max(5, search_plan.top_k),
+            ranking_policy=ranking_policy,
+            retrieval_outputs=first_outputs,
+        )
+        outcome = build_prf_plan(
+            search_plan.query_analysis.original_query,
+            search_plan.subqueries,
+            preliminary_ranked,
+            first_round_succeeded=first_round_succeeded,
+        )
+        skipped = list(search_plan.query_planning.skipped_facets)
+        warnings = list(search_plan.query_planning.warnings)
+        plan_warnings = list(search_plan.warnings)
+        if outcome.skip_reason is not None:
+            marker = f"prf_v1:{outcome.skip_reason}"
+            skipped.append(marker)
+            warnings.append(marker)
+            plan_warnings.append(marker)
+        planning = search_plan.query_planning.model_copy(
+            update={
+                "selected_subqueries": outcome.subqueries,
+                "selected_subquery_count": len(outcome.subqueries),
+                "skipped_facets": _dedupe_warnings(skipped),
+                "warnings": _dedupe_warnings(warnings),
+                "prf_seed_candidates": outcome.seeds,
+                "prf_feedback_terms": outcome.feedback_terms,
+                "prf_query": outcome.query,
+                "prf_replaced_index": outcome.replaced_index,
+                "prf_replaced_query": outcome.replaced_query,
+                "prf_replaced_purpose": outcome.replaced_purpose,
+                "prf_skip_reason": outcome.skip_reason,
+                "prf_fallback_used": outcome.fallback_used,
+                "prf_first_round_source_statuses": source_statuses,
+            }
+        )
+        updated_plan = search_plan.model_copy(
+            update={
+                "subqueries": outcome.subqueries,
+                "query_planning": planning,
+                "warnings": _dedupe_warnings(plan_warnings),
+            }
+        )
+        remaining = [
+            item
+            for index, item in enumerate(outcome.subqueries)
+            if index != original_index
+        ]
+        second_outputs = self._retrieve_subqueries(
+            updated_plan,
+            subqueries=remaining,
+            signals=signals,
+            run_context=run_context,
+            query_adapter_policy=query_adapter_policy,
+            adaptive_budget_check=adaptive_budget_check,
+        )
+        return [*first_outputs, *second_outputs], updated_plan
+
     def _retrieve_baseline_then_supplemental(
         self,
         search_plan: SearchPlan,
@@ -2012,6 +2156,41 @@ def _collect_retrieval_outputs(
         source_stats.extend(output.source_stats)
         warnings.extend(output.warnings)
     return papers, source_stats, warnings
+
+
+def _first_round_source_statuses(
+    outputs: list[RetrievalOutput],
+    selected_sources: list[str],
+) -> dict[str, str]:
+    """Summarize first-round terminals without treating skipped adapter calls as failures."""
+
+    statuses: dict[str, str] = {}
+    for source in selected_sources:
+        stats = [
+            item
+            for output in outputs
+            for item in output.source_stats
+            if item.source == source
+        ]
+        succeeded = any(
+            item.logical_call_executed and item.error_message is None
+            for item in stats
+        )
+        failed = any(
+            item.logical_call_executed and item.error_message is not None
+            for item in stats
+        )
+        if succeeded and failed:
+            statuses[source] = "partial_failure"
+        elif succeeded:
+            statuses[source] = "success"
+        elif failed:
+            statuses[source] = "failed"
+        elif stats:
+            statuses[source] = "not_started"
+        else:
+            statuses[source] = "missing"
+    return statuses
 
 
 def _skipped_supplemental_outputs(
