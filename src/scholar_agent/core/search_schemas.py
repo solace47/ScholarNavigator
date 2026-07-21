@@ -444,12 +444,26 @@ class EvidenceItem(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+LexicalNormalizationPolicy = Literal["off", "lexical_normalization_v1"]
+LexicalNormalizationFacet = Literal["topic", "must_have", "method", "domain"]
+
+
+class LexicalNormalizationMatch(BaseModel):
+    policy_version: Literal["lexical-normalization-v1"]
+    facet: LexicalNormalizationFacet
+    original_term: str
+    normalized_form: str
+    field: Literal["title", "abstract"]
+    score_impact: float = Field(ge=0.0, le=1.0)
+
+
 class JudgementRuleConfig(BaseModel):
     """版本化、来源无关的确定性相关性判断参数。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     config_version: str = Field(min_length=1, max_length=80)
+    lexical_normalization_policy: LexicalNormalizationPolicy = "off"
     title_topic_weight: float = Field(ge=0.0, le=1.0)
     abstract_topic_weight: float = Field(ge=0.0, le=1.0)
     topic_max_score: float = Field(ge=0.0, le=1.0)
@@ -510,6 +524,9 @@ class JudgementFeatureVector(BaseModel):
     matched_task_terms: list[str] = Field(default_factory=list)
     matched_must_have_terms: list[str] = Field(default_factory=list)
     matched_paper_types: list[str] = Field(default_factory=list)
+    lexical_normalization_matches: list[LexicalNormalizationMatch] = Field(
+        default_factory=list
+    )
     title_matched_terms: list[str] = Field(default_factory=list)
     abstract_matched_terms: list[str] = Field(default_factory=list)
     title_match_score: float = 0.0

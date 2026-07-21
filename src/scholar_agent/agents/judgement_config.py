@@ -14,6 +14,7 @@ from scholar_agent.core.search_schemas import (
 
 CURRENT_RULES_CONFIG = JudgementRuleConfig(
     config_version="current-rules-v1",
+    lexical_normalization_policy="off",
     title_topic_weight=0.12,
     abstract_topic_weight=0.06,
     topic_max_score=0.45,
@@ -49,6 +50,13 @@ CURRENT_RULES_CONFIG = JudgementRuleConfig(
     partially_relevant_threshold=0.45,
     weakly_relevant_threshold=0.25,
     minimum_evidence_count=0,
+)
+
+LEXICAL_NORMALIZATION_V1_CONFIG = CURRENT_RULES_CONFIG.model_copy(
+    update={
+        "config_version": "current-rules-lexical-normalization-v1",
+        "lexical_normalization_policy": "lexical_normalization_v1",
+    }
 )
 
 # 该常量只承载开发集冻结后产生的实验配置。产品默认仍由 policy 决定。

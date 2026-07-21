@@ -5,19 +5,26 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     EvidenceItem,
     JudgementCategory,
     JudgementFeatureVector,
+    LexicalNormalizationFacet,
+    LexicalNormalizationMatch,
+    LexicalNormalizationPolicy,
     JudgementPolicy,
     JudgementResult,
     JudgementRuleConfig,
     QueryAnalysis,
     QueryConstraint,
     ResearchDomain,
+)
+from scholar_agent.agents.lexical_normalization import (
+    LEXICAL_NORMALIZATION_VERSION,
+    find_lexical_normalization_match,
 )
 from scholar_agent.agents.judgement_config import (
     CURRENT_RULES_CONFIG,
@@ -147,6 +154,7 @@ class _Signal:
     penalty: float = 0.0
     title_score: float = 0.0
     abstract_score: float = 0.0
+    lexical_matches: tuple[LexicalNormalizationMatch, ...] = ()
 
 
 class LLMJsonClient(Protocol):
@@ -424,6 +432,13 @@ def _judge_one_paper(
 
     constraints = query_analysis.constraints
     keyword_terms = _query_terms(query_analysis)
+    topic_lexical_terms = _dedupe_terms(
+        [
+            *_tokenize(query_analysis.original_query),
+            *constraints.must_include_terms,
+            *constraints.methods,
+        ]
+    )
     keyword_signal = _term_signal(
         terms=keyword_terms,
         paper=paper,
@@ -431,6 +446,9 @@ def _judge_one_paper(
         abstract_weight=config.abstract_topic_weight,
         max_score=config.topic_max_score,
         reason_label="query terms",
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_facet="topic",
+        lexical_allowed_terms=topic_lexical_terms,
     )
     must_signal = _term_signal(
         terms=constraints.must_include_terms,
@@ -439,6 +457,8 @@ def _judge_one_paper(
         abstract_weight=config.abstract_must_have_weight,
         max_score=config.must_have_max_score,
         reason_label="required terms",
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_facet="must_have",
     )
     method_signal = _term_signal(
         terms=constraints.methods,
@@ -447,6 +467,8 @@ def _judge_one_paper(
         abstract_weight=config.abstract_method_weight,
         max_score=config.method_max_score,
         reason_label="method terms",
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_facet="method",
     )
     dataset_signal = _term_signal(
         terms=constraints.datasets,
@@ -464,6 +486,8 @@ def _judge_one_paper(
         abstract_weight=config.abstract_domain_weight,
         max_score=config.domain_max_score,
         reason_label="domain terms",
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_facet="domain",
     )
     venue_signal = _venue_signal(constraints, paper, config)
     time_signal = _time_signal(constraints, paper, config)
@@ -541,12 +565,22 @@ def _judge_one_paper(
         category = "insufficient_evidence"
         category_reason = "minimum_evidence_count_not_met"
         reasons.append(category_reason)
-    topic_matches, _ = _matching_constraint_terms(keyword_terms, paper)
-    method_matches, _ = _matching_constraint_terms(constraints.methods, paper)
+    topic_matches, _ = _matching_constraint_terms(
+        keyword_terms,
+        paper,
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_allowed_terms=topic_lexical_terms,
+    )
+    method_matches, _ = _matching_constraint_terms(
+        constraints.methods,
+        paper,
+        lexical_policy=config.lexical_normalization_policy,
+    )
     dataset_matches, _ = _matching_constraint_terms(constraints.datasets, paper)
     must_matches, _ = _matching_constraint_terms(
         constraints.must_include_terms,
         paper,
+        lexical_policy=config.lexical_normalization_policy,
     )
     paper_type_matches, _ = _matched_paper_types(constraints.paper_types, paper)
     task_terms = _facet_terms(query_analysis, "task")
@@ -562,8 +596,16 @@ def _judge_one_paper(
             ]
         ),
         paper,
+        lexical_policy=config.lexical_normalization_policy,
+        lexical_allowed_terms=_dedupe_terms(
+            [
+                *topic_lexical_terms,
+                *constraints.must_include_terms,
+                *constraints.methods,
+            ]
+        ),
     )
-    constraint_results = _constraint_results(query_analysis, paper)
+    constraint_results = _constraint_results(query_analysis, paper, config)
     feature_vector = JudgementFeatureVector(
         config_version=config.config_version,
         config_hash=judgement_config_hash(config),
@@ -573,6 +615,16 @@ def _judge_one_paper(
         matched_task_terms=task_matches,
         matched_must_have_terms=must_matches,
         matched_paper_types=paper_type_matches,
+        lexical_normalization_matches=[
+            match
+            for signal in (
+                keyword_signal,
+                must_signal,
+                method_signal,
+                domain_signal,
+            )
+            for match in signal.lexical_matches
+        ],
         title_matched_terms=title_terms,
         abstract_matched_terms=abstract_terms,
         title_match_score=round(
@@ -636,12 +688,21 @@ def _constraint_coverage_adjustment(
 ) -> tuple[float, list[str]]:
     constraints = query_analysis.constraints
     topic_terms = _tokenize(query_analysis.original_query)
-    topic_matches, _ = _matching_constraint_terms(topic_terms, paper)
-    method_matches, _ = _matching_constraint_terms(constraints.methods, paper)
+    topic_matches, _ = _matching_constraint_terms(
+        topic_terms,
+        paper,
+        lexical_policy=config.lexical_normalization_policy,
+    )
+    method_matches, _ = _matching_constraint_terms(
+        constraints.methods,
+        paper,
+        lexical_policy=config.lexical_normalization_policy,
+    )
     dataset_matches, _ = _matching_constraint_terms(constraints.datasets, paper)
     must_matches, _ = _matching_constraint_terms(
         constraints.must_include_terms,
         paper,
+        lexical_policy=config.lexical_normalization_policy,
     )
     paper_type_matches, _ = _matched_paper_types(constraints.paper_types, paper)
     excluded_matches, _ = _matching_constraint_terms(constraints.exclude_terms, paper)
@@ -757,6 +818,9 @@ def _term_signal(
     abstract_weight: float,
     max_score: float,
     reason_label: str,
+    lexical_policy: LexicalNormalizationPolicy = "off",
+    lexical_facet: LexicalNormalizationFacet | None = None,
+    lexical_allowed_terms: list[str] | None = None,
 ) -> _Signal:
     title = paper.title or ""
     abstract = paper.abstract or ""
@@ -767,27 +831,68 @@ def _term_signal(
     abstract_score = 0.0
     matched_terms: list[str] = []
     evidence: list[EvidenceItem] = []
+    lexical_matches: list[LexicalNormalizationMatch] = []
+    allowed_lexical_keys = {
+        term.casefold()
+        for term in (
+            lexical_allowed_terms if lexical_allowed_terms is not None else terms
+        )
+    }
 
     for term in _dedupe_terms(terms):
         normalized_term = term.casefold()
         if not normalized_term:
             continue
+        matched_field: Literal["title", "abstract"] | None = None
+        normalization_evidence = None
         if _contains_term(title_text, normalized_term):
-            score += title_weight
+            matched_field = "title"
+        elif _contains_term(abstract_text, normalized_term):
+            matched_field = "abstract"
+        elif (
+            lexical_policy == "lexical_normalization_v1"
+            and lexical_facet is not None
+            and term.casefold() in allowed_lexical_keys
+        ):
+            normalization_evidence = find_lexical_normalization_match(
+                term,
+                title=title,
+                abstract=abstract,
+            )
+            if normalization_evidence is not None:
+                matched_field = normalization_evidence.field
+        if matched_field is None:
+            continue
+        weight = title_weight if matched_field == "title" else abstract_weight
+        capped_before = min(score, max_score)
+        score += weight
+        capped_after = min(score, max_score)
+        score_impact = capped_after - capped_before
+        if matched_field == "title":
             title_score += title_weight
-            matched_terms.append(term)
             evidence.append(
                 EvidenceItem(source="title", text=_short_text(title), confidence=0.9)
             )
-        elif _contains_term(abstract_text, normalized_term):
-            score += abstract_weight
+        else:
             abstract_score += abstract_weight
-            matched_terms.append(term)
+            snippet = (
+                _short_text(abstract)
+                if normalization_evidence is not None
+                else _abstract_snippet(abstract, normalized_term)
+            )
             evidence.append(
-                EvidenceItem(
-                    source="abstract",
-                    text=_abstract_snippet(abstract, normalized_term),
-                    confidence=0.72,
+                EvidenceItem(source="abstract", text=snippet, confidence=0.72)
+            )
+        matched_terms.append(term)
+        if normalization_evidence is not None:
+            lexical_matches.append(
+                LexicalNormalizationMatch(
+                    policy_version=LEXICAL_NORMALIZATION_VERSION,
+                    facet=lexical_facet,
+                    original_term=normalization_evidence.original_term,
+                    normalized_form=normalization_evidence.normalized_form,
+                    field=normalization_evidence.field,
+                    score_impact=round(score_impact, 6),
                 )
             )
 
@@ -805,6 +910,7 @@ def _term_signal(
         reasons=reasons,
         title_score=title_score * scale,
         abstract_score=abstract_score * scale,
+        lexical_matches=tuple(lexical_matches),
     )
 
 
@@ -978,6 +1084,7 @@ def _enforce_constraint_outcomes(
         matched_required, required_evidence = _matching_constraint_terms(
             constraints.must_include_terms,
             result.paper,
+            lexical_policy=config.lexical_normalization_policy,
         )
         matched_keys = {item.casefold() for item in matched_required}
         missing_required = [
@@ -1081,7 +1188,7 @@ def _enforce_constraint_outcomes(
                 ),
                 hard_constraint_adjustment=final_score - rule_score,
                 forced_failures=_hard_constraint_failures(
-                    _constraint_results(query_analysis, result.paper)
+                    _constraint_results(query_analysis, result.paper, config)
                 ),
             ),
         }
@@ -1091,6 +1198,9 @@ def _enforce_constraint_outcomes(
 def _matching_constraint_terms(
     terms: list[str],
     paper: Paper,
+    *,
+    lexical_policy: LexicalNormalizationPolicy = "off",
+    lexical_allowed_terms: list[str] | None = None,
 ) -> tuple[list[str], list[EvidenceItem]]:
     title = paper.title or ""
     abstract = paper.abstract or ""
@@ -1098,6 +1208,12 @@ def _matching_constraint_terms(
     abstract_key = abstract.casefold()
     matched: list[str] = []
     evidence: list[EvidenceItem] = []
+    allowed_lexical_keys = {
+        term.casefold()
+        for term in (
+            lexical_allowed_terms if lexical_allowed_terms is not None else terms
+        )
+    }
     for term in _dedupe_terms(terms):
         normalized = term.casefold()
         if _contains_term(title_key, normalized):
@@ -1112,6 +1228,31 @@ def _matching_constraint_terms(
                     source="abstract",
                     text=_abstract_snippet(abstract, normalized),
                     confidence=0.8,
+                )
+            )
+        elif (
+            lexical_policy == "lexical_normalization_v1"
+            and term.casefold() in allowed_lexical_keys
+        ):
+            normalized_match = find_lexical_normalization_match(
+                term,
+                title=title,
+                abstract=abstract,
+            )
+            if normalized_match is None:
+                continue
+            matched.append(term)
+            evidence.append(
+                EvidenceItem(
+                    source=normalized_match.field,
+                    text=(
+                        _short_text(title)
+                        if normalized_match.field == "title"
+                        else _short_text(abstract)
+                    ),
+                    confidence=(
+                        0.92 if normalized_match.field == "title" else 0.8
+                    ),
                 )
             )
     return _dedupe_terms(matched), _dedupe_evidence(evidence)
@@ -1228,17 +1369,41 @@ def _facet_terms(query_analysis: QueryAnalysis, facet_type: str) -> list[str]:
 def _matching_terms_by_field(
     terms: list[str],
     paper: Paper,
+    *,
+    lexical_policy: LexicalNormalizationPolicy = "off",
+    lexical_allowed_terms: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     title = (paper.title or "").casefold()
     abstract = (paper.abstract or "").casefold()
     title_terms: list[str] = []
     abstract_terms: list[str] = []
+    allowed_lexical_keys = {
+        term.casefold()
+        for term in (
+            lexical_allowed_terms if lexical_allowed_terms is not None else terms
+        )
+    }
     for term in _dedupe_terms(terms):
         normalized = term.casefold()
         if _contains_term(title, normalized):
             title_terms.append(term)
         elif _contains_term(abstract, normalized):
             abstract_terms.append(term)
+        elif (
+            lexical_policy == "lexical_normalization_v1"
+            and term.casefold() in allowed_lexical_keys
+        ):
+            normalized_match = find_lexical_normalization_match(
+                term,
+                title=paper.title,
+                abstract=paper.abstract,
+            )
+            if normalized_match is None:
+                continue
+            if normalized_match.field == "title":
+                title_terms.append(term)
+            else:
+                abstract_terms.append(term)
     return _dedupe_terms(title_terms), _dedupe_terms(abstract_terms)
 
 
@@ -1257,6 +1422,7 @@ def _metadata_completeness(paper: Paper) -> float:
 def _constraint_results(
     query_analysis: QueryAnalysis,
     paper: Paper,
+    config: JudgementRuleConfig,
 ) -> dict[str, bool | None]:
     constraints = query_analysis.constraints
     results: dict[str, bool | None] = {}
@@ -1270,6 +1436,7 @@ def _constraint_results(
         matches, _ = _matching_constraint_terms(
             constraints.must_include_terms,
             paper,
+            lexical_policy=config.lexical_normalization_policy,
         )
         matched = {item.casefold() for item in matches}
         results["must_have"] = all(
@@ -1313,7 +1480,7 @@ def _empty_feature_vector(
     *,
     category_reason: str,
 ) -> JudgementFeatureVector:
-    results = _constraint_results(query_analysis, paper)
+    results = _constraint_results(query_analysis, paper, config)
     return JudgementFeatureVector(
         config_version=config.config_version,
         config_hash=judgement_config_hash(config),
