@@ -72,19 +72,24 @@
     "evaluable_query_count": 41,
     "gold_relation_count": 51,
     "evaluable_gold_count": 42,
+    "evaluable_unique_paper_count": 39,
     "baseline": {
       "candidate_recall": 0.12195121951219512,
       "candidate_gold_count": 5,
+      "candidate_unique_paper_count": 5,
       "recall_at_20": 0.12195121951219512,
       "f1_at_20": 0.011614401858304297,
-      "final_gold_count": 5
+      "final_gold_count": 5,
+      "final_unique_paper_count": 5
     },
     "experiment": {
       "candidate_recall": 0.7560975609756098,
       "candidate_gold_count": 32,
+      "candidate_unique_paper_count": 30,
       "recall_at_20": 0.4634146341463415,
       "f1_at_20": 0.04624643649033893,
-      "final_gold_count": 20
+      "final_gold_count": 20,
+      "final_unique_paper_count": 19
     },
     "paired_query_wins_ties_losses": {
       "candidate_recall": [26, 15, 0],
@@ -98,7 +103,9 @@
     "final_returned_candidate_count": 185,
     "candidate_gold_count": 32,
     "independent_gold_count": 27,
+    "independent_unique_paper_count": 25,
     "final_returned_gold_count": 20,
+    "final_returned_unique_paper_count": 19,
     "weakly_relevant_filtered_gold_count": 6,
     "irrelevant_outside_top_20_gold_count": 6,
     "recorded_query_latency_seconds": 2.4883147396613,
