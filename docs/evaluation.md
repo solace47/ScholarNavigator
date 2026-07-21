@@ -51,6 +51,23 @@ Retrieval Snapshot，不初始化 SearchService、connector 或 LLM。审计按
 不得描述为线上可实现成绩。输出不含时间戳，两次相同输入应产生字节一致的
 `case_audit.jsonl` 与 `aggregate.json`。
 
+### 候选排序信号可分性审计
+
+`scripts/audit_candidate_ranking_signals.py` 只读 SciFact local_bm25 与
+AutoScholarQuery dev/val 的冻结 Replay。候选池固定为统一身份去重、全局候选
+预算之后且相关性过滤之前的 `initial_reranked` 阶段；工具先从冻结 judgement
+重建并校验综合分分量，再读取 gold。它分别按冻结综合排名、最佳 reciprocal
+source rank、支持列表数和支持来源数排序，后三者仅用稳定候选身份作并列裁决，
+不拟合权重或搜索组合。
+
+报告同时保留全量可观察结果和严格子集；严格子集要求所有已执行检索请求成功，
+且每个候选的 source、adapted query 与正源内排名 provenance 完整。Top-20/50/100
+只表示冻结候选池内的 gold 捕获，不等同于经过相关性过滤后的产品 Recall/F1；
+未匹配候选只能称为 benchmark 非 gold，不能当作可靠人工负例。2026-07-21 的
+固定审计中，最佳 reciprocal rank 提升 SciFact Top-20 捕获但降低 Auto dev，
+支持列表数和来源数则在 SciFact 退化；没有 provenance 单信号在三个集合严格
+子集的所有深度均不退化，因此本轮证据不支持进入生产排序实验。
+
 ## 离线消融组
 
 | 分组 | 查询演化 | RefChain |
