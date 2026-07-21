@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,6 +75,14 @@ from scholar_agent.evaluation.sharded_execution import (  # noqa: E402
     load_shard_plan,
     select_queries_for_shard,
     shard_binding,
+)
+from scholar_agent.evaluation.resource_accounting import (  # noqa: E402
+    QueryResourceLedger,
+    ResourceLedgerObserver,
+    authority_manifest_identity,
+    build_run_ledger,
+    opaque_resource_identity,
+    validate_resource_ledger,
 )
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshot_resume import (  # noqa: E402
@@ -188,6 +197,7 @@ class BenchmarkRunOptions(BaseModel):
     shard_supersedes_attempt_id: str | None = Field(
         default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
     )
+    enable_resource_ledger: bool = False
 
     @field_validator("sources", mode="before")
     @classmethod
@@ -546,6 +556,8 @@ def run_benchmark(
         )
         commit_store.materialize_compatibility_view(state)
 
+    state = commit_store.load_latest()
+
     snapshot_runtime: SnapshotRuntime | None = None
     llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None
     if (
@@ -617,10 +629,41 @@ def run_benchmark(
             judgement_config=judgement_config,
         )
     selected_ids = [query.query_id for query in selected]
+    resource_query_ids = [opaque_query_identity(item) for item in selected_ids]
+    resource_run_identity = opaque_resource_identity("run", options.run_id)
+    resource_manifest_identity = authority_manifest_identity(
+        options.run_id,
+        expected_query_identities=resource_query_ids,
+        configuration={"resume_signature": config["resume_signature"]},
+    )
     for query in selected:
         previous = existing_rows.get(query.query_id)
         if previous is not None and previous.get("status") == "succeeded":
             continue
+        resource_context: dict[str, Any] | None = None
+        if options.enable_resource_ledger:
+            previous_ledger = (
+                previous.get("resource_ledger")
+                if isinstance(previous, dict)
+                else None
+            )
+            prior_attempt = (
+                str(previous_ledger.get("attempt_identity"))
+                if isinstance(previous_ledger, dict)
+                and previous_ledger.get("attempt_identity")
+                else None
+            )
+            resource_context = {
+                "run_identity": resource_run_identity,
+                "query_identity": opaque_query_identity(query.query_id),
+                "attempt_identity": opaque_resource_identity(
+                    "attempt",
+                    f"{options.run_id}:{query.query_id}:{state.generation + 1}",
+                ),
+                "superseded_attempt_identity": prior_attempt,
+                "checkpoint_generation": state.generation + 1,
+                "manifest_identity": resource_manifest_identity,
+            }
         existing_rows[query.query_id] = _run_case(
             runner,
             query,
@@ -628,6 +671,7 @@ def run_benchmark(
             snapshot_runtime=snapshot_runtime,
             llm_planning_runtime=llm_planning_runtime,
             judgement_config=judgement_config,
+            resource_ledger_context=resource_context,
         )
         state = commit_store.commit_record(existing_rows[query.query_id])
         commit_store.materialize_compatibility_view(state)
@@ -640,6 +684,38 @@ def run_benchmark(
     reports: dict[str, bytes] = {
         "metrics.json": _json_bytes(metrics),
     }
+    if options.enable_resource_ledger:
+        query_ledgers = [
+            QueryResourceLedger.model_validate(row["resource_ledger"])
+            for row in ordered_rows
+        ]
+        selected_attempts = {
+            item.query_identity: item.attempt_identity for item in query_ledgers
+        }
+        superseded_attempts = sorted(
+            {
+                str(attempt)
+                for row in ordered_rows
+                for attempt in row.get("resource_ledger_superseded_attempts", [])
+            }
+        )
+        run_ledger = build_run_ledger(
+            query_ledgers,
+            run_identity=resource_run_identity,
+            manifest_identity=resource_manifest_identity,
+            expected_query_identities=resource_query_ids,
+            selected_attempts=selected_attempts,
+            superseded_attempts=superseded_attempts,
+        )
+        ledger_report = validate_resource_ledger(
+            run_ledger,
+            authoritative_records=ordered_rows,
+        )
+        if ledger_report["status"] != "passed":
+            raise ValueError("resource_ledger_integrity_violation")
+        reports["resource_ledger.json"] = _json_bytes(
+            run_ledger.model_dump(mode="json")
+        )
     if options.diagnostics:
         case_diagnostics = [
             row["stage_diagnostics"]
@@ -825,6 +901,7 @@ def _build_config(
         "max_workers": options.max_workers,
         "budgets": options.budgets.model_dump(mode="json"),
         "diagnostics": options.diagnostics,
+        "enable_resource_ledger": options.enable_resource_ledger,
         "query_adapter_policy": options.query_adapter_policy,
         "retrieval_mode": options.retrieval_mode,
         "llm_mode": options.llm_mode,
@@ -1044,8 +1121,14 @@ def _run_case(
     snapshot_runtime: SnapshotRuntime | None = None,
     llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None,
     judgement_config: JudgementRuleConfig | None = None,
+    resource_ledger_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
+    resource_observer = (
+        ResourceLedgerObserver(options.budgets)
+        if resource_ledger_context is not None
+        else None
+    )
     if snapshot_runtime is not None:
         snapshot_runtime.begin_case(query.query_id)
     if llm_planning_runtime is not None:
@@ -1060,6 +1143,11 @@ def _run_case(
                 "judgement_policy": options.judgement_policy,
                 "judgement_config": judgement_config,
             }
+        resource_kwargs = (
+            {"resource_accounting_observer": resource_observer}
+            if resource_observer is not None
+            else {}
+        )
         output = service.run_search(
             query.query,
             top_k=options.top_k,
@@ -1081,6 +1169,7 @@ def _run_case(
             collect_diagnostics=options.diagnostics,
             query_adapter_policy=options.query_adapter_policy,
             **judgement_kwargs,
+            **resource_kwargs,
         )
         result = map_search_service_output_to_api_result(
             run_id=f"benchmark_{query.query_id}",
@@ -1114,7 +1203,12 @@ def _run_case(
             row["llm_planning_cost_report"] = (
                 llm_planning_runtime.finish_case().model_dump(mode="json")
             )
-        return row
+        return _attach_resource_ledger(
+            row,
+            resource_observer,
+            resource_ledger_context,
+            terminal_status="succeeded",
+        )
     except Exception as exc:  # noqa: BLE001 - isolate benchmark cases
         row = {
             "case_id": query.query_id,
@@ -1134,7 +1228,39 @@ def _run_case(
             row["llm_planning_cost_report"] = (
                 llm_planning_runtime.finish_case().model_dump(mode="json")
             )
+        terminal_status = (
+            "cancelled" if type(exc).__name__ == "SearchCancelled" else "failed"
+        )
+        return _attach_resource_ledger(
+            row,
+            resource_observer,
+            resource_ledger_context,
+            terminal_status=terminal_status,
+        )
+
+
+def _attach_resource_ledger(
+    row: dict[str, Any],
+    observer: ResourceLedgerObserver | None,
+    context: Mapping[str, Any] | None,
+    *,
+    terminal_status: Literal["succeeded", "failed", "cancelled", "not_started"],
+) -> dict[str, Any]:
+    if observer is None or context is None:
         return row
+    ledger = observer.build_query_ledger(
+        run_identity=str(context["run_identity"]),
+        query_identity=str(context["query_identity"]),
+        attempt_identity=str(context["attempt_identity"]),
+        checkpoint_generation=int(context["checkpoint_generation"]),
+        manifest_identity=str(context["manifest_identity"]),
+        terminal_status=terminal_status,
+    )
+    row["resource_ledger"] = ledger.model_dump(mode="json")
+    superseded = context.get("superseded_attempt_identity")
+    if superseded is not None:
+        row["resource_ledger_superseded_attempts"] = [str(superseded)]
+    return row
 
 
 def _evaluate_rows(
@@ -1473,6 +1599,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-latency-seconds", type=float, default=None)
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument(
+        "--resource-ledger",
+        action="store_true",
+        help=(
+            "write optional resource_ledger_v1 from existing connector and "
+            "budget signals; does not change execution budgets"
+        ),
+    )
+    parser.add_argument(
         "--query-adapter-policy",
         choices=["safe_original", "hybrid", "adaptive"],
         default="adaptive",
@@ -1722,6 +1856,7 @@ def main(argv: list[str] | None = None) -> int:
             max_workers=args.max_workers,
             budgets=budgets,
             diagnostics=args.diagnostics,
+            enable_resource_ledger=args.resource_ledger,
             query_adapter_policy=args.query_adapter_policy,
             resume=args.resume,
             retrieval_mode=args.retrieval_mode,

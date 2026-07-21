@@ -768,6 +768,31 @@ PYTHONPATH=src pytest -q -m sharded_execution_integrity_regression
 完整契约、attempt/retry 选择规则和退出码见
 [`docs/sharded-execution-integrity.md`](sharded-execution-integrity.md)。
 
+## 运行资源账本与预算守恒
+
+新格式 Benchmark 可显式开启 `--resource-ledger`，让默认关闭的
+`resource_ledger_v1` 观察器复用生产 connector diagnostics、SearchBudgetRuntime、LLM
+usage、取消/终态事件以及 checkpoint generation，生成逐 operation 权威账目。真实请求、
+分页、重试、cache、预算拒绝、取消与部分完成分别记录；没有供应商证据的 token/cost 是
+`not_available`，不能以 0 或估算价格替代。
+
+`resource_accounting_integrity_v1` 验证 run=query=operation 汇总、预算预留/消费/释放/
+剩余额守恒、调用唯一性、取消后零新增消费、resume 已提交 attempt 唯一计数及 shard 只汇总
+最终 attempt。账本进入原子 completion generation，并可登记到 `run_manifest_v1` 和复现
+胶囊；日志、兼容文件和旧汇总不具权威性。历史 Record160/Full1000 缺少逐操作账本，
+只读资格为 `not_eligible`，不会被反推或补造。
+
+```bash
+PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture
+PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture --resume-shard
+PYTHONPATH=src python scripts/check_resource_accounting.py audit-frozen
+PYTHONPATH=src pytest -q -m resource_accounting_integrity_regression
+```
+
+该门禁只证明资源记录与既有预算一致，不优化预算、不计算质量指标，也不替代运行产物完整性、
+实验成本分析或官方 scorer。完整协议和退出码见
+[`docs/resource-accounting-integrity.md`](resource-accounting-integrity.md)。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

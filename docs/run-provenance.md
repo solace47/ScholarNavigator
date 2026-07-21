@@ -31,6 +31,12 @@ Snapshot 内容哈希、query-only manifest、Prompt manifest、evaluator 版本
 SHA-256 校验。血缘契约本身见 [`docs/result-lineage.md`](result-lineage.md)，旧运行不得
 事后补造该输出。
 
+启用资源账本的新运行还可登记 `resource_ledger_v1` binding：其输出文件必须同时以
+`resource_ledger_v1` 角色出现在 `outputs`，并绑定 opaque run identity、账本 authority
+manifest identity 与 `committed_generation_only` 权威边界。校验器会离线执行账本守恒
+门禁，并核对 run identity、query 数量及文件哈希；兼容镜像或日志不能替代该 binding。
+详见 [`docs/resource-accounting-integrity.md`](resource-accounting-integrity.md)。
+
 JSON 采用键排序、UTF-8、固定缩进和末尾换行。摘要不包含时间戳、绝对路径、用户名或
 机器临时目录。query 身份摘要对输入顺序不敏感，顺序摘要单独记录，因此内容变化和重排
 都可定位。输出目录采用封闭清单：未登记文件、缺文件、大小或 SHA-256 变化都会失败；

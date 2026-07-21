@@ -14,6 +14,9 @@
 - `execution_determinism_v1` 本地 Replay 协议及其原始响应；
 - 按 query 顺序提交的规范化结果、阶段终态和语义事件摘要。
 
+manifest 若登记可选 `resource_ledger_v1`，其账本文件会和其他封闭 outputs 一样进入胶囊
+清单并接受大小/SHA-256 校验；胶囊不会从日志或兼容报告重建缺失账本。
+
 归档只包含数据。`entrypoint.kind` 固定为 `host_search_service_replay`，复放由当前宿主
 checkout 中的 `SearchServiceFixtureBackend` 执行，`execute_archived_code=false`。胶囊
 生成 commit 必须与宿主 commit 一致。Prompt 若实际使用，导出器会登记 Prompt manifest

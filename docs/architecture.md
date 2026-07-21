@@ -98,6 +98,15 @@ attempt 及显式 supersession 链同时绑定到 `run_manifest_v1` 和原子 ge
 排序、预算或事件语义。详情见
 [`docs/sharded-execution-integrity.md`](sharded-execution-integrity.md)。
 
+新格式运行可选启用 `resource_ledger_v1` 观察器。它直接订阅 SearchService 已有的
+connector、预算、LLM、取消和终态事件，按稳定 operation identity 记录预留、消费、释放、
+请求、分页、重试、cache 与未知 token/cost；不建立第二套请求或预算执行路径。账本随原子
+completion generation 提交，并可登记到 `run_manifest_v1`、复现胶囊和所选 shard attempt。
+`resource_accounting_integrity_v1` 再验证 run/query/operation 汇总及预算守恒，拒绝未提交、
+被 supersede 或取消后的消耗。观察器默认关闭，启用前后 SearchService 结果、排序、去重、
+事件和预算行为必须相同。详情见
+[`docs/resource-accounting-integrity.md`](resource-accounting-integrity.md)。
+
 ## SearchService 流程
 
 ```mermaid
@@ -130,7 +139,7 @@ flowchart TD
 
 API 将预算映射为内部 `SearchBudget`，SearchService 使用单次运行共享的计量状态。初始检索记为逻辑第 1 轮，查询演化检索记为第 2 轮；并行子查询和 RefChain 不增加轮次。候选在每次跨源去重后、进入判断前按来源轮转稳定截断；RefChain 还会把剩余候选额度传给每个 seed。
 
-查询理解和判断共用 LLM 调用数与 Token 计量，并在每次调用前检查调用数、已用 Token 和延迟。Provider 未返回 usage 时 Token 记为 0 并标记计量不精确；单次响应的实际 Token 无法预知，因此 Token 上限只能阻止后续调用。延迟使用单调时钟，在查询理解、检索、判断批次、查询演化、RefChain seed、重排和归纳边界检查；已经发出的 HTTP 请求不能中断，但返回后不会继续启动受限的外部或高成本阶段。预算停止返回已有部分结果，不视为任务失败。
+查询理解和判断共用 LLM 调用数与 Token 计量，并在每次调用前检查调用数、已用 Token 和延迟。Provider 未返回 usage 时，既有执行预算仍按兼容语义处理；可选资源账本则将该次 token/cost 明确记为 `not_available`，不以 0 冒充实测值。单次响应的实际 Token 无法预知，因此 Token 上限只能阻止后续调用。延迟使用单调时钟，在查询理解、检索、判断批次、查询演化、RefChain seed、重排和归纳边界检查；已经发出的 HTTP 请求不能中断，但返回后不会继续启动受限的外部或高成本阶段。预算停止返回已有部分结果，不视为任务失败。
 
 检索批次另有明确的墙钟清理余量：达到查询预算截止时间后，调度器取消未开始 future、不再提交新子查询，并为运行中任务写入 `timeout`、排队任务写入 `not_started` 的终态。无共享运行状态的可序列化 synthetic/connector adapter 使用固定 `spawn` 子进程执行，父进程先 drain pipe 再有界 join，超时或取消时 terminate/kill 并回收；这避免永久阻塞线程留在 executor 中。生产 `retrieve_papers` 保留进程内 run cache/锁，依赖各 connector 的有限 HTTP timeout/retry，并由上层非阻塞 executor 截止等待。
 

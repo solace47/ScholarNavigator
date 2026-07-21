@@ -210,6 +210,18 @@ class SelectedShardReference(BaseModel):
     event_count: int = Field(ge=0)
 
 
+class ShardResourceLedgerReference(BaseModel):
+    """Authoritative ledger selected with one final shard attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shard_index: int = Field(ge=0)
+    attempt_id: str
+    path: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    manifest_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class ShardAggregateV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -227,6 +239,9 @@ class ShardAggregateV1(BaseModel):
     commit_events: list[dict[str, Any]]
     terminal_counts: dict[str, int]
     operational_counts: dict[str, int | float]
+    resource_ledgers: list[ShardResourceLedgerReference] = Field(
+        default_factory=list
+    )
     completed: bool
     aggregate_summary_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -981,6 +996,7 @@ def _build_aggregate(
 ) -> ShardAggregateV1:
     rows_by_identity: dict[str, dict[str, Any]] = {}
     selected_refs: list[SelectedShardReference] = []
+    resource_ledger_refs: list[ShardResourceLedgerReference] = []
     query_commit_events: dict[str, dict[str, Any]] = {}
     for shard_index in range(plan.shard_count):
         reference, manifest, state = selected[shard_index]
@@ -1013,6 +1029,16 @@ def _build_aggregate(
                 event_count=state.event_count,
             )
         )
+        if manifest.resource_ledger is not None:
+            resource_ledger_refs.append(
+                ShardResourceLedgerReference(
+                    shard_index=shard_index,
+                    attempt_id=reference.attempt_id,
+                    path=manifest.resource_ledger.output.path,
+                    sha256=manifest.resource_ledger.output.sha256,
+                    manifest_identity=manifest.resource_ledger.manifest_identity,
+                )
+            )
     records = [rows_by_identity[identity] for identity in plan.queries.identities]
     commit_events = [
         query_commit_events[identity] for identity in plan.queries.identities
@@ -1040,6 +1066,9 @@ def _build_aggregate(
         "commit_events": commit_events,
         "terminal_counts": terminal_counts,
         "operational_counts": dict(sorted(operational.items())),
+        "resource_ledgers": [
+            item.model_dump(mode="json") for item in resource_ledger_refs
+        ],
         "completed": len(records) == plan.queries.count,
     }
     return ShardAggregateV1(
@@ -1081,6 +1110,30 @@ def _validate_aggregate_model(
                     path="$.selected_shards",
                 )
             )
+    expected_ledgers = []
+    for shard_index in range(plan.shard_count):
+        reference, manifest, _state = selected[shard_index]
+        if manifest.resource_ledger is None:
+            continue
+        expected_ledgers.append(
+            {
+                "shard_index": shard_index,
+                "attempt_id": reference.attempt_id,
+                "path": manifest.resource_ledger.output.path,
+                "sha256": manifest.resource_ledger.output.sha256,
+                "manifest_identity": manifest.resource_ledger.manifest_identity,
+            }
+        )
+    observed_ledgers = [
+        item.model_dump(mode="json") for item in aggregate.resource_ledgers
+    ]
+    if observed_ledgers != expected_ledgers:
+        violations.append(
+            _violation(
+                "aggregate_resource_ledger_selection_mismatch",
+                path="$.resource_ledgers",
+            )
+        )
     return violations
 
 

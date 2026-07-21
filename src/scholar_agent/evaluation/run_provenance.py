@@ -270,6 +270,17 @@ class ShardRunBinding(BaseModel):
         return self
 
 
+class ResourceLedgerBinding(BaseModel):
+    """Optional authoritative accounting artifact for a new-format run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract: Literal["resource_ledger_v1"] = "resource_ledger_v1"
+    output: FileIdentity
+    manifest_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
+    authority: Literal["committed_generation_only"] = "committed_generation_only"
+
+
 class RunManifestV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -291,6 +302,7 @@ class RunManifestV1(BaseModel):
     metadata_bindings: list[MetadataBinding] = Field(default_factory=list)
     comparison: ComparisonRunBinding | None = None
     shard: ShardRunBinding | None = None
+    resource_ledger: ResourceLedgerBinding | None = None
     score_scope: Literal["internal_not_official"] = "internal_not_official"
 
     @model_validator(mode="after")
@@ -321,6 +333,14 @@ class RunManifestV1(BaseModel):
             item.artifact_path not in registered for item in self.metadata_bindings
         ):
             raise ValueError("metadata binding artifact is not a registered output")
+        if self.resource_ledger is not None:
+            ledger_outputs = {
+                item.path
+                for item in self.outputs
+                if item.role == "resource_ledger_v1"
+            }
+            if self.resource_ledger.output.path not in ledger_outputs:
+                raise ValueError("resource ledger is not a registered ledger output")
         return self
 
 
@@ -423,6 +443,16 @@ def build_run_manifest(
                 else None
             ),
         )
+    resource_spec = spec.get("resource_ledger")
+    resource_ledger = None
+    if resource_spec is not None:
+        if not isinstance(resource_spec, Mapping):
+            raise RunProvenanceError("spec section invalid:resource_ledger")
+        output = file_identity(str(resource_spec["output_path"]), repository_root)
+        resource_ledger = ResourceLedgerBinding(
+            output=output,
+            manifest_identity=str(resource_spec["manifest_identity"]),
+        )
     manifest = RunManifestV1(
         run_id=str(spec["run_id"]),
         dataset=dataset,
@@ -441,6 +471,7 @@ def build_run_manifest(
         outputs=outputs,
         comparison=comparison,
         shard=shard,
+        resource_ledger=resource_ledger,
         metadata_bindings=[
             MetadataBinding.model_validate(item)
             for item in sorted(
@@ -969,6 +1000,68 @@ def _validate_manifest_files(
                     record.record_count,
                 )
             )
+    if manifest.resource_ledger is not None:
+        ledger_path = resolve_repo_path(
+            repository_root, manifest.resource_ledger.output.path
+        )
+        try:
+            from scholar_agent.evaluation.resource_accounting import (  # noqa: PLC0415
+                ResourceLedgerV1,
+                opaque_resource_identity,
+                validate_resource_ledger,
+            )
+
+            ledger = ResourceLedgerV1.model_validate_json(
+                ledger_path.read_text(encoding="utf-8")
+            )
+            ledger_report = validate_resource_ledger(ledger)
+        except (OSError, ValidationError, json.JSONDecodeError) as exc:
+            violations.append(
+                _violation(
+                    "resource_ledger_unreadable",
+                    manifest.resource_ledger.output.path,
+                    "valid resource_ledger_v1",
+                    type(exc).__name__,
+                )
+            )
+        else:
+            expected_run_identity = opaque_resource_identity("run", manifest.run_id)
+            if ledger.run_identity != expected_run_identity:
+                violations.append(
+                    _violation(
+                        "resource_ledger_run_identity_mismatch",
+                        manifest.resource_ledger.output.path,
+                        expected_run_identity,
+                        ledger.run_identity,
+                    )
+                )
+            if ledger.manifest_identity != manifest.resource_ledger.manifest_identity:
+                violations.append(
+                    _violation(
+                        "resource_ledger_manifest_identity_mismatch",
+                        manifest.resource_ledger.output.path,
+                        manifest.resource_ledger.manifest_identity,
+                        ledger.manifest_identity,
+                    )
+                )
+            if len(ledger.expected_query_identities) != manifest.queries.count:
+                violations.append(
+                    _violation(
+                        "resource_ledger_query_count_mismatch",
+                        manifest.resource_ledger.output.path,
+                        manifest.queries.count,
+                        len(ledger.expected_query_identities),
+                    )
+                )
+            if ledger_report["status"] != "passed":
+                violations.append(
+                    _violation(
+                        "resource_ledger_accounting_invalid",
+                        manifest.resource_ledger.output.path,
+                        "passed",
+                        ledger_report["status"],
+                    )
+                )
     payload = manifest.model_dump(mode="json")
     for binding in manifest.metadata_bindings:
         artifact_path = resolve_repo_path(repository_root, binding.artifact_path)

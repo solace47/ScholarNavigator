@@ -19,6 +19,10 @@ from scholar_agent.evaluation.run_provenance import (
     validate_run_manifest,
     write_json,
 )
+from scholar_agent.evaluation.resource_accounting import (
+    _fixture_run_ledger,
+    build_run_ledger,
+)
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -181,6 +185,47 @@ def test_run_manifest_passes_and_is_byte_deterministic(tmp_path: Path) -> None:
     write_json(second_path, second.model_dump(mode="json"))
     assert first_path.read_bytes() == second_path.read_bytes()
     assert validate_run_manifest(first_path, repository_root=tmp_path)["status"] == "passed"
+
+
+def test_run_manifest_registers_and_validates_authoritative_resource_ledger(
+    tmp_path: Path,
+) -> None:
+    spec, run_dir = _fixture(tmp_path, run_name="offline-resource-fixture")
+    fixture = _fixture_run_ledger(shard_resume=False)
+    queries = fixture.queries[:2]
+    identities = [item.query_identity for item in queries]
+    ledger = build_run_ledger(
+        queries,
+        run_identity=fixture.run_identity,
+        manifest_identity=fixture.manifest_identity,
+        expected_query_identities=identities,
+        selected_attempts={
+            item.query_identity: item.attempt_identity for item in queries
+        },
+    )
+    ledger_path = run_dir / "resource_ledger.json"
+    _write_json(ledger_path, ledger.model_dump(mode="json"))
+    spec["outputs"].append(  # type: ignore[union-attr]
+        {
+            "path": "runs/offline-resource-fixture/resource_ledger.json",
+            "role": "resource_ledger_v1",
+            "format": "json",
+        }
+    )
+    spec["resource_ledger"] = {
+        "output_path": "runs/offline-resource-fixture/resource_ledger.json",
+        "manifest_identity": ledger.manifest_identity,
+    }
+
+    manifest_path = _materialize(tmp_path, spec, "resource-ledger")
+    report = validate_run_manifest(manifest_path, repository_root=tmp_path)
+
+    assert report["status"] == "passed"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["resource_ledger"]["authority"] == "committed_generation_only"
+    assert manifest["resource_ledger"]["output"]["sha256"] == sha256_file(
+        ledger_path
+    )
 
 
 def test_tampered_missing_and_unregistered_files_are_reported(tmp_path: Path) -> None:

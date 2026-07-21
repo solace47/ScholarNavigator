@@ -152,9 +152,11 @@ class _ExecutionSignals:
         self,
         event_callback: EventCallback | None,
         should_cancel: ShouldCancel | None,
+        resource_accounting_observer: Any | None = None,
     ) -> None:
         self._event_callback = event_callback
         self._should_cancel = should_cancel
+        self._resource_accounting_observer = resource_accounting_observer
         self.warnings: list[str] = []
         self._budget_reasons: set[str] = set()
         self._warning_events: set[str] = set()
@@ -172,9 +174,20 @@ class _ExecutionSignals:
     def check_deadline(self, stage: str) -> None:
         remaining = self.remaining_seconds()
         if remaining is not None and remaining <= 0:
+            self._observe_cancellation(f"deadline:{stage}")
             raise SearchDeadlineExceeded(stage)
 
     def emit(self, event_name: str, payload: dict[str, Any] | None = None) -> None:
+        observation = getattr(
+            self._resource_accounting_observer,
+            "observe_semantic_event",
+            None,
+        )
+        if callable(observation):
+            try:
+                observation(event_name, dict(payload or {}))
+            except Exception:  # noqa: BLE001 - observation must not alter execution
+                pass
         if self._event_callback is None:
             return
         try:
@@ -197,7 +210,20 @@ class _ExecutionSignals:
                     self.warnings.append(warning)
             return
         if cancelled:
+            self._observe_cancellation(stage)
             raise SearchCancelled(stage)
+
+    def _observe_cancellation(self, stage: str) -> None:
+        callback = getattr(
+            self._resource_accounting_observer,
+            "observe_cancellation",
+            None,
+        )
+        if callable(callback):
+            try:
+                callback(stage)
+            except Exception:  # noqa: BLE001 - observation must not alter execution
+                pass
 
     def emit_budget_stops(
         self,
@@ -414,8 +440,13 @@ class SearchService:
         collect_diagnostics: bool = False,
         query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
         result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
+        resource_accounting_observer: Any | None = None,
     ) -> SearchServiceOutput:
-        signals = _ExecutionSignals(event_callback, should_cancel)
+        signals = _ExecutionSignals(
+            event_callback,
+            should_cancel,
+            resource_accounting_observer,
+        )
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
         retrieval_run_context = RetrievalRunContext()
         elapsed_seconds_provider = getattr(
@@ -430,6 +461,7 @@ class SearchService:
                 if callable(elapsed_seconds_provider)
                 else None
             ),
+            resource_accounting_observer=resource_accounting_observer,
         )
         signals.set_deadline(
             runtime.started_at
@@ -1491,6 +1523,32 @@ class SearchService:
             )
         output.latency_seconds = time.perf_counter() - start
         output.budget_status = runtime.status()
+        source_observer = getattr(
+            resource_accounting_observer,
+            "observe_source_stats",
+            None,
+        )
+        if callable(source_observer):
+            try:
+                source_observer(
+                    [
+                        {
+                            "source": item.source,
+                            "returned_count": item.returned_count,
+                            "request_count": item.diagnostics.request_count,
+                            "retry_count": item.diagnostics.retry_count,
+                            "error_count": item.diagnostics.error_count,
+                            "cache_hit": item.cache_hit,
+                            "logical_call_executed": item.logical_call_executed,
+                            "source_skipped_reason": item.source_skipped_reason,
+                            "error_message": item.error_message,
+                        }
+                        for item in source_stats
+                    ]
+                )
+            except Exception:  # noqa: BLE001 - observation must not alter execution
+                pass
+        runtime.finalize_resource_accounting(len(deduplicated))
         output.warnings = _dedupe_warnings(
             [
                 *warnings,
@@ -2199,12 +2257,18 @@ def run_search(
     should_cancel: ShouldCancel | None = None,
     collect_diagnostics: bool = False,
     result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
+    resource_accounting_observer: Any | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
     lineage_kwargs = (
         {"result_lineage_callback": result_lineage_callback}
         if result_lineage_callback is not None
+        else {}
+    )
+    resource_kwargs = (
+        {"resource_accounting_observer": resource_accounting_observer}
+        if resource_accounting_observer is not None
         else {}
     )
     return SearchService().run_search(
@@ -2228,6 +2292,7 @@ def run_search(
         should_cancel=should_cancel,
         collect_diagnostics=collect_diagnostics,
         **lineage_kwargs,
+        **resource_kwargs,
     )
 
 
@@ -2281,6 +2346,7 @@ def _apply_candidate_budget(
 ) -> list[Paper]:
     limit = runtime.budget.max_candidate_papers
     if len(papers) <= limit:
+        runtime.record_candidate_count(len(papers))
         return papers
 
     truncated = _stable_source_coverage_truncate(
@@ -2293,6 +2359,7 @@ def _apply_candidate_budget(
         before_count=len(papers),
         after_count=len(truncated),
     )
+    runtime.record_candidate_count(len(truncated))
     return truncated
 
 

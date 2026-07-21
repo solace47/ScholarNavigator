@@ -34,6 +34,7 @@ class SearchBudgetRuntime:
         budget: SearchBudget | None = None,
         *,
         elapsed_seconds_provider: Callable[[], float] | None = None,
+        resource_accounting_observer: Any | None = None,
     ) -> None:
         self.budget = budget or SearchBudget()
         self.started_at = time.perf_counter()
@@ -47,6 +48,7 @@ class SearchBudgetRuntime:
         self.token_usage_precise = True
         self.candidate_truncations: list[CandidateTruncation] = []
         self._elapsed_seconds_provider = elapsed_seconds_provider
+        self._resource_accounting_observer = resource_accounting_observer
 
     @property
     def elapsed_seconds(self) -> float:
@@ -76,6 +78,18 @@ class SearchBudgetRuntime:
 
     def record_search_round(self) -> None:
         self.completed_search_rounds += 1
+        self._observe_budget(
+            "search_round_consumed",
+            {"completed_search_rounds": self.completed_search_rounds},
+        )
+
+    def record_candidate_count(self, candidate_count: int) -> None:
+        """Expose the already enforced candidate count to an optional observer."""
+
+        self._observe_budget(
+            "candidate_budget_observed",
+            {"candidate_count": max(0, int(candidate_count))},
+        )
 
     def can_start_llm(self) -> str | None:
         latency_reason = self.latency_stop_reason()
@@ -87,13 +101,17 @@ class SearchBudgetRuntime:
             return self.stop("budget_stop:max_total_tokens")
         return None
 
-    def begin_llm_call(self) -> None:
+    def begin_llm_call(self) -> int:
         self.used_llm_calls += 1
+        return self.used_llm_calls
 
     def finish_llm_call(
         self,
         before: TokenUsageSnapshot,
         after: TokenUsageSnapshot,
+        *,
+        sequence: int | None = None,
+        terminal_status: str = "success",
     ) -> None:
         prompt_delta = max(0, after.prompt_tokens - before.prompt_tokens)
         completion_delta = max(0, after.completion_tokens - before.completion_tokens)
@@ -106,6 +124,24 @@ class SearchBudgetRuntime:
             self.diagnose("budget_diagnostic:llm_usage_unavailable")
         if self.total_tokens >= self.budget.max_total_tokens:
             self.stop("budget_stop:max_total_tokens")
+        observer = self._resource_accounting_observer
+        callback = getattr(observer, "observe_llm_call", None)
+        if callable(callback):
+            try:
+                callback(
+                    {
+                        "sequence": sequence or self.used_llm_calls,
+                        "prompt_tokens": prompt_delta,
+                        "completion_tokens": completion_delta,
+                        "total_tokens": total_delta,
+                        "usage_available": bool(
+                            before.available and after.available
+                        ),
+                        "terminal_status": terminal_status,
+                    }
+                )
+            except Exception:  # noqa: BLE001 - observation must not alter execution
+                pass
 
     def record_candidate_truncation(
         self,
@@ -146,6 +182,29 @@ class SearchBudgetRuntime:
             elapsed_seconds=self.elapsed_seconds,
         )
 
+    def finalize_resource_accounting(self, candidate_count: int) -> None:
+        """Publish final existing counters without changing budget decisions."""
+
+        self._observe_budget(
+            "budget_finalized",
+            {
+                "completed_search_rounds": self.completed_search_rounds,
+                "candidate_count": max(0, int(candidate_count)),
+                "elapsed_seconds": self.elapsed_seconds,
+                "stop_reasons": list(self.stop_reasons),
+            },
+        )
+
+    def _observe_budget(self, name: str, payload: dict[str, Any]) -> None:
+        observer = self._resource_accounting_observer
+        callback = getattr(observer, "observe_budget_event", None)
+        if not callable(callback):
+            return
+        try:
+            callback(name, payload)
+        except Exception:  # noqa: BLE001 - observation must not alter execution
+            pass
+
 
 class BudgetedLLMClient:
     """LLM client proxy that blocks calls before global limits are exceeded."""
@@ -184,17 +243,23 @@ class BudgetedLLMClient:
         if reason is not None:
             raise BudgetStopError(reason)
         before = token_usage_snapshot(self._client)
-        self._runtime.begin_llm_call()
+        sequence = self._runtime.begin_llm_call()
+        terminal_status = "success"
         try:
             return self._client.chat_json(
                 messages,
                 temperature=temperature,
                 timeout=timeout,
             )
+        except Exception:  # noqa: BLE001 - preserve provider exception and account it
+            terminal_status = "failed"
+            raise
         finally:
             self._runtime.finish_llm_call(
                 before,
                 token_usage_snapshot(self._client),
+                sequence=sequence,
+                terminal_status=terminal_status,
             )
 
 

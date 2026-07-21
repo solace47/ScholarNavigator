@@ -37,6 +37,10 @@ manifest、attempt、generation manifest、事件数、记录数和文件 SHA-25
 旧 AutoScholarQuery Record160/Full1000 缺少预绑定计划和独立 shard 谱系，因此只读资格
 审计固定返回 `not_eligible`，不会反推 160 条为合法分片。
 
+若 shard manifest 登记了 `resource_ledger_v1`，aggregate 只引用每个 shard 所选唯一最终
+attempt 的账本路径、哈希和 authority identity；被 supersede 或未选择 attempt 的账本不会
+进入聚合。资源守恒仍由独立的 `resource_accounting_integrity_v1` 门禁验证。
+
 ## CLI 与退出码
 
 ```bash
