@@ -317,6 +317,39 @@ AutoScholarQuery 全量规划门禁使用独立的 query-only 输入 `benchmark/
 
 冻结结果为 1000/1000 Schema 与 JSON round-trip 成功、0 错误、0 warning、0 空查询、0 重复子查询、0 缺字段和 1000/1000 预算一致。共生成 2410 条子查询：590 个 case 为 2 条、410 个为 3 条；四源逻辑请求槽总数 9640，410 个三查询 case 的请求返回容量上界 240 会由既有全局 200 候选预算裁剪，但没有增加配置预算。文本解析覆盖 method 305、dataset 65、time range 9 个 case；数据没有独立 API 显式约束输入。两次实测单条规则规划 p95 为 0.659/0.702 ms、p99 为 0.770/1.206 ms，最大值 7.162/7.409 ms；孤立最大值未改变计划内容，长尾中 3 子查询 case 略多，未发现结构化失败模式。两次 `plans.jsonl`、`summary.json` 和回归报告逐字节一致，前两者 SHA-256 分别为 `8442fd2ddba1ef29615749f7a1a75a77cb1f9393f9fc2bff9c96730dee198b37` 与 `00f2d2246dce4b2ee123aa0ffaef90215a52f9ca67b147d460ee8761281bb766`。
 
+AutoScholarQuery 全量 gold 身份输入门禁由
+`scripts/audit_autoscholar_gold_identity.py` 提供，只在 evaluator 隔离层读取
+1000 条数据的 2403 条 gold；它不导入 SearchService、connector、排序或 Prompt，
+也不运行 Recall/F1。五类互斥终态固定为稳定 ID 可评估、严格标题-作者-年份
+证据可评估、同类标识冲突、身份歧义和信息不足。稳定标识与无标识时的保守
+标题证据完全复用 `identity.py`；不使用模糊标题、外部 crosswalk 或人工补全。
+
+版本化协议、逐 gold/逐 query 基准和汇总分别位于
+`benchmark/autoscholar_gold_identity_manifest.json`、
+`benchmark/autoscholar_gold_identity_baseline/` 与
+`benchmark/autoscholar_gold_identity_result.json`。门禁固定原数据、query-only
+manifest、统一身份实现、evaluator 与审计实现 SHA-256，逐关系比较终态、稳定
+标识、标题证据和身份 cluster，逐 query 比较原始/evaluator/安全去重计数；gold
+增删、身份变化、计数或实现漂移均输出最小 JSON path 并失败。普通 check 不能
+更新基准；独立 `propose-baseline` 只生成待审查产物。
+
+冻结结果中 2403/2403 关系均凭 arXiv ID 进入稳定 ID 可评估终态，0 冲突、
+0 歧义、0 信息不足，1000 个 query 均至少有一个可评估 gold。统一身份得到
+2009 篇全局唯一论文，394 条是跨全量数据重复关系；其中 268 篇跨 query 复用，
+涉及 657 条关系。当前 evaluator 不在 query 内预去重：2 个 query 合计有 5 条
+重复 denominator，原始 2403 条关系对应安全 query 内去重 denominator 2398。
+数据除标题与 arXiv ID 外均缺作者、年份、DOI、PMID、OpenAlex、S2 和 S2ORC
+字段；这些缺失不影响本版精确 arXiv 身份可评估性。该审计只冻结 evaluator
+输入质量，不是检索效果或官方成绩。
+
+```bash
+PYTHONPATH=src python scripts/audit_autoscholar_gold_identity.py check \
+  --manifest benchmark/autoscholar_gold_identity_manifest.json \
+  --output-dir outputs/benchmark_runs/autoscholar_gold_identity_gate
+
+PYTHONPATH=src pytest -q -m gold_identity_regression
+```
+
 `scripts/audit_autoscholar_snapshot_resume.py` 将上述 query-only 计划、冻结的 baseline `plan_round_2`、现有 retrieval Snapshot 与 Record 产物的顶层 `case_id/status` 合并为 gold-blind 缺失审计。Record JSONL 的其他字段由结构扫描器直接跳过，不加载数据集 adapter 或 evaluator。每个 required key 都重新计算 Snapshot key，并在已有文件上校验 source、规范查询、limit、adapter/query-adapter/connector 版本与 content hash；四类终态固定为已有 `success`、已有 `failed`、已结束 Record case 的 `missing`，以及尚未进入 Record case 的 `not_started`。来源、query-only manifest 顺序四分位、查询长度秩四分位、子查询数与 method/dataset/time 约束仅用于缺失机制审计，不生成 Recall/F1。
 
 版本化 `benchmark/autoscholar_full1000_resume/resume_manifest.json` 只调度 frozen failed、missing 与 not-started key；成功 key 永不覆盖，冻结失败 key只统一重试一次。调度使用按各来源剩余总量归一化的确定性公平轮转，并以配置来源顺序破除并列；每个来源内部按 query-only manifest case 顺序轮转，同 case 仍有替代项时避免相邻发送。canonical Runner 仅在显式提供 `--resume-manifest` 时进入该路径，重新校验 required plan hash、key/request signature 与全部 retrieval 语义配置；`--resume-manifest-dry-run` 在加载项目环境之前返回进度，0 网络、0 Snapshot 写入。实际执行仍使用原 connector、request body、limit、重试与 Snapshot key，只改变跨请求调度顺序；无参数时原 Benchmark 路径不变。
