@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import statistics
+import time
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,6 +38,7 @@ from scholar_agent.prompts.loader import validate_data_only_message_roles
 
 
 CONTRACT_VERSION = "llm_relevance_judging_v1"
+HARDENED_CONTRACT_VERSION = "llm_relevance_judging_v1_1"
 SCHEMA_VERSION = "1"
 GATE_NAME = "llm_relevance_judging_gate"
 SCORE_SCOPE = "internal_llm_proxy_not_human_or_official"
@@ -53,6 +55,12 @@ DEFAULT_RUN_DIR = (
     / "benchmark_runs"
     / "llm_relevance_judging_v1_record160"
 )
+DEFAULT_HARDENED_RUN_DIR = (
+    Path(__file__).resolve().parents[3]
+    / "outputs"
+    / "benchmark_runs"
+    / "llm_relevance_judging_v1_1_record160"
+)
 LABEL_VALUES = tuple(str(value) for value in LABELS)
 POSITIVE_LABELS = frozenset({"relevant", "partially_relevant"})
 _LABEL_PATTERN = r"^item:[0-9a-f]{64}$"
@@ -61,6 +69,30 @@ _PLACEHOLDER = "{{payload}}"
 _FORBIDDEN_RUNTIME_KEYS = frozenset(
     {"api_key", "authorization", "base_url", "headers", "token", "secret"}
 )
+_PROTOCOL_SPECS = {
+    CONTRACT_VERSION: {
+        "batch_size": 8,
+        "max_concurrency": 4,
+        "logical_retry_backoff_seconds": None,
+        "complete_attempt_budget_in_one_run": False,
+        "request_options": None,
+        "structured_output": None,
+    },
+    HARDENED_CONTRACT_VERSION: {
+        "batch_size": 1,
+        "max_concurrency": 4,
+        "logical_retry_backoff_seconds": 1.0,
+        "complete_attempt_budget_in_one_run": True,
+        "request_options": {"max_tokens": 1024, "timeout_seconds": 60.0},
+        "structured_output": {
+            "client_validation": "strict_pydantic_extra_forbid",
+            "malformed_output_recovery": "forbidden",
+            "provider_mode": "native_json_object",
+            "top_level_adjudication_key": "decisions",
+            "top_level_judge_key": "labels",
+        },
+    },
+}
 
 
 class LLMRelevanceJudgingError(RuntimeError):
@@ -142,6 +174,13 @@ def stable_json_bytes(value: Any) -> bytes:
     ).encode("utf-8")
 
 
+def _contract(protocol: Mapping[str, Any]) -> str:
+    contract = str(protocol.get("contract") or "")
+    if contract not in _PROTOCOL_SPECS:
+        raise LLMRelevanceJudgingError("protocol_contract_invalid")
+    return contract
+
+
 def load_protocol(path: Path, *, repository_root: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -149,7 +188,8 @@ def load_protocol(path: Path, *, repository_root: Path) -> dict[str, Any]:
         raise LLMRelevanceJudgingError("protocol_unreadable") from exc
     if not isinstance(value, dict):
         raise LLMRelevanceJudgingError("protocol_root_invalid")
-    if value.get("contract") != CONTRACT_VERSION:
+    contract = str(value.get("contract") or "")
+    if contract not in _PROTOCOL_SPECS:
         raise LLMRelevanceJudgingError("protocol_contract_invalid")
     if value.get("schema_version") != SCHEMA_VERSION:
         raise LLMRelevanceJudgingError("protocol_schema_invalid")
@@ -161,18 +201,50 @@ def load_protocol(path: Path, *, repository_root: Path) -> dict[str, Any]:
     if set(rubric.get("positive_labels") or ()) != POSITIVE_LABELS:
         raise LLMRelevanceJudgingError("rubric_positive_labels_drift")
     judge = value.get("judge") or {}
-    if judge.get("batch_size") != 8:
+    spec = _PROTOCOL_SPECS[contract]
+    if judge.get("batch_size") != spec["batch_size"]:
         raise LLMRelevanceJudgingError("batch_size_drift")
     if judge.get("temperature") != 0:
         raise LLMRelevanceJudgingError("temperature_drift")
     if judge.get("max_logical_attempts_per_batch") != 2:
         raise LLMRelevanceJudgingError("attempt_limit_drift")
-    if judge.get("max_concurrency") != 4:
+    if judge.get("max_concurrency") != spec["max_concurrency"]:
         raise LLMRelevanceJudgingError("concurrency_limit_drift")
+    if (
+        judge.get("logical_retry_backoff_seconds")
+        != spec["logical_retry_backoff_seconds"]
+    ):
+        raise LLMRelevanceJudgingError("logical_retry_backoff_drift")
+    if (
+        judge.get("complete_attempt_budget_in_one_run", False)
+        is not spec["complete_attempt_budget_in_one_run"]
+    ):
+        raise LLMRelevanceJudgingError("logical_attempt_execution_drift")
+    if judge.get("structured_output") != spec["structured_output"]:
+        raise LLMRelevanceJudgingError("structured_output_contract_drift")
+    if judge.get("request_options") != spec["request_options"]:
+        raise LLMRelevanceJudgingError("request_options_contract_drift")
     if judge.get("evidence_max_characters") != 240:
         raise LLMRelevanceJudgingError("evidence_limit_drift")
     if tuple(judge.get("independent_rounds") or ()) != _ROUND_IDS:
         raise LLMRelevanceJudgingError("independent_round_contract_drift")
+    if contract == HARDENED_CONTRACT_VERSION:
+        if judge["judge_prompt"].get("version") != "1.1.0" or judge[
+            "adjudicator_prompt"
+        ].get("version") != "1.1.0":
+            raise LLMRelevanceJudgingError("hardened_prompt_version_drift")
+        predecessor = value.get("predecessor") or {}
+        if predecessor.get("inherit_locked_labels") is not False:
+            raise LLMRelevanceJudgingError("predecessor_label_inheritance_forbidden")
+        for name in ("calls", "manifest", "status"):
+            predecessor_path = _repo_path(
+                repository_root.resolve(),
+                str(predecessor.get(f"{name}_path") or ""),
+            )
+            if sha256_file(predecessor_path) != predecessor.get(f"{name}_sha256"):
+                raise LLMRelevanceJudgingError(
+                    f"predecessor_hash_mismatch:{name}"
+                )
     statistics_spec = value.get("statistics") or {}
     if statistics_spec != {
         "bootstrap_iterations": 20000,
@@ -250,7 +322,7 @@ def prepare_run(
     )
     manifest = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "score_scope": SCORE_SCOPE,
         "state": "prepared",
         "item_count": len(rows),
@@ -289,6 +361,7 @@ def prepare_run(
                 item["scope"] == "prior" for item in package_index
             ),
         },
+        contract=_contract(protocol),
     )
 
 
@@ -309,7 +382,11 @@ def run_judge_round(
     items, prepared = _load_prepared(
         protocol, repository_root=repository_root, run_dir=run_dir
     )
-    binding = _bind_runtime(run_dir, runtime_binding)
+    binding = _bind_runtime(
+        run_dir,
+        runtime_binding,
+        contract=_contract(protocol),
+    )
     batches = _chunks(items, int(protocol["judge"]["batch_size"]))
     directory = run_dir / "rounds" / round_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -325,6 +402,7 @@ def run_judge_round(
             index=index,
             items=batch,
             runtime_binding_sha256=stable_hash(binding),
+            contract=_contract(protocol),
         )
         if existing is not None and existing["status"] == "locked_success":
             continue
@@ -372,6 +450,7 @@ def run_judge_round(
             "called_batch_count": called,
             **coverage,
         },
+        contract=_contract(protocol),
     )
 
 
@@ -389,7 +468,11 @@ def run_adjudication(
     items, prepared = _load_prepared(
         protocol, repository_root=repository_root, run_dir=run_dir
     )
-    binding = _bind_runtime(run_dir, runtime_binding)
+    binding = _bind_runtime(
+        run_dir,
+        runtime_binding,
+        contract=_contract(protocol),
+    )
     first = _locked_round_labels(protocol, run_dir, "independent_1", items)
     second = _locked_round_labels(protocol, run_dir, "independent_2", items)
     disagreements = [
@@ -412,6 +495,7 @@ def run_adjudication(
             index=index,
             items=batch,
             runtime_binding_sha256=stable_hash(binding),
+            contract=_contract(protocol),
         )
         if existing is not None and existing["status"] == "locked_success":
             continue
@@ -471,6 +555,7 @@ def run_adjudication(
             "called_batch_count": called,
             **coverage,
         },
+        contract=_contract(protocol),
     )
 
 
@@ -495,9 +580,10 @@ def verify_run(
                 "blind_view_sha256": prepared["blind_view_sha256"],
                 "reason": "runtime_binding_missing",
             },
+            contract=_contract(protocol),
         )
     binding = _read_json(binding_path)
-    _validate_runtime_binding(binding)
+    _validate_runtime_binding(binding, contract=_contract(protocol))
     details: dict[str, Any] = {
         "item_count": len(items),
         "blind_view_sha256": prepared["blind_view_sha256"],
@@ -526,6 +612,7 @@ def verify_run(
             EXIT_INTEGRITY_VIOLATION if terminal_schema_failures else EXIT_INCOMPLETE,
             stage="verify",
             details=details,
+            contract=_contract(protocol),
         )
     first = _locked_round_labels(protocol, run_dir, "independent_1", items)
     second = _locked_round_labels(protocol, run_dir, "independent_2", items)
@@ -560,6 +647,7 @@ def verify_run(
             exit_code,
             stage="verify",
             details=details,
+            contract=_contract(protocol),
         )
     records = _resolved_records(protocol, run_dir, items)
     observed = _labels_lock(
@@ -576,6 +664,7 @@ def verify_run(
             EXIT_INCOMPLETE,
             stage="verify",
             details={**details, "reason": "labels_lock_missing"},
+            contract=_contract(protocol),
         )
     if _read_json(lock_path) != observed:
         raise LLMRelevanceJudgingError("labels_lock_mismatch")
@@ -588,6 +677,7 @@ def verify_run(
             "labels_sha256": observed["labels_sha256"],
             "locked_batch_tree_sha256": observed["locked_batch_tree_sha256"],
         },
+        contract=_contract(protocol),
     )
 
 
@@ -616,7 +706,7 @@ def score_run(
     usage = _usage_summary(run_dir)
     result = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "score_scope": SCORE_SCOPE,
         "status": "completed",
         "exit_code": EXIT_COMPLETED,
@@ -684,7 +774,7 @@ def publish_incomplete_audit(
     usage = _usage_summary(run_dir)
     status = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "score_scope": SCORE_SCOPE,
         "status": verification["status"],
         "exit_code": verification["exit_code"],
@@ -717,7 +807,7 @@ def publish_incomplete_audit(
     _write_once_json(status_path, status)
     manifest = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "score_scope": SCORE_SCOPE,
         "protocol_sha256": stable_hash(protocol),
         "state": "incomplete_no_unblinding",
@@ -748,11 +838,14 @@ def runtime_binding_for_client(
     provider: str,
     model: str,
     request_options: Mapping[str, int | float],
+    contract: str = CONTRACT_VERSION,
 ) -> dict[str, Any]:
+    if contract not in _PROTOCOL_SPECS:
+        raise LLMRelevanceJudgingError("runtime_binding_contract_invalid")
     endpoint = str(getattr(client, "base_url", ""))
     return {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": contract,
         "provider": provider,
         "model": model,
         "provider_endpoint_sha256": hashlib.sha256(endpoint.encode("utf-8")).hexdigest(),
@@ -800,6 +893,7 @@ def _build_blind_items(
         item_id = _opaque_item_id(
             scope,
             sample_id,
+            contract=_contract(protocol),
             package_sha256=(
                 current["public_sha256"]
                 if scope == "current"
@@ -848,8 +942,14 @@ def _public_index(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, A
     return output
 
 
-def _opaque_item_id(scope: str, sample_id: str, *, package_sha256: str) -> str:
-    payload = "\x1f".join((CONTRACT_VERSION, scope, package_sha256, sample_id))
+def _opaque_item_id(
+    scope: str,
+    sample_id: str,
+    *,
+    contract: str,
+    package_sha256: str,
+) -> str:
+    payload = "\x1f".join((contract, scope, package_sha256, sample_id))
     return "item:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -876,9 +976,14 @@ def _load_prepared(
     return observed, manifest
 
 
-def _bind_runtime(run_dir: Path, binding: Mapping[str, Any]) -> dict[str, Any]:
+def _bind_runtime(
+    run_dir: Path,
+    binding: Mapping[str, Any],
+    *,
+    contract: str,
+) -> dict[str, Any]:
     value = dict(binding)
-    _validate_runtime_binding(value)
+    _validate_runtime_binding(value, contract=contract)
     path = run_dir / "runtime_binding.json"
     if path.exists():
         if _read_json(path) != value:
@@ -888,10 +993,8 @@ def _bind_runtime(run_dir: Path, binding: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
-def _validate_runtime_binding(value: Mapping[str, Any]) -> None:
-    if value.get("contract") != CONTRACT_VERSION or value.get(
-        "schema_version"
-    ) != SCHEMA_VERSION:
+def _validate_runtime_binding(value: Mapping[str, Any], *, contract: str) -> None:
+    if value.get("contract") != contract or value.get("schema_version") != SCHEMA_VERSION:
         raise LLMRelevanceJudgingError("runtime_binding_contract_invalid")
     if not str(value.get("provider") or "") or not str(value.get("model") or ""):
         raise LLMRelevanceJudgingError("runtime_binding_provider_invalid")
@@ -906,6 +1009,9 @@ def _validate_runtime_binding(value: Mapping[str, Any]) -> None:
         raise LLMRelevanceJudgingError("runtime_binding_timeout_invalid")
     if int(options.get("max_tokens") or 0) <= 0:
         raise LLMRelevanceJudgingError("runtime_binding_max_tokens_invalid")
+    expected_options = _PROTOCOL_SPECS[contract]["request_options"]
+    if expected_options is not None and dict(options) != expected_options:
+        raise LLMRelevanceJudgingError("runtime_binding_request_options_drift")
 
 
 def _judge_messages(
@@ -1105,26 +1211,42 @@ def _execute_batch_work(
     ) -> tuple[int, Path, dict[str, Any]]:
         index, items, path, existing, messages = entry
         current_client = client_factory() if client_factory is not None else client
-        attempt = _invoke_batch(
-            current_client,
-            messages,
-            expected_ids=[item.item_id for item in items],
-            mode=mode,
-            protocol=protocol,
+        payload = existing
+        maximum = int(protocol["judge"]["max_logical_attempts_per_batch"])
+        run_full_budget = bool(
+            protocol["judge"].get("complete_attempt_budget_in_one_run", False)
         )
-        return (
-            index,
-            path,
-            _update_batch(
-                existing,
+        while payload is None or (
+            payload["status"] != "locked_success"
+            and len(payload["attempts"]) < maximum
+        ):
+            if payload is not None:
+                backoff = float(
+                    protocol["judge"].get("logical_retry_backoff_seconds") or 0
+                )
+                if backoff > 0:
+                    time.sleep(backoff)
+            attempt = _invoke_batch(
+                current_client,
+                messages,
+                expected_ids=[item.item_id for item in items],
+                mode=mode,
+                protocol=protocol,
+            )
+            payload = _update_batch(
+                payload,
                 mode=mode,
                 phase=phase,
                 index=index,
                 items=items,
                 runtime_binding_sha256=runtime_binding_sha256,
                 attempt=attempt,
-            ),
-        )
+                contract=_contract(protocol),
+            )
+            _atomic_write_json(path, payload)
+            if payload["status"] == "locked_success" or not run_full_budget:
+                break
+        return index, path, payload
 
     concurrency = (
         int(protocol["judge"]["max_concurrency"])
@@ -1179,6 +1301,7 @@ def _update_batch(
     items: Sequence[BlindItem],
     runtime_binding_sha256: str,
     attempt: Mapping[str, Any],
+    contract: str,
 ) -> dict[str, Any]:
     attempts = list(existing.get("attempts") or []) if existing else []
     attempt_row = {"attempt": len(attempts) + 1, **dict(attempt)}
@@ -1186,11 +1309,17 @@ def _update_batch(
     status = "locked_success" if attempt["status"] == "success" else "failed"
     return {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": contract,
         "mode": mode,
         "phase": phase,
         "batch_index": index,
-        "batch_identity": _batch_identity(mode, phase, index, items),
+        "batch_identity": _batch_identity(
+            mode,
+            phase,
+            index,
+            items,
+            contract=contract,
+        ),
         "item_ids": [item.item_id for item in items],
         "item_set_sha256": stable_hash([item.item_id for item in items]),
         "runtime_binding_sha256": runtime_binding_sha256,
@@ -1211,17 +1340,24 @@ def _load_existing_batch(
     index: int,
     items: Sequence[BlindItem],
     runtime_binding_sha256: str,
+    contract: str,
 ) -> dict[str, Any] | None:
     if not path.exists():
         return None
     value = _read_json(path)
     expected = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": contract,
         "mode": mode,
         "phase": phase,
         "batch_index": index,
-        "batch_identity": _batch_identity(mode, phase, index, items),
+        "batch_identity": _batch_identity(
+            mode,
+            phase,
+            index,
+            items,
+            contract=contract,
+        ),
         "item_ids": [item.item_id for item in items],
         "item_set_sha256": stable_hash([item.item_id for item in items]),
         "runtime_binding_sha256": runtime_binding_sha256,
@@ -1290,6 +1426,7 @@ def _round_coverage(
             index=index,
             items=items,
             runtime_binding_sha256=runtime_binding_sha256,
+            contract=_contract(protocol),
         )
         if value is None:
             missing_batches += 1
@@ -1347,6 +1484,7 @@ def _locked_round_labels(
             index=index,
             items=batch,
             runtime_binding_sha256=stable_hash(binding),
+            contract=_contract(protocol),
         )
         if value is None or value["status"] != "locked_success":
             raise LLMRelevanceJudgingIncomplete(f"round_incomplete:{round_id}")
@@ -1379,6 +1517,7 @@ def _resolved_records(
             index=index,
             items=batch,
             runtime_binding_sha256=stable_hash(binding),
+            contract=_contract(protocol),
         )
         if value is None or value["status"] != "locked_success":
             raise LLMRelevanceJudgingIncomplete("adjudication_incomplete")
@@ -1440,7 +1579,7 @@ def _labels_lock(
     ]
     return {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "state": "labels_locked",
         "blind_view_sha256": prepared["blind_view_sha256"],
         "input_bindings_sha256": stable_hash(protocol["inputs"]),
@@ -1758,7 +1897,7 @@ def _publish_run(
     _write_once_json(result_path, result)
     manifest = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": _contract(protocol),
         "score_scope": SCORE_SCOPE,
         "protocol_sha256": stable_hash(protocol),
         "runtime_binding": _read_json(run_dir / "runtime_binding.json"),
@@ -1948,11 +2087,16 @@ def _safe_provider_failure(exc: Exception) -> dict[str, Any]:
 
 
 def _batch_identity(
-    mode: str, phase: str, index: int, items: Sequence[BlindItem]
+    mode: str,
+    phase: str,
+    index: int,
+    items: Sequence[BlindItem],
+    *,
+    contract: str,
 ) -> str:
     return "batch:" + stable_hash(
         {
-            "contract": CONTRACT_VERSION,
+            "contract": contract,
             "mode": mode,
             "phase": phase,
             "index": index,
@@ -1971,10 +2115,11 @@ def _status_report(
     *,
     stage: str,
     details: Mapping[str, Any],
+    contract: str = CONTRACT_VERSION,
 ) -> dict[str, Any]:
     report = {
         "schema_version": SCHEMA_VERSION,
-        "contract": CONTRACT_VERSION,
+        "contract": contract,
         "gate": GATE_NAME,
         "score_scope": SCORE_SCOPE,
         "status": status,
@@ -1987,30 +2132,47 @@ def _status_report(
     return report
 
 
-def incomplete_report(stage: str, reason: str) -> dict[str, Any]:
+def incomplete_report(
+    stage: str,
+    reason: str,
+    *,
+    contract: str = CONTRACT_VERSION,
+) -> dict[str, Any]:
     return _status_report(
         "incomplete_or_llm_unavailable",
         EXIT_INCOMPLETE,
         stage=stage,
         details={"reason": reason},
+        contract=contract,
     )
 
 
-def violation_report(stage: str, reason: str) -> dict[str, Any]:
+def violation_report(
+    stage: str,
+    reason: str,
+    *,
+    contract: str = CONTRACT_VERSION,
+) -> dict[str, Any]:
     return _status_report(
         "integrity_or_schema_violation",
         EXIT_INTEGRITY_VIOLATION,
         stage=stage,
         details={"reason": reason},
+        contract=contract,
     )
 
 
-def usage_error_report(reason: str = "usage_error") -> dict[str, Any]:
+def usage_error_report(
+    reason: str = "usage_error",
+    *,
+    contract: str = CONTRACT_VERSION,
+) -> dict[str, Any]:
     return _status_report(
         "usage_error",
         EXIT_USAGE_ERROR,
         stage="cli",
         details={"reason": reason},
+        contract=contract,
     )
 
 

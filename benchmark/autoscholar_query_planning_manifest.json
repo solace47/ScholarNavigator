@@ -3,7 +3,7 @@
     "plans_path": "benchmark/autoscholar_query_planning_baseline.jsonl",
     "plans_sha256": "8442fd2ddba1ef29615749f7a1a75a77cb1f9393f9fc2bff9c96730dee198b37",
     "summary_path": "benchmark/autoscholar_query_planning_summary.json",
-    "summary_sha256": "00f2d2246dce4b2ee123aa0ffaef90215a52f9ca67b147d460ee8761281bb766"
+    "summary_sha256": "46f6df96e4f3c4b2c0b8aea70ea5ce0c4ccb9da5da8a782fbe91369badffa4d7"
   },
   "baseline_update": {
     "approval_token": "PROPOSE_QUERY_PLANNING_BASELINE",
@@ -76,7 +76,7 @@
   },
   "prompt_state": {
     "manifest_path": "src/scholar_agent/prompts/manifest.json",
-    "manifest_sha256": "4a699e7fda4a04b79f69c414283c9cfdad8b050955f0d4e042b5ab610dff4ff5",
+    "manifest_sha256": "1ee8398dd42677ef9363ec74e97521137cc18a492851765905bd34abddd00782",
     "registered_versions": {
       "llm_constrained_rewrite": "1.0.0",
       "llm_query_planning": "1.0.0",

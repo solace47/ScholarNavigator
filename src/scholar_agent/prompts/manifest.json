@@ -23,6 +23,18 @@
     "system": "llm_constrained_rewrite/system.md",
     "user": "llm_constrained_rewrite/user.md"
   },
+  "llm_relevance_judge_v1_1": {
+    "version": "1.1.0",
+    "runtime_enabled": true,
+    "system": "llm_relevance_judging_v1_1/judge_system.md",
+    "user": "llm_relevance_judging_v1_1/judge_user.md"
+  },
+  "llm_relevance_adjudicator_v1_1": {
+    "version": "1.1.0",
+    "runtime_enabled": true,
+    "system": "llm_relevance_judging_v1_1/adjudicator_system.md",
+    "user": "llm_relevance_judging_v1_1/adjudicator_user.md"
+  },
   "query_evolution": {
     "version": "0.1.0",
     "runtime_enabled": false,

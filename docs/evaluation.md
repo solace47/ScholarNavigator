@@ -521,6 +521,27 @@ PYTHONPATH=src python scripts/run_benchmark.py \
 不完整终态，不得据此给出 LLM-proxy Precision、置信区间或策略收益。脱敏调用证据和
 完整缺失清单位于 `benchmark/llm_relevance_judging_v1_record160_incomplete/`。
 
+后继 `llm_relevance_judging_v1_1` 保留 rubric、标签枚举、盲化字段、覆盖门槛、解盲条件和
+cluster-aware 统计口径，仅加固结构化输出。v1 的脱敏证据只能确定 8 次严格 Schema 无效
+与 1 次 batch member mismatch；所有 65 次调用均为供应商接受的原生 `json_object`，未
+发生兼容回退。因未保存响应原文，不能把失败进一步断言为截断。v1.1 因此采用预注册的
+单项请求、唯一顶层 `labels`/`decisions` 对象、精确键集合、固定 1024 token 运行配置摘要、
+两次统一 attempt 和 1 秒逻辑退避；malformed 输出只记录 hash 与失败分类，禁止提取、修复
+或补造标签。
+
+v1.1 的 471 项必须从头生成新的 opaque identity，不读取 v1 的 447 个部分锁定结果。只有
+第一轮、第二轮及全部分歧裁决依次完整闭合并生成 labels lock 后，评分器才可读取私有 arm
+映射；任一阶段失败时 labels/statistics 继续为 null。冻结协议位于
+`benchmark/llm_relevance_judging_v1_1_protocol.json`，默认 CLI 使用独立运行目录。
+
+本次 v1.1 真实第一轮已按同一协议执行全部 471 项，291 项严格锁定、180 项在统一两次
+attempt 后终止：106 项最终为 Schema failure，74 项最终为 provider failure。全部 689
+次逻辑调用中，失败 attempt 细分为 233 次严格 Schema 无效、2 次 opaque identity
+mismatch、155 次 HTTP 429 和 8 次 HTTP 503；供应商明确报告 391,725 prompt、55,507
+completion、447,232 total tokens，费用不可用。因第一轮未达到 471/471，第二轮、裁决、
+labels lock、解盲和统计均未启动，所有 LLM-proxy 效果值继续不可用。脱敏证据位于
+`benchmark/llm_relevance_judging_v1_1_record160_incomplete/`。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。

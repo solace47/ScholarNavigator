@@ -20,11 +20,12 @@ from scholar_agent.evaluation.execution_determinism import (  # noqa: E402
     tree_signature,
 )
 from scholar_agent.evaluation.llm_relevance_judging import (  # noqa: E402
-    DEFAULT_RUN_DIR,
+    DEFAULT_HARDENED_RUN_DIR,
     DEFAULT_SNAPSHOT_ROOT,
     EXIT_INCOMPLETE,
     EXIT_INTEGRITY_VIOLATION,
     EXIT_USAGE_ERROR,
+    HARDENED_CONTRACT_VERSION,
     LLMRelevanceJudgingError,
     LLMRelevanceJudgingIncomplete,
     incomplete_report,
@@ -46,7 +47,7 @@ from scholar_agent.llm.provider import (  # noqa: E402
 )
 
 
-DEFAULT_PROTOCOL = ROOT / "benchmark" / "llm_relevance_judging_v1_protocol.json"
+DEFAULT_PROTOCOL = ROOT / "benchmark" / "llm_relevance_judging_v1_1_protocol.json"
 
 
 class _Parser(argparse.ArgumentParser):
@@ -63,7 +64,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--repository-root", default=str(ROOT))
     parser.add_argument("--protocol", default=str(DEFAULT_PROTOCOL))
-    parser.add_argument("--run-dir", default=str(DEFAULT_RUN_DIR))
+    parser.add_argument("--run-dir", default=str(DEFAULT_HARDENED_RUN_DIR))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("prepare")
     judge = commands.add_parser("judge")
@@ -93,7 +94,7 @@ def _emit(report: dict[str, Any]) -> None:
     )
 
 
-def _runtime() -> tuple[
+def _runtime(contract: str) -> tuple[
     OpenAICompatibleLLMClient,
     dict[str, Any],
     Callable[[], OpenAICompatibleLLMClient],
@@ -112,6 +113,7 @@ def _runtime() -> tuple[
         provider=runtime.provider,
         model=str(runtime.model),
         request_options=get_llm_request_options(),
+        contract=contract,
     )
     return client, binding, OpenAICompatibleLLMClient.from_env
 
@@ -142,7 +144,7 @@ def _execute(args: argparse.Namespace) -> dict[str, Any]:
             ),
         )
         return result
-    client, binding, client_factory = _runtime()
+    client, binding, client_factory = _runtime(str(protocol["contract"]))
     if args.command == "judge":
         return run_judge_round(
             protocol,
@@ -169,25 +171,43 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
     except LLMRelevanceJudgingError:
-        report = usage_error_report()
+        report = usage_error_report(contract=HARDENED_CONTRACT_VERSION)
         _emit(report)
         return EXIT_USAGE_ERROR
     if getattr(args, "max_batches", None) is not None and args.max_batches < 1:
-        report = usage_error_report("max_batches_must_be_positive")
+        report = usage_error_report(
+            "max_batches_must_be_positive",
+            contract=HARDENED_CONTRACT_VERSION,
+        )
         _emit(report)
         return EXIT_USAGE_ERROR
     snapshot_before = tree_signature(DEFAULT_SNAPSHOT_ROOT)
     try:
         report = _execute(args)
     except LLMRelevanceJudgingIncomplete as exc:
-        report = incomplete_report(args.command, str(exc))
+        report = incomplete_report(
+            args.command,
+            str(exc),
+            contract=HARDENED_CONTRACT_VERSION,
+        )
     except LLMRelevanceJudgingError as exc:
-        report = violation_report(args.command, str(exc))
+        report = violation_report(
+            args.command,
+            str(exc),
+            contract=HARDENED_CONTRACT_VERSION,
+        )
     except (OSError, ValueError, json.JSONDecodeError):
-        report = usage_error_report("input_or_runtime_error")
+        report = usage_error_report(
+            "input_or_runtime_error",
+            contract=HARDENED_CONTRACT_VERSION,
+        )
     snapshot_after = tree_signature(DEFAULT_SNAPSHOT_ROOT)
     if snapshot_before != snapshot_after:
-        report = violation_report(args.command, "snapshot_tree_modified")
+        report = violation_report(
+            args.command,
+            "snapshot_tree_modified",
+            contract=HARDENED_CONTRACT_VERSION,
+        )
     _emit(report)
     return int(report.get("exit_code", EXIT_INTEGRITY_VIOLATION))
 

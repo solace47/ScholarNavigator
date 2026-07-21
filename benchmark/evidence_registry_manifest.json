@@ -29,7 +29,7 @@
   },
   "baseline": {
     "registry_path": "benchmark/evidence_registry_baseline/registry.json",
-    "registry_sha256": "7a6e7a22496dc40805a4e08c2c96e8fed6a11c251b7e8d123153feb19c0aabb1",
+    "registry_sha256": "2dd2260aa770f587145449c121424338c755ec74f101422e7bd1459d33e50f96",
     "matrix_path": "benchmark/evidence_registry_baseline/matrix.json",
     "matrix_sha256": "af363a5c4240bdfd413c1b9a10d08579675bb5336dd61250d5cd4ef366023343",
     "summary_path": "benchmark/evidence_registry_baseline/summary.md",

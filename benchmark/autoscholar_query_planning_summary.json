@@ -27,7 +27,7 @@
   "official_score": false,
   "per_query_plan_hashes_sha256": "a4964e74324e5e894611d14d5b4dc1aa001684d62239669dc48bf66c2146245e",
   "plan_config_sha256": "7dcd7b08b9f71aa4627119ace521bf945c1f3ac960f92d858e99fb5c68a6d785",
-  "prompt_manifest_sha256": "4a699e7fda4a04b79f69c414283c9cfdad8b050955f0d4e042b5ab610dff4ff5",
+  "prompt_manifest_sha256": "1ee8398dd42677ef9363ec74e97521137cc18a492851765905bd34abddd00782",
   "quality": {
     "budget_consistent_count": 1000,
     "cases_above_global_candidate_budget": 410,

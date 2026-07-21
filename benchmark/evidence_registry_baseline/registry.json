@@ -89,7 +89,7 @@
       "docs/evaluation.md",
       "docs/report/technical_report.md"
     ],
-    "tracked_evidence_file_count": 46,
+    "tracked_evidence_file_count": 47,
     "tracked_evidence_files": [
       {
         "path": "benchmark/autoscholar_full1000_resume/resume_manifest.json",
@@ -121,7 +121,7 @@
       },
       {
         "path": "benchmark/autoscholar_query_planning_manifest.json",
-        "sha256": "87ba3bbdf1aa059db0eb50a17ff7f94c83744a7298d32074b82839d866045c53"
+        "sha256": "659aa882c801c8f25b7fa58a01468d77610b400279ee89b75b95bef937d4ea55"
       },
       {
         "path": "benchmark/beir_scifact_bm25_audit_manifest.json",
@@ -248,6 +248,10 @@
         "sha256": "928d045ac5320b23dad625b947133d7e62a54e998a78e0a9445fd83317c53762"
       },
       {
+        "path": "benchmark/llm_relevance_judging_v1_1_record160_incomplete/manifest.json",
+        "sha256": "949b38847337a27681c21e1bbf0e4b233ffe97aef281a70517a95ce9c8272aae"
+      },
+      {
         "path": "benchmark/llm_relevance_judging_v1_record160_incomplete/manifest.json",
         "sha256": "4f7765445dc0e4cf1ef3d52433cf30d113acfc864b3fd2cc0d35f90dbc06e4de"
       },
@@ -269,7 +273,7 @@
       },
       {
         "path": "docs/evaluation.md",
-        "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+        "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
       },
       {
         "path": "docs/report/technical_report.md",
@@ -306,7 +310,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -347,7 +351,7 @@
         },
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -382,7 +386,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -417,7 +421,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -524,7 +528,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -559,7 +563,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -595,7 +599,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -722,7 +726,7 @@
         },
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -825,7 +829,7 @@
         },
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -976,7 +980,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1008,7 +1012,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1040,7 +1044,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1075,7 +1079,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1110,7 +1114,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1146,7 +1150,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1178,7 +1182,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1215,7 +1219,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",
@@ -1253,7 +1257,7 @@
       "evidence_sources": [
         {
           "path": "docs/evaluation.md",
-          "sha256": "d8621db2de88b599b6e89accfe4bb0f85183e059a5f3e01172c62bea83348647"
+          "sha256": "01e2bcaea82b21b93cc29f4e3bd412b334fcfbe9977caccea9842be02bcfb2b7"
         }
       ],
       "evidence_status": "evidence_unavailable",

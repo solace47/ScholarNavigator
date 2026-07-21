@@ -22,6 +22,8 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
     assert manifest["relevance_judgement"].runtime_enabled is True
     assert manifest["llm_query_planning"].runtime_enabled is True
     assert manifest["llm_constrained_rewrite"].runtime_enabled is True
+    assert manifest["llm_relevance_judge_v1_1"].runtime_enabled is True
+    assert manifest["llm_relevance_adjudicator_v1_1"].runtime_enabled is True
     assert manifest["query_evolution"].runtime_enabled is False
     assert manifest["reranking"].runtime_enabled is False
     assert manifest["synthesis"].runtime_enabled is False
@@ -45,6 +47,18 @@ def test_active_prompt_loads_with_version_and_hash(name: str) -> None:
     assert prompt.user_text
     assert len(prompt.content_hash) == 64
     assert prompt.content_hash == load_prompt(name).content_hash
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["llm_relevance_judge_v1_1", "llm_relevance_adjudicator_v1_1"],
+)
+def test_llm_relevance_v1_1_prompts_load_with_frozen_version(name: str) -> None:
+    prompt = load_prompt(name)
+
+    assert prompt.version == "1.1.0"
+    assert "{{payload}}" in prompt.user_text
+    assert len(prompt.content_hash) == 64
 
 
 @pytest.mark.parametrize(
