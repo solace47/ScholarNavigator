@@ -253,6 +253,12 @@ AutoScholarQuery dev 的候选 Recall 保持 0.1500，Recall@20/F1@20 从 0.1250
 
 最终两轮纯 Replay 的网络、LLM 和 Snapshot 写入均为 0，65/65 case 的排序前候选身份与顺序一致。两轮 `aggregate.json`、`case_comparison.jsonl`、`candidate_diagnostics.jsonl` 逐字节一致，SHA-256 分别为 `5d7b58dd433a9641efdc9216f41b98ecf26d6f1da2633d4fdc281fb70f1e48b6`、`0b8ccb832830242d9481bd3a83e2054857ec0b33177b2be66e96319d53a55dc1`、`d671c11c230dc40c0822c1eac598cbd5d8cceafbe356f007453382ed14b2666c`；汇总见 `benchmark/lexical_normalization_v1_result.json`，正式产物位于 `outputs/benchmark_runs/lexical_normalization_v1_005794c_replay_r{5,6}/`。
 
+`scripts/build_lexical_precision_annotation.py` 为该实验建立默认无标签的盲化人工 Precision 闭环。固定 manifest 使用三个数据集和三类 strata：规范化新增返回、baseline 独有返回、双方共有且返回列表名次绝对变化至少 5；总上限 200，按固定 dataset/stratum 顺序做均衡水位分配，每个 cell 内用固定 seed 的 SHA-256 顺序选择，再用独立命名空间随机化展示顺序。抽样和包生成只重建冻结候选、Judgement 与 Top-20，不访问 gold/qrels、connector、LLM 或 Snapshot 写路径。
+
+正式盲包从 502 个 eligible query-paper 对中抽取 200 个唯一对：SciFact/Auto dev/val 为 84/71/45，新增/baseline 独有/共享显著变位为 71/48/81。公开 `blind_samples.jsonl` 每行严格只有不可编码隐藏字段的顺序 sample ID、query、标题、摘要和年份；策略、排名、case ID、来源、评分与 evaluator mapping 只存在于隔离的 `private/`。两位标注者分别使用四分类模板独立完成，分歧项才进入第三方仲裁。评分 CLI 在标签完整前只返回 `pending_human_labels` 和 null 指标；标签完成后计算仲裁前 Cohen's kappa、样本 Precision、带抽样覆盖说明的分层估计、新增候选误放率，并且仅在全部 Top-20 pair 均被人工覆盖时输出非空的完整 Precision@20。
+
+两次生成的十个文件逐字节一致，包 tree SHA-256 为 `08a12db33a6d4705af1ccb2978437eea857290a45e963046d0ee3730c232c7a5`。冻结协议、待标注材料和私有映射位于 `benchmark/lexical_normalization_precision_annotation_manifest.json` 与 `benchmark/lexical_normalization_precision_annotation/`；统计与人工前置动作见 `benchmark/lexical_normalization_precision_annotation_result.json`。当前没有人工标签，因此不得报告 Cohen's kappa、Precision 或误放率，也不得据此改变默认策略。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。
