@@ -671,6 +671,43 @@ PYTHONPATH=src python scripts/audit_query_independence.py check \
 PYTHONPATH=src pytest -q -m query_independence_regression
 ```
 
+## 实验证据注册表与默认策略门禁
+
+`benchmark/evidence_registry_manifest.json` 冻结 `experiment_evidence_registry_v1`
+的 schema、排序、扫描范围和策略枚举。范围覆盖当前代码中具名且可选择的查询规划、
+Query Evolution、引用/推荐扩展、排序、Judgement、词法证据匹配、query adapter、
+结果过滤、本地来源以及 benchmark-only 检索实验；运行 profile、任意来源组合和不改变
+检索策略的结构化输出归纳不作为独立策略项。枚举直接从对应 Literal 类型、来源常量和
+显式 feature 名称构造，新增实现却没有证据记录会使门禁失败。
+
+每条记录都包含实现/评测 commit、默认状态、数据范围、唯一配置差异、指标版本、已跟踪
+证据及其 SHA-256、历史 Replay/产物 hash（存在时）、调用完整性、核心内部指标、效率、
+结论和阻断。只有存在当前仓库可验证机器产物的记录才能写入核心指标；历史文档保留但
+原始产物未跟踪时必须使用 `evidence_unavailable`、清空指标/效率并保留
+`tracked_primary_artifact_unavailable` 阻断。负面、阻断、不可判定和未验证结论均不得
+隐藏或提升为通过证据。
+
+冻结矩阵位于 `benchmark/evidence_registry_baseline/`：当前恰好 24 项，其中 4 项有
+已跟踪机器证据、20 项为 `evidence_unavailable`；决策为 1 项 validated default、
+2 项 promising default-off、11 项 negative、4 项 inconclusive、1 项 blocked、
+5 项 unvalidated。唯一允许默认开启的是 `current_rules`。任何实验开关默认开启、
+`current_rules` 缺少通过证据、证据文件/hash 漂移、指标版本漂移、重复/冲突记录或策略
+遗漏都会输出最小 JSON path diff 并失败。
+
+注册表只汇总内部 Benchmark 与审计证据，不是官方赛题成绩。官方材料仍缺少精确
+scorer、F1/K、身份去重与平均口径，因此 `official_scorer_unavailable` 作为全局阻断
+保留。CLI 全程只读 Git 跟踪文件，并以 socket 护栏和 Snapshot 树前后签名保证 0 网络、
+0 LLM、0 Snapshot 写入、0 Benchmark；显式基准文件不在自身证据扫描范围内，避免
+自引用 hash 漂移。
+
+```bash
+PYTHONPATH=src python scripts/check_evidence_registry.py check \
+  --manifest benchmark/evidence_registry_manifest.json \
+  --output outputs/benchmark_runs/evidence_registry_gate
+
+PYTHONPATH=src pytest -q -m evidence_registry_regression
+```
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
