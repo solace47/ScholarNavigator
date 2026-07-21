@@ -30,6 +30,13 @@ query-only 计划输入、Prompt manifest、evaluator 版本与 checkpoint/resum
 历史运行缺少契约字段时只返回 `legacy_metadata_incomplete`，不反向补造元数据。契约详情见
 [`docs/run-provenance.md`](run-provenance.md)。
 
+跨执行方式的离线一致性由 `execution_determinism_v1` 单独验证。它使用已有本地 Replay
+fixture 驱动真实 SearchService，并比较重复、单条/批量、重排、串行/受控并发、完整/
+checkpoint-resume 和取消隔离六种路径的规范化结果与语义事件；只按协议中的显式字段路径
+排除瞬态耗时和运行标识，不改变列表顺序或忽略未知字段。该门禁不访问 gold、不计算效果
+指标，也不替代 Snapshot 回归或官方 scorer。详见
+[`docs/execution-determinism.md`](execution-determinism.md)。
+
 ## SearchService 流程
 
 ```mermaid
