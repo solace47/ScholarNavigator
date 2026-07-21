@@ -355,6 +355,7 @@ def test_runner_writes_required_outputs_and_uses_shared_metrics(
     run_dir = result.run_dir
 
     assert {path.name for path in run_dir.iterdir()} == {
+        ".run_commits",
         "config.json",
         "dataset_report.json",
         "results.jsonl",
@@ -433,6 +434,24 @@ def test_resume_skips_success_and_retries_failed_without_duplicates(
     assert all(row["status"] == "succeeded" for row in resumed.result_rows)
     assert len(_read_jsonl(resumed.run_dir / "results.jsonl")) == 2
     assert _read_jsonl(resumed.run_dir / "failures.jsonl") == []
+
+
+def test_resume_uses_committed_generation_instead_of_torn_compatibility_view(
+    tmp_path: Path,
+) -> None:
+    dataset = _dataset(tmp_path, count=2)
+    options = _options(tmp_path, dataset, run_id="committed-resume")
+    first = run_benchmark.run_benchmark(options, service=FakeService())
+    (first.run_dir / "results.jsonl").write_text('{"torn":', encoding="utf-8")
+
+    service = FakeService()
+    resumed = run_benchmark.run_benchmark(
+        options.model_copy(update={"resume": True}), service=service
+    )
+
+    assert service.calls == []
+    assert [row["case_id"] for row in resumed.result_rows] == ["case-0", "case-1"]
+    assert len(_read_jsonl(first.run_dir / "results.jsonl")) == 2
 
 
 def test_resume_rejects_incompatible_config(tmp_path: Path) -> None:

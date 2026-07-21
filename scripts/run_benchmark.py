@@ -61,6 +61,10 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
     load_dataset,
     supported_datasets,
 )
+from scholar_agent.evaluation.crash_consistency import (  # noqa: E402
+    BenchmarkRunCommitStore,
+    durable_atomic_write_text,
+)
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshot_resume import (  # noqa: E402
     ResumeRequest,
@@ -465,19 +469,36 @@ def run_benchmark(
     dataset_report = inspect_dataset(options.dataset, path=source_path)
     run_dir = options.output_root.expanduser().resolve() / options.run_id
     config = _build_config(options, source_path, selected)
+    commit_store = BenchmarkRunCommitStore(run_dir)
 
     existing_rows: dict[str, dict[str, Any]] = {}
     if options.resume:
         config, existing_rows = _prepare_resume(run_dir, config, selected)
+        if not commit_store.has_commits:
+            # Legacy runs remain ineligible for retrospective crash guarantees,
+            # but a live resume starts a new authoritative generation chain.
+            stored_report = _read_json(run_dir / "dataset_report.json")
+            state = commit_store.initialize(
+                run_id=options.run_id,
+                expected_query_ids=[item.query_id for item in selected],
+                config=config,
+                dataset_report=stored_report,
+            )
+            for query in selected:
+                if query.query_id in existing_rows:
+                    state = commit_store.commit_record(existing_rows[query.query_id])
+            commit_store.materialize_compatibility_view(state)
     else:
         if run_dir.exists():
             raise ValueError(f"run directory already exists; use --resume: {run_dir}")
         run_dir.mkdir(parents=True, exist_ok=False)
-        _atomic_write_json(run_dir / "config.json", config)
-        _atomic_write_json(
-            run_dir / "dataset_report.json",
-            dataset_report.model_dump(mode="json"),
+        state = commit_store.initialize(
+            run_id=options.run_id,
+            expected_query_ids=[item.query_id for item in selected],
+            config=config,
+            dataset_report=dataset_report.model_dump(mode="json"),
         )
+        commit_store.materialize_compatibility_view(state)
 
     snapshot_runtime: SnapshotRuntime | None = None
     llm_planning_runtime: LLMPlanningSnapshotRuntime | None = None
@@ -562,14 +583,17 @@ def run_benchmark(
             llm_planning_runtime=llm_planning_runtime,
             judgement_config=judgement_config,
         )
-        _write_result_artifacts(run_dir, selected_ids, existing_rows)
+        state = commit_store.commit_record(existing_rows[query.query_id])
+        commit_store.materialize_compatibility_view(state)
 
     ordered_rows = [existing_rows[case_id] for case_id in selected_ids]
     metrics = _evaluate_rows(ordered_rows, selected, options.result_policy)
     metrics["snapshot_costs"] = _aggregate_snapshot_costs(ordered_rows)
     metrics["llm_planning_costs"] = _aggregate_llm_planning_costs(ordered_rows)
-    _atomic_write_json(run_dir / "metrics.json", metrics)
     stage_metrics: dict[str, Any] | None = None
+    reports: dict[str, bytes] = {
+        "metrics.json": _json_bytes(metrics),
+    }
     if options.diagnostics:
         case_diagnostics = [
             row["stage_diagnostics"]
@@ -579,14 +603,16 @@ def run_benchmark(
         stage_metrics, error_analysis, gold_diagnostics = (
             aggregate_stage_diagnostics(case_diagnostics)
         )
-        _atomic_write_json(run_dir / "stage_metrics.json", stage_metrics)
-        _atomic_write_json(run_dir / "error_analysis.json", error_analysis)
-        _atomic_write_jsonl(run_dir / "gold_diagnostics.jsonl", gold_diagnostics)
-    _atomic_write_text(
-        run_dir / "summary.md",
-        _summary_markdown(config, metrics, stage_metrics),
-    )
-    _write_failures(run_dir / "failures.jsonl", ordered_rows)
+        reports.update(
+            {
+                "stage_metrics.json": _json_bytes(stage_metrics),
+                "error_analysis.json": _json_bytes(error_analysis),
+                "gold_diagnostics.jsonl": _jsonl_bytes(gold_diagnostics),
+            }
+        )
+    reports["summary.md"] = _summary_markdown(
+        config, metrics, stage_metrics
+    ).encode("utf-8")
     if snapshot_runtime is not None:
         snapshot_runtime.finish_group(
             completed=all(row.get("status") == "succeeded" for row in ordered_rows)
@@ -597,6 +623,8 @@ def run_benchmark(
                 snapshot_runtime,
                 llm_planning_runtime,
             )
+    state = commit_store.commit_completion(reports)
+    commit_store.materialize_compatibility_view(state)
     return BenchmarkRunResult(
         run_dir=run_dir,
         config=config,
@@ -889,6 +917,18 @@ def _prepare_resume(
     current_config: dict[str, Any],
     selected: list[EvalQuery],
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    commit_store = BenchmarkRunCommitStore(run_dir)
+    if commit_store.has_commits:
+        state = commit_store.load_latest()
+        stored = state.config
+        if stored.get("resume_signature") != current_config.get("resume_signature"):
+            raise ValueError("resume config is incompatible with the existing run")
+        allowed_ids = {item.query_id for item in selected}
+        indexed = state.rows_by_id
+        if set(indexed) - allowed_ids:
+            raise ValueError("invalid committed resume results: case_id")
+        commit_store.materialize_compatibility_view(state)
+        return stored, indexed
     config_path = run_dir / "config.json"
     results_path = run_dir / "results.jsonl"
     if not config_path.is_file() or not results_path.is_file():
@@ -1219,13 +1259,19 @@ def _atomic_write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        temporary.write_text(text, encoding="utf-8")
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    durable_atomic_write_text(path, text)
+
+
+def _json_bytes(payload: dict[str, Any]) -> bytes:
+    return (
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    ).encode("utf-8")
+
+
+def _jsonl_bytes(rows: list[dict[str, Any]]) -> bytes:
+    return "".join(
+        json.dumps(row, ensure_ascii=False) + "\n" for row in rows
+    ).encode("utf-8")
 
 
 def _parse_sources(value: str) -> list[str]:
