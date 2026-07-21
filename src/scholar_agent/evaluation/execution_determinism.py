@@ -15,7 +15,7 @@ import socket
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Literal, Protocol
 from unittest.mock import patch
@@ -132,6 +132,7 @@ class SearchServiceFixtureBackend:
         *,
         service_max_workers: int,
         run_config: Mapping[str, Any],
+        result_lineage_sink: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self._service = SearchService(
             retriever=build_fixture_retriever(retrieval_outputs),
@@ -139,6 +140,7 @@ class SearchServiceFixtureBackend:
         )
         self._run_config = dict(run_config)
         self._invocation_index = 0
+        self._result_lineage_sink = result_lineage_sink
 
     def execute(
         self,
@@ -154,12 +156,22 @@ class SearchServiceFixtureBackend:
         status: Literal["succeeded", "cancelled", "failed"] = "succeeded"
         error_type: str | None = None
         try:
+            lineage_arguments = (
+                {
+                    "result_lineage_callback": lambda document: (
+                        self._result_lineage_sink(query.identity, document)
+                    )
+                }
+                if self._result_lineage_sink is not None
+                else {}
+            )
             output: SearchServiceOutput = self._service.run_search(
                 query.query,
                 event_callback=lambda name, payload: events.append(
                     ExecutionEvent(event=name, payload=copy.deepcopy(payload))
                 ),
                 should_cancel=should_cancel,
+                **lineage_arguments,
                 **self._run_config,
             )
             result = output.model_dump(mode="json")
@@ -555,6 +567,8 @@ def replay_canonical_fixture(
     repository_root: Path,
     snapshot_root: Path = DEFAULT_SNAPSHOT_ROOT,
     fault: Literal["semantic_result_change"] | None = None,
+    collect_result_lineage: bool = False,
+    install_network_guard: bool = True,
 ) -> dict[str, Any]:
     """Replay one ordered fixture batch through SearchService and canonicalize it.
 
@@ -574,14 +588,21 @@ def replay_canonical_fixture(
     run_config = dict(execution["search_service_arguments"])
     if isinstance(run_config.get("budget"), Mapping):
         run_config["budget"] = SearchBudget.model_validate(run_config["budget"])
+    lineage_documents: list[tuple[str, dict[str, Any]]] = []
     backend = SearchServiceFixtureBackend(
         retrieval_outputs,
         service_max_workers=int(execution["service_max_workers"]),
         run_config=run_config,
+        result_lineage_sink=(
+            lambda identity, document: lineage_documents.append((identity, document))
+        )
+        if collect_result_lineage
+        else None,
     )
     snapshot_before = tree_signature(snapshot_root)
     attempts = {"network": 0}
-    with forbid_network(attempts):
+    network_guard = forbid_network(attempts) if install_network_guard else nullcontext()
+    with network_guard:
         raw_records = _execute_serial(backend, queries, "capsule_replay")
     snapshot_after = tree_signature(snapshot_root)
     records = []
@@ -609,7 +630,7 @@ def replay_canonical_fixture(
     snapshot_write_count = int(snapshot_before != snapshot_after)
     if attempts["network"] or snapshot_write_count:
         raise ExecutionDeterminismError("offline_replay_side_effect_detected")
-    return {
+    payload = {
         "schema_version": "1",
         "contract": "canonical_search_service_replay_v1",
         "score_scope": "replay_semantics_only_not_quality_or_official_score",
@@ -630,6 +651,23 @@ def replay_canonical_fixture(
             "quality_metric_count": 0,
         },
     }
+    if collect_result_lineage:
+        lineage_summaries = [
+            {
+                "query_identity": identity,
+                "lineage_sha256": stable_hash(document),
+                "source_record_count": len(document.get("source_records") or []),
+                "result_count": len(document.get("results") or []),
+            }
+            for identity, document in lineage_documents
+        ]
+        payload["result_lineage"] = {
+            "contract": "result_lineage_v1",
+            "query_count": len(lineage_summaries),
+            "summaries": lineage_summaries,
+            "summaries_sha256": stable_hash(lineage_summaries),
+        }
+    return payload
 
 
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
