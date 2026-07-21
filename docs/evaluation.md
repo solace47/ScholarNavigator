@@ -239,6 +239,12 @@ PRF 查询新增的独占候选分别为 537/115/61，但三个集合的独占 g
 
 两次审计均为 0 HTTP、0 LLM、0 Snapshot 写入，输入 Snapshot 目录内容哈希前后保持 `ce58a60bd387a9f020985f449313975dcfe9bb344b06c7367308b3150b1ce624`。两次 `aggregate.json`、`case_audit.jsonl`、`gold_chains.jsonl` 分别字节一致，SHA-256 为 `cdf2d2ee25360cf44edb4409bc88709802ba546c972a799de23a48da955e5ff5`、`e94bee0d98ac257a156baf732c6b9cf3dba5d5d1cff2157cee8092a0b5aae339`、`096f893343461367fb4a8fb5d956fcf070269ac894cabbad20aef7615828388f`；固定口径见 `benchmark/beir_scifact_local_bm25_conversion_audit.json`，正式产物位于 `outputs/benchmark_runs/local_bm25_conversion_d385334_r{1,2}/`。
 
+`scripts/audit_relevance_filter.py` 在上述 SciFact Replay 以及现有 AutoScholarQuery dev/val Replay 上重建冻结候选、Judgement 和排序，逐候选输出 topic、must-have、method、dataset、domain 的输入词与命中词、评分分量、警告、类别门和排名链。SciFact 只把具有 `local_bm25` 来源证据的 32 条 gold 作为主审计对象；同查询中排名更高且不匹配任何 gold 的 340 条候选作为冻结非 gold 对照。根因分类采用固定优先级，区分查询解析缺失、字段缺失、保守词形/标点/缩写失配、约束惩罚、固定阈值、类别优先级和其他原因；这些标签仅用于离线诊断，不反馈到规则。
+
+SciFact 的 32 条候选 gold 中 12 条被过滤，误杀率为 37.5%；互斥根因为保守词形/标点/缩写失配 6、约束惩罚 2、固定阈值 2、类别优先级 2，查询解析缺失、字段缺失和其他均为 0。gold 分数中位数/均值为 0.55525/0.49277，排名更高非 gold 为 0.34/0.38548，但 weak/irrelevant gold 仍被固定返回类别门直接排除。逐条移除任一已有负分分量都没有恢复最终 gold；仅跳过返回类别门的单规则审计反事实把 Recall@20/F1@20 从 0.4634/0.04625 提高到 0.6098/0.06018，恢复 6 条，但这是不可部署的上界，不是阈值建议。
+
+AutoScholarQuery 冻结证据仅有 dev 3 条、val 1 条候选 gold：dev 有 1 条 weak gold 被过滤并同样出现保守词形/缩写失配，val 无误杀；所有单规则反事实均无最终指标变化。这个跨数据集信号支持单独评测一个默认关闭、严格保守的词法规范化替代方案，但 Auto 样本太小，不能据此修改默认阈值或生产逻辑。两次审计为 0 HTTP、0 LLM、0 Snapshot 写入，四份产物字节一致；固定口径和哈希见 `benchmark/relevance_filter_audit_result.json`，正式产物位于 `outputs/benchmark_runs/relevance_filter_audit_22a39e9_r{1,2}/`。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。
