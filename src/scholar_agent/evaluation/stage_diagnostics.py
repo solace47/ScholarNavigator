@@ -1374,8 +1374,13 @@ def _semantic_seed_expansion_diagnostics(
     )
     return {
         "enabled": output.search_plan.enable_semantic_seed_expansion,
+        "triggered": bool(record is not None and record.seeds),
         "selected_seed_count": len(record.seeds) if record is not None else 0,
         "eligible_seed_count": len(record.seeds) if record is not None else 0,
+        "seed_with_supported_identifier_count": (
+            len(record.seeds) if record is not None else 0
+        ),
+        "seed_without_supported_identifier_count": 0,
         "reference_request_count": (
             expansion.diagnostics.request_count if expansion is not None else 0
         ),

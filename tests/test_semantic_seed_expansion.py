@@ -18,7 +18,10 @@ from scholar_agent.evaluation.snapshots import (
     SnapshotStore,
 )
 from scholar_agent.evaluation.snapshots.store import connector_version, utc_now
-from scholar_agent.evaluation.stage_diagnostics import analyze_search_stages
+from scholar_agent.evaluation.stage_diagnostics import (
+    aggregate_stage_diagnostics,
+    analyze_search_stages,
+)
 from scholar_agent.services.search_service import SearchService
 
 
@@ -339,6 +342,15 @@ def test_search_service_expands_after_unchanged_initial_ranking() -> None:
     assert stage_diagnostics["semantic_seed_expansion"][
         "initial_gold_lost_after_expansion_count"
     ] == 0
+    assert stage_diagnostics["semantic_seed_expansion"]["triggered"] is True
+    assert stage_diagnostics["semantic_seed_expansion"][
+        "seed_with_supported_identifier_count"
+    ] == 1
+    aggregate, _, _ = aggregate_stage_diagnostics([stage_diagnostics])
+    assert aggregate["semantic_seed_expansion"]["triggered_case_count"] == 1
+    assert aggregate["semantic_seed_expansion"][
+        "seed_with_supported_identifier_count"
+    ] == 1
 
 
 def test_search_service_recommendation_failure_keeps_initial_results() -> None:
