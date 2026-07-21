@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -14,7 +15,11 @@ from scholar_agent.agents.judgement_config import (
     LEXICAL_NORMALIZATION_V1_CONFIG,
 )
 from scholar_agent.agents.reranker import rerank_papers
-from scholar_agent.core.evaluation_schemas import EvalGoldPaper, EvalQuery
+from scholar_agent.core.evaluation_schemas import (
+    DEDUPLICATED_GOLD_METRIC_VERSION,
+    EvalGoldPaper,
+    EvalQuery,
+)
 from scholar_agent.core.identity import (
     build_identity_profile,
     identity_evidence_from_profiles,
@@ -43,6 +48,7 @@ from scholar_agent.evaluation.snapshots import SnapshotStore
 
 
 AUDIT_SCHEMA_VERSION = "1"
+METRIC_VERSION = DEDUPLICATED_GOLD_METRIC_VERSION
 RETURN_CATEGORIES = {"highly_relevant", "partially_relevant"}
 Transition = Literal[
     "recovered_gold",
@@ -79,8 +85,8 @@ def classify_candidate_transition(
 def assert_candidate_identity_parity(
     baseline: Sequence[Any], experiment: Sequence[Any]
 ) -> None:
-    baseline_ids = [_identity_key(item) for item in baseline]
-    experiment_ids = [_identity_key(item) for item in experiment]
+    baseline_ids = [_identity_instance_key(item) for item in baseline]
+    experiment_ids = [_identity_instance_key(item) for item in experiment]
     if baseline_ids != experiment_ids:
         raise ValueError("baseline and experiment candidate identity/order differ")
 
@@ -207,6 +213,7 @@ def _audit_case(
     store: SnapshotStore,
     required_candidate_source: str | None,
     prior_lexical_false_negatives: set[tuple[str, str]],
+    include_instance_identity_keys: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
     if row.get("status") != "succeeded":
         raise ValueError(f"frozen case failed:{label}:{eval_query.query_id}")
@@ -277,13 +284,17 @@ def _audit_case(
     ):
         raise ValueError(f"frozen returned mismatch:{label}:{eval_query.query_id}")
 
-    baseline_by_key = {_identity_key(item): item for item in baseline_ranked}
-    experiment_by_key = {_identity_key(item): item for item in experiment_ranked}
+    baseline_by_key = {
+        _identity_instance_key(item): item for item in baseline_ranked
+    }
+    experiment_by_key = {
+        _identity_instance_key(item): item for item in experiment_ranked
+    }
     baseline_judgement_by_key = {
-        _identity_key(item.paper): item for item in baseline_judgements
+        _identity_instance_key(item.paper): item for item in baseline_judgements
     }
     experiment_judgement_by_key = {
-        _identity_key(item.paper): item for item in experiment_judgements
+        _identity_instance_key(item.paper): item for item in experiment_judgements
     }
     if set(baseline_by_key) != set(experiment_by_key):
         raise ValueError(f"ranked candidate identity set mismatch:{label}")
@@ -294,7 +305,10 @@ def _audit_case(
         baseline_judgement = baseline_judgement_by_key[key]
         experiment_judgement = experiment_judgement_by_key[key]
         gold_ids = matched_paper_ids(
-            [baseline_ranked_item.paper], eval_query.gold_papers, k=1
+            [baseline_ranked_item.paper],
+            eval_query.gold_papers,
+            k=1,
+            metric_version=METRIC_VERSION,
         )
         lexical_matches = (
             experiment_judgement.feature_vector.lexical_normalization_matches
@@ -327,8 +341,7 @@ def _audit_case(
             in prior_lexical_false_negatives
         )
         if is_gold or lexical_matches or transition != "unchanged":
-            candidate_audits.append(
-                {
+            candidate_audit = {
                     "schema_version": AUDIT_SCHEMA_VERSION,
                     "dataset": label,
                     "case_order": case_order,
@@ -362,10 +375,20 @@ def _audit_case(
                     - experiment_ranked_item.rank,
                     "transition": transition,
                 }
-            )
+            if include_instance_identity_keys:
+                candidate_audit["candidate_identity_key"] = key
+            candidate_audits.append(candidate_audit)
 
-    baseline_metrics = _case_metrics(baseline_returned, eval_query.gold_papers)
-    experiment_metrics = _case_metrics(experiment_returned, eval_query.gold_papers)
+    baseline_metrics = _case_metrics(
+        baseline_returned,
+        eval_query.gold_papers,
+        include_instance_identity_keys=include_instance_identity_keys,
+    )
+    experiment_metrics = _case_metrics(
+        experiment_returned,
+        eval_query.gold_papers,
+        include_instance_identity_keys=include_instance_identity_keys,
+    )
     recovered_gold_ids = sorted(
         set(experiment_metrics["matched_gold_ids"])
         - set(baseline_metrics["matched_gold_ids"])
@@ -389,9 +412,16 @@ def _audit_case(
         "candidate_identity_parity": True,
         "candidate_count": len(candidates),
         "focus_source_candidate_count": len(focus_candidates),
-        "evaluable_gold_count": evaluable_gold_count(eval_query.gold_papers),
+        "evaluable_gold_count": evaluable_gold_count(
+            eval_query.gold_papers,
+            metric_version=METRIC_VERSION,
+        ),
         "candidate_gold_count": len(
-            matched_paper_ids(focus_candidates, eval_query.gold_papers)
+            matched_paper_ids(
+                focus_candidates,
+                eval_query.gold_papers,
+                metric_version=METRIC_VERSION,
+            )
         ),
         "baseline": baseline_metrics,
         "experiment": experiment_metrics,
@@ -414,7 +444,10 @@ def _audit_case(
     }
     state = {
         "gold": eval_query.gold_papers,
-        "evaluable_gold_count": evaluable_gold_count(eval_query.gold_papers),
+        "evaluable_gold_count": evaluable_gold_count(
+            eval_query.gold_papers,
+            metric_version=METRIC_VERSION,
+        ),
         "baseline_returned": baseline_returned,
         "experiment_returned": experiment_returned,
     }
@@ -430,13 +463,23 @@ def _aggregate_dataset(
     evaluable_states = [item for item in states if item["evaluable_gold_count"]]
     baseline_metrics = average_metric_sets(
         [
-            evaluate_ranking(item["baseline_returned"], item["gold"], [20])
+            evaluate_ranking(
+                item["baseline_returned"],
+                item["gold"],
+                [20],
+                metric_version=METRIC_VERSION,
+            )
             for item in evaluable_states
         ]
     )
     experiment_metrics = average_metric_sets(
         [
-            evaluate_ranking(item["experiment_returned"], item["gold"], [20])
+            evaluate_ranking(
+                item["experiment_returned"],
+                item["gold"],
+                [20],
+                metric_version=METRIC_VERSION,
+            )
             for item in evaluable_states
         ]
     )
@@ -459,7 +502,14 @@ def _aggregate_dataset(
         "recall_at_20": baseline_metrics.recall_at_k.get(20, 0.0),
         "f1_at_20": baseline_metrics.f1_at_k.get(20, 0.0),
         "returned_gold_relation_count": sum(
-            len(matched_paper_ids(item["baseline_returned"], item["gold"], k=20))
+            len(
+                matched_paper_ids(
+                    item["baseline_returned"],
+                    item["gold"],
+                    k=20,
+                    metric_version=METRIC_VERSION,
+                )
+            )
             for item in states
         ),
     }
@@ -469,7 +519,10 @@ def _aggregate_dataset(
         "returned_gold_relation_count": sum(
             len(
                 matched_paper_ids(
-                    item["experiment_returned"], item["gold"], k=20
+                    item["experiment_returned"],
+                    item["gold"],
+                    k=20,
+                    metric_version=METRIC_VERSION,
                 )
             )
             for item in states
@@ -658,17 +711,33 @@ def _candidate_state(
 
 
 def _case_metrics(
-    ranked: Sequence[Any], gold: Sequence[EvalGoldPaper]
+    ranked: Sequence[Any],
+    gold: Sequence[EvalGoldPaper],
+    *,
+    include_instance_identity_keys: bool = False,
 ) -> dict[str, Any]:
-    metrics = evaluate_ranking(ranked, gold, [20])
-    matched = matched_paper_ids(ranked, gold, k=20)
-    return {
+    metrics = evaluate_ranking(
+        ranked,
+        gold,
+        [20],
+        metric_version=METRIC_VERSION,
+    )
+    matched = matched_paper_ids(
+        ranked,
+        gold,
+        k=20,
+        metric_version=METRIC_VERSION,
+    )
+    output = {
         "recall_at_20": metrics.recall_at_k.get(20, 0.0),
         "f1_at_20": metrics.f1_at_k.get(20, 0.0),
         "matched_gold_count": len(matched),
         "matched_gold_ids": matched,
-        "returned_ids": _identity_sequence(ranked),
+        "returned_ids": [_identity_key(item) for item in ranked],
     }
+    if include_instance_identity_keys:
+        output["returned_identity_keys"] = _identity_sequence(ranked)
+    return output
 
 
 def _metric_comparison(
@@ -718,7 +787,26 @@ def _identity_key(item: Any) -> str:
 
 
 def _identity_sequence(values: Sequence[Any]) -> list[str]:
-    return [_identity_key(item) for item in values]
+    return [_identity_instance_key(item) for item in values]
+
+
+def _identity_instance_key(item: Any) -> str:
+    """Disambiguate conflicting records that share one display identifier."""
+
+    profile = build_identity_profile(item)
+    payload = json.dumps(
+        {
+            "identifiers": sorted(profile.identifiers),
+            "title": profile.title,
+            "year": profile.year,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    display = _identity_key(item)
+    digest = hashlib.sha256(payload).hexdigest()[:16]
+    return f"{display}|profile:{digest}"
 
 
 def _write_jsonl(path: Path, rows: Sequence[dict[str, Any]]) -> None:

@@ -9,7 +9,9 @@ from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.evaluation_schemas import EvalGoldPaper
 from scholar_agent.core.search_schemas import JudgementFeatureVector
 from scholar_agent.evaluation.lexical_normalization_benchmark import (
+    METRIC_VERSION,
     _aggregate_dataset,
+    _identity_instance_key,
     assert_candidate_identity_parity,
     classify_candidate_transition,
     write_lexical_normalization_benchmark,
@@ -53,6 +55,21 @@ def test_candidate_parity_requires_same_identity_and_pre_sort_order() -> None:
         assert_candidate_identity_parity([first, second], [second, first])
     with pytest.raises(ValueError, match="identity/order"):
         assert_candidate_identity_parity([first], [first, second])
+
+
+def test_audit_identity_key_keeps_conflicting_same_doi_records_separate() -> None:
+    first = Paper(
+        title="First",
+        doi="10.1/shared",
+        arxiv_id="2401.00001",
+    )
+    second = Paper(
+        title="Second",
+        doi="10.1/shared",
+        arxiv_id="2401.00002",
+    )
+
+    assert _identity_instance_key(first) != _identity_instance_key(second)
 
 
 def test_legacy_feature_vector_defaults_new_diagnostics_to_empty() -> None:
@@ -151,3 +168,4 @@ def test_dataset_metrics_exclude_identity_unavailable_cases() -> None:
     assert aggregate["identity_unavailable_case_count"] == 1
     assert aggregate["candidate_recall"] == 1.0
     assert aggregate["baseline"]["recall_at_20"] == 1.0
+    assert METRIC_VERSION == "deduplicated_gold_identity_v2"

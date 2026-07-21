@@ -303,6 +303,35 @@ AutoScholarQuery dev 的候选 Recall 保持 0.1500，Recall@20/F1@20 从 0.1250
 
 按预注册的 0.01 绝对最小提升，合并 Recall@20 的观测方差估计需要约 1,477 条 query 达到 80% power，1,000 条估计 power 约 0.635；SciFact/Auto dev 分别约需 1,915/491 条。合并 F1@20 的方差估计约需 23 条，但当前实际效应仅由两条 query 驱动，正态近似和小样本稀疏性限制必须同时保留。统计未提供“无效果”证据，也不改变先前的正向点估计；它只说明现有 41/10/5 小集合不足以证明收益超出随机符号波动。人工 Precision 审计完成前不得建议默认开启。两次统计产物逐字节一致，`statistics.json`、`paired_queries.jsonl`、manifest SHA-256 分别为 `7574bf06481d8547454623e396cdb0dac97dde225da80019389ff22a232beee5`、`0b459be237db291cea9b82a49359c6b146e012805206fdc60c9ec01946b165fa`、`a540f7d43bddb6e19f981056ecdac9f3e0e988b7dcc8361eb65a3ea98dce4af8`；摘要见 `benchmark/lexical_normalization_significance_result.json`，产物位于 `outputs/benchmark_runs/lexical_normalization_significance_3cd47c1_r{1,2}/`。这些仍是内部 Benchmark 指标，不是官方赛题成绩。
 
+`scripts/audit_lexical_normalization_expanded.py` 将同一冻结词法规则扩展到
+AutoScholarQuery 1000 条基线运行中已经落盘的 162 条 Record 前缀。该审计只读
+Record、retrieval Snapshot 与 gold 身份基线：每个实际 key 都重新校验 source、
+adapted query 和 Snapshot 终态，随后在同一候选身份、顺序、QueryAnalysis 与
+来源终态上重算默认过滤和 `lexical_normalization_v1`。Record 中没有成功来源的
+2 条只保留终态，不进入指标；其余 160 条按成功来源数 1/2/3/4 分为
+57/72/30/1。指标明确固定为 `deduplicated_gold_identity_v2`，不是官方 scorer，
+也不能称为 1000 条正式基线或独立随机验证。
+
+160 条共有 392 条查询内去重 gold 关系，候选命中 19 条，Candidate Recall 两组
+均为 0.06885。Recall@20 从 0.03979 升至 0.04760（差值 0.00781，95% paired
+bootstrap CI `[0, 0.021875]`，双侧 permutation `p=0.5`），F1@20 从
+0.006564 升至 0.007680（差值 0.001116，CI `[0, 0.002827]`，`p=0.5`）；
+改善/持平/退化为 2/158/0。排除既有 Auto dev/val 的 15 条重叠后，145 条新增
+样本仍为 1/144/0，但 Recall/F1 的双侧 `p` 均为 1.0。收益方向与先前 65 条审计
+一致，但仍只由极少数查询驱动，不能解释为显著或稳定效果。
+
+实验恢复 2 条已召回但被默认过滤的 gold，同时放行 337 个 qrels 未匹配候选；
+这些未匹配项不是可靠人工负例。两轮审计均为 0 网络、0 LLM、0 Snapshot 写入，
+四份产物逐字节一致；`case_comparison.jsonl`、`candidate_diagnostics.jsonl`、
+`aggregate.json` 的 SHA-256 分别为
+`cc2372e329055fa82750e6bb0eb2bf0f33322c54a389952d032746d6d0a6a5d2`、
+`5a61ab557f5a36eb1181f921d940fdd74d9ea42b6c708341a31cba5b70ea205a`、
+`9ab00c3b4480f66bfaf1c12f3c33e3c1019d50910b5ea2945c7f612836e408b0`。
+冻结协议和摘要见 `benchmark/lexical_normalization_record160_{manifest,result}.json`，
+完整产物位于
+`outputs/benchmark_runs/lexical_normalization_record160_813cf3a_r{5,6}/`。
+人工 Precision 完成前策略继续默认关闭。
+
 `scripts/check_current_rules_regression.py check` 是默认 `current_rules` 的只读持续回归门禁。版本化协议和完整逐 case 语义基准分别位于 `benchmark/current_rules_regression_manifest.json` 与 `benchmark/current_rules_regression_baseline.json`；基准固定 SciFact 50 条、AutoScholarQuery dev 0/10、val 10/5 的四源 Replay，关闭 Query Evolution、RefChain、Semantic Seed、LLM 与其余实验开关。命令不构造网络连接器、不加载运行时密钥，也不调用 SearchService 的可写 Snapshot runtime；它只从 required retrieval key 读取冻结响应，再用当前统一身份去重、`current_rules` Judgement、Reranker、Top-20 选择与 evaluator 重建语义结果。
 
 门禁逐次校验数据、原始配置/结果和 Snapshot tree 指纹，要求 SciFact/Auto dev/val 的 264/72/34 个 required retrieval key 与各自 group 完全一致、0 missing、0 reference key，并逐 key 比较来源、查询和成功/失败终态。语义基准逐 query 固定候选身份集合、最终返回顺序、Candidate Recall、Recall@20、F1@20、matched gold 和互斥 gold 终态；manifest 同时记录候选、核心指标、gold diagnostics 和来源终态的分区 SHA-256。`started_at`、代码提交/运行时 hash、resume signature 以及仓库外临时根路径显式排除或规范化，其他字段精确比较。漂移报告递归定位到最小 JSON path；候选/required-key 集合额外输出 added/removed，不允许用自动刷新基准掩盖回归。
