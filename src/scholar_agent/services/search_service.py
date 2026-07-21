@@ -50,7 +50,15 @@ from scholar_agent.connectors.semantic_scholar import (
     recommend_semantic_scholar_papers_detailed,
     resolve_semantic_scholar_paper_ids_detailed,
 )
-from scholar_agent.core.dedup import deduplicate_papers, deduplicate_papers_with_audit
+from scholar_agent.core.dedup import (
+    deduplicate_papers,
+    deduplicate_papers_with_audit,
+    deduplicate_papers_with_lineage,
+)
+from scholar_agent.core.result_lineage import (
+    opaque_query_identity,
+    restrict_result_lineage_document,
+)
 from scholar_agent.core.diagnostics_schemas import (
     ConnectorDiagnostics,
     merge_connector_diagnostics,
@@ -405,6 +413,7 @@ class SearchService:
         should_cancel: ShouldCancel | None = None,
         collect_diagnostics: bool = False,
         query_adapter_policy: QueryAdapterPolicy = DEFAULT_QUERY_ADAPTER_POLICY,
+        result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> SearchServiceOutput:
         signals = _ExecutionSignals(event_callback, should_cancel)
         diagnostics = PipelineDiagnosticsCollector(collect_diagnostics)
@@ -1492,6 +1501,19 @@ class SearchService:
         )
         signals.emit_budget_stops(runtime, "completed")
         signals.emit_warnings(output.warnings, "completed")
+        if result_lineage_callback is not None:
+            _, _, lineage = deduplicate_papers_with_lineage(
+                raw_papers,
+                query_identity=opaque_query_identity(query),
+                source_terminals=_result_lineage_source_terminals(
+                    source_stats, search_plan.selected_sources, raw_papers
+                ),
+            )
+            result_lineage_callback(
+                restrict_result_lineage_document(
+                    lineage, [item.paper for item in ranked_papers]
+                )
+            )
         return output
 
     def _retrieve_subqueries(
@@ -2176,9 +2198,15 @@ def run_search(
     event_callback: EventCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     collect_diagnostics: bool = False,
+    result_lineage_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> SearchServiceOutput:
     """Run the default internal search pipeline."""
 
+    lineage_kwargs = (
+        {"result_lineage_callback": result_lineage_callback}
+        if result_lineage_callback is not None
+        else {}
+    )
     return SearchService().run_search(
         query,
         top_k=top_k,
@@ -2199,6 +2227,7 @@ def run_search(
         event_callback=event_callback,
         should_cancel=should_cancel,
         collect_diagnostics=collect_diagnostics,
+        **lineage_kwargs,
     )
 
 
@@ -2381,6 +2410,51 @@ def _collect_retrieval_outputs(
         source_stats.extend(output.source_stats)
         warnings.extend(output.warnings)
     return papers, source_stats, warnings
+
+
+def _result_lineage_source_terminals(
+    source_stats: list[SourceStats],
+    selected_sources: list[str],
+    source_records: list[Paper],
+) -> list[dict[str, object]]:
+    """Collapse per-subquery terminals without retaining connector error text."""
+
+    rows: list[dict[str, object]] = []
+    for source in sorted(set(selected_sources)):
+        observed = [item for item in source_stats if item.source == source]
+        contributed = sum(source in paper.sources for paper in source_records)
+        executed = [item for item in observed if item.logical_call_executed]
+        failed = [
+            item
+            for item in executed
+            if item.error_message is not None
+            or item.terminal_status
+            in {"failed", "missing", "source_failure", "source_outage"}
+        ]
+        if not executed:
+            status = "not_started"
+            reason = "no_logical_source_call"
+        elif failed and contributed:
+            status = "partial_completion"
+            reason = "one_or_more_source_calls_failed"
+        elif failed:
+            status = "failed"
+            reason = "all_executed_source_calls_failed"
+        elif contributed:
+            status = "success"
+            reason = None
+        else:
+            status = "success_empty"
+            reason = None
+        rows.append(
+            {
+                "source": source,
+                "status": status,
+                "reason": reason,
+                "contributed_record_count": contributed,
+            }
+        )
+    return rows
 
 
 def _first_round_source_statuses(

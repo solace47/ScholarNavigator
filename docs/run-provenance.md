@@ -26,6 +26,11 @@ Snapshot 内容哈希、query-only manifest、Prompt manifest、evaluator 版本
   manifest 字段的 JSON Pointer 绑定；七类必需绑定不可省略；
 - `score_scope=internal_not_official`。
 
+启用字段级血缘的新运行还必须将 `result_lineage.jsonl` 以角色
+`result_lineage_v1` 登记到 `outputs`；该文件和其他报告使用相同封闭清单、大小、记录数及
+SHA-256 校验。血缘契约本身见 [`docs/result-lineage.md`](result-lineage.md)，旧运行不得
+事后补造该输出。
+
 JSON 采用键排序、UTF-8、固定缩进和末尾换行。摘要不包含时间戳、绝对路径、用户名或
 机器临时目录。query 身份摘要对输入顺序不敏感，顺序摘要单独记录，因此内容变化和重排
 都可定位。输出目录采用封闭清单：未登记文件、缺文件、大小或 SHA-256 变化都会失败；

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Iterable
 
 from scholar_agent.core.identity import (
     IdentityEvidence,
@@ -27,18 +28,35 @@ def deduplicate_papers(papers: list[Paper]) -> list[Paper]:
 
 def deduplicate_papers_with_audit(
     papers: list[Paper],
+    *,
+    lineage_query_identity: str | None = None,
+    lineage_source_terminals: Sequence[Mapping[str, Any]] | None = None,
+    lineage_sink: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[list[Paper], list[dict[str, object]]]:
-    """Deduplicate and return an evidence row for every accepted merge."""
+    """Deduplicate and return an evidence row for every accepted merge.
+
+    ``lineage_sink`` is an opt-in observational hook.  It uses the exact same
+    clusters and merged objects as the production path; with the hook omitted,
+    behavior and serialized output are unchanged.
+    """
 
     deduplicated: list[Paper] = []
     profiles: list[IdentityProfile] = []
     evidence_rows: list[dict[str, object]] = []
-    for paper in papers:
+    capture_lineage = lineage_sink is not None
+    cluster_indexes: list[list[int]] = []
+    cluster_evidence: list[list[IdentityEvidence]] = []
+    for input_index, paper in enumerate(papers):
         profile = build_identity_profile(paper)
         match_index = _find_duplicate_index(profiles, profile)
         if match_index is None:
             deduplicated.append(paper.model_copy(deep=True))
             profiles.append(profile)
+            if capture_lineage:
+                cluster_indexes.append([input_index])
+                cluster_evidence.append(
+                    [IdentityEvidence(False, "new_identity_cluster")]
+                )
             continue
         evidence = identity_evidence_from_profiles(profiles[match_index], profile)
         propagated_identifiers = sorted(
@@ -59,8 +77,46 @@ def deduplicate_papers_with_audit(
         )
         deduplicated[match_index] = _merge_papers(deduplicated[match_index], paper)
         profiles[match_index] = build_identity_profile(deduplicated[match_index])
+        if capture_lineage:
+            cluster_indexes[match_index].append(input_index)
+            cluster_evidence[match_index].append(evidence)
+
+    if lineage_sink is not None:
+        if not lineage_query_identity:
+            raise ValueError("lineage_query_identity_required")
+        from scholar_agent.core.result_lineage import build_result_lineage_document
+
+        document = build_result_lineage_document(
+            query_identity=lineage_query_identity,
+            input_papers=papers,
+            final_papers=deduplicated,
+            cluster_indexes=cluster_indexes,
+            cluster_member_evidence=cluster_evidence,
+            source_terminals=lineage_source_terminals,
+        )
+        lineage_sink(document.model_dump(mode="json"))
 
     return deduplicated, evidence_rows
+
+
+def deduplicate_papers_with_lineage(
+    papers: list[Paper],
+    *,
+    query_identity: str,
+    source_terminals: Sequence[Mapping[str, Any]] | None = None,
+) -> tuple[list[Paper], list[dict[str, object]], dict[str, Any]]:
+    """Run production deduplication and return its observational lineage."""
+
+    captured: list[dict[str, Any]] = []
+    deduplicated, audit = deduplicate_papers_with_audit(
+        papers,
+        lineage_query_identity=query_identity,
+        lineage_source_terminals=source_terminals,
+        lineage_sink=captured.append,
+    )
+    if len(captured) != 1:
+        raise RuntimeError("result_lineage_capture_failed")
+    return deduplicated, audit, captured[0]
 
 
 def _find_duplicate_index(
