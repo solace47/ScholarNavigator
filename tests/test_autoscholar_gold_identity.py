@@ -82,13 +82,13 @@ def test_duplicate_relations_and_cross_query_reuse_follow_evaluator_semantics() 
     assert summary["current_evaluator_global_repeated_relation_count"] == 2
     assert summary["safe_evaluator_deduplicated_query_denominator_count"] == 3
     assert summary["global_duplicate_relation_count"] == 2
-    assert summary["within_query_duplicate_relation_count"] == 1
-    assert summary["queries_with_duplicate_evaluator_relations"] == 1
+    assert summary["within_query_duplicate_relation_count"] == 0
+    assert summary["queries_with_duplicate_evaluator_relations"] == 0
     assert summary["cross_query_repeated_identity_count"] == 1
     assert summary["cross_query_repeated_relation_count"] == 3
     assert summary["raw_gold_per_query_distribution"] == {"2": 2}
     assert summary["safe_unique_gold_per_query_distribution"] == {"1": 1, "2": 1}
-    assert query_rows[0]["current_evaluator_gold_count"] == 2
+    assert query_rows[0]["current_evaluator_gold_count"] == 1
     assert query_rows[0]["current_evaluator_unique_identity_count"] == 1
 
 
@@ -277,15 +277,20 @@ def test_real_manifest_covers_all_1000_queries_and_2403_gold() -> None:
 
 
 @pytest.mark.gold_identity_regression
-def test_real_gold_identity_regression_gate(tmp_path: Path) -> None:
+def test_legacy_gold_identity_gate_preserves_and_reports_metric_migration(
+    tmp_path: Path,
+) -> None:
     report = check_gold_identity_regression(
         Path("benchmark/autoscholar_gold_identity_manifest.json"), tmp_path / "gate"
     )
 
-    assert report["passed"] is True
+    assert report["passed"] is False
     assert report["case_count"] == 1000
     assert report["gold_relation_count"] == 2403
-    assert report["drift_count"] == 0
+    paths = {item["path"] for item in report["drifts"]}
+    assert "$.fingerprints.evaluator_implementation_sha256" in paths
+    assert any("AutoScholarQuery_test_752" in path for path in paths)
+    assert any("AutoScholarQuery_test_773" in path for path in paths)
     assert report["execution"]["network_request_count"] == 0
 
 

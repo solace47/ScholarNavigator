@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from scholar_agent.core.evaluation_schemas import EvalGoldPaper
+from scholar_agent.core.evaluation_schemas import (
+    DEDUPLICATED_GOLD_METRIC_VERSION,
+    LEGACY_GOLD_METRIC_VERSION,
+    EvalGoldPaper,
+    EvalMetricSet,
+)
 from scholar_agent.core.paper_schemas import Paper, PaperIdentifiers
 from scholar_agent.evaluation.metrics import (
     candidate_count_metrics,
@@ -10,6 +15,7 @@ from scholar_agent.evaluation.metrics import (
     error_rate_metrics,
     evaluate_ranking,
     f1_at_k,
+    gold_deduplication_audit,
     matched_paper_ids,
     mrr,
     ndcg_at_k,
@@ -220,6 +226,83 @@ def test_duplicate_prediction_and_duplicate_gold_count_only_once() -> None:
 
     assert len(matched_paper_ids(ranked, gold)) == 1
     assert precision_at_k(ranked, gold, 2) == pytest.approx(0.5)
+    assert recall_at_k(ranked, gold, 2) == pytest.approx(1.0)
+    assert recall_at_k(
+        ranked,
+        gold,
+        2,
+        metric_version=LEGACY_GOLD_METRIC_VERSION,
+    ) == pytest.approx(0.5)
+
+
+def test_gold_deduplication_merges_cross_source_identity_and_preserves_union() -> None:
+    gold = [
+        EvalGoldPaper(doi="10.48550/arXiv.2401.00001"),
+        EvalGoldPaper(arxiv_id="2401.00001v2", doi="10.48550/arxiv.2401.00001"),
+    ]
+    ranked = [make_paper("arXiv", arxiv_id="arXiv:2401.00001v3")]
+
+    audit = gold_deduplication_audit(gold)
+
+    assert audit["legacy_evaluable_gold_count"] == 2
+    assert audit["deduplicated_evaluable_gold_count"] == 1
+    assert audit["duplicate_relation_count"] == 1
+    assert audit["duplicate_relations"][0]["rule"] == "shared_stable_identifier"
+    assert recall_at_k(ranked, gold, 1) == 1.0
+
+
+def test_gold_deduplication_keeps_same_type_conflicts_separate() -> None:
+    gold = [
+        EvalGoldPaper(doi="10.123/shared", arxiv_id="2401.00001"),
+        EvalGoldPaper(doi="10.123/shared", arxiv_id="2401.00002"),
+    ]
+
+    audit = gold_deduplication_audit(gold)
+
+    assert audit["deduplicated_evaluable_gold_count"] == 2
+    assert audit["duplicate_relation_count"] == 0
+
+
+def test_gold_deduplication_connects_non_conflicting_identifier_chains() -> None:
+    gold = [
+        EvalGoldPaper(doi="10.123/shared"),
+        EvalGoldPaper(arxiv_id="2401.00001"),
+        EvalGoldPaper(doi="10.123/shared", arxiv_id="2401.00001"),
+    ]
+
+    forward = gold_deduplication_audit(gold)
+    reverse = gold_deduplication_audit(list(reversed(gold)))
+
+    assert forward["deduplicated_evaluable_gold_count"] == 1
+    assert reverse["deduplicated_evaluable_gold_count"] == 1
+    assert forward["duplicate_relation_count"] == 2
+    assert reverse["duplicate_relation_count"] == 2
+
+
+def test_deduplicated_metrics_are_input_order_independent_and_handle_empty_results() -> None:
+    gold = [
+        EvalGoldPaper(doi="10.123/a"),
+        EvalGoldPaper(doi="https://doi.org/10.123/a"),
+        EvalGoldPaper(doi="10.123/b"),
+    ]
+    ranked = [make_paper("A", doi="10.123/a")]
+
+    forward = evaluate_ranking(ranked, gold, [20])
+    reverse = evaluate_ranking(ranked, list(reversed(gold)), [20])
+
+    assert forward == reverse
+    assert forward.metric_version == DEDUPLICATED_GOLD_METRIC_VERSION
+    assert forward.recall_at_k[20] == 0.5
+    assert evaluate_ranking([], gold, [20]).recall_at_k[20] == 0.0
+
+
+def test_legacy_metric_json_without_version_remains_readable() -> None:
+    legacy = EvalMetricSet.model_validate({"recall_at_k": {"20": 0.5}})
+    current = evaluate_ranking([], [EvalGoldPaper(doi="10.123/a")], [20])
+
+    assert legacy.metric_version == LEGACY_GOLD_METRIC_VERSION
+    assert legacy.recall_at_k[20] == 0.5
+    assert current.metric_version == DEDUPLICATED_GOLD_METRIC_VERSION
 
 
 def test_binary_ndcg() -> None:

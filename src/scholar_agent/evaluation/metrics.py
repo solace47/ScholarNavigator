@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -12,9 +13,13 @@ from scholar_agent.core.evaluation_schemas import (
     EvalAggregateEfficiency,
     EvalCaseEfficiency,
     EvalGoldPaper,
+    EvalMetricVersion,
     EvalMetricSet,
+    DEDUPLICATED_GOLD_METRIC_VERSION,
+    LEGACY_GOLD_METRIC_VERSION,
 )
 from scholar_agent.core.identity import (
+    IdentityProfile,
     build_identity_profile,
     identity_evidence_from_profiles,
     paper_identifier_set as shared_paper_identifier_set,
@@ -32,6 +37,8 @@ from scholar_agent.core.search_schemas import RankedPaper
 class _GoldRecord:
     index: int
     paper: Any
+    profile: IdentityProfile
+    member_indices: tuple[int, ...]
     identifiers: frozenset[str]
     title_year: str | None
     grade: float
@@ -43,6 +50,9 @@ class _RankedMatch:
     gold_index: int
     grade: float
     match_key: str
+
+
+DEFAULT_METRIC_VERSION: EvalMetricVersion = DEDUPLICATED_GOLD_METRIC_VERSION
 
 
 def canonical_paper_id(
@@ -106,17 +116,71 @@ def matched_paper_ids(
     gold_papers: Sequence[Any],
     *,
     k: int | None = None,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
 ) -> list[str]:
     return [
         match.match_key
-        for match in _ranked_matches(ranked_papers, gold_papers, k=k)
+        for match in _ranked_matches(
+            ranked_papers,
+            gold_papers,
+            k=k,
+            metric_version=metric_version,
+        )
     ]
 
 
-def evaluable_gold_count(gold_papers: Sequence[Any]) -> int:
+def evaluable_gold_count(
+    gold_papers: Sequence[Any],
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> int:
     """Count positive gold records that have a usable matching key."""
 
-    return len(_positive_gold_records(gold_papers))
+    return len(_positive_gold_records(gold_papers, metric_version=metric_version))
+
+
+def gold_deduplication_audit(gold_papers: Sequence[Any]) -> dict[str, Any]:
+    """Describe every v2 denominator merge without mutating the input gold."""
+
+    raw = _raw_positive_gold_records(gold_papers)
+    deduplicated = _deduplicate_gold_records(raw)
+    duplicate_relations: list[dict[str, Any]] = []
+    by_index = {record.index: record for record in raw}
+    for record in deduplicated:
+        retained = by_index[record.index]
+        for duplicate_index in record.member_indices:
+            if duplicate_index == retained.index:
+                continue
+            duplicate = by_index[duplicate_index]
+            basis = _direct_identity_basis(duplicate, record, by_index)
+            evidence = identity_evidence_from_profiles(
+                duplicate.profile,
+                basis.profile,
+            )
+            duplicate_relations.append(
+                {
+                    "duplicate_index": duplicate.index,
+                    "retained_index": retained.index,
+                    "identity_basis_index": basis.index,
+                    "rule": evidence.rule,
+                    "shared_identifiers": list(evidence.shared_identifiers),
+                    "conflicting_identifiers": list(evidence.conflicting_identifiers),
+                    "title": evidence.title,
+                    "author_overlap": list(evidence.author_overlap),
+                    "year": evidence.year,
+                    "retained_identity": _gold_profile_key(record.profile),
+                }
+            )
+    return {
+        "metric_version": DEDUPLICATED_GOLD_METRIC_VERSION,
+        "legacy_evaluable_gold_count": len(raw),
+        "deduplicated_evaluable_gold_count": len(deduplicated),
+        "duplicate_relation_count": len(raw) - len(deduplicated),
+        "duplicate_relations": sorted(
+            duplicate_relations,
+            key=lambda item: (item["duplicate_index"], item["retained_index"]),
+        ),
+    }
 
 
 def gold_crosswalk_status(paper: Any) -> str | None:
@@ -130,49 +194,109 @@ def gold_crosswalk_status(paper: Any) -> str | None:
     return normalized or None
 
 
-def recall_at_k(ranked_papers: Sequence[Any], gold_papers: Sequence[Any], k: int) -> float:
+def recall_at_k(
+    ranked_papers: Sequence[Any],
+    gold_papers: Sequence[Any],
+    k: int,
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> float:
     if k <= 0:
         return 0.0
-    gold = _positive_gold_records(gold_papers)
+    gold = _positive_gold_records(gold_papers, metric_version=metric_version)
     if not gold:
         return 0.0
-    return len(_ranked_matches(ranked_papers, gold_papers, k=k)) / len(gold)
+    return len(
+        _ranked_matches(
+            ranked_papers,
+            gold_papers,
+            k=k,
+            metric_version=metric_version,
+        )
+    ) / len(gold)
 
 
 def precision_at_k(
     ranked_papers: Sequence[Any],
     gold_papers: Sequence[Any],
     k: int,
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
 ) -> float:
     """Precision@K keeps K as the denominator for backward compatibility."""
 
-    if k <= 0 or not _positive_gold_records(gold_papers):
+    if k <= 0 or not _positive_gold_records(
+        gold_papers, metric_version=metric_version
+    ):
         return 0.0
-    return len(_ranked_matches(ranked_papers, gold_papers, k=k)) / k
+    return len(
+        _ranked_matches(
+            ranked_papers,
+            gold_papers,
+            k=k,
+            metric_version=metric_version,
+        )
+    ) / k
 
 
-def f1_at_k(ranked_papers: Sequence[Any], gold_papers: Sequence[Any], k: int) -> float:
-    precision = precision_at_k(ranked_papers, gold_papers, k)
-    recall = recall_at_k(ranked_papers, gold_papers, k)
+def f1_at_k(
+    ranked_papers: Sequence[Any],
+    gold_papers: Sequence[Any],
+    k: int,
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> float:
+    precision = precision_at_k(
+        ranked_papers,
+        gold_papers,
+        k,
+        metric_version=metric_version,
+    )
+    recall = recall_at_k(
+        ranked_papers,
+        gold_papers,
+        k,
+        metric_version=metric_version,
+    )
     if precision + recall == 0:
         return 0.0
     return 2 * precision * recall / (precision + recall)
 
 
-def mrr(ranked_papers: Sequence[Any], gold_papers: Sequence[Any]) -> float:
-    matches = _ranked_matches(ranked_papers, gold_papers)
+def mrr(
+    ranked_papers: Sequence[Any],
+    gold_papers: Sequence[Any],
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> float:
+    matches = _ranked_matches(
+        ranked_papers,
+        gold_papers,
+        metric_version=metric_version,
+    )
     return 1.0 / matches[0].rank if matches else 0.0
 
 
-def ndcg_at_k(ranked_papers: Sequence[Any], gold_papers: Sequence[Any], k: int) -> float:
+def ndcg_at_k(
+    ranked_papers: Sequence[Any],
+    gold_papers: Sequence[Any],
+    k: int,
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> float:
     if k <= 0:
         return 0.0
-    gold = _positive_gold_records(gold_papers)
+    gold = _positive_gold_records(gold_papers, metric_version=metric_version)
     if not gold:
         return 0.0
     gain_by_rank = {
         match.rank: match.grade
-        for match in _ranked_matches(ranked_papers, gold_papers, k=k)
+        for match in _ranked_matches(
+            ranked_papers,
+            gold_papers,
+            k=k,
+            metric_version=metric_version,
+        )
     }
     gains = [gain_by_rank.get(rank, 0.0) for rank in range(1, k + 1)]
     ideal_gains = sorted((record.grade for record in gold), reverse=True)[:k]
@@ -184,22 +308,60 @@ def evaluate_ranking(
     ranked_papers: Sequence[Any],
     gold_papers: Sequence[Any],
     k_values: Sequence[int] = (5, 10, 20),
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
 ) -> EvalMetricSet:
     values = _normalize_k_values(k_values)
     return EvalMetricSet(
-        recall_at_k={k: recall_at_k(ranked_papers, gold_papers, k) for k in values},
-        precision_at_k={
-            k: precision_at_k(ranked_papers, gold_papers, k) for k in values
+        metric_version=metric_version,
+        recall_at_k={
+            k: recall_at_k(
+                ranked_papers,
+                gold_papers,
+                k,
+                metric_version=metric_version,
+            )
+            for k in values
         },
-        f1_at_k={k: f1_at_k(ranked_papers, gold_papers, k) for k in values},
-        ndcg_at_k={k: ndcg_at_k(ranked_papers, gold_papers, k) for k in values},
-        mrr=mrr(ranked_papers, gold_papers),
+        precision_at_k={
+            k: precision_at_k(
+                ranked_papers,
+                gold_papers,
+                k,
+                metric_version=metric_version,
+            )
+            for k in values
+        },
+        f1_at_k={
+            k: f1_at_k(
+                ranked_papers,
+                gold_papers,
+                k,
+                metric_version=metric_version,
+            )
+            for k in values
+        },
+        ndcg_at_k={
+            k: ndcg_at_k(
+                ranked_papers,
+                gold_papers,
+                k,
+                metric_version=metric_version,
+            )
+            for k in values
+        },
+        mrr=mrr(ranked_papers, gold_papers, metric_version=metric_version),
     )
 
 
-def zero_metric_set(k_values: Sequence[int] = (5, 10, 20)) -> EvalMetricSet:
+def zero_metric_set(
+    k_values: Sequence[int] = (5, 10, 20),
+    *,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
+) -> EvalMetricSet:
     values = _normalize_k_values(k_values)
     return EvalMetricSet(
+        metric_version=metric_version,
         recall_at_k={k: 0.0 for k in values},
         precision_at_k={k: 0.0 for k in values},
         f1_at_k={k: 0.0 for k in values},
@@ -209,13 +371,18 @@ def zero_metric_set(k_values: Sequence[int] = (5, 10, 20)) -> EvalMetricSet:
 
 def average_metric_sets(metrics: Sequence[EvalMetricSet]) -> EvalMetricSet:
     if not metrics:
-        return EvalMetricSet()
+        return zero_metric_set()
+    versions = {item.metric_version for item in metrics}
+    if len(versions) != 1:
+        raise ValueError(f"cannot average mixed metric versions:{sorted(versions)}")
+    metric_version = next(iter(versions))
     count = len(metrics)
     raw_count = sum(item.raw_count for item in metrics)
     duplicate_count = sum(item.duplicate_count for item in metrics)
     source_call_count = sum(item.source_call_count for item in metrics)
     source_error_count = sum(item.source_error_count for item in metrics)
     return EvalMetricSet(
+        metric_version=metric_version,
         recall_at_k=_average_maps([item.recall_at_k for item in metrics]),
         precision_at_k=_average_maps([item.precision_at_k for item in metrics]),
         f1_at_k=_average_maps([item.f1_at_k for item in metrics]),
@@ -344,16 +511,14 @@ def _ranked_matches(
     gold_papers: Sequence[Any],
     *,
     k: int | None = None,
+    metric_version: EvalMetricVersion = DEFAULT_METRIC_VERSION,
 ) -> list[_RankedMatch]:
-    gold = _positive_gold_records(gold_papers)
+    gold = _positive_gold_records(gold_papers, metric_version=metric_version)
     if not gold:
         return []
     limit = len(ranked_papers) if k is None else max(0, k)
     used_gold: set[int] = set()
     seen_prediction_profiles = []
-    gold_profiles = {
-        record.index: build_identity_profile(record.paper) for record in gold
-    }
     matches: list[_RankedMatch] = []
     for rank, paper in enumerate(ranked_papers[:limit], start=1):
         identifiers = paper_identifier_set(paper)
@@ -369,7 +534,7 @@ def _ranked_matches(
         for record in gold:
             if record.index in used_gold:
                 continue
-            evidence = identity_evidence_from_profiles(profile, gold_profiles[record.index])
+            evidence = identity_evidence_from_profiles(profile, record.profile)
             match_key = _match_key(evidence, title_year)
             if match_key is None:
                 continue
@@ -386,7 +551,20 @@ def _ranked_matches(
     return matches
 
 
-def _positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
+def _positive_gold_records(
+    gold_papers: Sequence[Any],
+    *,
+    metric_version: EvalMetricVersion,
+) -> list[_GoldRecord]:
+    records = _raw_positive_gold_records(gold_papers)
+    if metric_version == LEGACY_GOLD_METRIC_VERSION:
+        return records
+    if metric_version == DEDUPLICATED_GOLD_METRIC_VERSION:
+        return _deduplicate_gold_records(records)
+    raise ValueError(f"unsupported metric version:{metric_version}")
+
+
+def _raw_positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
     records: list[_GoldRecord] = []
     for index, paper in enumerate(gold_papers):
         grade = _relevance_grade(paper)
@@ -398,16 +576,160 @@ def _positive_gold_records(gold_papers: Sequence[Any]) -> list[_GoldRecord]:
         title_year = paper_title_year_key(paper) if not identifiers else None
         if not identifiers and title_year is None:
             continue
+        profile = build_identity_profile(paper)
         records.append(
             _GoldRecord(
                 index=index,
                 paper=paper,
+                profile=profile,
+                member_indices=(index,),
                 identifiers=frozenset(identifiers),
                 title_year=title_year,
                 grade=grade,
             )
         )
     return records
+
+
+def _deduplicate_gold_records(records: Sequence[_GoldRecord]) -> list[_GoldRecord]:
+    clusters: list[list[_GoldRecord]] = []
+    for record in sorted(records, key=_gold_record_sort_key):
+        matches: list[int] = []
+        for cluster_index, cluster in enumerate(clusters):
+            evidence = [
+                identity_evidence_from_profiles(record.profile, item.profile)
+                for item in cluster
+            ]
+            if any(item.conflicting_identifiers for item in evidence):
+                continue
+            if any(item.equivalent for item in evidence):
+                matches.append(cluster_index)
+        if not matches:
+            clusters.append([record])
+            continue
+        target = min(matches, key=lambda index: _cluster_sort_key(clusters[index]))
+        combined = [*clusters[target], record]
+        merged_indices: list[int] = []
+        for cluster_index in sorted(
+            (index for index in matches if index != target),
+            key=lambda index: _cluster_sort_key(clusters[index]),
+        ):
+            if _clusters_have_identifier_conflict(combined, clusters[cluster_index]):
+                continue
+            combined.extend(clusters[cluster_index])
+            merged_indices.append(cluster_index)
+        clusters[target] = combined
+        for cluster_index in sorted(merged_indices, reverse=True):
+            del clusters[cluster_index]
+    merged = [_merge_gold_cluster(cluster) for cluster in clusters]
+    return sorted(merged, key=lambda record: min(record.member_indices))
+
+
+def _merge_gold_cluster(cluster: Sequence[_GoldRecord]) -> _GoldRecord:
+    ordered = sorted(cluster, key=_gold_record_sort_key)
+    representative = min(
+        ordered,
+        key=lambda item: (
+            -item.grade,
+            -len(item.profile.identifiers),
+            _gold_record_sort_key(item),
+        ),
+    )
+    profile = _merge_identity_profiles([item.profile for item in ordered])
+    return _GoldRecord(
+        index=representative.index,
+        paper=representative.paper,
+        profile=profile,
+        member_indices=tuple(sorted(item.index for item in ordered)),
+        identifiers=profile.identifiers,
+        title_year=(
+            f"title_year:{profile.title}:{profile.year}"
+            if not profile.identifiers and profile.title and profile.year is not None
+            else None
+        ),
+        grade=max(item.grade for item in ordered),
+    )
+
+
+def _merge_identity_profiles(profiles: Sequence[IdentityProfile]) -> IdentityProfile:
+    field_names = [name for name, _value in profiles[0].field_values]
+    field_values: list[tuple[str, str | None]] = []
+    for field in field_names:
+        values = {
+            dict(profile.field_values).get(field)
+            for profile in profiles
+            if dict(profile.field_values).get(field)
+        }
+        if len(values) > 1:
+            raise ValueError(f"conflicting gold identifiers entered one cluster:{field}")
+        field_values.append((field, next(iter(values), None)))
+    titles = sorted({profile.title for profile in profiles if profile.title})
+    years = sorted({profile.year for profile in profiles if profile.year is not None})
+    return IdentityProfile(
+        identifiers=frozenset(
+            identifier for profile in profiles for identifier in profile.identifiers
+        ),
+        field_values=tuple(field_values),
+        title=titles[0] if titles else "",
+        authors=frozenset(author for profile in profiles for author in profile.authors),
+        year=years[0] if years else None,
+    )
+
+
+def _direct_identity_basis(
+    duplicate: _GoldRecord,
+    merged: _GoldRecord,
+    by_index: Mapping[int, _GoldRecord],
+) -> _GoldRecord:
+    candidates = [
+        by_index[index]
+        for index in merged.member_indices
+        if index != duplicate.index
+        and identity_evidence_from_profiles(
+            duplicate.profile, by_index[index].profile
+        ).equivalent
+    ]
+    if not candidates:
+        raise ValueError("deduplicated gold relation has no direct identity basis")
+    return min(candidates, key=_gold_record_sort_key)
+
+
+def _gold_record_sort_key(record: _GoldRecord) -> tuple[Any, ...]:
+    return (
+        _gold_profile_key(record.profile),
+        -record.grade,
+    )
+
+
+def _cluster_sort_key(cluster: Sequence[_GoldRecord]) -> tuple[Any, ...]:
+    return min(_gold_record_sort_key(record) for record in cluster)
+
+
+def _clusters_have_identifier_conflict(
+    left: Sequence[_GoldRecord],
+    right: Sequence[_GoldRecord],
+) -> bool:
+    return any(
+        identity_evidence_from_profiles(left_item.profile, right_item.profile)
+        .conflicting_identifiers
+        for left_item in left
+        for right_item in right
+    )
+
+
+def _gold_profile_key(profile: IdentityProfile) -> str:
+    return json.dumps(
+        {
+            "identifiers": sorted(profile.identifiers),
+            "field_values": list(profile.field_values),
+            "title": profile.title,
+            "authors": sorted(profile.authors),
+            "year": profile.year,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _match_key(

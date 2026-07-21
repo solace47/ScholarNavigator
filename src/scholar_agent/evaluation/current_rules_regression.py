@@ -14,7 +14,12 @@ from scholar_agent.agents.judgement import judge_papers
 from scholar_agent.agents.judgement_config import CURRENT_RULES_CONFIG
 from scholar_agent.agents.reranker import rerank_papers
 from scholar_agent.core.dedup import deduplicate_papers
-from scholar_agent.core.evaluation_schemas import EvalGoldPaper, EvalQuery
+from scholar_agent.core.evaluation_schemas import (
+    EvalGoldPaper,
+    EvalMetricVersion,
+    EvalQuery,
+    LEGACY_GOLD_METRIC_VERSION,
+)
 from scholar_agent.core.identity import (
     build_identity_profile,
     identity_evidence_from_profiles,
@@ -107,7 +112,11 @@ def check_current_rules_regression(
     return observed, report
 
 
-def build_current_rules_profile(manifest: Mapping[str, Any]) -> dict[str, Any]:
+def build_current_rules_profile(
+    manifest: Mapping[str, Any],
+    *,
+    metric_version: EvalMetricVersion = LEGACY_GOLD_METRIC_VERSION,
+) -> dict[str, Any]:
     """Reconstruct candidates and metrics with current production components."""
 
     datasets: dict[str, Any] = {}
@@ -115,7 +124,7 @@ def build_current_rules_profile(manifest: Mapping[str, Any]) -> dict[str, Any]:
         label = str(spec["label"])
         if label in datasets:
             raise RegressionGateError(f"duplicate regression dataset:{label}")
-        datasets[label] = _audit_dataset(spec)
+        datasets[label] = _audit_dataset(spec, metric_version=metric_version)
     return {
         "schema_version": SCHEMA_VERSION,
         "gate": GATE_NAME,
@@ -370,7 +379,11 @@ def write_baseline_proposal(
     _write_json(root / "baseline_update_audit.json", audit)
 
 
-def _audit_dataset(spec: Mapping[str, Any]) -> dict[str, Any]:
+def _audit_dataset(
+    spec: Mapping[str, Any],
+    *,
+    metric_version: EvalMetricVersion,
+) -> dict[str, Any]:
     label = str(spec["label"])
     run_dir = _repo_path(spec["run_dir"])
     config_path = run_dir / "config.json"
@@ -408,7 +421,13 @@ def _audit_dataset(spec: Mapping[str, Any]) -> dict[str, Any]:
                 "errors": ["missing_result_or_query"],
             }
             continue
-        case = _audit_case(row, query, config, store)
+        case = _audit_case(
+            row,
+            query,
+            config,
+            store,
+            metric_version=metric_version,
+        )
         cases[case_id] = case
         all_required_keys.extend(case["required_retrieval_keys"])
         if case["metrics"]["evaluable_gold_count"] > 0:
@@ -512,6 +531,8 @@ def _audit_case(
     query: EvalQuery,
     config: Mapping[str, Any],
     store: SnapshotStore,
+    *,
+    metric_version: EvalMetricVersion,
 ) -> dict[str, Any]:
     errors: list[str] = []
     snapshots = {
@@ -582,10 +603,27 @@ def _audit_case(
         {"ranked_papers": ranked[:top_k]},
         policy=str(config["result_policy"]),
     )
-    denominator = evaluable_gold_count(query.gold_papers)
-    candidate_matched = matched_paper_ids(candidates, query.gold_papers)
-    returned_matched = matched_paper_ids(returned, query.gold_papers, k=top_k)
-    metric = evaluate_ranking(returned, query.gold_papers, [top_k])
+    denominator = evaluable_gold_count(
+        query.gold_papers,
+        metric_version=metric_version,
+    )
+    candidate_matched = matched_paper_ids(
+        candidates,
+        query.gold_papers,
+        metric_version=metric_version,
+    )
+    returned_matched = matched_paper_ids(
+        returned,
+        query.gold_papers,
+        k=top_k,
+        metric_version=metric_version,
+    )
+    metric = evaluate_ranking(
+        returned,
+        query.gold_papers,
+        [top_k],
+        metric_version=metric_version,
+    )
     metrics = {
         "evaluable_gold_count": denominator,
         "candidate_recall": (
@@ -618,7 +656,13 @@ def _audit_case(
         "returned_count": len(returned),
         "returned_identities": [_paper_identity(item) for item in returned],
         "metrics": metrics,
-        "gold_diagnostics": _gold_diagnostics(query.gold_papers, candidates, ranked, returned),
+        "gold_diagnostics": _gold_diagnostics(
+            query.gold_papers,
+            candidates,
+            ranked,
+            returned,
+            metric_version=metric_version,
+        ),
         "_metric": metric,
     }
 
@@ -628,12 +672,17 @@ def _gold_diagnostics(
     candidates: Sequence[Any],
     ranked: Sequence[Any],
     returned: Sequence[Any],
+    *,
+    metric_version: EvalMetricVersion,
 ) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
     for relation_index, gold in enumerate(gold_papers):
         if gold.relevance_grade <= 0:
             continue
-        evaluable = evaluable_gold_count([gold]) > 0
+        evaluable = evaluable_gold_count(
+            [gold],
+            metric_version=metric_version,
+        ) > 0
         candidate_matches = _matching_positions(candidates, gold)
         ranked_matches = _matching_positions(ranked, gold)
         returned_matches = _matching_positions(returned, gold)

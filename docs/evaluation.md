@@ -336,11 +336,16 @@ manifest、统一身份实现、evaluator 与审计实现 SHA-256，逐关系比
 冻结结果中 2403/2403 关系均凭 arXiv ID 进入稳定 ID 可评估终态，0 冲突、
 0 歧义、0 信息不足，1000 个 query 均至少有一个可评估 gold。统一身份得到
 2009 篇全局唯一论文，394 条是跨全量数据重复关系；其中 268 篇跨 query 复用，
-涉及 657 条关系。当前 evaluator 不在 query 内预去重：2 个 query 合计有 5 条
-重复 denominator，原始 2403 条关系对应安全 query 内去重 denominator 2398。
+涉及 657 条关系。历史 `legacy_gold_records_v1` evaluator 不在 query 内预去重：
+2 个 query 合计有 5 条重复 denominator，原始 2403 条关系对应安全 query 内
+去重 denominator 2398。
 数据除标题与 arXiv ID 外均缺作者、年份、DOI、PMID、OpenAlex、S2 和 S2ORC
 字段；这些缺失不影响本版精确 arXiv 身份可评估性。该审计只冻结 evaluator
 输入质量，不是检索效果或官方成绩。
+
+该目录现作为不可变的 v1 历史基准保留；启用 v2 后执行其旧 check 会按设计报告
+evaluator 指纹及上述 2 个 query 的 denominator 漂移，不能通过更新旧产物来消除。
+当前指标语义门禁使用下节的 v2 manifest。
 
 ```bash
 PYTHONPATH=src python scripts/audit_autoscholar_gold_identity.py check \
@@ -348,6 +353,34 @@ PYTHONPATH=src python scripts/audit_autoscholar_gold_identity.py check \
   --output-dir outputs/benchmark_runs/autoscholar_gold_identity_gate
 
 PYTHONPATH=src pytest -q -m gold_identity_regression
+```
+
+### Gold 分母指标版本
+
+内部 Benchmark 自 `deduplicated_gold_identity_v2` 起，在匹配与计算分母之前按
+`identity.py` 对每个 query 的正向、可评估 gold 去重。稳定标识相交且无同类
+标识冲突时合并；无稳定标识时仍只接受严格标题、作者与年份证据。一个 identity
+cluster 只贡献一个 denominator，并合并成员的稳定标识用于匹配，graded relevance
+保留 cluster 中最高等级。输入顺序不影响计分。旧 JSON 缺少 `metric_version` 时
+按 `legacy_gold_records_v1` 解析；历史 current_rules 回归门禁也显式使用 legacy，
+因此旧结果可读且不会被新口径冒充或覆盖。v2 是内部指标，不是官方 scorer。
+
+迁移审计由 `scripts/audit_gold_metric_semantics.py` 提供，版本化协议与冻结结果位于
+`benchmark/gold_metric_semantics_manifest.json`、
+`benchmark/gold_metric_semantics_v2_baseline/` 和
+`benchmark/gold_metric_semantics_result.json`。门禁同时保护历史 current_rules 与
+gold identity v1 产物 SHA-256，验证候选身份、返回顺序、来源终态和 Snapshot key
+在两种版本间完全一致；只允许 denominator 和由其派生的指标变化。全量 1000 条
+由 2403 降至 2398，5 条被移除关系集中在 2 个 query，全部依据精确共享 arXiv
+ID。SciFact 50、Auto dev 10、Auto val 5 未包含重复关系，故三个冻结集合的
+Candidate Recall、Recall@20 与 F1@20 均无数值变化。
+
+```bash
+PYTHONPATH=src python scripts/audit_gold_metric_semantics.py check \
+  --manifest benchmark/gold_metric_semantics_manifest.json \
+  --output-dir outputs/benchmark_runs/gold_metric_semantics_gate
+
+PYTHONPATH=src pytest -q -m metric_semantics_regression
 ```
 
 `scripts/audit_autoscholar_snapshot_resume.py` 将上述 query-only 计划、冻结的 baseline `plan_round_2`、现有 retrieval Snapshot 与 Record 产物的顶层 `case_id/status` 合并为 gold-blind 缺失审计。Record JSONL 的其他字段由结构扫描器直接跳过，不加载数据集 adapter 或 evaluator。每个 required key 都重新计算 Snapshot key，并在已有文件上校验 source、规范查询、limit、adapter/query-adapter/connector 版本与 content hash；四类终态固定为已有 `success`、已有 `failed`、已结束 Record case 的 `missing`，以及尚未进入 Record case 的 `not_started`。来源、query-only manifest 顺序四分位、查询长度秩四分位、子查询数与 method/dataset/time 约束仅用于缺失机制审计，不生成 Recall/F1。

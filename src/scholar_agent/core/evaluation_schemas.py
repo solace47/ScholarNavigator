@@ -34,9 +34,21 @@ class EvalQuery(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+EvalMetricVersion = Literal[
+    "legacy_gold_records_v1",
+    "deduplicated_gold_identity_v2",
+]
+LEGACY_GOLD_METRIC_VERSION: EvalMetricVersion = "legacy_gold_records_v1"
+DEDUPLICATED_GOLD_METRIC_VERSION: EvalMetricVersion = (
+    "deduplicated_gold_identity_v2"
+)
+
+
 class EvalMetricSet(BaseModel):
     """Metric summary for one evaluated run or aggregate suite."""
 
+    # Missing fields in historical JSON intentionally parse as legacy v1.
+    metric_version: EvalMetricVersion = LEGACY_GOLD_METRIC_VERSION
     recall_at_k: dict[int, float] = Field(default_factory=dict)
     precision_at_k: dict[int, float] = Field(default_factory=dict)
     f1_at_k: dict[int, float] = Field(default_factory=dict)
