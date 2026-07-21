@@ -581,6 +581,55 @@ PYTHONPATH=src python scripts/audit_query_gold_leakage.py check \
 PYTHONPATH=src pytest -q -m query_gold_leakage_regression
 ```
 
+## AutoScholarQuery 查询独立性门禁
+
+`scripts/audit_query_independence.py` 在 evaluator 隔离层审计 1000 条 query 的重复、
+共享 gold 和冻结证据分层，不调用 SearchService、connector、LLM 或 Snapshot 写路径。
+检测协议在查看统计前冻结于
+`benchmark/autoscholar_query_independence_protocol.json`：query 统一做 HTML 反转义、
+Unicode NFKC、casefold、Unicode 标点分词和空白折叠；完全重复按规范文本相等；
+近重复按去固定停用词后的 Unicode token 集 Jaccard 计算，双方至少 6 个有效 token，
+阈值固定为 `>=0.8`。不使用 Embedding、语义模型、外部搜索或人工合并。
+
+图的无向边仅来自规范 query 完全重复、预注册词法近重复或统一 identity cluster 的
+共享 gold；连通分量使用传递闭合，每个 query 恰好属于一个稳定 hash 标识的分量。
+分层原始 membership 可重叠；独占 partition 固定按 Auto dev、Auto val、Record160-only、
+其余样本的优先级建立。一个分量只要包含跨冻结 membership 复用的同一 query，或
+连接多个独占 partition，即标为跨层污染。该标记只生成与全量并列的诊断视图，
+不删除数据、不重划正式 split。
+
+冻结结果没有规范完全重复或词法近重复 query；715 个连通分量中的 103 个非单例
+分量全部由共享 gold 形成，涉及 388 条 query，最大分量 89 条。268 个共享 gold
+identity cluster 形成 506 条 query-pair 边，其中 83 个 identity cluster、135 条边
+跨独占分层。46 个分量、237 条 query 被标为跨层污染，剩余 763 条独立。Auto dev
+10 条和 val 5 条全部与 Record160 直接复用同一 query，因此二者不能被当作相互独立
+验证证据；Record160 主分析 160 条中，协议过滤后保留 88 条独立诊断样本。
+
+现有 65 条全量内部诊断的 Candidate Recall 为 0.5982，baseline/lexical 的
+Recall@20 为 0.3795/0.4018、F1@20 为 0.03875/0.04194；去除跨层分量后只剩不属于
+AutoScholarQuery 图的 SciFact 50 条，不能解释为 Auto dev/val 的独立成绩。
+Record160 全量 Candidate Recall 为 0.06885，baseline/lexical Recall@20 为
+0.03979/0.04760、F1@20 为 0.006564/0.007680；88 条去污染诊断对应 0.06477、
+0.03068/0.04205 和 0.004936/0.006018。共享 gold 非单例簇在 Record160 的 candidate
+hit 率为 9.52%，低于单例的 11.34%；现有命中没有集中在词法重复 query，因为本版
+没有检测到此类 query。以上均为内部冻结诊断，不是官方成绩。
+
+版本化 manifest、逐 query/边/分量/指标基准和摘要位于
+`benchmark/autoscholar_query_independence_manifest.json`、
+`benchmark/autoscholar_query_independence_baseline/` 与
+`benchmark/autoscholar_query_independence_result.json`。门禁校验数据、协议、identity
+基线、冻结 Replay、实现与所有产物 hash，并逐 JSON path 报告数据、阈值或簇归属
+漂移。后续跨分层显著性分析不得把复用 query 当作独立观测；应并列保留全量结果和
+预注册去污染视图，并以连通分量作为重采样单位。
+
+```bash
+PYTHONPATH=src python scripts/audit_query_independence.py check \
+  --manifest benchmark/autoscholar_query_independence_manifest.json \
+  --output outputs/benchmark_runs/autoscholar_query_independence_gate
+
+PYTHONPATH=src pytest -q -m query_independence_regression
+```
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
