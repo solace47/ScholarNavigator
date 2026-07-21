@@ -708,6 +708,24 @@ PYTHONPATH=src python scripts/check_evidence_registry.py check \
 PYTHONPATH=src pytest -q -m evidence_registry_regression
 ```
 
+## 运行产物谱系与完整性门禁
+
+新 Benchmark/Replay 运行可使用 `run_manifest_v1` 绑定数据输入 SHA-256、query-only
+身份与顺序、Prompt 版本、来源/预算、evaluator 版本、确定性参数、完成进度、checkpoint
+父子链、Git 工作区状态及封闭输出文件清单。`scripts/check_run_provenance.py` 提供
+`generate`、`validate` 与 `audit-legacy` 三个离线入口；校验能定位文件缺失/篡改/未登记、
+query 重排、配置元数据漂移、完成数不足和谱系断裂/循环。输出仅是内部可复现性证据，
+不是官方 scorer 或正式比赛成绩。
+
+现有 AutoScholarQuery 160 分析输入及未完成 1000 条运行没有这些字段，文件只读核验
+结果固定为 `legacy_metadata_incomplete`（退出码 3），不得补造 v1 manifest 或宣称通过。
+完整字段、退出码、新运行生成方法与当前 legacy 口径见
+[`docs/run-provenance.md`](run-provenance.md)。离线回归入口为：
+
+```bash
+PYTHONPATH=src pytest -q -m run_provenance_regression
+```
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

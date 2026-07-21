@@ -24,6 +24,12 @@ flowchart LR
 | Core | Pydantic 数据结构、统一论文身份归一化与去重、API 与评测 Schema |
 | Evaluation | fake fixture 离线评测、真实 batch 结果评测和报告脚本 |
 
+Evaluation 还包含离线 `run_manifest_v1` 完整性门禁。它复用 Snapshot/Replay 的稳定哈希、
+query-only 计划输入、Prompt manifest、evaluator 版本与 checkpoint/resume 身份，递归验证
+运行谱系和封闭输出清单；不进入 SearchService、connector、LLM 或 gold evaluator。
+历史运行缺少契约字段时只返回 `legacy_metadata_incomplete`，不反向补造元数据。契约详情见
+[`docs/run-provenance.md`](run-provenance.md)。
+
 ## SearchService 流程
 
 ```mermaid
