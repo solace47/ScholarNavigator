@@ -28,7 +28,10 @@ for import_root in (REPO_ROOT, SRC_ROOT):
 from scripts.evaluate_search_batch import evaluate_batch_results  # noqa: E402
 from scholar_agent.core.api_schemas import CostReport  # noqa: E402
 from scholar_agent.core.env_loader import load_project_env  # noqa: E402
-from scholar_agent.connectors import fetch_openalex_references_detailed  # noqa: E402
+from scholar_agent.connectors import (  # noqa: E402
+    fetch_openalex_references_detailed,
+    recommend_semantic_scholar_papers_detailed,
+)
 from scholar_agent.core.evaluation_schemas import EvalQuery  # noqa: E402
 from scholar_agent.core.search_schemas import (  # noqa: E402
     JudgementPolicy,
@@ -54,6 +57,7 @@ from scholar_agent.evaluation.datasets import (  # noqa: E402
 from scholar_agent.evaluation.selection import ResultPolicy  # noqa: E402
 from scholar_agent.evaluation.snapshots import (  # noqa: E402
     SnapshotAwareReferenceFetcher,
+    SnapshotAwareRecommendationFetcher,
     SnapshotAwareRetriever,
     SnapshotManifest,
     SnapshotRuntime,
@@ -121,6 +125,7 @@ class BenchmarkRunOptions(BaseModel):
     judgement_policy: JudgementPolicy = "current_rules"
     judgement_config_path: Path | None = None
     enable_refchain: bool = False
+    enable_semantic_seed_expansion: bool = False
     enable_llm_query_understanding: bool = False
     enable_llm_judgement: bool = False
     current_year: int | None = Field(default=None, ge=1900, le=2200)
@@ -172,7 +177,9 @@ def _ablation_group_name(options: BenchmarkRunOptions) -> str:
         options.enable_query_evolution
         and options.query_evolution_policy != "off"
     )
-    if (
+    if options.enable_semantic_seed_expansion:
+        base_group = "semantic_seed_expansion"
+    elif (
         evolution_enabled
         and options.query_evolution_policy == "coverage_gap"
         and options.enable_refchain
@@ -497,6 +504,10 @@ def run_benchmark(
                 snapshot_runtime,
                 fetch_openalex_references_detailed,
             ),
+            recommendation_fetcher=SnapshotAwareRecommendationFetcher(
+                snapshot_runtime,
+                recommend_semantic_scholar_papers_detailed,
+            ),
             max_workers=options.max_workers,
             llm_planning_runtime=llm_planning_runtime,
             judgement_policy=options.judgement_policy,
@@ -653,6 +664,9 @@ def _build_config(
         "judgement_config": judgement_config.model_dump(mode="json"),
         "judgement_config_hash": judgement_config_hash(judgement_config),
         "enable_refchain": options.enable_refchain,
+        "enable_semantic_seed_expansion": (
+            options.enable_semantic_seed_expansion
+        ),
         "current_year": options.current_year,
         "max_workers": options.max_workers,
         "budgets": options.budgets.model_dump(mode="json"),
@@ -849,6 +863,9 @@ def _run_case(
             query_planning_policy=options.query_planning_policy,
             ranking_policy=options.ranking_policy,
             enable_refchain=options.enable_refchain,
+            enable_semantic_seed_expansion=(
+                options.enable_semantic_seed_expansion
+            ),
             enable_synthesis=True,
             current_year=options.current_year,
             enable_llm_query_understanding=options.enable_llm_query_understanding,
@@ -1206,6 +1223,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--judgement-config", default=None)
     parser.add_argument("--enable-refchain", action="store_true")
+    parser.add_argument("--enable-semantic-seed-expansion", action="store_true")
     parser.add_argument("--enable-llm-query-understanding", action="store_true")
     parser.add_argument("--enable-llm-judgement", action="store_true")
     parser.add_argument("--current-year", type=int, default=None)
@@ -1295,6 +1313,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.judgement_config) if args.judgement_config else None
             ),
             enable_refchain=args.enable_refchain,
+            enable_semantic_seed_expansion=args.enable_semantic_seed_expansion,
             enable_llm_query_understanding=args.enable_llm_query_understanding,
             enable_llm_judgement=args.enable_llm_judgement,
             current_year=args.current_year,

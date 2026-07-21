@@ -20,6 +20,7 @@ CONNECTOR_VERSIONS = {
     "arxiv": "search-v1",
     "openalex": "search-v1",
     "semantic_scholar": "search-v2",
+    "semantic_scholar_recommendations": "recommendations-v1",
     "pubmed": "search-v1",
     "openalex_references": "references-v1",
 }
@@ -30,6 +31,7 @@ SnapshotGeneratedBy = Literal[
     "initial_retrieval",
     "query_evolution",
     "refchain",
+    "semantic_seed_expansion",
 ]
 
 
@@ -58,6 +60,7 @@ class ReferenceSnapshotEntry(BaseModel):
     key: str = Field(min_length=64, max_length=64)
     source: str = "openalex"
     seed_identifier: str
+    seed_identifiers: list[str] = Field(default_factory=list)
     limit: int = Field(ge=0)
     connector_version: str
     status: SnapshotEntryStatus
@@ -111,6 +114,7 @@ class SnapshotPlanEntry(BaseModel):
     source: str
     adapted_query: str | None = None
     seed_identifier: str | None = None
+    seed_identifiers: list[str] = Field(default_factory=list)
     limit: int = Field(ge=0)
     adapter_policy: str | None = None
     connector_version: str

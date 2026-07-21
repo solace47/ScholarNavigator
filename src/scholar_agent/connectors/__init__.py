@@ -11,6 +11,7 @@ from .pubmed import search_pubmed, search_pubmed_detailed
 from .schemas import ConnectorSearchResult
 from scholar_agent.core.diagnostics_schemas import ConnectorDiagnostics
 from .semantic_scholar import (
+    recommend_semantic_scholar_papers_detailed,
     search_semantic_scholar,
     search_semantic_scholar_detailed,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "search_openalex_detailed",
     "search_pubmed",
     "search_pubmed_detailed",
+    "recommend_semantic_scholar_papers_detailed",
     "search_semantic_scholar",
     "search_semantic_scholar_detailed",
 ]

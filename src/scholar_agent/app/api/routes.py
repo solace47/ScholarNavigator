@@ -94,6 +94,7 @@ class InternalSearchPreviewRequest(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
+    enable_semantic_seed_expansion: bool = False
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
@@ -109,6 +110,7 @@ class InternalSearchPreviewResponse(BaseModel):
     search_plan: dict[str, Any]
     query_evolution_records: list[dict[str, Any]]
     refchain_output: dict[str, Any] | None
+    semantic_seed_expansion_output: dict[str, Any] | None
     synthesis_output: dict[str, Any] | None
     ranked_papers: list[dict[str, Any]]
     raw_count: int
@@ -540,6 +542,11 @@ def internal_search_preview(
             top_k=request.top_k,
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
+            **(
+                {"enable_semantic_seed_expansion": True}
+                if request.enable_semantic_seed_expansion
+                else {}
+            ),
             enable_query_evolution=request.enable_query_evolution,
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
@@ -571,6 +578,11 @@ def internal_search_preview(
             if output.refchain_output is not None
             else None
         ),
+        semantic_seed_expansion_output=(
+            _model_dump(output.semantic_seed_expansion_output)
+            if output.semantic_seed_expansion_output is not None
+            else None
+        ),
         synthesis_output=(
             _model_dump(output.synthesis_output)
             if output.synthesis_output is not None
@@ -599,6 +611,11 @@ def internal_search_preview_api_result(
             top_k=request.top_k,
             run_profile=request.run_profile,
             enable_refchain=request.enable_refchain,
+            **(
+                {"enable_semantic_seed_expansion": True}
+                if request.enable_semantic_seed_expansion
+                else {}
+            ),
             enable_query_evolution=request.enable_query_evolution,
             query_evolution_policy=request.query_evolution_policy,
             query_planning_policy=request.query_planning_policy,
@@ -644,6 +661,11 @@ def _execute_real_search_run(run_id: str) -> None:
             top_k=request.top_k,
             run_profile=request.run_profile,
             enable_refchain=request.options.enable_refchain,
+            **(
+                {"enable_semantic_seed_expansion": True}
+                if request.options.enable_semantic_seed_expansion
+                else {}
+            ),
             enable_query_evolution=request.options.enable_query_evolution,
             query_evolution_policy=request.options.query_evolution_policy,
             query_planning_policy=request.options.query_planning_policy,

@@ -29,6 +29,10 @@ from scholar_agent.agents.query_evolution import (
 from scholar_agent.agents.pseudo_relevance_feedback import build_prf_plan
 from scholar_agent.agents.query_understanding import analyze_query
 from scholar_agent.agents.refchain import ReferenceFetcher, expand_refchain
+from scholar_agent.agents.semantic_seed_expansion import (
+    RecommendationFetcher,
+    expand_semantic_seeds,
+)
 from scholar_agent.agents.reranker import rerank_papers
 from scholar_agent.agents.rrf_fusion import (
     build_retrieval_ranked_lists,
@@ -41,6 +45,9 @@ from scholar_agent.agents.retriever import (
     retrieve_papers,
 )
 from scholar_agent.connectors.openalex import fetch_openalex_references_detailed
+from scholar_agent.connectors.semantic_scholar import (
+    recommend_semantic_scholar_papers_detailed,
+)
 from scholar_agent.core.dedup import deduplicate_papers, deduplicate_papers_with_audit
 from scholar_agent.core.diagnostics_schemas import (
     ConnectorDiagnostics,
@@ -71,6 +78,8 @@ from scholar_agent.core.search_schemas import (
     SearchPlan,
     SearchBudget,
     SearchSubquery,
+    SemanticSeedExpansionOutput,
+    SemanticSeedExpansionRecord,
     SUPPORTED_SEARCH_SOURCES,
     normalize_search_sources,
 )
@@ -245,6 +254,7 @@ class SearchServiceOutput(BaseModel):
     retrieval_outputs: list[RetrievalOutput] = Field(default_factory=list)
     query_evolution_records: list[QueryEvolutionRecord] = Field(default_factory=list)
     refchain_output: RefChainOutput | None = None
+    semantic_seed_expansion_output: SemanticSeedExpansionOutput | None = None
     synthesis_output: SynthesisOutput | None = None
     raw_count: int = 0
     deduplicated_count: int = 0
@@ -273,10 +283,14 @@ class SearchServiceOutput(BaseModel):
     @model_validator(mode="after")
     def derive_connector_diagnostics(self) -> "SearchServiceOutput":
         search = merge_connector_diagnostics(
-            stat.diagnostics for stat in self.source_stats if stat.source != "refchain"
+            stat.diagnostics
+            for stat in self.source_stats
+            if stat.source not in {"refchain", "semantic_seed_expansion"}
         )
         reference = merge_connector_diagnostics(
-            stat.diagnostics for stat in self.source_stats if stat.source == "refchain"
+            stat.diagnostics
+            for stat in self.source_stats
+            if stat.source in {"refchain", "semantic_seed_expansion"}
         )
         if (
             self.search_diagnostics == ConnectorDiagnostics()
@@ -298,6 +312,9 @@ class SearchService:
         self,
         retriever: RetrieverFn = retrieve_papers,
         reference_fetcher: ReferenceFetcher = fetch_openalex_references_detailed,
+        recommendation_fetcher: RecommendationFetcher = (
+            recommend_semantic_scholar_papers_detailed
+        ),
         max_workers: int = 4,
         llm_client: Any | None = None,
         llm_planning_runtime: Any | None = None,
@@ -313,6 +330,7 @@ class SearchService:
         self._isolated_processes: set[Any] = set()
         self._isolated_processes_lock = RLock()
         self._reference_fetcher = reference_fetcher
+        self._recommendation_fetcher = recommendation_fetcher
         self._max_workers = max(1, max_workers)
         self._llm_client = llm_client
         self._llm_planning_runtime = llm_planning_runtime
@@ -363,6 +381,7 @@ class SearchService:
         top_k: int = 20,
         run_profile: RunProfile = "balanced",
         enable_refchain: bool = False,
+        enable_semantic_seed_expansion: bool = False,
         enable_query_evolution: bool = False,
         query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
         query_planning_policy: QueryPlanningPolicy = "current_rules",
@@ -447,6 +466,7 @@ class SearchService:
             top_k=top_k,
             run_profile=run_profile,
             enable_refchain=enable_refchain,
+            enable_semantic_seed_expansion=enable_semantic_seed_expansion,
             enable_query_evolution=enable_query_evolution,
             query_planning_policy=query_planning_policy,
             current_year=current_year,
@@ -486,6 +506,7 @@ class SearchService:
         retrieval_outputs: list[RetrievalOutput] = []
         query_evolution_records: list[QueryEvolutionRecord] = []
         refchain_output: RefChainOutput | None = None
+        semantic_seed_expansion_output: SemanticSeedExpansionOutput | None = None
         raw_papers: list[Paper] = []
         source_stats: list[SourceStats] = []
         deduplicated: list[Paper] = []
@@ -682,6 +703,192 @@ class SearchService:
                 "initial_reranked",
             ):
                 diagnostics.skip(stage, "budget_stopped_before_retrieval")
+
+        if enable_semantic_seed_expansion:
+            if enable_query_evolution or enable_refchain:
+                raise ValueError(
+                    "semantic_seed_expansion_requires_query_evolution_and_refchain_disabled"
+                )
+            signals.check_cancelled("semantic_seed_expansion:before")
+            signals.emit(
+                "semantic_seed_expansion_started",
+                {"stage": "semantic_seed_expansion"},
+            )
+            stage_start = time.perf_counter()
+            stop_reason = (
+                runtime.stop("budget_stop:max_search_rounds")
+                if runtime.completed_search_rounds
+                >= runtime.budget.max_search_rounds
+                else runtime.latency_stop_reason()
+            )
+            if stop_reason is not None:
+                semantic_seed_expansion_output = SemanticSeedExpansionOutput(
+                    record=SemanticSeedExpansionRecord(
+                        status="source_failure",
+                        skip_reason=stop_reason,
+                        warnings=[stop_reason],
+                    ),
+                    warnings=[stop_reason],
+                )
+                for stage in (
+                    "semantic_seed_expansion_retrieval",
+                    "post_semantic_seed_expansion_deduplicated",
+                    "post_semantic_seed_expansion_judged",
+                    "post_semantic_seed_expansion_reranked",
+                ):
+                    diagnostics.skip(stage, stop_reason)
+            else:
+                semantic_seed_expansion_output = expand_semantic_seeds(
+                    all_ranked_papers,
+                    self._recommendation_fetcher,
+                    max_seeds=3,
+                    limit=100,
+                )
+                if semantic_seed_expansion_output.record.seeds:
+                    runtime.record_search_round()
+                recommendations = semantic_seed_expansion_output.recommendations
+                diagnostics.register_semantic_seed_expansion(
+                    "semantic_seed_expansion_retrieval",
+                    recommendations,
+                )
+                warnings.extend(semantic_seed_expansion_output.warnings)
+                signals.emit_warnings(
+                    semantic_seed_expansion_output.warnings,
+                    "semantic_seed_expansion",
+                )
+                source_stats.append(
+                    SourceStats(
+                        source="semantic_seed_expansion",
+                        terminal_status=semantic_seed_expansion_output.record.status,
+                        query="semantic_seed_expansion",
+                        returned_count=len(recommendations),
+                        latency_seconds=(
+                            semantic_seed_expansion_output.latency_seconds
+                        ),
+                        error_message=(
+                            semantic_seed_expansion_output.record.skip_reason
+                            if semantic_seed_expansion_output.record.status
+                            == "source_failure"
+                            else None
+                        ),
+                        logical_call_executed=bool(
+                            semantic_seed_expansion_output.record.seeds
+                        ),
+                        warnings=list(semantic_seed_expansion_output.warnings),
+                        diagnostics=semantic_seed_expansion_output.diagnostics,
+                        snapshot_key=(
+                            semantic_seed_expansion_output.record.snapshot_key
+                        ),
+                        recorded_diagnostics=(
+                            semantic_seed_expansion_output.record.recorded_diagnostics
+                        ),
+                        recorded_latency_seconds=(
+                            semantic_seed_expansion_output.record.recorded_latency_seconds
+                        ),
+                    )
+                )
+                if recommendations:
+                    prior_unique_count = len(deduplicated)
+                    prior_merge_count = len(identity_audit)
+                    raw_papers.extend(recommendations)
+                    deduplicated_papers, identity_audit = (
+                        deduplicate_papers_with_audit(raw_papers)
+                    )
+                    new_unique_count = max(
+                        0,
+                        len(deduplicated_papers) - prior_unique_count,
+                    )
+                    expansion_merges = identity_audit[prior_merge_count:]
+                    semantic_seed_expansion_output.record = (
+                        semantic_seed_expansion_output.record.model_copy(
+                            update={
+                                "new_unique_candidate_count": new_unique_count,
+                                "duplicate_candidate_count": max(
+                                    0,
+                                    len(recommendations) - new_unique_count,
+                                ),
+                                "identity_merges": expansion_merges,
+                            }
+                        )
+                    )
+                    deduplicated = _apply_candidate_budget(
+                        deduplicated_papers,
+                        runtime,
+                        stage="semantic_seed_expansion",
+                        source_order=search_plan.selected_sources,
+                    )
+                    diagnostics.snapshot_papers(
+                        "post_semantic_seed_expansion_deduplicated",
+                        deduplicated,
+                        identity_audit=expansion_merges,
+                    )
+                    signals.check_cancelled(
+                        "judgement:before_semantic_seed_expansion"
+                    )
+                    judgement_use_llm = (
+                        use_llm_judgement
+                        and runtime.latency_stop_reason() is None
+                    )
+                    judgements, _ = self._judge_papers(
+                        search_plan,
+                        deduplicated,
+                        use_llm=judgement_use_llm,
+                        llm_client=llm_client,
+                        signals=signals,
+                        judgement_policy=effective_judgement_policy,
+                        judgement_config=effective_judgement_config,
+                    )
+                    diagnostics.snapshot_judgements(
+                        "post_semantic_seed_expansion_judged",
+                        judgements,
+                    )
+                    all_ranked_papers, ranked_papers = _rerank_all_and_top(
+                        search_plan.query_analysis,
+                        judgements,
+                        top_k,
+                        ranking_policy=ranking_policy,
+                        retrieval_outputs=retrieval_outputs,
+                    )
+                    diagnostics.snapshot_ranked(
+                        "post_semantic_seed_expansion_reranked",
+                        all_ranked_papers,
+                    )
+                else:
+                    reason = (
+                        semantic_seed_expansion_output.record.skip_reason
+                        or "no_recommendation_candidates"
+                    )
+                    for stage in (
+                        "post_semantic_seed_expansion_deduplicated",
+                        "post_semantic_seed_expansion_judged",
+                        "post_semantic_seed_expansion_reranked",
+                    ):
+                        diagnostics.skip(stage, reason)
+            signals.check_cancelled("semantic_seed_expansion:after")
+            _add_stage_latency(
+                stage_latencies,
+                "semantic_seed_expansion",
+                time.perf_counter() - stage_start,
+            )
+            signals.emit(
+                "semantic_seed_expansion_completed",
+                {
+                    "stage": "semantic_seed_expansion",
+                    "status": (
+                        semantic_seed_expansion_output.record.status
+                        if semantic_seed_expansion_output is not None
+                        else "source_failure"
+                    ),
+                },
+            )
+        else:
+            for stage in (
+                "semantic_seed_expansion_retrieval",
+                "post_semantic_seed_expansion_deduplicated",
+                "post_semantic_seed_expansion_judged",
+                "post_semantic_seed_expansion_reranked",
+            ):
+                diagnostics.skip(stage, "disabled")
 
         if enable_query_evolution:
             initial_deduplicated = list(deduplicated)
@@ -1194,13 +1401,20 @@ class SearchService:
             if refchain_output is not None
             else 0
         )
+        semantic_seed_raw_count = (
+            semantic_seed_expansion_output.record.raw_recommendation_count
+            if semantic_seed_expansion_output is not None
+            else 0
+        )
         output = SearchServiceOutput(
             search_plan=search_plan,
             retrieval_outputs=retrieval_outputs,
             query_evolution_records=query_evolution_records,
             refchain_output=refchain_output,
+            semantic_seed_expansion_output=semantic_seed_expansion_output,
             raw_count=sum(output.raw_count for output in retrieval_outputs)
-            + refchain_raw_count,
+            + refchain_raw_count
+            + semantic_seed_raw_count,
             deduplicated_count=len(deduplicated),
             judgements=judgements,
             ranked_papers=ranked_papers,
@@ -1216,12 +1430,12 @@ class SearchService:
             search_diagnostics=merge_connector_diagnostics(
                 stat.diagnostics
                 for stat in source_stats
-                if stat.source != "refchain"
+                if stat.source not in {"refchain", "semantic_seed_expansion"}
             ),
-            reference_diagnostics=(
-                refchain_output.diagnostics
-                if refchain_output is not None
-                else ConnectorDiagnostics()
+            reference_diagnostics=merge_connector_diagnostics(
+                stat.diagnostics
+                for stat in source_stats
+                if stat.source in {"refchain", "semantic_seed_expansion"}
             ),
             stage_snapshots=diagnostics.snapshots,
             judgement_policy=effective_judgement_policy,
@@ -1938,6 +2152,7 @@ def run_search(
     top_k: int = 20,
     run_profile: RunProfile = "balanced",
     enable_refchain: bool = False,
+    enable_semantic_seed_expansion: bool = False,
     enable_query_evolution: bool = False,
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap",
     query_planning_policy: QueryPlanningPolicy = "current_rules",
@@ -1960,6 +2175,7 @@ def run_search(
         top_k=top_k,
         run_profile=run_profile,
         enable_refchain=enable_refchain,
+        enable_semantic_seed_expansion=enable_semantic_seed_expansion,
         enable_query_evolution=enable_query_evolution,
         query_evolution_policy=query_evolution_policy,
         query_planning_policy=query_planning_policy,

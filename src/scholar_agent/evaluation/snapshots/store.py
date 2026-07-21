@@ -190,18 +190,32 @@ class SnapshotStore:
                     "query_understanding_prompt",
                     "llm_query_planning_prompt",
                     "judgement_prompt",
-                    "connector_versions",
                 )
                 if getattr(existing, field) != getattr(manifest, field)
             ]
+            connector_conflicts = [
+                name
+                for name, version in existing.connector_versions.items()
+                if manifest.connector_versions.get(name) != version
+            ]
+            if connector_conflicts:
+                mismatched.append("connector_versions")
             if mismatched:
                 raise SnapshotConflictError(
                     "snapshot_manifest_incompatible:" + ",".join(mismatched)
                 )
-            if existing.query_planner_version != manifest.query_planner_version:
+            merged_connector_versions = {
+                **existing.connector_versions,
+                **manifest.connector_versions,
+            }
+            if (
+                existing.query_planner_version != manifest.query_planner_version
+                or existing.connector_versions != merged_connector_versions
+            ):
                 existing = existing.model_copy(
                     update={
                         "query_planner_version": manifest.query_planner_version,
+                        "connector_versions": merged_connector_versions,
                         "updated_at": utc_now(),
                     }
                 )

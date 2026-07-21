@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 SEMANTIC_SCHOLAR_SEARCH_URL = (
     "https://api.semanticscholar.org/graph/v1/paper/search"
 )
+SEMANTIC_SCHOLAR_RECOMMENDATIONS_URL = (
+    "https://api.semanticscholar.org/recommendations/v1/papers"
+)
 SEMANTIC_SCHOLAR_API_KEY_ENV = "SEMANTIC_SCHOLAR_API_KEY"
 SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS_ENV = (
     "SCHOLAR_AGENT_SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS"
@@ -35,6 +38,7 @@ DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 2.0
 DEFAULT_MIN_INTERVAL_SECONDS = 1.5
 DEFAULT_MIN_INTERVAL_WITH_KEY_SECONDS = 0.1
 MAX_SEMANTIC_SCHOLAR_LIMIT = 100
+MAX_SEMANTIC_SCHOLAR_RECOMMENDATION_SEEDS = 3
 SEARCH_FIELDS = ",".join(
     [
         "paperId",
@@ -144,6 +148,110 @@ def search_semantic_scholar_detailed(
     )
 
 
+def recommend_semantic_scholar_papers_detailed(
+    seed_paper_ids: list[str],
+    limit: int = 100,
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    retry_sleep: Callable[[float], None] | None = None,
+    throttle_sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
+) -> ConnectorSearchResult:
+    """Return recommendations for up to three exact Semantic Scholar paper IDs."""
+
+    start = time.perf_counter()
+    normalized_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in seed_paper_ids:
+        paper_id = str(raw_id).strip()
+        key = paper_id.casefold()
+        if not paper_id or key in seen:
+            continue
+        normalized_ids.append(paper_id)
+        seen.add(key)
+        if len(normalized_ids) >= MAX_SEMANTIC_SCHOLAR_RECOMMENDATION_SEEDS:
+            break
+    if not normalized_ids or limit <= 0:
+        latency = time.perf_counter() - start
+        return ConnectorSearchResult(
+            error_message="Semantic Scholar recommendations require a seed paper ID",
+            warnings=["semantic_scholar_recommendations_missing_seed"],
+            latency_seconds=latency,
+            diagnostics=ConnectorDiagnostics(error_count=1, latency_seconds=latency),
+        )
+
+    params = {
+        "limit": str(min(limit, MAX_SEMANTIC_SCHOLAR_LIMIT)),
+        "fields": SEARCH_FIELDS,
+    }
+    request = Request(
+        f"{SEMANTIC_SCHOLAR_RECOMMENDATIONS_URL}?{urlencode(params)}",
+        data=json.dumps(
+            {"positivePaperIds": normalized_ids, "negativePaperIds": []},
+            separators=(",", ":"),
+        ).encode("utf-8"),
+        headers={
+            **_semantic_scholar_headers(),
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    payload, error_message, warnings, diagnostics = _request_json_detailed(
+        request,
+        max_retries=max_retries,
+        retry_sleep=retry_sleep,
+        throttle_sleep=throttle_sleep,
+        monotonic=monotonic,
+        operation="recommendations",
+    )
+    if payload is None:
+        return ConnectorSearchResult(
+            error_message=error_message,
+            warnings=warnings,
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(diagnostics, start),
+        )
+
+    results = payload.get("recommendedPapers")
+    if not isinstance(results, list):
+        message = "Semantic Scholar recommendations response missing list recommendedPapers"
+        return ConnectorSearchResult(
+            error_message=message,
+            warnings=[*warnings, message],
+            latency_seconds=time.perf_counter() - start,
+            diagnostics=_with_total_latency(
+                diagnostics.model_copy(
+                    update={"error_count": diagnostics.error_count + 1}
+                ),
+                start,
+            ),
+        )
+
+    papers: list[Paper] = []
+    malformed_count = 0
+    for item in results:
+        if not isinstance(item, dict):
+            malformed_count += 1
+            continue
+        try:
+            paper = _parse_paper(item)
+        except Exception:  # noqa: BLE001 - isolate malformed recommendation rows
+            malformed_count += 1
+            continue
+        if paper is not None:
+            papers.append(paper)
+    if malformed_count:
+        warnings.append(
+            f"semantic_scholar_recommendations_malformed_rows:{malformed_count}"
+        )
+    return ConnectorSearchResult(
+        papers=papers,
+        warnings=warnings,
+        latency_seconds=time.perf_counter() - start,
+        diagnostics=_with_total_latency(diagnostics, start),
+    )
+
+
 def _semantic_scholar_headers() -> dict[str, str]:
     headers = {"User-Agent": "ScholarNavigator"}
     api_key = os.getenv(SEMANTIC_SCHOLAR_API_KEY_ENV, "").strip()
@@ -159,6 +267,7 @@ def _request_json_detailed(
     retry_sleep: Callable[[float], None] | None = None,
     throttle_sleep: Callable[[float], None] | None = None,
     monotonic: Callable[[], float] | None = None,
+    operation: str = "search",
 ) -> tuple[
     dict[str, Any] | None,
     str | None,
@@ -185,7 +294,7 @@ def _request_json_detailed(
             with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
                 status = getattr(response, "status", getattr(response, "code", 200))
                 if status < 200 or status >= 300:
-                    message = f"Semantic Scholar search returned non-2xx status: {status}"
+                    message = f"Semantic Scholar {operation} returned non-2xx status: {status}"
                     retry_after_seen = _max_optional(
                         retry_after_seen,
                         _retry_after_seconds(response),
@@ -196,6 +305,7 @@ def _request_json_detailed(
                             attempt=attempt,
                             attempts=attempts,
                             reason=message,
+                            operation=operation,
                         )
                         wait_seconds = _retry_backoff_seconds(attempt, response)
                         sleep(wait_seconds)
@@ -234,13 +344,14 @@ def _request_json_detailed(
                     attempt=attempt,
                     attempts=attempts,
                     reason=str(exc),
+                    operation=operation,
                 )
                 wait_seconds = _retry_backoff_seconds(attempt, exc)
                 sleep(wait_seconds)
                 if _is_rate_limit_wait(exc.code, exc):
                     rate_limit_wait_seconds += wait_seconds
                 continue
-            message = f"Semantic Scholar search failed: {exc}"
+            message = f"Semantic Scholar {operation} failed: {exc}"
             logger.warning(message)
             return None, message, warnings + [message], ConnectorDiagnostics(
                 request_count=request_count,
@@ -257,10 +368,11 @@ def _request_json_detailed(
                     attempt=attempt,
                     attempts=attempts,
                     reason=str(exc),
+                    operation=operation,
                 )
                 sleep(_retry_backoff_seconds(attempt))
                 continue
-            message = f"Semantic Scholar search failed: {exc}"
+            message = f"Semantic Scholar {operation} failed: {exc}"
             logger.warning(message)
             return None, message, warnings + [message], ConnectorDiagnostics(
                 request_count=request_count,
@@ -270,7 +382,7 @@ def _request_json_detailed(
                 latency_seconds=time.perf_counter() - started_at,
             )
         except json.JSONDecodeError as exc:
-            message = f"Semantic Scholar search failed: {exc}"
+            message = f"Semantic Scholar {operation} failed: {exc}"
             logger.warning(message)
             return None, message, warnings + [message], ConnectorDiagnostics(
                 request_count=request_count,
@@ -280,7 +392,7 @@ def _request_json_detailed(
                 latency_seconds=time.perf_counter() - started_at,
             )
 
-    message = "Semantic Scholar search failed: retry attempts exhausted"
+    message = f"Semantic Scholar {operation} failed: retry attempts exhausted"
     logger.warning(message)
     return None, message, warnings + [message], ConnectorDiagnostics(
         request_count=request_count,
@@ -352,9 +464,10 @@ def _record_retry_warning(
     attempt: int,
     attempts: int,
     reason: str,
+    operation: str = "search",
 ) -> None:
     message = (
-        f"Semantic Scholar search transient error on attempt {attempt + 1}/{attempts}: "
+        f"Semantic Scholar {operation} transient error on attempt {attempt + 1}/{attempts}: "
         f"{reason}; retried"
     )
     logger.warning(message)

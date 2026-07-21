@@ -108,6 +108,7 @@ export interface SearchRunCreateRequest {
     enable_query_evolution?: boolean;
     query_evolution_policy?: QueryEvolutionPolicy;
     enable_refchain?: boolean;
+    enable_semantic_seed_expansion?: boolean;
     enable_llm_query_understanding?: boolean | null;
     enable_llm_judgement?: boolean | null;
     refchain_depth?: number;
@@ -122,6 +123,7 @@ export interface InternalSearchPreviewRequest {
   top_k?: number;
   run_profile?: RunProfile;
   enable_refchain?: boolean;
+  enable_semantic_seed_expansion?: boolean;
   enable_query_evolution?: boolean;
   query_evolution_policy?: QueryEvolutionPolicy;
   query_planning_policy?: QueryPlanningPolicy;
@@ -298,6 +300,7 @@ export interface SearchPlan {
   max_rounds: number;
   query_planning_policy: QueryPlanningPolicy;
   ranking_policy: RankingPolicy;
+  enable_semantic_seed_expansion: boolean;
   query_planning: {
     policy: QueryPlanningPolicy;
     planner_version: string;

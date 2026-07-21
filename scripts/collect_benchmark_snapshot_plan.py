@@ -21,6 +21,7 @@ for import_root in (REPO_ROOT, SRC_ROOT):
 
 from scholar_agent.connectors import (  # noqa: E402
     fetch_openalex_references_detailed,
+    recommend_semantic_scholar_papers_detailed,
     search_arxiv_detailed,
     search_openalex_detailed,
     search_pubmed_detailed,
@@ -70,6 +71,9 @@ def collect_plan(
     searchers: dict[str, Callable[[str, int], ConnectorSearchResult]] | None = None,
     reference_fetcher: Callable[[Paper, int], ConnectorSearchResult] = (
         fetch_openalex_references_detailed
+    ),
+    recommendation_fetcher: Callable[[list[str], int], ConnectorSearchResult] = (
+        recommend_semantic_scholar_papers_detailed
     ),
     clock: Callable[[], float] = time.monotonic,
     cancel_check: Callable[[], bool] = lambda: False,
@@ -155,6 +159,7 @@ def collect_plan(
                 entry,
                 registry,
                 reference_fetcher,
+                recommendation_fetcher,
             )
             diagnostics = result.recorded_diagnostics or result.diagnostics
             request_count += diagnostics.request_count
@@ -224,6 +229,7 @@ def _collect_entry(
     entry: SnapshotPlanEntry,
     registry: dict[str, Callable[[str, int], ConnectorSearchResult]],
     reference_fetcher: Callable[[Paper, int], ConnectorSearchResult],
+    recommendation_fetcher: Callable[[list[str], int], ConnectorSearchResult],
 ) -> ConnectorSearchResult:
     if entry.entry_type == "retrieval":
         search = registry.get(entry.source)
@@ -244,6 +250,14 @@ def _collect_entry(
         )
     if entry.entry_type != "reference" or entry.seed_identifier is None:
         raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
+    if entry.generated_by == "semantic_seed_expansion":
+        if not entry.seed_identifiers:
+            raise ValueError(f"snapshot_plan_seed_missing:{entry.key}")
+        return runtime.fetch_recommendations(
+            entry.seed_identifiers,
+            entry.limit,
+            recommendation_fetcher,
+        )
     return runtime.fetch_references(
         _seed_paper(entry.seed_identifier),
         entry.limit,

@@ -400,6 +400,7 @@ class SearchPlan(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
+    enable_semantic_seed_expansion: bool = False
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     query_planning_policy: QueryPlanningPolicy = "current_rules"
@@ -419,6 +420,7 @@ class QueryUnderstandingOptions(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     run_profile: RunProfile = "balanced"
     enable_refchain: bool = False
+    enable_semantic_seed_expansion: bool = False
     enable_query_evolution: bool = False
     query_planning_policy: QueryPlanningPolicy = "current_rules"
     current_year: int | None = Field(default=None, ge=1900, le=2200)
@@ -702,6 +704,44 @@ class RefChainOutput(BaseModel):
     recorded_diagnostics: ConnectorDiagnostics = Field(
         default_factory=ConnectorDiagnostics
     )
+    recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
+
+
+class SemanticSeedExpansionSeed(BaseModel):
+    semantic_scholar_id: str
+    rank: int = Field(ge=1)
+    title: str
+
+
+class SemanticSeedExpansionRecord(BaseModel):
+    status: Literal[
+        "disabled", "no_eligible_seed", "success", "source_failure"
+    ] = "disabled"
+    seeds: list[SemanticSeedExpansionSeed] = Field(default_factory=list)
+    snapshot_key: str | None = None
+    raw_recommendation_count: int = Field(default=0, ge=0)
+    new_unique_candidate_count: int = Field(default=0, ge=0)
+    duplicate_candidate_count: int = Field(default=0, ge=0)
+    identity_merges: list[dict[str, object]] = Field(default_factory=list)
+    skip_reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    recorded_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    latency_seconds: float = Field(default=0.0, ge=0.0)
+    recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
+
+
+class SemanticSeedExpansionOutput(BaseModel):
+    recommendations: list[Paper] = Field(default_factory=list)
+    record: SemanticSeedExpansionRecord
+    warnings: list[str] = Field(default_factory=list)
+    diagnostics: ConnectorDiagnostics = Field(default_factory=ConnectorDiagnostics)
+    recorded_diagnostics: ConnectorDiagnostics = Field(
+        default_factory=ConnectorDiagnostics
+    )
+    latency_seconds: float = Field(default=0.0, ge=0.0)
     recorded_latency_seconds: float = Field(default=0.0, ge=0.0)
 
 

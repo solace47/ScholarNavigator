@@ -46,6 +46,7 @@ SUPPORTED_GROUPS = (
     "facet_balanced_refchain_only",
     "facet_balanced_query_evolution_plus_refchain",
     "facet_balanced_query_evolution_coverage_gap_plus_refchain",
+    "semantic_seed_expansion",
 )
 
 
@@ -202,6 +203,7 @@ def prepare_groups(
             "facet_balanced_query_evolution_plus_refchain",
             "facet_balanced_query_evolution_coverage_gap_plus_refchain",
         }
+        semantic_seed_expansion = group == "semantic_seed_expansion"
         query_evolution_policy = (
             "coverage_gap"
             if "coverage_gap" in group
@@ -232,6 +234,7 @@ def prepare_groups(
                 query_evolution_policy=query_evolution_policy,
                 query_planning_policy=query_planning_policy,
                 enable_refchain=refchain,
+                enable_semantic_seed_expansion=semantic_seed_expansion,
                 enable_llm_query_understanding=False,
                 enable_llm_judgement=False,
                 max_workers=1,

@@ -117,6 +117,7 @@ class SearchOptions(BaseModel):
     enable_query_evolution: bool = False
     query_evolution_policy: QueryEvolutionPolicy = "coverage_gap"
     enable_refchain: bool = True
+    enable_semantic_seed_expansion: bool = False
     enable_llm_query_understanding: bool | None = None
     enable_llm_judgement: bool | None = None
     refchain_depth: int = 1
@@ -307,6 +308,7 @@ class SearchPlan(BaseModel):
         default_factory=QueryPlanningResult
     )
     query_evolution_policy: QueryEvolutionPolicy = "off"
+    enable_semantic_seed_expansion: bool = False
 
 
 class MethodCluster(BaseModel):

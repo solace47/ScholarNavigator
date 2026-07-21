@@ -294,6 +294,9 @@ def map_search_plan(
         ranking_policy=search_plan.ranking_policy,
         query_planning=search_plan.query_planning,
         query_evolution_policy=search_plan.query_evolution_policy,
+        enable_semantic_seed_expansion=(
+            search_plan.enable_semantic_seed_expansion
+        ),
     )
 
 
@@ -304,7 +307,8 @@ def _cost_report(output: SearchServiceOutput) -> api.CostReport:
     return api.CostReport(
         api_call_count=connector_request_count + output.llm_call_count,
         logical_search_call_count=sum(
-            stat.source != "refchain" and stat.logical_call_executed
+            stat.source not in {"refchain", "semantic_seed_expansion"}
+            and stat.logical_call_executed
             for stat in output.source_stats
         ),
         search_api_call_count=search.request_count,

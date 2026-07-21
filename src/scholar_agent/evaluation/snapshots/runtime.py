@@ -42,6 +42,7 @@ from scholar_agent.retrieval.query_adapter import QueryAdapterPolicy
 RetrievalMode = Literal["live", "record", "replay", "record-missing", "plan"]
 LiveSearch = Callable[[str, int], ConnectorSearchResult]
 LiveReferenceFetcher = Callable[[Paper, int], list[Paper] | ConnectorSearchResult]
+LiveRecommendationFetcher = Callable[[list[str], int], ConnectorSearchResult]
 
 
 def _stable_append(values: list[str], value: str) -> None:
@@ -554,6 +555,146 @@ class SnapshotRuntime:
             deep=True,
         )
 
+    def fetch_recommendations(
+        self,
+        seed_paper_ids: list[str],
+        limit: int,
+        live_fetcher: LiveRecommendationFetcher,
+    ) -> ConnectorSearchResult:
+        seed_ids = _canonical_semantic_seed_ids(seed_paper_ids)
+        if not seed_ids:
+            return ConnectorSearchResult(
+                error_message="snapshot_seed_missing_semantic_scholar_identifier",
+                diagnostics=ConnectorDiagnostics(error_count=1),
+            )
+        if self.mode == "plan":
+            unresolved_retrieval = [
+                entry.key
+                for entry in self.plan_entries()
+                if entry.entry_type == "retrieval" and not entry.already_present
+            ]
+            if unresolved_retrieval:
+                return ConnectorSearchResult(
+                    error_message=(
+                        "snapshot_plan_dependency_missing:semantic_seed_expansion"
+                    ),
+                    warnings=[
+                        "snapshot_plan_dependency_missing:semantic_seed_expansion"
+                    ],
+                    snapshot_provenance="snapshot_plan",
+                )
+        version = connector_version("semantic_scholar_recommendations")
+        combined_seed = "s2batch:" + ",".join(seed_ids)
+        key = reference_snapshot_key(
+            seed_identifier=combined_seed,
+            limit=limit,
+            connector_version=version,
+            source="semantic_scholar",
+        )
+        self._observe("references", key)
+        try:
+            existing = self._read_optional("references", key)
+        except SnapshotError as exc:
+            self._mark_fatal(str(exc))
+            raise
+        if self.mode == "plan":
+            self._record_plan_entry(
+                SnapshotPlanEntry(
+                    key=key,
+                    entry_type="reference",
+                    source="semantic_scholar",
+                    seed_identifier=combined_seed,
+                    seed_identifiers=seed_ids,
+                    limit=limit,
+                    connector_version=version,
+                    required_by_group=self.group_name,
+                    case_id=self._case_id,
+                    stage="semantic_seed_expansion",
+                    origin_subquery=None,
+                    generated_by="semantic_seed_expansion",
+                    dependency_keys=self._dependency_keys(
+                        key, "semantic_seed_expansion"
+                    ),
+                    priority=3,
+                    already_present=existing is not None,
+                    existing_status=existing.status if existing is not None else None,
+                )
+            )
+            if existing is None:
+                self._mark_missing("references", key)
+                return ConnectorSearchResult(
+                    error_message=f"snapshot_plan_missing:references:{key}",
+                    warnings=[f"snapshot_plan_missing:references:{key}"],
+                    snapshot_provenance="snapshot_plan",
+                    snapshot_key=key,
+                )
+            return self._replay_reference(existing)
+        if self.mode == "replay":
+            if existing is None:
+                self._mark_missing("references", key)
+                raise SnapshotMissingError(f"snapshot_missing:references:{key}")
+            return self._replay_reference(existing)
+        if self.mode == "record-missing" and existing is not None:
+            if existing.status == "success" or not self.retry_failed_snapshots:
+                return self._replay_reference(existing)
+
+        started = time.perf_counter()
+        try:
+            result = live_fetcher(seed_ids, limit)
+        except Exception as exc:  # noqa: BLE001 - record a terminal connector failure
+            elapsed = time.perf_counter() - started
+            result = ConnectorSearchResult(
+                error_message=_sanitize_text(str(exc)),
+                warnings=["connector_failed:semantic_scholar_recommendations"],
+                latency_seconds=elapsed,
+                diagnostics=ConnectorDiagnostics(
+                    error_count=1,
+                    latency_seconds=elapsed,
+                ),
+            )
+        elapsed = max(result.latency_seconds, time.perf_counter() - started)
+        entry = ReferenceSnapshotEntry(
+            key=key,
+            source="semantic_scholar",
+            seed_identifier=combined_seed,
+            seed_identifiers=seed_ids,
+            limit=limit,
+            connector_version=version,
+            status="failed" if result.error_message else "success",
+            papers=[paper.model_copy(deep=True) for paper in result.papers],
+            error_message=_sanitize_text(result.error_message),
+            warnings=[_sanitize_text(item) or "" for item in result.warnings],
+            diagnostics=result.diagnostics.model_copy(deep=True),
+            recorded_latency_seconds=elapsed,
+            recorded_at=utc_now(),
+            content_hash="0" * 64,
+        )
+        entry = entry.model_copy(update={"content_hash": entry_content_hash(entry)})
+        overwrite = self.overwrite_snapshots or bool(
+            existing is not None
+            and existing.status == "failed"
+            and self.retry_failed_snapshots
+        )
+        try:
+            wrote = self.store.write_reference(entry, overwrite=overwrite)
+        except SnapshotError as exc:
+            self._mark_fatal(str(exc))
+            raise
+        self._mark_available("references", key)
+        if wrote:
+            self.store.invalidate_verified_groups(key)
+        self._record_cost("references", entry.diagnostics, elapsed, wrote=wrote)
+        return result.model_copy(
+            update={
+                "snapshot_provenance": "snapshot_record",
+                "snapshot_key": key,
+                "snapshot_hit": False,
+                "recorded_diagnostics": entry.diagnostics,
+                "recorded_latency_seconds": elapsed,
+            },
+            deep=True,
+        )
+
     def _read_optional(
         self,
         kind: Literal["retrieval", "references"],
@@ -830,3 +971,37 @@ class SnapshotAwareReferenceFetcher:
 
     def __call__(self, paper: Paper, limit: int = 20) -> ConnectorSearchResult:
         return self.runtime.fetch_references(paper, limit, self.live_fetcher)
+
+
+class SnapshotAwareRecommendationFetcher:
+    def __init__(
+        self,
+        runtime: SnapshotRuntime,
+        live_fetcher: LiveRecommendationFetcher,
+    ) -> None:
+        self.runtime = runtime
+        self.live_fetcher = live_fetcher
+
+    def __call__(
+        self, seed_paper_ids: list[str], limit: int = 100
+    ) -> ConnectorSearchResult:
+        return self.runtime.fetch_recommendations(
+            seed_paper_ids,
+            limit,
+            self.live_fetcher,
+        )
+
+
+def _canonical_semantic_seed_ids(seed_paper_ids: list[str]) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for raw_value in seed_paper_ids:
+        value = str(raw_value).strip()
+        key = value.casefold()
+        if not value or key in seen:
+            continue
+        values.append(value)
+        seen.add(key)
+        if len(values) >= 3:
+            break
+    return values

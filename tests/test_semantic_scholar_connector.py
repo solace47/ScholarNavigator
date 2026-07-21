@@ -10,6 +10,7 @@ import pytest
 import scholar_agent.connectors.semantic_scholar as semantic_scholar_connector
 from scholar_agent.core.dedup import deduplicate_papers
 from scholar_agent.connectors.semantic_scholar import (
+    recommend_semantic_scholar_papers_detailed,
     search_semantic_scholar,
     search_semantic_scholar_detailed,
 )
@@ -132,6 +133,87 @@ def test_search_semantic_scholar_detailed_normal_response_has_no_error(
     assert result.warnings == []
     assert result.latency_seconds >= 0
     assert result.diagnostics.request_count == 1
+
+
+def test_recommendations_posts_deduplicated_seeds_and_keeps_valid_partial_rows(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout):
+        captured["method"] = request.get_method()
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return MockResponse(
+            {
+                "recommendedPapers": [
+                    {
+                        "paperId": "REC1",
+                        "corpusId": 42,
+                        "title": "Recommended Paper",
+                        "externalIds": {"DOI": "10.1/recommended"},
+                    },
+                    "malformed",
+                ]
+            }
+        )
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = recommend_semantic_scholar_papers_detailed(
+        ["Seed1", "seed1", "Seed2", "Seed3", "Seed4"],
+        limit=100,
+    )
+
+    assert captured["method"] == "POST"
+    assert captured["body"] == {
+        "positivePaperIds": ["Seed1", "Seed2", "Seed3"],
+        "negativePaperIds": [],
+    }
+    assert parse_qs(urlparse(str(captured["url"])).query)["limit"] == ["100"]
+    assert captured["timeout"] == 10.0
+    assert result.error_message is None
+    assert [paper.identifiers.semantic_scholar_id for paper in result.papers] == [
+        "REC1"
+    ]
+    assert result.papers[0].identifiers.s2orc_corpus_id == "42"
+    assert result.papers[0].identifiers.doi == "10.1/recommended"
+    assert result.warnings == [
+        "semantic_scholar_recommendations_malformed_rows:1"
+    ]
+
+
+def test_recommendations_rejects_missing_response_list(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "scholar_agent.connectors.semantic_scholar.urlopen",
+        lambda request, timeout: MockResponse({"data": []}),
+    )
+
+    result = recommend_semantic_scholar_papers_detailed(["Seed1"])
+
+    assert result.papers == []
+    assert result.error_message == (
+        "Semantic Scholar recommendations response missing list recommendedPapers"
+    )
+    assert result.diagnostics.error_count == 1
+
+
+def test_recommendations_timeout_is_terminal_and_auditable(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("scholar_agent.connectors.semantic_scholar.urlopen", fake_urlopen)
+
+    result = recommend_semantic_scholar_papers_detailed(
+        ["Seed1"],
+        max_retries=0,
+    )
+
+    assert result.papers == []
+    assert result.error_message == "Semantic Scholar recommendations failed: timed out"
+    assert result.diagnostics.request_count == 1
+    assert result.diagnostics.error_count == 1
 
 
 def test_search_semantic_scholar_detailed_retries_429_then_succeeds(

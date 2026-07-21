@@ -525,6 +525,49 @@ def test_manifest_allows_versioned_query_planner_upgrade(tmp_path: Path) -> None
     assert store.read_manifest().query_planner_version == "1.1.0"
 
 
+def test_manifest_allows_additive_connector_version_without_invalidating_entries(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshot"
+    store = SnapshotStore(root)
+    original = _manifest(root)
+    store.ensure_manifest(original)
+
+    upgraded = store.ensure_manifest(
+        original.model_copy(
+            update={
+                "connector_versions": {
+                    **original.connector_versions,
+                    "semantic_scholar_recommendations": "recommendations-v1",
+                }
+            }
+        )
+    )
+
+    assert upgraded.connector_versions["semantic_scholar_recommendations"] == (
+        "recommendations-v1"
+    )
+
+
+def test_manifest_rejects_changed_existing_connector_version(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    store = SnapshotStore(root)
+    original = _manifest(root)
+    store.ensure_manifest(original)
+
+    with pytest.raises(SnapshotConflictError, match="connector_versions"):
+        store.ensure_manifest(
+            original.model_copy(
+                update={
+                    "connector_versions": {
+                        **original.connector_versions,
+                        "openalex": "search-breaking-v2",
+                    }
+                }
+            )
+        )
+
+
 def test_replay_cost_is_zero_while_recorded_live_cost_is_preserved(
     tmp_path: Path,
 ) -> None:

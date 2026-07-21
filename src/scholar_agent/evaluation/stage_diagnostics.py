@@ -65,6 +65,7 @@ DIAGNOSTIC_QUERY_BOILERPLATE = {
 }
 RETRIEVAL_STAGES = (
     "initial_retrieval",
+    "semantic_seed_expansion_retrieval",
     "query_evolution_retrieval",
     "refchain_retrieval",
 )
@@ -73,6 +74,10 @@ STAGE_ORDER = (
     "initial_deduplicated",
     "initial_judged",
     "initial_reranked",
+    "semantic_seed_expansion_retrieval",
+    "post_semantic_seed_expansion_deduplicated",
+    "post_semantic_seed_expansion_judged",
+    "post_semantic_seed_expansion_reranked",
     "query_evolution_retrieval",
     "post_evolution_deduplicated",
     "post_evolution_judged",
@@ -139,11 +144,17 @@ def analyze_search_stages(
         output,
     )
     refchain = _refchain_diagnostics(eval_query, by_stage, output)
+    semantic_seed_expansion = _semantic_seed_expansion_diagnostics(
+        eval_query,
+        by_stage,
+        output,
+    )
     stage_costs = _stage_cost_diagnostics(
         output,
         by_stage,
         query_evolution=query_evolution,
         refchain=refchain,
+        semantic_seed_expansion=semantic_seed_expansion,
     )
     query_evolution["conclusions"] = classify_module_outcome(
         query_evolution,
@@ -153,6 +164,11 @@ def analyze_search_stages(
     refchain["conclusions"] = classify_module_outcome(
         refchain,
         stage_costs["refchain"],
+        case_count=1,
+    )
+    semantic_seed_expansion["conclusions"] = classify_module_outcome(
+        semantic_seed_expansion,
+        stage_costs["semantic_seed_expansion"],
         case_count=1,
     )
     return {
@@ -168,6 +184,7 @@ def analyze_search_stages(
         "initial_query_planning": initial_query_planning,
         "query_evolution": query_evolution,
         "refchain": refchain,
+        "semantic_seed_expansion": semantic_seed_expansion,
         "stage_costs": stage_costs,
         "budget_stopped": bool(output.budget_status.stop_reasons),
         "budget_stop_reasons": list(output.budget_status.stop_reasons),
@@ -240,6 +257,10 @@ def aggregate_stage_diagnostics(
         "query_evolution",
     )
     refchain = _aggregate_module_diagnostics(case_diagnostics, "refchain")
+    semantic_seed_expansion = _aggregate_module_diagnostics(
+        case_diagnostics,
+        "semantic_seed_expansion",
+    )
     stage_costs = _aggregate_stage_costs(case_diagnostics)
     query_evolution["conclusions"] = classify_module_outcome(
         query_evolution,
@@ -249,6 +270,11 @@ def aggregate_stage_diagnostics(
     refchain["conclusions"] = classify_module_outcome(
         refchain,
         stage_costs["refchain"],
+        case_count=len(case_diagnostics),
+    )
+    semantic_seed_expansion["conclusions"] = classify_module_outcome(
+        semantic_seed_expansion,
+        stage_costs["semantic_seed_expansion"],
         case_count=len(case_diagnostics),
     )
     drop_reasons = dict(
@@ -277,6 +303,9 @@ def aggregate_stage_diagnostics(
         "post_evolution_recall": candidate_recall.get(
             "post_evolution_deduplicated"
         ),
+        "post_semantic_seed_expansion_recall": candidate_recall.get(
+            "post_semantic_seed_expansion_deduplicated"
+        ),
         "post_refchain_recall": candidate_recall.get(
             "post_refchain_deduplicated"
         ),
@@ -289,6 +318,7 @@ def aggregate_stage_diagnostics(
         "initial_query_planning": initial_query_planning,
         "query_evolution": query_evolution,
         "refchain": refchain,
+        "semantic_seed_expansion": semantic_seed_expansion,
         "stage_costs": stage_costs,
         "budget_stop_rate": budget_stop_rate,
     }
@@ -398,6 +428,7 @@ def _analyze_gold(
         (
             "post_refchain_judged",
             "post_evolution_judged",
+            "post_semantic_seed_expansion_judged",
             "initial_judged",
         ),
     )
@@ -460,6 +491,9 @@ def _drop_reason(
     )
     expected_dedup = {
         "initial_retrieval": "initial_deduplicated",
+        "semantic_seed_expansion_retrieval": (
+            "post_semantic_seed_expansion_deduplicated"
+        ),
         "query_evolution_retrieval": "post_evolution_deduplicated",
         "refchain_retrieval": "post_refchain_deduplicated",
     }.get(first_retrieval or "")
@@ -485,6 +519,8 @@ def _case_stage_metrics(
     candidate_stage_names = (
         "initial_retrieval",
         "initial_deduplicated",
+        "semantic_seed_expansion_retrieval",
+        "post_semantic_seed_expansion_deduplicated",
         "query_evolution_retrieval",
         "post_evolution_deduplicated",
         "refchain_retrieval",
@@ -497,7 +533,12 @@ def _case_stage_metrics(
     }
     latest_judged = _latest_snapshot(
         snapshots,
-        ("post_refchain_judged", "post_evolution_judged", "initial_judged"),
+        (
+            "post_refchain_judged",
+            "post_evolution_judged",
+            "post_semantic_seed_expansion_judged",
+            "initial_judged",
+        ),
     )
     candidate_recall["post_judgement_retained"] = (
         _candidate_recall(
@@ -517,6 +558,7 @@ def _case_stage_metrics(
     )
     ranked_stages = (
         "initial_reranked",
+        "post_semantic_seed_expansion_reranked",
         "post_evolution_reranked",
         "post_refchain_reranked",
         "final_ranked",
@@ -1285,12 +1327,111 @@ def _refchain_diagnostics(
     }
 
 
+def _semantic_seed_expansion_diagnostics(
+    eval_query: EvalQuery,
+    snapshots: dict[str, StageCandidateSnapshot],
+    output: SearchServiceOutput,
+) -> dict[str, Any]:
+    prior = snapshots.get("initial_deduplicated")
+    recommendations = snapshots.get("semantic_seed_expansion_retrieval")
+    post = snapshots.get("post_semantic_seed_expansion_deduplicated")
+    effective_post = (
+        post
+        if post is not None and post.status == "completed"
+        else prior
+    )
+    final_returned = snapshots.get("final_returned")
+    prior_ids = _candidate_ids(prior)
+    recommendation_ids = _candidate_ids(recommendations)
+    new_ids = recommendation_ids - prior_ids
+    prior_gold = _gold_match_keys(eval_query, prior)
+    recommendation_gold = _gold_match_keys(eval_query, recommendations)
+    new_gold = recommendation_gold - prior_gold
+    post_gold = _gold_match_keys(eval_query, effective_post)
+    returned_ids = _candidate_ids(final_returned)
+    returned_gold = _gold_match_keys(eval_query, final_returned)
+    expansion = output.semantic_seed_expansion_output
+    record = expansion.record if expansion is not None else None
+    category_stats = _new_candidate_categories(
+        new_ids,
+        snapshots.get("post_semantic_seed_expansion_judged"),
+    )
+    judgement_filtered, top_k_lost = _module_gold_losses(
+        new_gold,
+        snapshots.get("post_semantic_seed_expansion_judged"),
+        final_returned,
+        eval_query,
+    )
+    prior_recall = (
+        _candidate_recall(prior, eval_query.gold_papers)
+        if prior is not None and prior.status == "completed"
+        else None
+    )
+    post_recall = (
+        _candidate_recall(effective_post, eval_query.gold_papers)
+        if effective_post is not None and effective_post.status == "completed"
+        else None
+    )
+    return {
+        "enabled": output.search_plan.enable_semantic_seed_expansion,
+        "selected_seed_count": len(record.seeds) if record is not None else 0,
+        "eligible_seed_count": len(record.seeds) if record is not None else 0,
+        "reference_request_count": (
+            expansion.diagnostics.request_count if expansion is not None else 0
+        ),
+        "recorded_reference_request_count": (
+            expansion.recorded_diagnostics.request_count
+            if expansion is not None
+            else 0
+        ),
+        "recorded_reference_latency_seconds": (
+            expansion.recorded_latency_seconds if expansion is not None else 0.0
+        ),
+        "raw_reference_count": (
+            record.raw_recommendation_count if record is not None else 0
+        ),
+        "unique_reference_count": len(recommendation_ids),
+        "new_unique_reference_count": len(new_ids),
+        "reference_gold_hit_count": _raw_gold_hit_count(
+            eval_query,
+            recommendations,
+        ),
+        "unique_reference_gold_hit_count": len(recommendation_gold),
+        "new_unique_reference_gold_count": len(new_gold),
+        "initial_gold_lost_after_expansion_count": len(prior_gold - post_gold),
+        "reference_candidates_returned_count": len(new_ids & returned_ids),
+        "reference_gold_returned_count": len(new_gold & returned_gold),
+        "gold_found_but_filtered_count": len(new_gold - returned_gold),
+        "gold_filtered_by_judgement_count": judgement_filtered,
+        "gold_lost_by_top_k_count": top_k_lost,
+        "candidate_recall_before": prior_recall,
+        "candidate_recall_after": post_recall,
+        "candidate_recall_gain": (
+            post_recall - prior_recall
+            if post_recall is not None and prior_recall is not None
+            else None
+        ),
+        "new_candidate_categories": category_stats,
+        "seeds": (
+            [seed.model_dump(mode="json") for seed in record.seeds]
+            if record is not None
+            else []
+        ),
+        "snapshot_key": record.snapshot_key if record is not None else None,
+        "status": record.status if record is not None else "disabled",
+        "skipped_reasons": _stable_reasons(
+            [record.skip_reason] if record is not None and record.skip_reason else []
+        ),
+    }
+
+
 def _stage_cost_diagnostics(
     output: SearchServiceOutput,
     snapshots: dict[str, StageCandidateSnapshot],
     *,
     query_evolution: dict[str, Any],
     refchain: dict[str, Any],
+    semantic_seed_expansion: dict[str, Any],
 ) -> dict[str, Any]:
     initial_calls = sum(
         call.request_count
@@ -1329,7 +1470,11 @@ def _stage_cost_diagnostics(
     evolution_recorded_latency = sum(
         call.recorded_latency_seconds for call in evolution_snapshot.retrieval_calls
     )
-    reference_calls = output.reference_diagnostics.request_count
+    reference_calls = (
+        output.refchain_output.diagnostics.request_count
+        if output.refchain_output
+        else 0
+    )
     recorded_reference_calls = (
         output.refchain_output.recorded_diagnostics.request_count
         if output.refchain_output
@@ -1339,6 +1484,18 @@ def _stage_cost_diagnostics(
         output.refchain_output.recorded_latency_seconds
         if output.refchain_output
         else 0.0
+    )
+    semantic_output = output.semantic_seed_expansion_output
+    semantic_calls = (
+        semantic_output.diagnostics.request_count if semantic_output else 0
+    )
+    semantic_recorded_calls = (
+        semantic_output.recorded_diagnostics.request_count
+        if semantic_output
+        else 0
+    )
+    semantic_recorded_latency = (
+        semantic_output.recorded_latency_seconds if semantic_output else 0.0
     )
     qe_latency = sum(
         output.stage_latencies.get(name, 0.0)
@@ -1357,15 +1514,24 @@ def _stage_cost_diagnostics(
             "refchain_reranking",
         )
     )
+    semantic_latency = output.stage_latencies.get(
+        "semantic_seed_expansion",
+        0.0,
+    )
     return {
         "initial_search_api_calls": initial_calls,
         "query_evolution_api_calls": evolution_calls,
         "refchain_api_calls": reference_calls,
+        "semantic_seed_expansion_api_calls": semantic_calls,
         "recorded_initial_search_api_calls": initial_recorded_calls,
         "recorded_query_evolution_api_calls": evolution_recorded_calls,
         "recorded_refchain_api_calls": recorded_reference_calls,
+        "recorded_semantic_seed_expansion_api_calls": semantic_recorded_calls,
         "recorded_query_evolution_latency_seconds": evolution_recorded_latency,
         "recorded_refchain_latency_seconds": recorded_reference_latency,
+        "recorded_semantic_seed_expansion_latency_seconds": (
+            semantic_recorded_latency
+        ),
         "retry_count": (
             output.search_diagnostics.retry_count
             + output.reference_diagnostics.retry_count
@@ -1377,6 +1543,7 @@ def _stage_cost_diagnostics(
         "latency_seconds": output.latency_seconds,
         "query_evolution_latency_seconds": qe_latency,
         "refchain_latency_seconds": refchain_latency,
+        "semantic_seed_expansion_latency_seconds": semantic_latency,
         "judgement_latency_seconds": output.stage_latencies.get("judgement", 0.0),
         "reranking_latency_seconds": output.stage_latencies.get("reranking", 0.0),
         "query_evolution": _module_marginal_costs(
@@ -1392,6 +1559,13 @@ def _stage_cost_diagnostics(
             int(refchain["new_unique_reference_gold_count"]),
             float(refchain["candidate_recall_gain"]),
             recorded_reference_latency or refchain_latency,
+        ),
+        "semantic_seed_expansion": _module_marginal_costs(
+            semantic_recorded_calls or semantic_calls,
+            int(semantic_seed_expansion["new_unique_reference_count"]),
+            int(semantic_seed_expansion["new_unique_reference_gold_count"]),
+            float(semantic_seed_expansion["candidate_recall_gain"] or 0.0),
+            semantic_recorded_latency or semantic_latency,
         ),
     }
 
@@ -1747,6 +1921,7 @@ def _aggregate_module_diagnostics(
             "reference_gold_hit_count",
             "unique_reference_gold_hit_count",
             "new_unique_reference_gold_count",
+            "initial_gold_lost_after_expansion_count",
             "reference_candidates_returned_count",
             "reference_gold_returned_count",
             "gold_found_but_filtered_count",
@@ -1790,6 +1965,12 @@ def _aggregate_module_diagnostics(
         "candidate_recall_gain": _average_optional(
             [module.get("candidate_recall_gain") for module in modules]
         ) or 0.0,
+        "candidate_recall_before": _average_optional(
+            [module.get("candidate_recall_before") for module in modules]
+        ),
+        "candidate_recall_after": _average_optional(
+            [module.get("candidate_recall_after") for module in modules]
+        ),
         "new_candidate_categories": {
             "counts": dict(sorted(categories.items())),
             "ratios": {
@@ -1819,6 +2000,10 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "initial_search_api_calls": sum(int(item.get("initial_search_api_calls") or 0) for item in costs),
         "query_evolution_api_calls": sum(int(item.get("query_evolution_api_calls") or 0) for item in costs),
         "refchain_api_calls": sum(int(item.get("refchain_api_calls") or 0) for item in costs),
+        "semantic_seed_expansion_api_calls": sum(
+            int(item.get("semantic_seed_expansion_api_calls") or 0)
+            for item in costs
+        ),
         "recorded_initial_search_api_calls": sum(
             int(item.get("recorded_initial_search_api_calls") or 0)
             for item in costs
@@ -1831,16 +2016,29 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
             int(item.get("recorded_refchain_api_calls") or 0)
             for item in costs
         ),
+        "recorded_semantic_seed_expansion_api_calls": sum(
+            int(item.get("recorded_semantic_seed_expansion_api_calls") or 0)
+            for item in costs
+        ),
         "retry_count": sum(int(item.get("retry_count") or 0) for item in costs),
         "cache_hit_count": sum(int(item.get("cache_hit_count") or 0) for item in costs),
         "average_latency_seconds": _average_optional([item.get("latency_seconds") for item in costs]) or 0.0,
         "average_query_evolution_latency_seconds": _average_optional([item.get("query_evolution_latency_seconds") for item in costs]) or 0.0,
         "average_refchain_latency_seconds": _average_optional([item.get("refchain_latency_seconds") for item in costs]) or 0.0,
+        "average_semantic_seed_expansion_latency_seconds": _average_optional(
+            [item.get("semantic_seed_expansion_latency_seconds") for item in costs]
+        ) or 0.0,
         "average_recorded_query_evolution_latency_seconds": _average_optional(
             [item.get("recorded_query_evolution_latency_seconds") for item in costs]
         ) or 0.0,
         "average_recorded_refchain_latency_seconds": _average_optional(
             [item.get("recorded_refchain_latency_seconds") for item in costs]
+        ) or 0.0,
+        "average_recorded_semantic_seed_expansion_latency_seconds": _average_optional(
+            [
+                item.get("recorded_semantic_seed_expansion_latency_seconds")
+                for item in costs
+            ]
         ) or 0.0,
         "average_judgement_latency_seconds": _average_optional([item.get("judgement_latency_seconds") for item in costs]) or 0.0,
         "average_reranking_latency_seconds": _average_optional([item.get("reranking_latency_seconds") for item in costs]) or 0.0,
@@ -1851,6 +2049,32 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
     rc_new = sum(int((case.get("refchain") or {}).get("new_unique_reference_count") or 0) for case in cases)
     rc_gold = sum(int((case.get("refchain") or {}).get("new_unique_reference_gold_count") or 0) for case in cases)
     rc_gain = _average_optional([(case.get("refchain") or {}).get("candidate_recall_gain") for case in cases]) or 0.0
+    semantic_new = sum(
+        int(
+            (case.get("semantic_seed_expansion") or {}).get(
+                "new_unique_reference_count"
+            )
+            or 0
+        )
+        for case in cases
+    )
+    semantic_gold = sum(
+        int(
+            (case.get("semantic_seed_expansion") or {}).get(
+                "new_unique_reference_gold_count"
+            )
+            or 0
+        )
+        for case in cases
+    )
+    semantic_gain = _average_optional(
+        [
+            (case.get("semantic_seed_expansion") or {}).get(
+                "candidate_recall_gain"
+            )
+            for case in cases
+        ]
+    ) or 0.0
     result["query_evolution"] = _module_marginal_costs(
         result["recorded_query_evolution_api_calls"]
         or result["query_evolution_api_calls"],
@@ -1871,6 +2095,18 @@ def _aggregate_stage_costs(cases: list[dict[str, Any]]) -> dict[str, Any]:
         (
             result["average_recorded_refchain_latency_seconds"]
             or result["average_refchain_latency_seconds"]
+        )
+        * case_count,
+    )
+    result["semantic_seed_expansion"] = _module_marginal_costs(
+        result["recorded_semantic_seed_expansion_api_calls"]
+        or result["semantic_seed_expansion_api_calls"],
+        semantic_new,
+        semantic_gold,
+        semantic_gain,
+        (
+            result["average_recorded_semantic_seed_expansion_latency_seconds"]
+            or result["average_semantic_seed_expansion_latency_seconds"]
         )
         * case_count,
     )

@@ -31,6 +31,7 @@ OriginKind = Literal[
     "initial_generated_subquery",
     "query_evolution",
     "refchain",
+    "semantic_seed_expansion",
 ]
 
 
@@ -284,6 +285,26 @@ class PipelineDiagnosticsCollector:
                         source=source,
                     ),
                 )
+        self.snapshot_papers(stage, papers)
+
+    def register_semantic_seed_expansion(
+        self,
+        stage: str,
+        papers: list[Paper],
+    ) -> None:
+        if not self.enabled:
+            return
+        for rank, paper in enumerate(papers, start=1):
+            self._register(
+                paper,
+                CandidateProvenance(
+                    origin_kind="semantic_seed_expansion",
+                    origin_stage=stage,
+                    origin_subquery="semantic_seed_expansion",
+                    source="semantic_scholar",
+                    source_rank=rank,
+                ),
+            )
         self.snapshot_papers(stage, papers)
 
     def snapshot_papers(

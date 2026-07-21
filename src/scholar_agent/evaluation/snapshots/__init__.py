@@ -3,6 +3,7 @@
 from scholar_agent.evaluation.snapshots.runtime import (
     RetrievalMode,
     SnapshotAwareReferenceFetcher,
+    SnapshotAwareRecommendationFetcher,
     SnapshotAwareRetriever,
     SnapshotRuntime,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "RetrievalMode",
     "RetrievalSnapshotEntry",
     "SnapshotAwareReferenceFetcher",
+    "SnapshotAwareRecommendationFetcher",
     "SnapshotAwareRetriever",
     "SnapshotConflictError",
     "SnapshotIntegrityError",
