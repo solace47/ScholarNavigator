@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "4b73170d2ba7f985360f6b7647a8402bc92e519cfe2be9b3dc24a9f3add2bd22"
+      "sha256": "d2694d5f07110287c31916f8d25dc93bd13114e8434c05c314f12f9b642572dc"
     },
     {
       "document_id": "contest_requirements",
@@ -57,7 +57,7 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "2a366de0ecbfbaebf0bb424c88432adf961e45b72b836a6ddb0d0a29f089d2d2"
+      "sha256": "0c263159eeb108c7c5ceefb6a76984eefe56bd306fc71c637099350195f62691"
     },
     {
       "document_id": "readme",
@@ -322,6 +322,19 @@
       "status": "internal_only"
     },
     {
+      "boundary": "Compatibility governance proves engineering contract stability only; it defines neither an official schema nor quality metrics.",
+      "claim_id": "architecture_public_contract_compatibility",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "public_contract_baseline",
+        "public_contract_current",
+        "public_contract_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Public evaluation-facing API, CLI, frontend consumer, and machine artifact contracts are governed by a deterministic versioned compatibility gate.",
+      "status": "verified"
+    },
+    {
       "boundary": "Startup instructions alone establish no validation or quality claim.",
       "claim_id": "readme_operational_entrypoint",
       "document_id": "readme",
@@ -342,6 +355,9 @@
       "benchmark/offline_wheelhouse_intake_v1_protocol.json",
       "benchmark/offline_wheelhouse_intake_v1_release_closure.json",
       "benchmark/offline_wheelhouse_intake_v1_release_contract.json",
+      "benchmark/public_contract_compatibility_v1_baseline.json",
+      "benchmark/public_contract_compatibility_v1_evidence/current.json",
+      "benchmark/public_contract_compatibility_v1_protocol.json",
       "benchmark/release_candidate_reproducibility_v1_contract.json",
       "benchmark/release_candidate_reproducibility_v1_python_lock.json",
       "benchmark/release_candidate_reproducibility_v1_spec.json",
@@ -351,12 +367,14 @@
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
       "docs/offline-wheelhouse-intake.md",
+      "docs/public-contract-compatibility.md",
       "docs/release-candidate-reproducibility.md",
       "docs/standalone-auditor-bundle.md",
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
       "scripts/check_offline_wheelhouse.py",
+      "scripts/check_public_contract_compatibility.py",
       "scripts/check_release_candidate.py",
       "scripts/check_standalone_auditor_bundle.py",
       "scripts/check_validation_freshness.py",
@@ -368,6 +386,7 @@
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
       "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
+      "src/scholar_agent/evaluation/public_contract_compatibility.py",
       "src/scholar_agent/evaluation/release_candidate_reproducibility.py",
       "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
@@ -1869,7 +1888,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "846067d4dd2fa2070719806f36fb7ed5b7400468d5f887463568a500adb6a265"
+      "sha256": "483d98fb246dee20eb91818da5d1d9bdbe6367cec012b98a2491bed65b1cc8a6"
     },
     {
       "checks": [
@@ -1885,7 +1904,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "44875d4d042230bbf43004df5f2bd26ede84ab6bdf477bd5c10e0475f4213cdb"
+      "sha256": "920bad6d3cc9dfd14a4a7b3a0be35edbc0de90d7db90d858171b73fddde56168"
     },
     {
       "checks": [
@@ -1909,6 +1928,75 @@
       "required": true,
       "role": "change_impact_conformance",
       "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
+    },
+    {
+      "checks": [
+        {
+          "equals": "public_contract_compatibility_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": "1",
+          "pointer": "/schema_version"
+        }
+      ],
+      "dependencies": [
+        "public_contract_protocol"
+      ],
+      "evidence_id": "public_contract_baseline",
+      "format": "json",
+      "path": "benchmark/public_contract_compatibility_v1_baseline.json",
+      "protocol": "public_contract_compatibility_v1",
+      "required": true,
+      "role": "contract_baseline",
+      "sha256": "c3f7d3872448b79a2f105e21aa9ac5baf652a4615a98f5d4de4c79bdb02dd4c1"
+    },
+    {
+      "checks": [
+        {
+          "equals": "contracts_compatible",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "public_contract_baseline",
+        "public_contract_protocol"
+      ],
+      "evidence_id": "public_contract_current",
+      "format": "json",
+      "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
+      "protocol": "public_contract_compatibility_v1",
+      "required": true,
+      "role": "compatibility_verification",
+      "sha256": "b4f58b0606e2734b7f81b8e42d9a51dc2a9b4debd38e51d4aade233c0dd29fbd"
+    },
+    {
+      "checks": [
+        {
+          "equals": "public_contract_compatibility_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "public_contract_protocol",
+      "format": "json",
+      "path": "benchmark/public_contract_compatibility_v1_protocol.json",
+      "protocol": "public_contract_compatibility_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "0938e46586f285b185e5b0e28ad1b09f011afa3d9ca8cd2fd1a6ebbb48b546c9"
     }
   ],
   "execution": {
@@ -2269,6 +2357,25 @@
       ],
       "expected_exit_code": 0,
       "gate_id": "validation_evidence_freshness",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_public_contract_compatibility.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "contracts_compatible",
+          "pointer": "/status"
+        },
+        {
+          "equals": "engineering_contract_governance_only",
+          "pointer": "/scope"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "public_contract_compatibility",
       "timeout_seconds": 60
     }
   ],

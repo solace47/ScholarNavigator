@@ -1,0 +1,4886 @@
+{
+  "artifacts": {
+    "clearance": {
+      "top_level_fields": {
+        "blockers": "list",
+        "current_evidence_paths": "dict",
+        "execution": "dict",
+        "formal_validation_complete": "bool",
+        "protocol": "str",
+        "receipt": "dict",
+        "schema_version": "str",
+        "source_commit": "str",
+        "states": "list",
+        "verification_commands": "list"
+      },
+      "versions": {
+        "protocol": "formal_validation_clearance_v1",
+        "schema_version": "1"
+      }
+    },
+    "external_scorer_handoff": {
+      "top_level_fields": {
+        "analysis": "str",
+        "canonical_handoff": "dict",
+        "execution": "dict",
+        "frozen_readiness_inputs": "dict",
+        "official_package": "dict",
+        "package_contract": "dict",
+        "resource_limits": "dict",
+        "sandbox": "dict",
+        "schema_version": "str",
+        "synthetic_matrix": "list",
+        "validation_invariants": "list"
+      },
+      "versions": {
+        "analysis": "external_scorer_handoff_v1",
+        "schema_version": "1"
+      }
+    },
+    "human_annotation_delivery": {
+      "top_level_fields": {
+        "adjudication_protocol": "dict",
+        "alias": "dict",
+        "annotation": "dict",
+        "annotators": "list",
+        "contract": "str",
+        "execution": "dict",
+        "expected_item_count": "int",
+        "public_item_fields": "list",
+        "readiness": "dict",
+        "rubric": "dict",
+        "schema_version": "str",
+        "source_population": "dict"
+      },
+      "versions": {
+        "contract": "human_annotation_delivery_v1",
+        "schema_version": "1"
+      }
+    },
+    "readiness": {
+      "top_level_fields": {
+        "blockers": "list",
+        "claim_sources": "list",
+        "claims": "list",
+        "code_identity": "dict",
+        "consistency_assertions": "list",
+        "evidence": "list",
+        "execution": "dict",
+        "protocol": "str",
+        "read_only_gates": "list",
+        "release": "dict",
+        "schema_version": "str",
+        "workspace": "dict"
+      },
+      "versions": {
+        "protocol": "validation_readiness_bundle_v1",
+        "schema_version": "1"
+      }
+    },
+    "run_manifest_v1": {
+      "json_schema": {
+        "$defs": {
+          "ComparisonRunBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "common_execution_contract_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Common Execution Contract Sha256",
+                "type": "string"
+              },
+              "contract": {
+                "const": "comparison_plan_v1",
+                "default": "comparison_plan_v1",
+                "title": "Contract",
+                "type": "string"
+              },
+              "plan": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "plan_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Plan Sha256",
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "baseline",
+                  "candidate"
+                ],
+                "title": "Role",
+                "type": "string"
+              }
+            },
+            "required": [
+              "common_execution_contract_sha256",
+              "plan",
+              "plan_sha256",
+              "role"
+            ],
+            "title": "ComparisonRunBinding",
+            "type": "object"
+          },
+          "DatasetIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "identity_summary_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Identity Summary Sha256",
+                "type": "string"
+              },
+              "inputs": {
+                "items": {
+                  "$ref": "#/$defs/FileIdentity"
+                },
+                "title": "Inputs",
+                "type": "array"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "version": {
+                "title": "Version",
+                "type": "string"
+              }
+            },
+            "required": [
+              "identity_summary_sha256",
+              "inputs",
+              "name",
+              "version"
+            ],
+            "title": "DatasetIdentity",
+            "type": "object"
+          },
+          "DeterminismIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "parameters": {
+                "additionalProperties": true,
+                "title": "Parameters",
+                "type": "object"
+              },
+              "random_seed": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Random Seed"
+              },
+              "summary_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Summary Sha256",
+                "type": "string"
+              }
+            },
+            "required": [
+              "parameters",
+              "summary_sha256"
+            ],
+            "title": "DeterminismIdentity",
+            "type": "object"
+          },
+          "EvaluatorIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "version": {
+                "title": "Version",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ],
+            "title": "EvaluatorIdentity",
+            "type": "object"
+          },
+          "FileIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "title": "Path",
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Sha256",
+                "type": "string"
+              },
+              "size_bytes": {
+                "minimum": 0,
+                "title": "Size Bytes",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "path",
+              "sha256",
+              "size_bytes"
+            ],
+            "title": "FileIdentity",
+            "type": "object"
+          },
+          "GitProvenance": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_dirty_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Allowed Dirty Paths",
+                "type": "array"
+              },
+              "commit": {
+                "maxLength": 40,
+                "minLength": 40,
+                "title": "Commit",
+                "type": "string"
+              },
+              "dirty": {
+                "title": "Dirty",
+                "type": "boolean"
+              },
+              "dirty_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Dirty Paths",
+                "type": "array"
+              },
+              "unexpected_dirty_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Unexpected Dirty Paths",
+                "type": "array"
+              },
+              "worktree_state_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Worktree State Sha256",
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowed_dirty_paths",
+              "commit",
+              "dirty",
+              "dirty_paths",
+              "unexpected_dirty_paths",
+              "worktree_state_sha256"
+            ],
+            "title": "GitProvenance",
+            "type": "object"
+          },
+          "MetadataBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "artifact_json_pointer": {
+                "title": "Artifact Json Pointer",
+                "type": "string"
+              },
+              "artifact_path": {
+                "title": "Artifact Path",
+                "type": "string"
+              },
+              "manifest_json_pointer": {
+                "title": "Manifest Json Pointer",
+                "type": "string"
+              }
+            },
+            "required": [
+              "artifact_json_pointer",
+              "artifact_path",
+              "manifest_json_pointer"
+            ],
+            "title": "MetadataBinding",
+            "type": "object"
+          },
+          "OutputIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "format": {
+                "enum": [
+                  "binary",
+                  "json",
+                  "jsonl",
+                  "text"
+                ],
+                "title": "Format",
+                "type": "string"
+              },
+              "path": {
+                "title": "Path",
+                "type": "string"
+              },
+              "record_count": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Record Count"
+              },
+              "role": {
+                "title": "Role",
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Sha256",
+                "type": "string"
+              },
+              "size_bytes": {
+                "minimum": 0,
+                "title": "Size Bytes",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "format",
+              "path",
+              "role",
+              "sha256",
+              "size_bytes"
+            ],
+            "title": "OutputIdentity",
+            "type": "object"
+          },
+          "ParentRunLink": {
+            "additionalProperties": false,
+            "properties": {
+              "checkpoint_id": {
+                "title": "Checkpoint Id",
+                "type": "string"
+              },
+              "manifest_path": {
+                "title": "Manifest Path",
+                "type": "string"
+              },
+              "manifest_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Manifest Sha256",
+                "type": "string"
+              },
+              "run_id": {
+                "title": "Run Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkpoint_id",
+              "manifest_path",
+              "manifest_sha256",
+              "run_id"
+            ],
+            "title": "ParentRunLink",
+            "type": "object"
+          },
+          "PromptIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "manifest": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "used": {
+                "title": "Used",
+                "type": "boolean"
+              },
+              "versions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Versions",
+                "type": "object"
+              }
+            },
+            "required": [
+              "manifest",
+              "used",
+              "versions"
+            ],
+            "title": "PromptIdentity",
+            "type": "object"
+          },
+          "QuerySetIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "minimum": 0,
+                "title": "Count",
+                "type": "integer"
+              },
+              "id_field": {
+                "title": "Id Field",
+                "type": "string"
+              },
+              "input": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "order_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Order Sha256",
+                "type": "string"
+              },
+              "stable_identity_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Stable Identity Sha256",
+                "type": "string"
+              },
+              "text_field": {
+                "title": "Text Field",
+                "type": "string"
+              }
+            },
+            "required": [
+              "count",
+              "id_field",
+              "input",
+              "order_sha256",
+              "stable_identity_sha256",
+              "text_field"
+            ],
+            "title": "QuerySetIdentity",
+            "type": "object"
+          },
+          "ResourceLedgerBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "authority": {
+                "const": "committed_generation_only",
+                "default": "committed_generation_only",
+                "title": "Authority",
+                "type": "string"
+              },
+              "contract": {
+                "const": "resource_ledger_v1",
+                "default": "resource_ledger_v1",
+                "title": "Contract",
+                "type": "string"
+              },
+              "manifest_identity": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Manifest Identity",
+                "type": "string"
+              },
+              "output": {
+                "$ref": "#/$defs/FileIdentity"
+              }
+            },
+            "required": [
+              "manifest_identity",
+              "output"
+            ],
+            "title": "ResourceLedgerBinding",
+            "type": "object"
+          },
+          "RunConfiguration": {
+            "additionalProperties": false,
+            "properties": {
+              "budgets": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "title": "Budgets",
+                "type": "object"
+              },
+              "sources": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Sources",
+                "type": "array"
+              },
+              "summary_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Summary Sha256",
+                "type": "string"
+              },
+              "values": {
+                "additionalProperties": true,
+                "title": "Values",
+                "type": "object"
+              }
+            },
+            "required": [
+              "budgets",
+              "sources",
+              "summary_sha256",
+              "values"
+            ],
+            "title": "RunConfiguration",
+            "type": "object"
+          },
+          "RunLineage": {
+            "additionalProperties": false,
+            "properties": {
+              "checkpoint_id": {
+                "title": "Checkpoint Id",
+                "type": "string"
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ParentRunLink"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "resume_index": {
+                "minimum": 0,
+                "title": "Resume Index",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkpoint_id",
+              "resume_index"
+            ],
+            "title": "RunLineage",
+            "type": "object"
+          },
+          "RunProgress": {
+            "additionalProperties": false,
+            "properties": {
+              "completed_count": {
+                "minimum": 0,
+                "title": "Completed Count",
+                "type": "integer"
+              },
+              "expected_count": {
+                "minimum": 0,
+                "title": "Expected Count",
+                "type": "integer"
+              },
+              "record_output_path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Record Output Path"
+              },
+              "status": {
+                "enum": [
+                  "completed",
+                  "failed",
+                  "partial",
+                  "planned",
+                  "running"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "completed_count",
+              "expected_count",
+              "status"
+            ],
+            "title": "RunProgress",
+            "type": "object"
+          },
+          "ShardRunBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "attempt_id": {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$",
+                "title": "Attempt Id",
+                "type": "string"
+              },
+              "common_execution_contract_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Common Execution Contract Sha256",
+                "type": "string"
+              },
+              "contract": {
+                "const": "shard_plan_v1",
+                "default": "shard_plan_v1",
+                "title": "Contract",
+                "type": "string"
+              },
+              "expected_query_identities_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Expected Query Identities Sha256",
+                "type": "string"
+              },
+              "plan": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "plan_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Plan Sha256",
+                "type": "string"
+              },
+              "shard_count": {
+                "minimum": 1,
+                "title": "Shard Count",
+                "type": "integer"
+              },
+              "shard_index": {
+                "minimum": 0,
+                "title": "Shard Index",
+                "type": "integer"
+              },
+              "supersedes_attempt_id": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Supersedes Attempt Id"
+              }
+            },
+            "required": [
+              "attempt_id",
+              "common_execution_contract_sha256",
+              "expected_query_identities_sha256",
+              "plan",
+              "plan_sha256",
+              "shard_count",
+              "shard_index"
+            ],
+            "title": "ShardRunBinding",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "comparison": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ComparisonRunBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "configuration": {
+            "$ref": "#/$defs/RunConfiguration"
+          },
+          "dataset": {
+            "$ref": "#/$defs/DatasetIdentity"
+          },
+          "determinism": {
+            "$ref": "#/$defs/DeterminismIdentity"
+          },
+          "evaluator": {
+            "$ref": "#/$defs/EvaluatorIdentity"
+          },
+          "git": {
+            "$ref": "#/$defs/GitProvenance"
+          },
+          "lineage": {
+            "$ref": "#/$defs/RunLineage"
+          },
+          "manifest_kind": {
+            "const": "run_manifest_v1",
+            "default": "run_manifest_v1",
+            "title": "Manifest Kind",
+            "type": "string"
+          },
+          "metadata_bindings": {
+            "items": {
+              "$ref": "#/$defs/MetadataBinding"
+            },
+            "title": "Metadata Bindings",
+            "type": "array"
+          },
+          "output_directory": {
+            "title": "Output Directory",
+            "type": "string"
+          },
+          "output_inventory_excludes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output Inventory Excludes",
+            "type": "array"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/$defs/OutputIdentity"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "progress": {
+            "$ref": "#/$defs/RunProgress"
+          },
+          "prompt": {
+            "$ref": "#/$defs/PromptIdentity"
+          },
+          "queries": {
+            "$ref": "#/$defs/QuerySetIdentity"
+          },
+          "resource_ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ResourceLedgerBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1",
+            "default": "1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "score_scope": {
+            "const": "internal_not_official",
+            "default": "internal_not_official",
+            "title": "Score Scope",
+            "type": "string"
+          },
+          "shard": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ShardRunBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "configuration",
+          "dataset",
+          "determinism",
+          "evaluator",
+          "git",
+          "lineage",
+          "output_directory",
+          "outputs",
+          "progress",
+          "prompt",
+          "queries",
+          "run_id"
+        ],
+        "title": "RunManifestV1",
+        "type": "object"
+      },
+      "versions": {
+        "schema_version": "1"
+      }
+    }
+  },
+  "cli": {
+    "external_scorer_handoff": {
+      "arguments": [
+        {
+          "names": [
+            "--handoff"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--package"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--package"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--synthetic"
+          ],
+          "options": {
+            "action": "store_true"
+          }
+        },
+        {
+          "names": [
+            "--synthetic-matrix"
+          ],
+          "options": {
+            "action": "store_true"
+          }
+        }
+      ],
+      "commands": [
+        "audit-readiness",
+        "prepare",
+        "run",
+        "verify-package"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ]
+    },
+    "formal_validation_clearance": {
+      "arguments": [
+        {
+          "names": [
+            "--evidence"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--evidence"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--evidence"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--receipt"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--receipt"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [
+        "audit-current",
+        "evaluate",
+        "issue-receipt",
+        "verify-receipt"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ]
+    },
+    "human_annotation_delivery": {
+      "arguments": [
+        {
+          "names": [
+            "--annotator-a"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--annotator-b"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--package"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--replace-existing"
+          ],
+          "options": {
+            "action": "store_true"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "command"
+          ],
+          "options": {
+            "choices": [
+              "audit-readiness",
+              "dry-run",
+              "ingest",
+              "prepare",
+              "verify-package"
+            ]
+          }
+        }
+      ],
+      "commands": [],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ]
+    },
+    "run_provenance": {
+      "arguments": [
+        {
+          "names": [
+            "--manifest"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--profile"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--spec"
+          ],
+          "options": {
+            "required": true
+          }
+        }
+      ],
+      "commands": [
+        "audit-legacy",
+        "generate",
+        "validate"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ]
+    },
+    "validation_readiness": {
+      "arguments": [
+        {
+          "names": [
+            "--bundle"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--contract"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ]
+    }
+  },
+  "content_sha256": "cc6eb909ad40f1fe7e48e6eb1dd84ae60b8705612111670a8a627849ece6c542",
+  "documentation": {
+    "docs/architecture.md": "f8d03ba5777dd21746eeb56a15c7e648a76c562ebeb9a5afa490b6f770535a00",
+    "docs/evaluation.md": "41f906788260a0d3d92ed546a99992fc4dbfaeffb17d2876e0709c5ded2c7bc6",
+    "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
+    "docs/formal-validation-clearance.md": "10e2fde89dde48f7396cc8a005f11a7fd33b2690fc9bd9273e7663c33cda1c7a",
+    "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
+    "docs/validation-readiness.md": "41d7df457424fc065662567bb35c901e2fb45a6012d22d20bdf1b33dabee049d"
+  },
+  "execution": {
+    "gold_or_qrels_loaded": false,
+    "llm_request_count": 0,
+    "network_request_count": 0,
+    "quality_metric_count": 0,
+    "snapshot_write_count": 0
+  },
+  "formal_validation_complete": false,
+  "frontend": {
+    "declarations": {
+      "BudgetStatus": "export interface BudgetStatus { exhausted: boolean; stop_reasons: string[]; diagnostics: string[]; max_search_rounds: number; completed_search_rounds: number; max_candidate_papers: number; candidate_limit_applied: boolean; candidate_truncations: Array<{ stage: string; before_count: number; after_count: number; truncated_count: number; }>; max_llm_calls: number; used_llm_calls: number; max_total_tokens: number; used_total_tokens: number; token_usage_precise: boolean; max_latency_seconds: number; elapsed_seconds: number; }",
+      "CitationCoverage": "export interface CitationCoverage { ranked_paper_count: number; cited_paper_count: number; evidence_row_count: number; cited_evidence_row_count: number; missing_evidence_count: number; source_error_count: number; coverage_ratio: number; }",
+      "CitationGraph": "export interface CitationGraph { nodes: Array<{ id: string; label: string; rank?: number | null; }>; edges: Array<{ source: string; target: string; relation: string; }>; }",
+      "ConnectorDiagnostics": "export interface ConnectorDiagnostics { request_count: number; retry_count: number; error_count: number; cache_hit_count: number; rate_limit_wait_seconds: number; latency_seconds: number; }",
+      "CostReport": "export interface CostReport { api_call_count: number; logical_search_call_count: number; search_api_call_count: number; reference_api_call_count: number; retry_count: number; error_count: number; llm_call_count: number; llm_prompt_tokens?: number; llm_completion_tokens?: number; llm_total_tokens?: number; estimated_input_tokens: number; estimated_output_tokens: number; estimated_total_tokens: number; latency_seconds: number; cache_hit_count: number; rate_limit_wait_seconds: number; search_rounds: number; judged_paper_count: number; raw_candidate_count: number; deduplicated_candidate_count: number; }",
+      "EvidenceItem": "export interface EvidenceItem { source: string; text: string; confidence: number; }",
+      "HealthResponse": "export interface HealthResponse { status: string; version: string; time: string; }",
+      "InternalSearchPreviewRequest": "export interface InternalSearchPreviewRequest { query: string; top_k?: number; run_profile?: RunProfile; enable_refchain?: boolean; enable_semantic_seed_expansion?: boolean; enable_query_evolution?: boolean; query_evolution_policy?: QueryEvolutionPolicy; query_planning_policy?: QueryPlanningPolicy; ranking_policy?: RankingPolicy; judgement_policy?: JudgementPolicy; enable_llm_query_understanding?: boolean | null; enable_llm_judgement?: boolean | null; current_year?: number | null; }",
+      "JudgementPolicy": "export type JudgementPolicy = \"current_rules\" | \"calibrated_rules_v1\";",
+      "MethodCluster": "export interface MethodCluster { name: string; paper_ranks: number[]; summary: string; }",
+      "Paper": "export interface Paper { title: string; authors: string[]; year: number | null; venue?: string | null; abstract: string; identifiers: PaperIdentifiers; urls: PaperUrls; sources: string[]; }",
+      "PaperIdentifiers": "export interface PaperIdentifiers { doi?: string | null; arxiv_id?: string | null; semantic_scholar_id?: string | null; s2orc_corpus_id?: string | null; openalex_id?: string | null; pubmed_id?: string | null; }",
+      "PaperUrls": "export interface PaperUrls { landing_page?: string | null; pdf?: string | null; }",
+      "QueryAnalysis": "export interface QueryAnalysis { intent_type: string; domain: string; research_topics: string[]; constraints: Record<string, unknown>; }",
+      "QueryEvolutionPolicy": "export type QueryEvolutionPolicy = \"off\" | \"seed_expansion\" | \"coverage_gap\";",
+      "QueryFacetType": "export type QueryFacetType = | \"topic\" | \"method\" | \"dataset\" | \"task\" | \"paper_type\" | \"venue\" | \"temporal\";",
+      "QueryPlanningPolicy": "export type QueryPlanningPolicy = | \"current_rules\" | \"prf_v1\" | \"concept_projection\" | \"controlled_relaxation\" | \"disjunctive_facets\" | \"current_plus_disjunctive\" | \"facet_union\" | \"facet_balanced\" | \"llm_semantic\" | \"llm_constrained_rewrite\";",
+      "RankedPaper": "export interface RankedPaper { result_identity: string; authority_digest: string; rank: number; paper: Paper; relevance_score: number; category: RelevanceCategory; matched_constraints: string[]; ranking_reason: string; evidence: EvidenceItem[]; rrf_score?: number | null; rrf_contributions: Array<{ source: string; subquery: string; rank: number; reciprocal_score: number; }>; original_rank?: number | null; rrf_top_20_change?: string | null; rrf_rank_change_reason?: string | null; }",
+      "RankingPolicy": "export type RankingPolicy = \"current_rules\" | \"rrf_fusion\";",
+      "RelevanceCategory": "export type RelevanceCategory = | \"highly_relevant\" | \"partially_relevant\" | \"weakly_relevant\" | \"irrelevant\" | \"insufficient_evidence\";",
+      "RetrievalDiagnostics": "export interface RetrievalDiagnostics { raw_count: number; deduplicated_count: number; source_stats: RetrievalSourceStats[]; }",
+      "RetrievalSourceStats": "export interface RetrievalSourceStats { source: string; returned_count: number; latency_seconds: number; cache_hit: boolean; logical_call_executed: boolean; adaptation_strategy?: string | null; triggered_by: string[]; safe_original_candidate_count?: number | null; safe_original_core_term_coverage?: number | null; safe_original_constraint_coverage?: number | null; sufficiency_reasons: string[]; compact_query_executed?: boolean | null; compact_query_skipped_reason?: string | null; error_message?: string | null; diagnostics: ConnectorDiagnostics; }",
+      "RunProfile": "export type RunProfile = \"fast\" | \"balanced\" | \"high_recall\" | \"evaluation\";",
+      "RunStatus": "export type RunStatus = \"queued\" | \"running\" | \"succeeded\" | \"failed\" | \"cancelled\";",
+      "RuntimeConfigResponse": "export interface RuntimeConfigResponse { mode: string; llm: { provider: string; model?: string | null; available: boolean; base_url_host?: string | null; reason?: string | null; }; connectors: Array<{ name: string; available: boolean; requires_key: boolean; reason?: string | null; }>; limits: { max_top_k: number; max_search_rounds: number; max_candidate_papers: number; max_latency_seconds: number; real_search_max_workers?: number; real_search_background_workers?: number; real_search_run_ttl_seconds?: number; real_search_max_stored_runs?: number; }; features: { query_evolution: boolean; refchain: boolean; evaluation: boolean; sse: boolean; real_search?: boolean; real_search_cancel?: boolean; real_search_sse?: boolean; retrieval_cache?: boolean; batch_cli?: boolean; llm_query_understanding?: boolean; llm_judgement?: boolean; }; }",
+      "SearchPlan": "export interface SearchPlan { expanded_queries: string[]; source_preferences: string[]; max_rounds: number; query_planning_policy: QueryPlanningPolicy; ranking_policy: RankingPolicy; enable_semantic_seed_expansion: boolean; query_planning: { policy: QueryPlanningPolicy; planner_version: string; facets: Array<{ facet_type: QueryFacetType; terms: string[]; confidence: number; source: \"explicit\" | \"llm\" | \"rules\"; required: boolean; warnings: string[]; }>; selected_subqueries: Array<{ query: string; combination_mode: \"all\" | \"any\"; source_hints: string[]; priority: number; purpose: string; facet_types: QueryFacetType[]; provenance: string[]; }>; skipped_facets: string[]; warnings: string[]; identified_facet_count: number; selected_facet_count: number; explicit_facet_count: number; selected_subquery_count: number; duplicate_subquery_count: number; skipped_by_budget_count: number; topic_coverage: number; method_coverage: number; dataset_coverage: number; task_coverage: number; paper_type_coverage: number; concept_projection_input_concepts: string[]; concept_projection_selected_concepts: string[]; concept_projection_query: string | null; concept_projection_replaced_query: string | null; concept_projection_replaced_purpose: string | null; concept_projection_skip_reason: string | null; prf_seed_candidates: Array<{ rank: number; title: string }>; prf_feedback_terms: Array<{ term: string; ngram_size: 1 | 2; document_frequency: number; term_frequency: number; rank_discounted_frequency: number; }>; prf_query: string | null; prf_replaced_index: number | null; prf_replaced_query: string | null; prf_replaced_purpose: string | null; prf_skip_reason: string | null; prf_fallback_used: boolean; prf_first_round_source_statuses: Record<string, string>; constrained_rewrite_input_summary: Record<string, unknown>; constrained_rewrite_query: string | null; constrained_rewrite_replaced_index: number | null; constrained_rewrite_replaced_query: string | null; constrained_rewrite_replaced_purpose: string | null; constrained_rewrite_skip_reason: string | null; constrained_rewrite_validation_rejections: string[]; provider: string | null; model: string | null; prompt_name: string | null; prompt_version: string | null; prompt_hash: string | null; snapshot_key: string | null; snapshot_status: string | null; llm_call_attempted: boolean; replayed: boolean; fallback_used: boolean; fallback_reason: string | null; output_valid: boolean; original_query_retained: boolean; generated_query_count: number; accepted_query_count: number; rejected_query_count: number; rejection_reasons: Record<string, number>; accepted_queries: string[]; terminology_expansions: string[]; llm_prompt_tokens: number; llm_completion_tokens: number; llm_total_tokens: number; recorded_llm_latency_seconds: number; }; query_evolution_policy: QueryEvolutionPolicy; }",
+      "SearchRunCreateRequest": "export interface SearchRunCreateRequest { query: string; locale?: string; constraints?: { time_range?: { start_year?: number | null; end_year?: number | null; } | null; venues?: string[]; must_have_terms?: string[]; excluded_terms?: string[]; datasets?: string[]; paper_types?: string[]; }; source_preferences?: string[]; run_profile?: RunProfile; top_k?: number; budgets?: { max_search_rounds?: number; max_candidate_papers?: number; max_llm_calls?: number; max_total_tokens?: number; max_latency_seconds?: number; }; options?: { query_planning_policy?: QueryPlanningPolicy; ranking_policy?: RankingPolicy; judgement_policy?: JudgementPolicy; enable_query_evolution?: boolean; query_evolution_policy?: QueryEvolutionPolicy; enable_refchain?: boolean; enable_semantic_seed_expansion?: boolean; enable_llm_query_understanding?: boolean | null; enable_llm_judgement?: boolean | null; refchain_depth?: number; return_markdown?: boolean; return_json?: boolean; stream_events?: boolean; }; }",
+      "SearchRunCreateResponse": "export interface SearchRunCreateResponse { run_id: string; status: RunStatus; created_at: string; links: { self: string; events: string; result: string; }; }",
+      "SearchRunResultResponse": "export interface SearchRunResultResponse { run_id: string; status: RunStatus; partial: boolean; query_analysis: QueryAnalysis; search_plan: SearchPlan; highly_relevant_papers: RankedPaper[]; partially_relevant_papers: RankedPaper[]; method_clusters: MethodCluster[]; timeline: TimelineItem[]; citation_graph: CitationGraph; warnings: string[]; missing_evidence: string[]; synthesis?: SynthesisOutput | null; retrieval_diagnostics: RetrievalDiagnostics; budget_status: BudgetStatus; cost_report: CostReport; judgement_policy: JudgementPolicy; judgement_config_hash: string; }",
+      "SearchRunStatusResponse": "export interface SearchRunStatusResponse { run_id: string; status: RunStatus; current_stage: string; progress: { completed_stages: string[]; skipped_stages: string[]; candidate_paper_count: number; judged_paper_count: number; }; cost_report: CostReport; created_at: string; updated_at: string; }",
+      "StreamEvent": "export interface StreamEvent { event: string; payload: Record<string, unknown>; receivedAt: string; }",
+      "SynthesisEvidenceRow": "export interface SynthesisEvidenceRow { row_id: string; citation_key: string; rank: number; paper_title: string; year?: number | null; venue?: string | null; sources: string[]; identifiers: PaperIdentifiers; category: string; final_score: number; evidence_source: string; evidence_text: string; supported_terms: string[]; supported_claim: string; }",
+      "SynthesisFinding": "export interface SynthesisFinding { text: string; citation_keys: string[]; confidence: number; evidence_row_ids: string[]; }",
+      "SynthesisOutput": "export interface SynthesisOutput { answer_summary: string; status: string; key_findings: SynthesisFinding[]; evidence_table: SynthesisEvidenceRow[]; citation_coverage: CitationCoverage; limitations: string[]; warnings: string[]; }",
+      "TimelineItem": "export interface TimelineItem { year: number; paper_ranks: number[]; summary: string; }"
+    }
+  },
+  "frontend_openapi_consistency": {
+    "BudgetStatus": {
+      "fields": [
+        "candidate_limit_applied",
+        "candidate_truncations",
+        "completed_search_rounds",
+        "diagnostics",
+        "elapsed_seconds",
+        "exhausted",
+        "max_candidate_papers",
+        "max_latency_seconds",
+        "max_llm_calls",
+        "max_search_rounds",
+        "max_total_tokens",
+        "stop_reasons",
+        "token_usage_precise",
+        "used_llm_calls",
+        "used_total_tokens"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "CitationCoverage": {
+      "fields": [
+        "cited_evidence_row_count",
+        "cited_paper_count",
+        "coverage_ratio",
+        "evidence_row_count",
+        "missing_evidence_count",
+        "ranked_paper_count",
+        "source_error_count"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "CitationGraph": {
+      "fields": [
+        "edges",
+        "nodes"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "ConnectorDiagnostics": {
+      "fields": [
+        "cache_hit_count",
+        "error_count",
+        "latency_seconds",
+        "rate_limit_wait_seconds",
+        "request_count",
+        "retry_count"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "CostReport": {
+      "fields": [
+        "api_call_count",
+        "cache_hit_count",
+        "deduplicated_candidate_count",
+        "error_count",
+        "estimated_input_tokens",
+        "estimated_output_tokens",
+        "estimated_total_tokens",
+        "judged_paper_count",
+        "latency_seconds",
+        "llm_call_count",
+        "llm_completion_tokens",
+        "llm_prompt_tokens",
+        "llm_total_tokens",
+        "logical_search_call_count",
+        "rate_limit_wait_seconds",
+        "raw_candidate_count",
+        "reference_api_call_count",
+        "retry_count",
+        "search_api_call_count",
+        "search_rounds"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "EvidenceItem": {
+      "fields": [
+        "confidence",
+        "source",
+        "text"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "HealthResponse": {
+      "fields": [
+        "status",
+        "time",
+        "version"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "InternalSearchPreviewRequest": {
+      "fields": [
+        "current_year",
+        "enable_llm_judgement",
+        "enable_llm_query_understanding",
+        "enable_query_evolution",
+        "enable_refchain",
+        "enable_semantic_seed_expansion",
+        "judgement_policy",
+        "query",
+        "query_evolution_policy",
+        "query_planning_policy",
+        "ranking_policy",
+        "run_profile",
+        "top_k"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "MethodCluster": {
+      "fields": [
+        "name",
+        "paper_ranks",
+        "summary"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "Paper": {
+      "fields": [
+        "abstract",
+        "authors",
+        "identifiers",
+        "sources",
+        "title",
+        "urls",
+        "venue",
+        "year"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "PaperIdentifiers": {
+      "fields": [
+        "arxiv_id",
+        "doi",
+        "openalex_id",
+        "pubmed_id",
+        "s2orc_corpus_id",
+        "semantic_scholar_id"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "PaperUrls": {
+      "fields": [
+        "landing_page",
+        "pdf"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "QueryAnalysis": {
+      "fields": [
+        "constraints",
+        "domain",
+        "intent_type",
+        "research_topics"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "RankedPaper": {
+      "fields": [
+        "authority_digest",
+        "category",
+        "evidence",
+        "matched_constraints",
+        "original_rank",
+        "paper",
+        "rank",
+        "ranking_reason",
+        "relevance_score",
+        "result_identity",
+        "rrf_contributions",
+        "rrf_rank_change_reason",
+        "rrf_score",
+        "rrf_top_20_change"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "RetrievalDiagnostics": {
+      "fields": [
+        "deduplicated_count",
+        "raw_count",
+        "source_stats"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "RetrievalSourceStats": {
+      "fields": [
+        "adaptation_strategy",
+        "cache_hit",
+        "compact_query_executed",
+        "compact_query_skipped_reason",
+        "diagnostics",
+        "error_message",
+        "latency_seconds",
+        "logical_call_executed",
+        "returned_count",
+        "safe_original_candidate_count",
+        "safe_original_constraint_coverage",
+        "safe_original_core_term_coverage",
+        "source",
+        "sufficiency_reasons",
+        "triggered_by"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "RuntimeConfigResponse": {
+      "fields": [
+        "connectors",
+        "features",
+        "limits",
+        "llm",
+        "mode"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SearchPlan": {
+      "fields": [
+        "enable_semantic_seed_expansion",
+        "expanded_queries",
+        "max_rounds",
+        "query_evolution_policy",
+        "query_planning",
+        "query_planning_policy",
+        "ranking_policy",
+        "source_preferences"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SearchRunCreateRequest": {
+      "fields": [
+        "budgets",
+        "constraints",
+        "locale",
+        "options",
+        "query",
+        "run_profile",
+        "source_preferences",
+        "top_k"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SearchRunCreateResponse": {
+      "fields": [
+        "created_at",
+        "links",
+        "run_id",
+        "status"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SearchRunResultResponse": {
+      "fields": [
+        "budget_status",
+        "citation_graph",
+        "cost_report",
+        "highly_relevant_papers",
+        "judgement_config_hash",
+        "judgement_policy",
+        "method_clusters",
+        "missing_evidence",
+        "partial",
+        "partially_relevant_papers",
+        "query_analysis",
+        "retrieval_diagnostics",
+        "run_id",
+        "search_plan",
+        "status",
+        "synthesis",
+        "timeline",
+        "warnings"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SearchRunStatusResponse": {
+      "fields": [
+        "cost_report",
+        "created_at",
+        "current_stage",
+        "progress",
+        "run_id",
+        "status",
+        "updated_at"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SynthesisEvidenceRow": {
+      "fields": [
+        "category",
+        "citation_key",
+        "evidence_source",
+        "evidence_text",
+        "final_score",
+        "identifiers",
+        "paper_title",
+        "rank",
+        "row_id",
+        "sources",
+        "supported_claim",
+        "supported_terms",
+        "venue",
+        "year"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SynthesisFinding": {
+      "fields": [
+        "citation_keys",
+        "confidence",
+        "evidence_row_ids",
+        "text"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "SynthesisOutput": {
+      "fields": [
+        "answer_summary",
+        "citation_coverage",
+        "evidence_table",
+        "key_findings",
+        "limitations",
+        "status",
+        "warnings"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    },
+    "TimelineItem": {
+      "fields": [
+        "paper_ranks",
+        "summary",
+        "year"
+      ],
+      "nullable_or_optional_governed_by_schema": true
+    }
+  },
+  "openapi": {
+    "components": {
+      "schemas": {
+        "BudgetStatus": {
+          "properties": {
+            "candidate_limit_applied": {
+              "default": false,
+              "title": "Candidate Limit Applied",
+              "type": "boolean"
+            },
+            "candidate_truncations": {
+              "items": {
+                "$ref": "#/components/schemas/CandidateTruncation"
+              },
+              "title": "Candidate Truncations",
+              "type": "array"
+            },
+            "completed_search_rounds": {
+              "default": 0,
+              "title": "Completed Search Rounds",
+              "type": "integer"
+            },
+            "diagnostics": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Diagnostics",
+              "type": "array"
+            },
+            "elapsed_seconds": {
+              "default": 0.0,
+              "title": "Elapsed Seconds",
+              "type": "number"
+            },
+            "exhausted": {
+              "default": false,
+              "title": "Exhausted",
+              "type": "boolean"
+            },
+            "max_candidate_papers": {
+              "default": 200,
+              "title": "Max Candidate Papers",
+              "type": "integer"
+            },
+            "max_latency_seconds": {
+              "default": 90.0,
+              "title": "Max Latency Seconds",
+              "type": "number"
+            },
+            "max_llm_calls": {
+              "default": 20,
+              "title": "Max Llm Calls",
+              "type": "integer"
+            },
+            "max_search_rounds": {
+              "default": 2,
+              "title": "Max Search Rounds",
+              "type": "integer"
+            },
+            "max_total_tokens": {
+              "default": 50000,
+              "title": "Max Total Tokens",
+              "type": "integer"
+            },
+            "stop_reasons": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Stop Reasons",
+              "type": "array"
+            },
+            "token_usage_precise": {
+              "default": true,
+              "title": "Token Usage Precise",
+              "type": "boolean"
+            },
+            "used_llm_calls": {
+              "default": 0,
+              "title": "Used Llm Calls",
+              "type": "integer"
+            },
+            "used_total_tokens": {
+              "default": 0,
+              "title": "Used Total Tokens",
+              "type": "integer"
+            }
+          },
+          "title": "BudgetStatus",
+          "type": "object"
+        },
+        "CandidateTruncation": {
+          "properties": {
+            "after_count": {
+              "minimum": 0.0,
+              "title": "After Count",
+              "type": "integer"
+            },
+            "before_count": {
+              "minimum": 0.0,
+              "title": "Before Count",
+              "type": "integer"
+            },
+            "stage": {
+              "title": "Stage",
+              "type": "string"
+            },
+            "truncated_count": {
+              "minimum": 0.0,
+              "title": "Truncated Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "after_count",
+            "before_count",
+            "stage",
+            "truncated_count"
+          ],
+          "title": "CandidateTruncation",
+          "type": "object"
+        },
+        "CitationCoverage": {
+          "properties": {
+            "cited_evidence_row_count": {
+              "default": 0,
+              "title": "Cited Evidence Row Count",
+              "type": "integer"
+            },
+            "cited_paper_count": {
+              "default": 0,
+              "title": "Cited Paper Count",
+              "type": "integer"
+            },
+            "coverage_ratio": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Coverage Ratio",
+              "type": "number"
+            },
+            "evidence_row_count": {
+              "default": 0,
+              "title": "Evidence Row Count",
+              "type": "integer"
+            },
+            "missing_evidence_count": {
+              "default": 0,
+              "title": "Missing Evidence Count",
+              "type": "integer"
+            },
+            "ranked_paper_count": {
+              "default": 0,
+              "title": "Ranked Paper Count",
+              "type": "integer"
+            },
+            "source_error_count": {
+              "default": 0,
+              "title": "Source Error Count",
+              "type": "integer"
+            }
+          },
+          "title": "CitationCoverage",
+          "type": "object"
+        },
+        "CitationGraph": {
+          "properties": {
+            "edges": {
+              "items": {
+                "$ref": "#/components/schemas/CitationGraphEdge"
+              },
+              "title": "Edges",
+              "type": "array"
+            },
+            "nodes": {
+              "items": {
+                "$ref": "#/components/schemas/CitationGraphNode"
+              },
+              "title": "Nodes",
+              "type": "array"
+            }
+          },
+          "title": "CitationGraph",
+          "type": "object"
+        },
+        "CitationGraphEdge": {
+          "properties": {
+            "relation": {
+              "default": "cites",
+              "title": "Relation",
+              "type": "string"
+            },
+            "source": {
+              "title": "Source",
+              "type": "string"
+            },
+            "target": {
+              "title": "Target",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source",
+            "target"
+          ],
+          "title": "CitationGraphEdge",
+          "type": "object"
+        },
+        "CitationGraphNode": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "label": {
+              "title": "Label",
+              "type": "string"
+            },
+            "rank": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rank"
+            }
+          },
+          "required": [
+            "id",
+            "label"
+          ],
+          "title": "CitationGraphNode",
+          "type": "object"
+        },
+        "ConnectorDiagnostics": {
+          "properties": {
+            "cache_hit_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Cache Hit Count",
+              "type": "integer"
+            },
+            "error_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Error Count",
+              "type": "integer"
+            },
+            "latency_seconds": {
+              "default": 0.0,
+              "minimum": 0.0,
+              "title": "Latency Seconds",
+              "type": "number"
+            },
+            "rate_limit_wait_seconds": {
+              "default": 0.0,
+              "minimum": 0.0,
+              "title": "Rate Limit Wait Seconds",
+              "type": "number"
+            },
+            "request_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Request Count",
+              "type": "integer"
+            },
+            "retry_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Retry Count",
+              "type": "integer"
+            }
+          },
+          "title": "ConnectorDiagnostics",
+          "type": "object"
+        },
+        "ConnectorRuntimeConfig": {
+          "properties": {
+            "available": {
+              "title": "Available",
+              "type": "boolean"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            },
+            "requires_key": {
+              "title": "Requires Key",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "available",
+            "name",
+            "requires_key"
+          ],
+          "title": "ConnectorRuntimeConfig",
+          "type": "object"
+        },
+        "CostReport": {
+          "properties": {
+            "api_call_count": {
+              "default": 0,
+              "title": "Api Call Count",
+              "type": "integer"
+            },
+            "cache_hit_count": {
+              "default": 0,
+              "title": "Cache Hit Count",
+              "type": "integer"
+            },
+            "deduplicated_candidate_count": {
+              "default": 0,
+              "title": "Deduplicated Candidate Count",
+              "type": "integer"
+            },
+            "error_count": {
+              "default": 0,
+              "title": "Error Count",
+              "type": "integer"
+            },
+            "estimated_input_tokens": {
+              "default": 0,
+              "title": "Estimated Input Tokens",
+              "type": "integer"
+            },
+            "estimated_output_tokens": {
+              "default": 0,
+              "title": "Estimated Output Tokens",
+              "type": "integer"
+            },
+            "estimated_total_tokens": {
+              "default": 0,
+              "title": "Estimated Total Tokens",
+              "type": "integer"
+            },
+            "judged_paper_count": {
+              "default": 0,
+              "title": "Judged Paper Count",
+              "type": "integer"
+            },
+            "latency_seconds": {
+              "default": 0.0,
+              "title": "Latency Seconds",
+              "type": "number"
+            },
+            "llm_call_count": {
+              "default": 0,
+              "title": "Llm Call Count",
+              "type": "integer"
+            },
+            "llm_completion_tokens": {
+              "default": 0,
+              "title": "Llm Completion Tokens",
+              "type": "integer"
+            },
+            "llm_prompt_tokens": {
+              "default": 0,
+              "title": "Llm Prompt Tokens",
+              "type": "integer"
+            },
+            "llm_total_tokens": {
+              "default": 0,
+              "title": "Llm Total Tokens",
+              "type": "integer"
+            },
+            "logical_search_call_count": {
+              "default": 0,
+              "title": "Logical Search Call Count",
+              "type": "integer"
+            },
+            "rate_limit_wait_seconds": {
+              "default": 0.0,
+              "title": "Rate Limit Wait Seconds",
+              "type": "number"
+            },
+            "raw_candidate_count": {
+              "default": 0,
+              "title": "Raw Candidate Count",
+              "type": "integer"
+            },
+            "reference_api_call_count": {
+              "default": 0,
+              "title": "Reference Api Call Count",
+              "type": "integer"
+            },
+            "retry_count": {
+              "default": 0,
+              "title": "Retry Count",
+              "type": "integer"
+            },
+            "search_api_call_count": {
+              "default": 0,
+              "title": "Search Api Call Count",
+              "type": "integer"
+            },
+            "search_rounds": {
+              "default": 0,
+              "title": "Search Rounds",
+              "type": "integer"
+            }
+          },
+          "title": "CostReport",
+          "type": "object"
+        },
+        "EvidenceItem": {
+          "properties": {
+            "confidence": {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "source": {
+              "title": "Source",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "confidence",
+            "source",
+            "text"
+          ],
+          "title": "EvidenceItem",
+          "type": "object"
+        },
+        "HTTPValidationError": {
+          "properties": {
+            "detail": {
+              "items": {
+                "$ref": "#/components/schemas/ValidationError"
+              },
+              "title": "Detail",
+              "type": "array"
+            }
+          },
+          "title": "HTTPValidationError",
+          "type": "object"
+        },
+        "HealthResponse": {
+          "properties": {
+            "status": {
+              "default": "ok",
+              "title": "Status",
+              "type": "string"
+            },
+            "time": {
+              "format": "date-time",
+              "title": "Time",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "time",
+            "version"
+          ],
+          "title": "HealthResponse",
+          "type": "object"
+        },
+        "InternalSearchPreviewRequest": {
+          "properties": {
+            "current_year": {
+              "anyOf": [
+                {
+                  "maximum": 2200.0,
+                  "minimum": 1900.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Current Year"
+            },
+            "enable_llm_judgement": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enable Llm Judgement"
+            },
+            "enable_llm_query_understanding": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enable Llm Query Understanding"
+            },
+            "enable_query_evolution": {
+              "default": false,
+              "title": "Enable Query Evolution",
+              "type": "boolean"
+            },
+            "enable_refchain": {
+              "default": false,
+              "title": "Enable Refchain",
+              "type": "boolean"
+            },
+            "enable_semantic_seed_expansion": {
+              "default": false,
+              "title": "Enable Semantic Seed Expansion",
+              "type": "boolean"
+            },
+            "judgement_policy": {
+              "default": "current_rules",
+              "enum": [
+                "calibrated_rules_v1",
+                "current_rules"
+              ],
+              "title": "Judgement Policy",
+              "type": "string"
+            },
+            "query": {
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            },
+            "query_evolution_policy": {
+              "default": "coverage_gap",
+              "enum": [
+                "coverage_gap",
+                "off",
+                "seed_expansion"
+              ],
+              "title": "Query Evolution Policy",
+              "type": "string"
+            },
+            "query_planning_policy": {
+              "default": "current_rules",
+              "enum": [
+                "concept_projection",
+                "controlled_relaxation",
+                "current_plus_disjunctive",
+                "current_rules",
+                "disjunctive_facets",
+                "facet_balanced",
+                "facet_union",
+                "llm_constrained_rewrite",
+                "llm_semantic",
+                "prf_v1"
+              ],
+              "title": "Query Planning Policy",
+              "type": "string"
+            },
+            "ranking_policy": {
+              "default": "current_rules",
+              "enum": [
+                "current_rules",
+                "rrf_fusion"
+              ],
+              "title": "Ranking Policy",
+              "type": "string"
+            },
+            "run_profile": {
+              "default": "balanced",
+              "enum": [
+                "balanced",
+                "evaluation",
+                "fast",
+                "high_recall"
+              ],
+              "title": "Run Profile",
+              "type": "string"
+            },
+            "top_k": {
+              "default": 20,
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "title": "Top K",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "InternalSearchPreviewRequest",
+          "type": "object"
+        },
+        "InternalSearchPreviewResponse": {
+          "properties": {
+            "deduplicated_count": {
+              "title": "Deduplicated Count",
+              "type": "integer"
+            },
+            "latency_seconds": {
+              "title": "Latency Seconds",
+              "type": "number"
+            },
+            "query_analysis": {
+              "additionalProperties": true,
+              "title": "Query Analysis",
+              "type": "object"
+            },
+            "query_evolution_records": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Query Evolution Records",
+              "type": "array"
+            },
+            "ranked_papers": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Ranked Papers",
+              "type": "array"
+            },
+            "raw_count": {
+              "title": "Raw Count",
+              "type": "integer"
+            },
+            "refchain_output": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Refchain Output"
+            },
+            "search_plan": {
+              "additionalProperties": true,
+              "title": "Search Plan",
+              "type": "object"
+            },
+            "semantic_seed_expansion_output": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semantic Seed Expansion Output"
+            },
+            "source_stats": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Source Stats",
+              "type": "array"
+            },
+            "synthesis_output": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Synthesis Output"
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Warnings",
+              "type": "array"
+            }
+          },
+          "required": [
+            "deduplicated_count",
+            "latency_seconds",
+            "query_analysis",
+            "query_evolution_records",
+            "ranked_papers",
+            "raw_count",
+            "refchain_output",
+            "search_plan",
+            "semantic_seed_expansion_output",
+            "source_stats",
+            "synthesis_output",
+            "warnings"
+          ],
+          "title": "InternalSearchPreviewResponse",
+          "type": "object"
+        },
+        "LLMRuntimeConfig": {
+          "properties": {
+            "available": {
+              "title": "Available",
+              "type": "boolean"
+            },
+            "base_url_host": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Base Url Host"
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            },
+            "provider": {
+              "title": "Provider",
+              "type": "string"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          "required": [
+            "available",
+            "provider"
+          ],
+          "title": "LLMRuntimeConfig",
+          "type": "object"
+        },
+        "MethodCluster": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "paper_ranks": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Paper Ranks",
+              "type": "array"
+            },
+            "summary": {
+              "title": "Summary",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "summary"
+          ],
+          "title": "MethodCluster",
+          "type": "object"
+        },
+        "PRFFeedbackTerm": {
+          "properties": {
+            "document_frequency": {
+              "minimum": 2.0,
+              "title": "Document Frequency",
+              "type": "integer"
+            },
+            "ngram_size": {
+              "enum": [
+                1,
+                2
+              ],
+              "title": "Ngram Size",
+              "type": "integer"
+            },
+            "rank_discounted_frequency": {
+              "minimum": 0.0,
+              "title": "Rank Discounted Frequency",
+              "type": "number"
+            },
+            "term": {
+              "title": "Term",
+              "type": "string"
+            },
+            "term_frequency": {
+              "minimum": 2.0,
+              "title": "Term Frequency",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "document_frequency",
+            "ngram_size",
+            "rank_discounted_frequency",
+            "term",
+            "term_frequency"
+          ],
+          "title": "PRFFeedbackTerm",
+          "type": "object"
+        },
+        "PRFSeedCandidate": {
+          "properties": {
+            "rank": {
+              "minimum": 1.0,
+              "title": "Rank",
+              "type": "integer"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "rank",
+            "title"
+          ],
+          "title": "PRFSeedCandidate",
+          "type": "object"
+        },
+        "Paper": {
+          "properties": {
+            "abstract": {
+              "title": "Abstract",
+              "type": "string"
+            },
+            "authors": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Authors",
+              "type": "array"
+            },
+            "identifiers": {
+              "$ref": "#/components/schemas/PaperIdentifiers"
+            },
+            "sources": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Sources",
+              "type": "array"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "urls": {
+              "$ref": "#/components/schemas/PaperUrls"
+            },
+            "venue": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Venue"
+            },
+            "year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          "required": [
+            "abstract",
+            "authors",
+            "title"
+          ],
+          "title": "Paper",
+          "type": "object"
+        },
+        "PaperIdentifiers": {
+          "properties": {
+            "arxiv_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Arxiv Id"
+            },
+            "doi": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Doi"
+            },
+            "openalex_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Openalex Id"
+            },
+            "pubmed_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pubmed Id"
+            },
+            "s2orc_corpus_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2Orc Corpus Id"
+            },
+            "semantic_scholar_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semantic Scholar Id"
+            }
+          },
+          "title": "PaperIdentifiers",
+          "type": "object"
+        },
+        "PaperUrls": {
+          "properties": {
+            "landing_page": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Landing Page"
+            },
+            "pdf": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pdf"
+            }
+          },
+          "title": "PaperUrls",
+          "type": "object"
+        },
+        "QueryAnalysis": {
+          "properties": {
+            "constraints": {
+              "additionalProperties": true,
+              "title": "Constraints",
+              "type": "object"
+            },
+            "domain": {
+              "title": "Domain",
+              "type": "string"
+            },
+            "intent_type": {
+              "title": "Intent Type",
+              "type": "string"
+            },
+            "research_topics": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Research Topics",
+              "type": "array"
+            }
+          },
+          "required": [
+            "domain",
+            "intent_type"
+          ],
+          "title": "QueryAnalysis",
+          "type": "object"
+        },
+        "QueryFacet": {
+          "properties": {
+            "confidence": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "facet_type": {
+              "enum": [
+                "dataset",
+                "method",
+                "paper_type",
+                "task",
+                "temporal",
+                "topic",
+                "venue"
+              ],
+              "title": "Facet Type",
+              "type": "string"
+            },
+            "required": {
+              "default": false,
+              "title": "Required",
+              "type": "boolean"
+            },
+            "source": {
+              "default": "rules",
+              "enum": [
+                "explicit",
+                "llm",
+                "rules"
+              ],
+              "title": "Source",
+              "type": "string"
+            },
+            "terms": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Terms",
+              "type": "array"
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Warnings",
+              "type": "array"
+            }
+          },
+          "required": [
+            "facet_type"
+          ],
+          "title": "QueryFacet",
+          "type": "object"
+        },
+        "QueryPlanningResult": {
+          "properties": {
+            "accepted_queries": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Accepted Queries",
+              "type": "array"
+            },
+            "accepted_query_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Accepted Query Count",
+              "type": "integer"
+            },
+            "concept_projection_input_concepts": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Concept Projection Input Concepts",
+              "type": "array"
+            },
+            "concept_projection_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept Projection Query"
+            },
+            "concept_projection_replaced_purpose": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept Projection Replaced Purpose"
+            },
+            "concept_projection_replaced_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept Projection Replaced Query"
+            },
+            "concept_projection_selected_concepts": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Concept Projection Selected Concepts",
+              "type": "array"
+            },
+            "concept_projection_skip_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept Projection Skip Reason"
+            },
+            "constrained_rewrite_input_summary": {
+              "additionalProperties": true,
+              "title": "Constrained Rewrite Input Summary",
+              "type": "object"
+            },
+            "constrained_rewrite_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Constrained Rewrite Query"
+            },
+            "constrained_rewrite_replaced_index": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Constrained Rewrite Replaced Index"
+            },
+            "constrained_rewrite_replaced_purpose": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Constrained Rewrite Replaced Purpose"
+            },
+            "constrained_rewrite_replaced_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Constrained Rewrite Replaced Query"
+            },
+            "constrained_rewrite_skip_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Constrained Rewrite Skip Reason"
+            },
+            "constrained_rewrite_validation_rejections": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Constrained Rewrite Validation Rejections",
+              "type": "array"
+            },
+            "dataset_coverage": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Dataset Coverage",
+              "type": "number"
+            },
+            "duplicate_subquery_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Duplicate Subquery Count",
+              "type": "integer"
+            },
+            "explicit_facet_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Explicit Facet Count",
+              "type": "integer"
+            },
+            "facets": {
+              "items": {
+                "$ref": "#/components/schemas/QueryFacet"
+              },
+              "title": "Facets",
+              "type": "array"
+            },
+            "fallback_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fallback Reason"
+            },
+            "fallback_used": {
+              "default": false,
+              "title": "Fallback Used",
+              "type": "boolean"
+            },
+            "generated_query_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Generated Query Count",
+              "type": "integer"
+            },
+            "identified_facet_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Identified Facet Count",
+              "type": "integer"
+            },
+            "llm_call_attempted": {
+              "default": false,
+              "title": "Llm Call Attempted",
+              "type": "boolean"
+            },
+            "llm_completion_tokens": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Llm Completion Tokens",
+              "type": "integer"
+            },
+            "llm_prompt_tokens": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Llm Prompt Tokens",
+              "type": "integer"
+            },
+            "llm_total_tokens": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Llm Total Tokens",
+              "type": "integer"
+            },
+            "method_coverage": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Method Coverage",
+              "type": "number"
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            },
+            "original_query_retained": {
+              "default": true,
+              "title": "Original Query Retained",
+              "type": "boolean"
+            },
+            "output_valid": {
+              "default": false,
+              "title": "Output Valid",
+              "type": "boolean"
+            },
+            "paper_type_coverage": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Paper Type Coverage",
+              "type": "number"
+            },
+            "planner_version": {
+              "default": "1.9.0",
+              "title": "Planner Version",
+              "type": "string"
+            },
+            "policy": {
+              "default": "current_rules",
+              "enum": [
+                "concept_projection",
+                "controlled_relaxation",
+                "current_plus_disjunctive",
+                "current_rules",
+                "disjunctive_facets",
+                "facet_balanced",
+                "facet_union",
+                "llm_constrained_rewrite",
+                "llm_semantic",
+                "prf_v1"
+              ],
+              "title": "Policy",
+              "type": "string"
+            },
+            "prf_fallback_used": {
+              "default": false,
+              "title": "Prf Fallback Used",
+              "type": "boolean"
+            },
+            "prf_feedback_terms": {
+              "items": {
+                "$ref": "#/components/schemas/PRFFeedbackTerm"
+              },
+              "title": "Prf Feedback Terms",
+              "type": "array"
+            },
+            "prf_first_round_source_statuses": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "title": "Prf First Round Source Statuses",
+              "type": "object"
+            },
+            "prf_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prf Query"
+            },
+            "prf_replaced_index": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prf Replaced Index"
+            },
+            "prf_replaced_purpose": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prf Replaced Purpose"
+            },
+            "prf_replaced_query": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prf Replaced Query"
+            },
+            "prf_seed_candidates": {
+              "items": {
+                "$ref": "#/components/schemas/PRFSeedCandidate"
+              },
+              "title": "Prf Seed Candidates",
+              "type": "array"
+            },
+            "prf_skip_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prf Skip Reason"
+            },
+            "prompt_hash": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompt Hash"
+            },
+            "prompt_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompt Name"
+            },
+            "prompt_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompt Version"
+            },
+            "provider": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            },
+            "recorded_llm_latency_seconds": {
+              "default": 0.0,
+              "minimum": 0.0,
+              "title": "Recorded Llm Latency Seconds",
+              "type": "number"
+            },
+            "rejected_query_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Rejected Query Count",
+              "type": "integer"
+            },
+            "rejection_reasons": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "title": "Rejection Reasons",
+              "type": "object"
+            },
+            "replayed": {
+              "default": false,
+              "title": "Replayed",
+              "type": "boolean"
+            },
+            "selected_facet_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Selected Facet Count",
+              "type": "integer"
+            },
+            "selected_subqueries": {
+              "items": {
+                "$ref": "#/components/schemas/SearchSubquery"
+              },
+              "title": "Selected Subqueries",
+              "type": "array"
+            },
+            "selected_subquery_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Selected Subquery Count",
+              "type": "integer"
+            },
+            "skipped_by_budget_count": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Skipped By Budget Count",
+              "type": "integer"
+            },
+            "skipped_facets": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Skipped Facets",
+              "type": "array"
+            },
+            "snapshot_key": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Key"
+            },
+            "snapshot_status": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Status"
+            },
+            "task_coverage": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Task Coverage",
+              "type": "number"
+            },
+            "terminology_expansions": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Terminology Expansions",
+              "type": "array"
+            },
+            "topic_coverage": {
+              "default": 0.0,
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Topic Coverage",
+              "type": "number"
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Warnings",
+              "type": "array"
+            }
+          },
+          "title": "QueryPlanningResult",
+          "type": "object"
+        },
+        "RRFListContribution": {
+          "properties": {
+            "rank": {
+              "minimum": 1.0,
+              "title": "Rank",
+              "type": "integer"
+            },
+            "reciprocal_score": {
+              "minimum": 0.0,
+              "title": "Reciprocal Score",
+              "type": "number"
+            },
+            "source": {
+              "title": "Source",
+              "type": "string"
+            },
+            "subquery": {
+              "title": "Subquery",
+              "type": "string"
+            }
+          },
+          "required": [
+            "rank",
+            "reciprocal_score",
+            "source",
+            "subquery"
+          ],
+          "title": "RRFListContribution",
+          "type": "object"
+        },
+        "RankedPaper": {
+          "properties": {
+            "authority_digest": {
+              "title": "Authority Digest",
+              "type": "string"
+            },
+            "category": {
+              "enum": [
+                "highly_relevant",
+                "insufficient_evidence",
+                "irrelevant",
+                "partially_relevant",
+                "weakly_relevant"
+              ],
+              "title": "Category",
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "$ref": "#/components/schemas/EvidenceItem"
+              },
+              "title": "Evidence",
+              "type": "array"
+            },
+            "matched_constraints": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Matched Constraints",
+              "type": "array"
+            },
+            "original_rank": {
+              "anyOf": [
+                {
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Original Rank"
+            },
+            "paper": {
+              "$ref": "#/components/schemas/Paper"
+            },
+            "rank": {
+              "title": "Rank",
+              "type": "integer"
+            },
+            "ranking_reason": {
+              "title": "Ranking Reason",
+              "type": "string"
+            },
+            "relevance_score": {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Relevance Score",
+              "type": "number"
+            },
+            "result_identity": {
+              "title": "Result Identity",
+              "type": "string"
+            },
+            "rrf_contributions": {
+              "items": {
+                "$ref": "#/components/schemas/RRFListContribution"
+              },
+              "title": "Rrf Contributions",
+              "type": "array"
+            },
+            "rrf_rank_change_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rrf Rank Change Reason"
+            },
+            "rrf_score": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rrf Score"
+            },
+            "rrf_top_20_change": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rrf Top 20 Change"
+            }
+          },
+          "required": [
+            "authority_digest",
+            "category",
+            "paper",
+            "rank",
+            "ranking_reason",
+            "relevance_score",
+            "result_identity"
+          ],
+          "title": "RankedPaper",
+          "type": "object"
+        },
+        "RetrievalDiagnostics": {
+          "properties": {
+            "deduplicated_count": {
+              "default": 0,
+              "title": "Deduplicated Count",
+              "type": "integer"
+            },
+            "raw_count": {
+              "default": 0,
+              "title": "Raw Count",
+              "type": "integer"
+            },
+            "source_stats": {
+              "items": {
+                "$ref": "#/components/schemas/RetrievalSourceStats"
+              },
+              "title": "Source Stats",
+              "type": "array"
+            }
+          },
+          "title": "RetrievalDiagnostics",
+          "type": "object"
+        },
+        "RetrievalSourceStats": {
+          "properties": {
+            "adaptation_strategy": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Adaptation Strategy"
+            },
+            "cache_hit": {
+              "default": false,
+              "title": "Cache Hit",
+              "type": "boolean"
+            },
+            "compact_query_executed": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compact Query Executed"
+            },
+            "compact_query_skipped_reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compact Query Skipped Reason"
+            },
+            "diagnostics": {
+              "$ref": "#/components/schemas/ConnectorDiagnostics"
+            },
+            "error_message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Message"
+            },
+            "latency_seconds": {
+              "default": 0.0,
+              "title": "Latency Seconds",
+              "type": "number"
+            },
+            "logical_call_executed": {
+              "default": true,
+              "title": "Logical Call Executed",
+              "type": "boolean"
+            },
+            "returned_count": {
+              "default": 0,
+              "title": "Returned Count",
+              "type": "integer"
+            },
+            "safe_original_candidate_count": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Safe Original Candidate Count"
+            },
+            "safe_original_constraint_coverage": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Safe Original Constraint Coverage"
+            },
+            "safe_original_core_term_coverage": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Safe Original Core Term Coverage"
+            },
+            "source": {
+              "title": "Source",
+              "type": "string"
+            },
+            "sufficiency_reasons": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Sufficiency Reasons",
+              "type": "array"
+            },
+            "triggered_by": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Triggered By",
+              "type": "array"
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "title": "RetrievalSourceStats",
+          "type": "object"
+        },
+        "RunProgress": {
+          "properties": {
+            "candidate_paper_count": {
+              "default": 0,
+              "title": "Candidate Paper Count",
+              "type": "integer"
+            },
+            "completed_stages": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Completed Stages",
+              "type": "array"
+            },
+            "judged_paper_count": {
+              "default": 0,
+              "title": "Judged Paper Count",
+              "type": "integer"
+            },
+            "skipped_stages": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Skipped Stages",
+              "type": "array"
+            }
+          },
+          "title": "RunProgress",
+          "type": "object"
+        },
+        "RuntimeConfigResponse": {
+          "properties": {
+            "connectors": {
+              "items": {
+                "$ref": "#/components/schemas/ConnectorRuntimeConfig"
+              },
+              "title": "Connectors",
+              "type": "array"
+            },
+            "features": {
+              "$ref": "#/components/schemas/RuntimeFeatures"
+            },
+            "limits": {
+              "$ref": "#/components/schemas/RuntimeLimits"
+            },
+            "llm": {
+              "$ref": "#/components/schemas/LLMRuntimeConfig"
+            },
+            "mode": {
+              "default": "real_search",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          "required": [
+            "connectors",
+            "features",
+            "limits",
+            "llm"
+          ],
+          "title": "RuntimeConfigResponse",
+          "type": "object"
+        },
+        "RuntimeFeatures": {
+          "properties": {
+            "batch_cli": {
+              "default": false,
+              "title": "Batch Cli",
+              "type": "boolean"
+            },
+            "evaluation": {
+              "title": "Evaluation",
+              "type": "boolean"
+            },
+            "llm_judgement": {
+              "default": false,
+              "title": "Llm Judgement",
+              "type": "boolean"
+            },
+            "llm_query_understanding": {
+              "default": false,
+              "title": "Llm Query Understanding",
+              "type": "boolean"
+            },
+            "query_evolution": {
+              "title": "Query Evolution",
+              "type": "boolean"
+            },
+            "real_search": {
+              "default": false,
+              "title": "Real Search",
+              "type": "boolean"
+            },
+            "real_search_cancel": {
+              "default": false,
+              "title": "Real Search Cancel",
+              "type": "boolean"
+            },
+            "real_search_sse": {
+              "default": false,
+              "title": "Real Search Sse",
+              "type": "boolean"
+            },
+            "refchain": {
+              "title": "Refchain",
+              "type": "boolean"
+            },
+            "retrieval_cache": {
+              "default": false,
+              "title": "Retrieval Cache",
+              "type": "boolean"
+            },
+            "sse": {
+              "title": "Sse",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "evaluation",
+            "query_evolution",
+            "refchain",
+            "sse"
+          ],
+          "title": "RuntimeFeatures",
+          "type": "object"
+        },
+        "RuntimeLimits": {
+          "properties": {
+            "max_candidate_papers": {
+              "title": "Max Candidate Papers",
+              "type": "integer"
+            },
+            "max_latency_seconds": {
+              "title": "Max Latency Seconds",
+              "type": "integer"
+            },
+            "max_search_rounds": {
+              "title": "Max Search Rounds",
+              "type": "integer"
+            },
+            "max_top_k": {
+              "title": "Max Top K",
+              "type": "integer"
+            },
+            "real_search_background_workers": {
+              "default": 2,
+              "title": "Real Search Background Workers",
+              "type": "integer"
+            },
+            "real_search_max_stored_runs": {
+              "default": 200,
+              "title": "Real Search Max Stored Runs",
+              "type": "integer"
+            },
+            "real_search_max_workers": {
+              "default": 2,
+              "title": "Real Search Max Workers",
+              "type": "integer"
+            },
+            "real_search_run_ttl_seconds": {
+              "default": 3600,
+              "title": "Real Search Run Ttl Seconds",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "max_candidate_papers",
+            "max_latency_seconds",
+            "max_search_rounds",
+            "max_top_k"
+          ],
+          "title": "RuntimeLimits",
+          "type": "object"
+        },
+        "SearchBudgets": {
+          "properties": {
+            "max_candidate_papers": {
+              "default": 200,
+              "maximum": 300.0,
+              "minimum": 1.0,
+              "title": "Max Candidate Papers",
+              "type": "integer"
+            },
+            "max_latency_seconds": {
+              "default": 90.0,
+              "exclusiveMinimum": 0.0,
+              "maximum": 120.0,
+              "title": "Max Latency Seconds",
+              "type": "number"
+            },
+            "max_llm_calls": {
+              "default": 20,
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "title": "Max Llm Calls",
+              "type": "integer"
+            },
+            "max_search_rounds": {
+              "default": 2,
+              "maximum": 3.0,
+              "minimum": 1.0,
+              "title": "Max Search Rounds",
+              "type": "integer"
+            },
+            "max_total_tokens": {
+              "default": 50000,
+              "maximum": 1000000.0,
+              "minimum": 0.0,
+              "title": "Max Total Tokens",
+              "type": "integer"
+            }
+          },
+          "title": "SearchBudgets",
+          "type": "object"
+        },
+        "SearchConstraints": {
+          "properties": {
+            "datasets": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Datasets",
+              "type": "array"
+            },
+            "excluded_terms": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Excluded Terms",
+              "type": "array"
+            },
+            "must_have_terms": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Must Have Terms",
+              "type": "array"
+            },
+            "paper_types": {
+              "items": {
+                "enum": [
+                  "application",
+                  "benchmark",
+                  "comparison",
+                  "dataset",
+                  "method",
+                  "review",
+                  "survey"
+                ],
+                "type": "string"
+              },
+              "title": "Paper Types",
+              "type": "array"
+            },
+            "time_range": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TimeRange"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "venues": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Venues",
+              "type": "array"
+            }
+          },
+          "title": "SearchConstraints",
+          "type": "object"
+        },
+        "SearchOptions": {
+          "properties": {
+            "enable_llm_judgement": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enable Llm Judgement"
+            },
+            "enable_llm_query_understanding": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enable Llm Query Understanding"
+            },
+            "enable_query_evolution": {
+              "default": false,
+              "title": "Enable Query Evolution",
+              "type": "boolean"
+            },
+            "enable_refchain": {
+              "default": true,
+              "title": "Enable Refchain",
+              "type": "boolean"
+            },
+            "enable_semantic_seed_expansion": {
+              "default": false,
+              "title": "Enable Semantic Seed Expansion",
+              "type": "boolean"
+            },
+            "judgement_policy": {
+              "default": "current_rules",
+              "enum": [
+                "calibrated_rules_v1",
+                "current_rules"
+              ],
+              "title": "Judgement Policy",
+              "type": "string"
+            },
+            "query_evolution_policy": {
+              "default": "coverage_gap",
+              "enum": [
+                "coverage_gap",
+                "off",
+                "seed_expansion"
+              ],
+              "title": "Query Evolution Policy",
+              "type": "string"
+            },
+            "query_planning_policy": {
+              "default": "current_rules",
+              "enum": [
+                "concept_projection",
+                "controlled_relaxation",
+                "current_plus_disjunctive",
+                "current_rules",
+                "disjunctive_facets",
+                "facet_balanced",
+                "facet_union",
+                "llm_constrained_rewrite",
+                "llm_semantic",
+                "prf_v1"
+              ],
+              "title": "Query Planning Policy",
+              "type": "string"
+            },
+            "ranking_policy": {
+              "default": "current_rules",
+              "enum": [
+                "current_rules",
+                "rrf_fusion"
+              ],
+              "title": "Ranking Policy",
+              "type": "string"
+            },
+            "refchain_depth": {
+              "default": 1,
+              "title": "Refchain Depth",
+              "type": "integer"
+            },
+            "return_json": {
+              "default": true,
+              "title": "Return Json",
+              "type": "boolean"
+            },
+            "return_markdown": {
+              "default": true,
+              "title": "Return Markdown",
+              "type": "boolean"
+            },
+            "stream_events": {
+              "default": true,
+              "title": "Stream Events",
+              "type": "boolean"
+            }
+          },
+          "title": "SearchOptions",
+          "type": "object"
+        },
+        "SearchPlan": {
+          "properties": {
+            "enable_semantic_seed_expansion": {
+              "default": false,
+              "title": "Enable Semantic Seed Expansion",
+              "type": "boolean"
+            },
+            "expanded_queries": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Expanded Queries",
+              "type": "array"
+            },
+            "max_rounds": {
+              "default": 1,
+              "title": "Max Rounds",
+              "type": "integer"
+            },
+            "query_evolution_policy": {
+              "default": "off",
+              "enum": [
+                "coverage_gap",
+                "off",
+                "seed_expansion"
+              ],
+              "title": "Query Evolution Policy",
+              "type": "string"
+            },
+            "query_planning": {
+              "$ref": "#/components/schemas/QueryPlanningResult"
+            },
+            "query_planning_policy": {
+              "default": "current_rules",
+              "enum": [
+                "concept_projection",
+                "controlled_relaxation",
+                "current_plus_disjunctive",
+                "current_rules",
+                "disjunctive_facets",
+                "facet_balanced",
+                "facet_union",
+                "llm_constrained_rewrite",
+                "llm_semantic",
+                "prf_v1"
+              ],
+              "title": "Query Planning Policy",
+              "type": "string"
+            },
+            "ranking_policy": {
+              "default": "current_rules",
+              "enum": [
+                "current_rules",
+                "rrf_fusion"
+              ],
+              "title": "Ranking Policy",
+              "type": "string"
+            },
+            "source_preferences": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Source Preferences",
+              "type": "array"
+            }
+          },
+          "title": "SearchPlan",
+          "type": "object"
+        },
+        "SearchRunCreateRequest": {
+          "properties": {
+            "budgets": {
+              "$ref": "#/components/schemas/SearchBudgets"
+            },
+            "constraints": {
+              "$ref": "#/components/schemas/SearchConstraints"
+            },
+            "locale": {
+              "default": "zh-CN",
+              "title": "Locale",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/components/schemas/SearchOptions"
+            },
+            "query": {
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            },
+            "run_profile": {
+              "default": "balanced",
+              "enum": [
+                "balanced",
+                "evaluation",
+                "fast",
+                "high_recall"
+              ],
+              "title": "Run Profile",
+              "type": "string"
+            },
+            "source_preferences": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "arxiv",
+                      "local_bm25",
+                      "openalex",
+                      "pubmed",
+                      "semantic_scholar"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Preferences"
+            },
+            "top_k": {
+              "default": 20,
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "title": "Top K",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "SearchRunCreateRequest",
+          "type": "object"
+        },
+        "SearchRunCreateResponse": {
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "links": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "title": "Links",
+              "type": "object"
+            },
+            "run_id": {
+              "title": "Run Id",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "cancelled",
+                "failed",
+                "queued",
+                "running",
+                "succeeded"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "created_at",
+            "links",
+            "run_id",
+            "status"
+          ],
+          "title": "SearchRunCreateResponse",
+          "type": "object"
+        },
+        "SearchRunResultResponse": {
+          "properties": {
+            "budget_status": {
+              "$ref": "#/components/schemas/BudgetStatus"
+            },
+            "citation_graph": {
+              "$ref": "#/components/schemas/CitationGraph"
+            },
+            "cost_report": {
+              "$ref": "#/components/schemas/CostReport"
+            },
+            "highly_relevant_papers": {
+              "items": {
+                "$ref": "#/components/schemas/RankedPaper"
+              },
+              "title": "Highly Relevant Papers",
+              "type": "array"
+            },
+            "judgement_config_hash": {
+              "default": "",
+              "title": "Judgement Config Hash",
+              "type": "string"
+            },
+            "judgement_policy": {
+              "default": "current_rules",
+              "enum": [
+                "calibrated_rules_v1",
+                "current_rules"
+              ],
+              "title": "Judgement Policy",
+              "type": "string"
+            },
+            "method_clusters": {
+              "items": {
+                "$ref": "#/components/schemas/MethodCluster"
+              },
+              "title": "Method Clusters",
+              "type": "array"
+            },
+            "missing_evidence": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Missing Evidence",
+              "type": "array"
+            },
+            "partial": {
+              "title": "Partial",
+              "type": "boolean"
+            },
+            "partially_relevant_papers": {
+              "items": {
+                "$ref": "#/components/schemas/RankedPaper"
+              },
+              "title": "Partially Relevant Papers",
+              "type": "array"
+            },
+            "query_analysis": {
+              "$ref": "#/components/schemas/QueryAnalysis"
+            },
+            "retrieval_diagnostics": {
+              "$ref": "#/components/schemas/RetrievalDiagnostics"
+            },
+            "run_id": {
+              "title": "Run Id",
+              "type": "string"
+            },
+            "search_plan": {
+              "$ref": "#/components/schemas/SearchPlan"
+            },
+            "status": {
+              "enum": [
+                "cancelled",
+                "failed",
+                "queued",
+                "running",
+                "succeeded"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "synthesis": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SynthesisOutput"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeline": {
+              "items": {
+                "$ref": "#/components/schemas/TimelineItem"
+              },
+              "title": "Timeline",
+              "type": "array"
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Warnings",
+              "type": "array"
+            }
+          },
+          "required": [
+            "cost_report",
+            "highly_relevant_papers",
+            "method_clusters",
+            "partial",
+            "partially_relevant_papers",
+            "query_analysis",
+            "run_id",
+            "search_plan",
+            "status",
+            "timeline"
+          ],
+          "title": "SearchRunResultResponse",
+          "type": "object"
+        },
+        "SearchRunStatusResponse": {
+          "properties": {
+            "cost_report": {
+              "$ref": "#/components/schemas/CostReport"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "current_stage": {
+              "title": "Current Stage",
+              "type": "string"
+            },
+            "progress": {
+              "$ref": "#/components/schemas/RunProgress"
+            },
+            "run_id": {
+              "title": "Run Id",
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "cancelled",
+                "failed",
+                "queued",
+                "running",
+                "succeeded"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "date-time",
+              "title": "Updated At",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cost_report",
+            "created_at",
+            "current_stage",
+            "progress",
+            "run_id",
+            "status",
+            "updated_at"
+          ],
+          "title": "SearchRunStatusResponse",
+          "type": "object"
+        },
+        "SearchSubquery": {
+          "properties": {
+            "combination_mode": {
+              "default": "all",
+              "enum": [
+                "all",
+                "any"
+              ],
+              "title": "Combination Mode",
+              "type": "string"
+            },
+            "facet_types": {
+              "items": {
+                "enum": [
+                  "dataset",
+                  "method",
+                  "paper_type",
+                  "task",
+                  "temporal",
+                  "topic",
+                  "venue"
+                ],
+                "type": "string"
+              },
+              "title": "Facet Types",
+              "type": "array"
+            },
+            "priority": {
+              "default": 1,
+              "maximum": 5.0,
+              "minimum": 1.0,
+              "title": "Priority",
+              "type": "integer"
+            },
+            "provenance": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Provenance",
+              "type": "array"
+            },
+            "purpose": {
+              "minLength": 1,
+              "title": "Purpose",
+              "type": "string"
+            },
+            "query": {
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            },
+            "source_hints": {
+              "items": {
+                "enum": [
+                  "arxiv",
+                  "local_bm25",
+                  "openalex",
+                  "pubmed",
+                  "semantic_scholar"
+                ],
+                "type": "string"
+              },
+              "title": "Source Hints",
+              "type": "array"
+            }
+          },
+          "required": [
+            "purpose",
+            "query"
+          ],
+          "title": "SearchSubquery",
+          "type": "object"
+        },
+        "SynthesisEvidenceRow": {
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "citation_key": {
+              "title": "Citation Key",
+              "type": "string"
+            },
+            "evidence_source": {
+              "title": "Evidence Source",
+              "type": "string"
+            },
+            "evidence_text": {
+              "title": "Evidence Text",
+              "type": "string"
+            },
+            "final_score": {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Final Score",
+              "type": "number"
+            },
+            "identifiers": {
+              "$ref": "#/components/schemas/PaperIdentifiers"
+            },
+            "paper_title": {
+              "title": "Paper Title",
+              "type": "string"
+            },
+            "rank": {
+              "title": "Rank",
+              "type": "integer"
+            },
+            "row_id": {
+              "title": "Row Id",
+              "type": "string"
+            },
+            "sources": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Sources",
+              "type": "array"
+            },
+            "supported_claim": {
+              "title": "Supported Claim",
+              "type": "string"
+            },
+            "supported_terms": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Supported Terms",
+              "type": "array"
+            },
+            "venue": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Venue"
+            },
+            "year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          "required": [
+            "category",
+            "citation_key",
+            "evidence_source",
+            "evidence_text",
+            "final_score",
+            "paper_title",
+            "rank",
+            "row_id",
+            "supported_claim"
+          ],
+          "title": "SynthesisEvidenceRow",
+          "type": "object"
+        },
+        "SynthesisFinding": {
+          "properties": {
+            "citation_keys": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Citation Keys",
+              "type": "array"
+            },
+            "confidence": {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "title": "Confidence",
+              "type": "number"
+            },
+            "evidence_row_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Evidence Row Ids",
+              "type": "array"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "confidence",
+            "text"
+          ],
+          "title": "SynthesisFinding",
+          "type": "object"
+        },
+        "SynthesisOutput": {
+          "properties": {
+            "answer_summary": {
+              "title": "Answer Summary",
+              "type": "string"
+            },
+            "citation_coverage": {
+              "$ref": "#/components/schemas/CitationCoverage"
+            },
+            "evidence_table": {
+              "items": {
+                "$ref": "#/components/schemas/SynthesisEvidenceRow"
+              },
+              "title": "Evidence Table",
+              "type": "array"
+            },
+            "key_findings": {
+              "items": {
+                "$ref": "#/components/schemas/SynthesisFinding"
+              },
+              "title": "Key Findings",
+              "type": "array"
+            },
+            "limitations": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Limitations",
+              "type": "array"
+            },
+            "status": {
+              "default": "succeeded",
+              "title": "Status",
+              "type": "string"
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Warnings",
+              "type": "array"
+            }
+          },
+          "required": [
+            "answer_summary"
+          ],
+          "title": "SynthesisOutput",
+          "type": "object"
+        },
+        "TimeRange": {
+          "properties": {
+            "end_year": {
+              "anyOf": [
+                {
+                  "maximum": 2200.0,
+                  "minimum": 1800.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Year"
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            },
+            "start_year": {
+              "anyOf": [
+                {
+                  "maximum": 2200.0,
+                  "minimum": 1800.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Year"
+            }
+          },
+          "title": "TimeRange",
+          "type": "object"
+        },
+        "TimelineItem": {
+          "properties": {
+            "paper_ranks": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Paper Ranks",
+              "type": "array"
+            },
+            "summary": {
+              "title": "Summary",
+              "type": "string"
+            },
+            "year": {
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "summary",
+            "year"
+          ],
+          "title": "TimelineItem",
+          "type": "object"
+        },
+        "ValidationError": {
+          "properties": {
+            "ctx": {
+              "title": "Context",
+              "type": "object"
+            },
+            "input": {
+              "title": "Input"
+            },
+            "loc": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "title": "Location",
+              "type": "array"
+            },
+            "msg": {
+              "title": "Message",
+              "type": "string"
+            },
+            "type": {
+              "title": "Error Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "loc",
+            "msg",
+            "type"
+          ],
+          "title": "ValidationError",
+          "type": "object"
+        }
+      }
+    },
+    "paths": {
+      "/api/v1/health": {
+        "get": {
+          "operationId": "health_api_v1_health_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HealthResponse"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Health",
+          "tags": [
+            "api"
+          ]
+        }
+      },
+      "/api/v1/internal/search/preview": {
+        "post": {
+          "operationId": "internal_search_preview_api_v1_internal_search_preview_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalSearchPreviewRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InternalSearchPreviewResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Internal Search Preview",
+          "tags": [
+            "api",
+            "internal-preview"
+          ]
+        }
+      },
+      "/api/v1/internal/search/preview/api-result": {
+        "post": {
+          "operationId": "internal_search_preview_api_result_api_v1_internal_search_preview_api_result_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalSearchPreviewRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SearchRunResultResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Internal Search Preview Api Result",
+          "tags": [
+            "api",
+            "internal-preview"
+          ]
+        }
+      },
+      "/api/v1/real/search/runs": {
+        "post": {
+          "operationId": "create_real_search_run_api_v1_real_search_runs_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchRunCreateRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SearchRunCreateResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Create Real Search Run",
+          "tags": [
+            "api",
+            "real-search"
+          ]
+        }
+      },
+      "/api/v1/real/search/runs/{run_id}": {
+        "get": {
+          "operationId": "get_real_search_run_api_v1_real_search_runs__run_id__get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SearchRunStatusResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Get Real Search Run",
+          "tags": [
+            "api",
+            "real-search"
+          ]
+        }
+      },
+      "/api/v1/real/search/runs/{run_id}/cancel": {
+        "post": {
+          "operationId": "cancel_real_search_run_api_v1_real_search_runs__run_id__cancel_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SearchRunStatusResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Cancel Real Search Run",
+          "tags": [
+            "api",
+            "real-search"
+          ]
+        }
+      },
+      "/api/v1/real/search/runs/{run_id}/events": {
+        "get": {
+          "operationId": "stream_real_search_events_api_v1_real_search_runs__run_id__events_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Stream Real Search Events",
+          "tags": [
+            "api",
+            "real-search"
+          ]
+        }
+      },
+      "/api/v1/real/search/runs/{run_id}/result": {
+        "get": {
+          "operationId": "get_real_search_result_api_v1_real_search_runs__run_id__result_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SearchRunResultResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Get Real Search Result",
+          "tags": [
+            "api",
+            "real-search"
+          ]
+        }
+      },
+      "/api/v1/runtime/config": {
+        "get": {
+          "operationId": "runtime_config_api_v1_runtime_config_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RuntimeConfigResponse"
+                  }
+                }
+              }
+            }
+          },
+          "summary": "Runtime Config",
+          "tags": [
+            "api"
+          ]
+        }
+      }
+    }
+  },
+  "protocol": "public_contract_compatibility_v1",
+  "schema_version": "1",
+  "source_commit": "62e009a9134f1446b90c892c6de438adc1e7995e"
+}

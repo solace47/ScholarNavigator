@@ -1,0 +1,50 @@
+{
+  "artifact_contracts": {
+    "clearance": "benchmark/formal_validation_clearance_v1_protocol.json",
+    "external_scorer_handoff": "benchmark/external_scorer_handoff_v1_protocol.json",
+    "human_annotation_delivery": "benchmark/human_annotation_delivery_v1_protocol.json",
+    "readiness": "benchmark/validation_readiness_bundle_v1_contract.json"
+  },
+  "cli_contracts": {
+    "external_scorer_handoff": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_external_scorer_handoff.py"
+    },
+    "formal_validation_clearance": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_formal_validation_clearance.py"
+    },
+    "human_annotation_delivery": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_human_annotation_delivery.py"
+    },
+    "run_provenance": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_run_provenance.py"
+    },
+    "validation_readiness": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_validation_readiness.py"
+    }
+  },
+  "documentation_files": [
+    "docs/architecture.md",
+    "docs/evaluation.md",
+    "docs/external-scorer-handoff.md",
+    "docs/formal-validation-clearance.md",
+    "docs/human-annotation-delivery.md",
+    "docs/validation-readiness.md"
+  ],
+  "execution": {
+    "gold_or_qrels_loaded": false,
+    "llm_request_count": 0,
+    "network_request_count": 0,
+    "quality_metric_count": 0,
+    "snapshot_write_count": 0
+  },
+  "formal_validation_complete": false,
+  "frontend_types": "frontend/src/types/api.ts",
+  "protocol": "public_contract_compatibility_v1",
+  "schema_version": "1",
+  "source_commit": "62e009a9134f1446b90c892c6de438adc1e7995e"
+}

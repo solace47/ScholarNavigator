@@ -1,5 +1,5 @@
 {
-  "baseline_head": "d5458e997fa124f498757b5968f9deb0e10bc0ec",
+  "baseline_head": "62e009a9134f1446b90c892c6de438adc1e7995e",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -60,6 +60,9 @@
     "architecture_python_dependency_lock": [
       "python_dependency_lock",
       "release_candidate_reproducibility"
+    ],
+    "architecture_public_contract_compatibility": [
+      "public_contract_compatibility"
     ],
     "architecture_release_candidate_reproducibility": [
       "frontend_reproducible_build",
@@ -303,6 +306,24 @@
       "kind": "python_dependency_lock_and_offline_install_qualification"
     },
     {
+      "component_id": "public_contract_compatibility",
+      "files": [
+        "benchmark/public_contract_compatibility_v1_baseline.json",
+        "benchmark/public_contract_compatibility_v1_evidence/current.json",
+        "benchmark/public_contract_compatibility_v1_protocol.json",
+        "docs/architecture.md",
+        "docs/evaluation.md",
+        "docs/public-contract-compatibility.md",
+        "frontend/src/types/api.ts",
+        "scripts/check_public_contract_compatibility.py",
+        "src/scholar_agent/app/api/routes.py",
+        "src/scholar_agent/core/api_schemas.py",
+        "src/scholar_agent/evaluation/public_contract_compatibility.py",
+        "src/scholar_agent/evaluation/run_provenance.py"
+      ],
+      "kind": "public_api_cli_and_artifact_contract_governance"
+    },
+    {
       "component_id": "ranking_decision",
       "files": [
         "benchmark/ranking_decision_audit_v1_protocol.json",
@@ -519,6 +540,15 @@
     "official_scorer_blocked": [
       "official_scorer_absence"
     ],
+    "public_contract_baseline": [
+      "public_contract_compatibility"
+    ],
+    "public_contract_current": [
+      "public_contract_compatibility"
+    ],
+    "public_contract_protocol": [
+      "public_contract_compatibility"
+    ],
     "offline_wheelhouse_install_test": [
       "offline_wheelhouse_intake"
     ],
@@ -698,6 +728,9 @@
     "python_dependency_lock": [
       "python_dependency_lock",
       "release_candidate_reproducibility"
+    ],
+    "public_contract_compatibility": [
+      "public_contract_compatibility"
     ],
     "ranking_decisions": [
       "identity_runtime",

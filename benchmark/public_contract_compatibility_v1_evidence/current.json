@@ -1,0 +1,17 @@
+{
+  "baseline_sha256": "cc6eb909ad40f1fe7e48e6eb1dd84ae60b8705612111670a8a627849ece6c542",
+  "contract_count": 12,
+  "execution": {
+    "gold_or_qrels_loaded": false,
+    "llm_request_count": 0,
+    "network_request_count": 0,
+    "quality_metric_count": 0,
+    "snapshot_write_count": 0
+  },
+  "exit_code": 0,
+  "formal_validation_complete": false,
+  "protocol": "public_contract_compatibility_v1",
+  "schema_version": "1",
+  "snapshot_sha256": "cc6eb909ad40f1fe7e48e6eb1dd84ae60b8705612111670a8a627849ece6c542",
+  "status": "contracts_compatible"
+}

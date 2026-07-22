@@ -1029,6 +1029,11 @@ PYTHONPATH=src python scripts/check_top20_delivery_fidelity.py verify \
 
 ## 限制
 
+`public_contract_compatibility_v1` 只验证评测相关 API、CLI 和机器 JSON 在版本演进中的读取与
+交付兼容性。它不运行 evaluator、不读取 gold/qrels，也不定义或推断官方 scorer Schema；
+兼容性通过不能解释为 Precision、Recall/F1 或官方成绩。协议和命令见
+[`docs/public-contract-compatibility.md`](public-contract-compatibility.md)。
+
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
 
 当前真实运行还包括一次 offset 20 的 30 条固定保留集复核，但只使用 arXiv，且候选阶段只召回 1/65 gold。所有子集都不能代表完整 Benchmark、比赛成绩或多源长期性能；完整 1000 条基线、重复运行和稳定的多领域统计尚未完成。

@@ -1,5 +1,5 @@
 {
-  "baseline_head": "d5458e997fa124f498757b5968f9deb0e10bc0ec",
+  "baseline_head": "62e009a9134f1446b90c892c6de438adc1e7995e",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -60,6 +60,14 @@
     {
       "claim_id": "architecture_offline_wheelhouse_intake",
       "declared_state": "internal_only",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_public_contract_compatibility",
+      "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
       "stale_evidence": [],
@@ -162,7 +170,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 27,
+  "component_count": 28,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -427,6 +435,30 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "public_contract_baseline",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "public_contract_current",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "public_contract_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
     },
     {
       "declared_state": "fresh",
@@ -705,6 +737,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "public_contract_compatibility",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "python_dependency_lock",
       "reasons": [],
       "stale_components": [],
@@ -773,7 +813,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 78,
+    "fresh": 83,
     "not_applicable": 1,
     "stale": 0
   },

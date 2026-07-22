@@ -1,13 +1,13 @@
 {
-  "claim_count": 21,
-  "claim_evidence_coverage_count": 21,
+  "claim_count": 22,
+  "claim_evidence_coverage_count": 22,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "4b73170d2ba7f985360f6b7647a8402bc92e519cfe2be9b3dc24a9f3add2bd22",
-      "size": 39814
+      "sha256": "d2694d5f07110287c31916f8d25dc93bd13114e8434c05c314f12f9b642572dc",
+      "size": 40286
     },
     {
       "document_id": "contest_requirements",
@@ -18,8 +18,8 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "2a366de0ecbfbaebf0bb424c88432adf961e45b72b836a6ddb0d0a29f089d2d2",
-      "size": 118822
+      "sha256": "0c263159eeb108c7c5ceefb6a76984eefe56bd306fc71c637099350195f62691",
+      "size": 119216
     },
     {
       "document_id": "readme",
@@ -133,6 +133,19 @@
       "scope": "internal_validation",
       "statement": "The offline wheelhouse intake validates exact locked wheels, supply-chain metadata, and deterministic offline installation without downloading artifacts.",
       "status": "internal_only"
+    },
+    {
+      "boundary": "Compatibility governance proves engineering contract stability only; it defines neither an official schema nor quality metrics.",
+      "claim_id": "architecture_public_contract_compatibility",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "public_contract_baseline",
+        "public_contract_current",
+        "public_contract_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Public evaluation-facing API, CLI, frontend consumer, and machine artifact contracts are governed by a deterministic versioned compatibility gate.",
+      "status": "verified"
     },
     {
       "boundary": "Exact installed-metadata closure is verified, but the complete local wheelhouse and dual isolated installation proof are absent; historical release evidence and formal blockers remain unchanged.",
@@ -297,7 +310,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 13,
+    "architecture": 14,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -308,6 +321,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 9
+    "verified": 10
   }
 }

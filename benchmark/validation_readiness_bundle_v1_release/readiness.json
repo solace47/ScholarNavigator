@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 21,
+  "claim_count": 22,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 36,
-    "implementation_tree_sha256": "43655dec775fa225a59215f020f98a7acee6ec011a10806b168f70a44e9cc66b"
+    "implementation_file_count": 42,
+    "implementation_tree_sha256": "ac5132c8a1ca5d94433421ac590a72f5c425d773c7d09999a6f22a6c72d9dd75"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 18,
+  "read_only_gate_count": 19,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -76,6 +76,12 @@
       "status": "not_ready_missing_required_wheels"
     },
     {
+      "exit_code": 0,
+      "gate_id": "public_contract_compatibility",
+      "output_sha256": "56b9f5e1eca3ee2223855a4d7fb5b5d11b975f16e3c56d750cb8d795c950910a",
+      "status": "contracts_compatible"
+    },
+    {
       "exit_code": 3,
       "gate_id": "python_dependency_lock",
       "output_sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e",
@@ -108,7 +114,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "c03e812f06961a3862f34d532f3cc47bfdf4bcdbf42000880f27fe718d15a697",
+      "output_sha256": "ddadb907021aa7f6148d9fbe11b88d4f253dd1116071a4d2827e24b6d42805a5",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -126,7 +132,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "846067d4dd2fa2070719806f36fb7ed5b7400468d5f887463568a500adb6a265",
+      "output_sha256": "483d98fb246dee20eb91818da5d1d9bdbe6367cec012b98a2491bed65b1cc8a6",
       "status": "fresh_with_declared_blockers"
     }
   ],
