@@ -124,3 +124,12 @@ mismatch、155 次 HTTP 429 和 8 次 HTTP 503。供应商报告 391,725 prompt 
 `949b38847337a27681c21e1bbf0e4b233ffe97aef281a70517a95ce9c8272aae`、
 `ed836ceeda568d177c136effff4244369dc070ad60f896ab0ebdcf707d8c18c7`。
 该终态不能产生人工 Precision、官方成绩或内部 LLM-proxy 效果结论。
+
+## 后端资格复核
+
+后续 `judge_backend_qualification_v1` 没有重跑 471 项，而是只读取上述 v1/v1.1 脱敏
+证据并执行 24 条预注册合成 canary。当前唯一配置候选取得 6/24 provider/Schema 成功、
+3/24 严格成功；其余 18 条是 11 次 timeout 和 7 次 HTTP 503，另有 3 条响应因额外 HTTP
+attempt 不满足资格门槛。因此没有合格后端，也没有生成后续全量运行建议、标签或统计。
+该结论只说明当前后端/协议组合未通过 conformance，不评价相关性质量。协议和证据见
+[`docs/judge-backend-qualification.md`](judge-backend-qualification.md)。

@@ -24,6 +24,7 @@ def test_manifest_is_readable_and_has_expected_statuses() -> None:
     assert manifest["llm_constrained_rewrite"].runtime_enabled is True
     assert manifest["llm_relevance_judge_v1_1"].runtime_enabled is True
     assert manifest["llm_relevance_adjudicator_v1_1"].runtime_enabled is True
+    assert manifest["judge_backend_qualification_v1"].runtime_enabled is True
     assert manifest["query_evolution"].runtime_enabled is False
     assert manifest["reranking"].runtime_enabled is False
     assert manifest["synthesis"].runtime_enabled is False
@@ -59,6 +60,15 @@ def test_llm_relevance_v1_1_prompts_load_with_frozen_version(name: str) -> None:
     assert prompt.version == "1.1.0"
     assert "{{payload}}" in prompt.user_text
     assert len(prompt.content_hash) == 64
+
+
+def test_judge_backend_qualification_prompt_loads_with_frozen_version() -> None:
+    prompt = load_prompt("judge_backend_qualification_v1")
+
+    assert prompt.version == "1.0.0"
+    assert "{{payload}}" in prompt.user_text
+    assert "exactly one JSON object" in prompt.system_text
+    assert "not judging research relevance" in prompt.system_text
 
 
 @pytest.mark.parametrize(

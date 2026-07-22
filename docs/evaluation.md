@@ -542,6 +542,20 @@ completion、447,232 total tokens，费用不可用。因第一轮未达到 471/
 labels lock、解盲和统计均未启动，所有 LLM-proxy 效果值继续不可用。脱敏证据位于
 `benchmark/llm_relevance_judging_v1_1_record160_incomplete/`。
 
+`judge_backend_qualification_v1` 在不读取历史部分标签和响应正文的前提下，进一步对
+v1/v1.1 脱敏失败证据做描述性归因，并对运行时已配置候选执行最多 24 次固定合成
+canary。门禁只验证原生结构化模式、严格 Schema、opaque item binding、无 fallback/额外
+HTTP attempt 及供应商 usage 可审计性；不生成相关性标签、效果统计、人工 Precision 或
+官方成绩。资格阈值、canary、Prompt 和请求参数都在真实调用前由版本化 protocol 与
+SHA-256 固定。只有 `probe` 加载项目正常 LLM 配置并调用配置的 LLM API，其余阶段离线；
+所有阶段禁止学术 API 和 Snapshot 写入。协议、退出码与解释边界见
+[`docs/judge-backend-qualification.md`](judge-backend-qualification.md)。
+
+本次唯一配置候选 `openai_compatible` / `deepseek-ai/deepseek-v4-flash` 完成固定 24 条：
+18 条 provider failure（11 timeout、7 HTTP 503），6 条通过 Schema/item binding，其中仅
+3 条同时满足单 HTTP attempt，严格成功率为 12.5%。候选不合格，供应商只为 6 条响应
+报告 2,157 tokens，费用不可用；没有标签、效果统计或后续全量运行建议。
+
 `analyze_query_planning_policies.py` 将策略汇总、facet 贡献、逐查询原始/适配查询、候选、事后 gold、重复率、记录成本和无效原因写入 `outputs/benchmark_runs/initial_query_planning_analysis/`。四次 Replay 的实际 HTTP、重试和网络等待均为 0；gold 只在运行后参与诊断。
 
 增加 `--diagnostics` 后，Runner 还会写入 `stage_metrics.json`、`error_analysis.json` 和 `gold_diagnostics.jsonl`。阶段快照只包含论文标识符、标题、年份、来源、子查询 provenance、rank、Judgement 分类与分数，不保存摘要或 Prompt；gold 只在 SearchService 返回后参与统一 identifier matching。

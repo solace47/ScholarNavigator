@@ -203,6 +203,14 @@ HTTP(S)，Markdown 与错误诊断在展示边界转义或散列。可选 hash-o
 
 OpenAI-compatible 客户端以原生 HTTP 字段发送结构化输出和可选模板参数，不把 SDK 的 `extra_body` 包装器写入请求体。只有上游以 HTTP 400/422 明确拒绝 `response_format` 或模板参数时，客户端才在同一逻辑调用内执行一次兼容请求；去除 `response_format` 时增加 JSON-only 传输约束，返回值仍由现有严格 Schema 校验。错误只保留状态码、服务端类型/代码和脱敏摘要，不保存或输出凭据与完整响应正文。
 
+评审后端资格检查通过独立的 `judge_backend_qualification_v1` 路径使用同一
+OpenAI-compatible 客户端，但不进入 SearchService、检索 Prompt 或生产判断。它只向运行时
+已配置候选发送固定合成 canary，并把 provider/model、请求/响应 hash、原生模式诊断和供应商
+usage 写入隔离证据；endpoint、host、认证信息、响应正文及标签不持久化。compatibility
+fallback、额外 HTTP attempt、Schema 或 item binding 失败都会使候选不合格，不会触发
+471 项全量评审。协议见
+[`docs/judge-backend-qualification.md`](judge-backend-qualification.md)。
+
 LLM 语义规划具有独立于检索快照的 `live`、`record`、`record-missing` 和 `replay` 模式。稳定键包含 provider 类型、model、Prompt 名称/版本/hash、规范化输入、显式约束、规则分面、运行档位、温度、Token 上限和 Schema 版本，不包含密钥、gold、qrels、候选或完整 Prompt。动态计划先发现并冻结 LLM 规划键；只有该键可回放后才根据真实补充查询发现下游适配检索键，并把 LLM 键记录为依赖。纯 replay 不调用 LLM 或网络。
 
 重排序、查询演化、RefChain 和证据归纳当前均为规则实现。系统不让 LLM 生成候选论文，也不读取论文全文。

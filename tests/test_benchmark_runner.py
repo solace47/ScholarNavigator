@@ -480,6 +480,7 @@ def test_config_records_llm_prompt_budget_and_code_metadata(tmp_path: Path) -> N
         "llm_constrained_rewrite",
         "llm_relevance_adjudicator_v1_1",
         "llm_relevance_judge_v1_1",
+        "judge_backend_qualification_v1",
         "llm_query_planning",
         "query_understanding",
         "relevance_judgement",

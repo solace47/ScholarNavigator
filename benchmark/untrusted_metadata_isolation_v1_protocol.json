@@ -9,6 +9,8 @@
       "src/scholar_agent/prompts/llm_relevance_judging_v1_1/adjudicator_user.md",
       "src/scholar_agent/prompts/llm_relevance_judging_v1_1/judge_system.md",
       "src/scholar_agent/prompts/llm_relevance_judging_v1_1/judge_user.md",
+      "src/scholar_agent/prompts/judge_backend_qualification_v1/system.md",
+      "src/scholar_agent/prompts/judge_backend_qualification_v1/user.md",
       "src/scholar_agent/prompts/manifest.json",
       "src/scholar_agent/prompts/query_evolution/prompt.md",
       "src/scholar_agent/prompts/query_understanding/system.md",
@@ -75,7 +77,7 @@
     "unknown_response_fields": "reject_batch_and_fallback_to_rules"
   },
   "prompt_inputs": {
-    "manifest_sha256": "1ee8398dd42677ef9363ec74e97521137cc18a492851765905bd34abddd00782",
+    "manifest_sha256": "0882ddf98e2d00647c8dae979d70a85ea18cf0198c1838f22d1da77d7e411b44",
     "system_sha256": "5e6c2d4c9113162d276b2eab9f4067a061c95dc89881f284f29333745706acfe",
     "user_sha256": "15266ce7dcab124200931474d653384a0e2d72aee75af7520c59dae24880f42a"
   },
