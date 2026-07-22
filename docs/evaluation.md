@@ -972,6 +972,34 @@ PYTHONPATH=src python scripts/check_ranking_decisions.py verify \
 tie-break 风险，不会被静默排序掩盖。报告仅解释既有类别门、rerank 和 Top-20 决策，不证明
 相关性、Precision、Recall/F1 或官方成绩，也不得用于后验调整阈值、权重或排序策略。
 
+## Record160 确定性 tie-break v2 资格审计
+
+`deterministic_tiebreak_qualification_v1` 在读取 tie 统计前冻结 exact-tie 定义、稳定键优先级、
+六种候选置换和资格门槛。exact tie 仅指生产排序键去掉最后一级 `original_index` 后六个值逐值
+完全相等；不使用 epsilon、四舍五入桶或近似标题扩大集合。可选
+`deterministic_tiebreak_v2` 优先使用统一身份的稳定标识，其次使用完整的精确
+title+author+year 身份；身份不足时必须使用字段血缘登记的来源记录引用、来源名和规范化字段
+摘要，不能使用输入位置、完成顺序、进程状态、query/case 标识或任何效果信息。
+
+门禁从 1,093 个只读 Snapshot key 经生产 canonicalization、身份去重、Judgement、reranker 和
+selector 精确重建 160 条主分析查询及 4,599 个候选，再对不可变去重候选池执行原序、反序、
+来源块反转/轮转、固定随机及 shard `2→0→1` 完成顺序。每个置换必须得到字节一致的 v2
+逐查询语义投影；score、category、身份集合、字段血缘、阶段事件和非 tie 相对顺序必须不变。
+任一 Top-20 成员、最终返回成员、非 tie 顺序或权威身份变化均为 `not_qualified`。只有 exact
+tie 内部顺序变化且所有语义不变量成立时才是 `qualified_for_review`，仍不得自动启用。
+
+```bash
+PYTHONPATH=src python scripts/check_tiebreak_qualification.py run \
+  --protocol benchmark/deterministic_tiebreak_qualification_v1_protocol.json \
+  --output /tmp/tiebreak-qualification
+PYTHONPATH=src python scripts/check_tiebreak_qualification.py verify \
+  --output /tmp/tiebreak-qualification
+```
+
+退出码 `0/2/3/4` 分别表示 `qualified_for_review`、语义或稳定性违规、`not_qualified`/
+`not_eligible`、用法错误。该资格只证明稳定决胜规则的可复现性，不证明排序相关性、
+Precision、Recall/F1 或官方成绩，也不修改 current_rules 默认行为或 evidence 结论。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

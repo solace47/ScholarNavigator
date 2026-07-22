@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
+import unicodedata
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from datetime import date
+from typing import Literal
 
+from scholar_agent.core.identity import build_identity_profile, normalize_title
 from scholar_agent.core.paper_schemas import Paper
 from scholar_agent.core.search_schemas import (
     JudgementCategory,
@@ -42,6 +49,14 @@ PRODUCTION_RERANK_KEY_FIELDS: tuple[tuple[str, str], ...] = (
     ("original_index", "ascending"),
 )
 
+TieBreakPolicy = Literal["original_index_v1", "deterministic_tiebreak_v2"]
+DEFAULT_TIEBREAK_POLICY: TieBreakPolicy = "original_index_v1"
+DETERMINISTIC_TIEBREAK_V2 = "deterministic_tiebreak_v2"
+
+
+class DeterministicTieBreakUnavailable(ValueError):
+    """A v2 exact-tie group lacks a unique, auditable stable key."""
+
 
 class RerankerAgent:
     """Deterministic metadata-only reranker."""
@@ -52,6 +67,8 @@ class RerankerAgent:
         judged_papers: list[JudgementResult],
         *,
         top_k: int = 20,
+        tie_break_policy: TieBreakPolicy = DEFAULT_TIEBREAK_POLICY,
+        source_record_refs: Mapping[int, Sequence[str]] | None = None,
     ) -> list[RankedPaper]:
         if top_k <= 0:
             return []
@@ -60,7 +77,26 @@ class RerankerAgent:
             _score_judgement(query_analysis, judgement, original_index)
             for original_index, judgement in enumerate(judged_papers)
         ]
-        scored.sort(key=_sort_key)
+        if tie_break_policy == DEFAULT_TIEBREAK_POLICY:
+            scored.sort(key=_sort_key)
+        elif tie_break_policy == DETERMINISTIC_TIEBREAK_V2:
+            refs = source_record_refs or {}
+            stable_keys = {
+                item.original_index: deterministic_tiebreak_v2_key(
+                    item.judgement.paper,
+                    source_record_refs=refs.get(item.original_index, ()),
+                )
+                for item in scored
+            }
+            _validate_v2_tie_keys(scored, stable_keys)
+            scored.sort(
+                key=lambda item: (
+                    *_primary_sort_key(item),
+                    stable_keys[item.original_index],
+                )
+            )
+        else:
+            raise ValueError("unsupported_tie_break_policy")
         return [
             _to_ranked_paper(rank=index + 1, scored=scored_item)
             for index, scored_item in enumerate(scored[:top_k])
@@ -72,10 +108,18 @@ def rerank_papers(
     judged_papers: list[JudgementResult],
     *,
     top_k: int = 20,
+    tie_break_policy: TieBreakPolicy = DEFAULT_TIEBREAK_POLICY,
+    source_record_refs: Mapping[int, Sequence[str]] | None = None,
 ) -> list[RankedPaper]:
     """Rerank judged papers using deterministic metadata signals."""
 
-    return RerankerAgent().rerank(query_analysis, judged_papers, top_k=top_k)
+    return RerankerAgent().rerank(
+        query_analysis,
+        judged_papers,
+        top_k=top_k,
+        tie_break_policy=tie_break_policy,
+        source_record_refs=source_record_refs,
+    )
 
 
 class _ScoredJudgement:
@@ -247,6 +291,10 @@ def _identifier_count(paper: Paper) -> int:
 
 
 def _sort_key(scored: _ScoredJudgement) -> tuple[object, ...]:
+    return (*_primary_sort_key(scored), scored.original_index)
+
+
+def _primary_sort_key(scored: _ScoredJudgement) -> tuple[object, ...]:
     paper = scored.judgement.paper
     return (
         CATEGORY_TIER.get(scored.judgement.category, 5),
@@ -255,8 +303,149 @@ def _sort_key(scored: _ScoredJudgement) -> tuple[object, ...]:
         -max(paper.citation_count, 0),
         -(paper.year or 0),
         paper.title.casefold(),
-        scored.original_index,
     )
+
+
+def deterministic_tiebreak_v2_key(
+    paper: Paper,
+    *,
+    source_record_refs: Sequence[str] = (),
+) -> str:
+    """Build the optional v2 key without input-position or execution state.
+
+    Unified stable identifiers take precedence.  The conservative title,
+    author and year identity is used only when all three are available.  If
+    neither identity form is available, the caller must supply registered
+    field-lineage record references; their raw records are never embedded in
+    the key or audit output.
+    """
+
+    profile = build_identity_profile(paper)
+    if profile.identifiers:
+        payload = {
+            "kind": "stable_identifiers",
+            "identifiers": sorted(profile.identifiers),
+        }
+        return f"0:{_stable_digest(payload)}"
+    if profile.title and profile.authors and profile.year is not None:
+        payload = {
+            "kind": "exact_title_author_year",
+            "title": profile.title,
+            "authors": sorted(profile.authors),
+            "year": profile.year,
+        }
+        return f"1:{_stable_digest(payload)}"
+
+    refs = sorted({str(value) for value in source_record_refs if str(value)})
+    if not refs or any(not value.startswith("record:") for value in refs):
+        raise DeterministicTieBreakUnavailable(
+            "registered_source_record_reference_required"
+        )
+    payload = {
+        "kind": "source_record_and_normalized_fields",
+        "sources": sorted(
+            {
+                str(value).strip().casefold()
+                for value in paper.sources
+                if str(value).strip()
+            }
+        ),
+        "source_record_refs": refs,
+        "field_summary_sha256": _stable_digest(_normalized_field_summary(paper)),
+    }
+    return f"2:{_stable_digest(payload)}"
+
+
+def deterministic_tiebreak_v2_catalog() -> dict[str, object]:
+    """Describe the explicitly enabled v2 key for offline qualification."""
+
+    return {
+        "version": DETERMINISTIC_TIEBREAK_V2,
+        "default_enabled": False,
+        "exact_tie_key": [
+            {"field": field, "direction": direction}
+            for field, direction in PRODUCTION_RERANK_KEY_FIELDS[:-1]
+        ],
+        "equality": "exact_python_value_equality_no_float_tolerance",
+        "stable_key_precedence": [
+            "unified_stable_identifiers",
+            "unified_exact_title_author_year",
+            "registered_source_record_refs_and_normalized_field_summary_sha256",
+        ],
+        "fallback_requires_registered_source_record": True,
+        "prohibited_inputs": [
+            "input_position",
+            "completion_order",
+            "process_state",
+            "gold",
+            "quality_result",
+            "case_id",
+        ],
+    }
+
+
+def trace_deterministic_tiebreak_v2(
+    query_analysis: QueryAnalysis,
+    judgement: JudgementResult,
+    original_index: int,
+    *,
+    source_record_refs: Sequence[str] = (),
+) -> dict[str, object]:
+    """Observe the exact primary and v2 keys without changing default rerank."""
+
+    scored = _score_judgement(query_analysis, judgement, original_index)
+    stable_key = deterministic_tiebreak_v2_key(
+        judgement.paper, source_record_refs=source_record_refs
+    )
+    return {
+        "primary_sort_key": list(_primary_sort_key(scored)),
+        "stable_key": stable_key,
+        "stable_key_kind": stable_key.split(":", 1)[0],
+    }
+
+
+def _validate_v2_tie_keys(
+    scored: Sequence[_ScoredJudgement], stable_keys: Mapping[int, str]
+) -> None:
+    groups: defaultdict[tuple[object, ...], list[_ScoredJudgement]] = defaultdict(list)
+    for item in scored:
+        groups[_primary_sort_key(item)].append(item)
+    for values in groups.values():
+        if len(values) < 2:
+            continue
+        keys = [stable_keys[item.original_index] for item in values]
+        if len(keys) != len(set(keys)):
+            raise DeterministicTieBreakUnavailable("stable_key_collision_in_exact_tie")
+
+
+def _normalized_field_summary(paper: Paper) -> dict[str, object]:
+    profile = build_identity_profile(paper)
+    return {
+        "title": profile.title,
+        "authors": sorted(profile.authors),
+        "year": profile.year,
+        "venue": normalize_title(paper.venue),
+        "abstract": _normalize_stable_text(paper.abstract),
+        "landing_page": _normalize_stable_text(paper.urls.landing_page),
+        "pdf": _normalize_stable_text(paper.urls.pdf),
+        "citation_count": int(paper.citation_count),
+    }
+
+
+def _normalize_stable_text(value: object | None) -> str:
+    if value is None:
+        return ""
+    return " ".join(unicodedata.normalize("NFKC", str(value)).casefold().split())
+
+
+def _stable_digest(value: object) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def production_ranking_decision_catalog() -> dict[str, object]:
