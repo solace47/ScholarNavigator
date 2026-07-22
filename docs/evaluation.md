@@ -945,6 +945,33 @@ PYTHONPATH=src python scripts/check_constraint_decisions.py verify \
 留出都重新调用同一生产判断/排序链，只描述规则选择性、正负证据耦合与 Top-20 填充变化；
 它不是可部署替代方案，不证明相关性、Precision、Recall 或官方成绩，也不会自动放宽约束。
 
+## Record160 Judgement 与排序决策审计
+
+`ranking_decision_audit_v1` 在读取冻结结果统计前固定 `current_rules` 的 16 个 Judgement
+分数组件、`0.72/0.45/0.25` 类别阈值及 `>=` 边界、rerank 四项分量和完整排序键：类别层级、
+综合分、Judgement 分、引用、年份、标题 `casefold`、原输入序号。审计不另算分数，而是读取
+生产 `JudgementFeatureVector`、生产 `RerankScoreBreakdown` 和生产 `_sort_key` 的观察性 trace；
+Top-20 语义固定为“完整 rerank 后截取前 20，再保留 high/partial”。
+
+冻结 Record162 中 160 条主分析查询、2 条既有无成功来源排除、1,093 个 Snapshot key 和
+4,599 个预算内唯一候选均闭合。每条候选记录 opaque query/paper identity、字段合并血缘摘要、
+组件与总分、相邻阈值 margin、rerank 前后位置、脱敏可重建排序键、Top-20 cutline 与终态；
+不保存 query、标题、摘要、标识符或 gold。组件求和、类别、排序和最终返回均须逐候选重建
+冻结阶段，NaN/Infinity、未登记组件、缺失排序键、重复身份及截断异常均使门禁失败。
+
+```bash
+PYTHONPATH=src python scripts/check_ranking_decisions.py run \
+  --protocol benchmark/ranking_decision_audit_v1_protocol.json \
+  --output /tmp/ranking-decision-audit
+PYTHONPATH=src python scripts/check_ranking_decisions.py verify \
+  --output /tmp/ranking-decision-audit
+```
+
+退出码 `0/2/3/4` 分别表示完成、重建或排序语义违规、`not_eligible`、用法错误。输入置换
+边界测试允许且显式报告生产最后一级 `original_index` 对完全同键候选的影响；这属于可审计
+tie-break 风险，不会被静默排序掩盖。报告仅解释既有类别门、rerank 和 Top-20 决策，不证明
+相关性、Precision、Recall/F1 或官方成绩，也不得用于后验调整阈值、权重或排序策略。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

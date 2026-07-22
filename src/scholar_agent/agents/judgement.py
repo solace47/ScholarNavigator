@@ -1381,6 +1381,107 @@ def _category(
     return "irrelevant"
 
 
+PRODUCTION_JUDGEMENT_COMPONENT_ORDER: tuple[str, ...] = (
+    "topic_match",
+    "must_have_match",
+    "method_match",
+    "dataset_match",
+    "paper_type_match",
+    "domain_match",
+    "venue_match",
+    "temporal_match",
+    "venue_mismatch_penalty",
+    "temporal_mismatch_penalty",
+    "paper_type_mismatch_penalty",
+    "missing_abstract_penalty",
+    "missing_metadata_penalty",
+    "constraint_coverage_adjustment",
+    "clamp_adjustment",
+    "hard_constraint_adjustment",
+)
+
+
+def production_judgement_decision_catalog(
+    config: JudgementRuleConfig | None = None,
+) -> dict[str, Any]:
+    """Describe current rule scoring without introducing a second scorer.
+
+    This is an observational contract used by offline audits.  The component
+    values themselves remain produced by :func:`judge_papers` and its feature
+    vector; callers must not use this catalog to recompute production output.
+    """
+
+    resolved = config or CURRENT_RULES_CONFIG
+    return {
+        "version": "current-rules-judgement-decision-v1",
+        "config_version": resolved.config_version,
+        "config_hash": judgement_config_hash(resolved),
+        "component_order": list(PRODUCTION_JUDGEMENT_COMPONENT_ORDER),
+        "component_decimals": 6,
+        "score_decimals": 4,
+        "finite_only": True,
+        "threshold_comparison": "greater_than_or_equal",
+        "thresholds": {
+            "highly_relevant": resolved.highly_relevant_threshold,
+            "partially_relevant": resolved.partially_relevant_threshold,
+            "weakly_relevant": resolved.weakly_relevant_threshold,
+        },
+        "special_category_reasons": [
+            "missing_title_and_abstract",
+            "minimum_evidence_count_not_met",
+            "excluded_term_hard_constraint",
+            "constraint_guard_applied",
+        ],
+    }
+
+
+def production_category_from_score(
+    score: float,
+    config: JudgementRuleConfig | None = None,
+) -> str:
+    """Expose the exact production threshold predicate for boundary audits."""
+
+    resolved = config or CURRENT_RULES_CONFIG
+    return _category(
+        score,
+        threshold_high=resolved.highly_relevant_threshold,
+        threshold_partial=resolved.partially_relevant_threshold,
+        threshold_weak=resolved.weakly_relevant_threshold,
+    )
+
+
+def trace_judgement_decision(result: JudgementResult) -> dict[str, Any]:
+    """Return the already-produced score trace without changing judgement."""
+
+    feature = result.feature_vector
+    if feature is None:
+        return {
+            "status": "feature_vector_missing",
+            "score": result.score,
+            "category": result.category,
+            "components": {},
+            "category_reason": "feature_vector_missing",
+        }
+    return {
+        "status": "recorded",
+        "score": result.score,
+        "category": result.category,
+        "components": {
+            key: feature.score_components[key]
+            for key in PRODUCTION_JUDGEMENT_COMPONENT_ORDER
+            if key in feature.score_components
+        },
+        "category_reason": feature.category_reason,
+        "thresholds": {
+            "highly_relevant": feature.highly_relevant_threshold,
+            "partially_relevant": feature.partially_relevant_threshold,
+            "weakly_relevant": feature.weakly_relevant_threshold,
+        },
+        "hard_constraint_failures": list(feature.hard_constraint_failures),
+        "constraint_results": dict(sorted(feature.constraint_results.items())),
+    }
+
+
 def _validate_thresholds(
     threshold_high: float,
     threshold_partial: float,

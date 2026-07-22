@@ -32,6 +32,16 @@ CATEGORY_MULTIPLIER: dict[str, float] = {
     "insufficient_evidence": 0.25,
 }
 
+PRODUCTION_RERANK_KEY_FIELDS: tuple[tuple[str, str], ...] = (
+    ("category_tier", "ascending"),
+    ("final_score", "descending"),
+    ("relevance_score", "descending"),
+    ("nonnegative_citation_count", "descending"),
+    ("year_or_zero", "descending"),
+    ("title_casefold", "ascending"),
+    ("original_index", "ascending"),
+)
+
 
 class RerankerAgent:
     """Deterministic metadata-only reranker."""
@@ -247,6 +257,55 @@ def _sort_key(scored: _ScoredJudgement) -> tuple[object, ...]:
         paper.title.casefold(),
         scored.original_index,
     )
+
+
+def production_ranking_decision_catalog() -> dict[str, object]:
+    """Describe the existing rerank key and numeric semantics for audits."""
+
+    return {
+        "version": "current-rules-rerank-decision-v1",
+        "category_tiers": dict(CATEGORY_TIER),
+        "category_multipliers": dict(CATEGORY_MULTIPLIER),
+        "score_components": [
+            "relevance_score",
+            "authority_score",
+            "timeliness_score",
+            "metadata_score",
+            "category_multiplier",
+            "final_score",
+            "relevance_weight",
+            "authority_weight",
+            "timeliness_weight",
+            "metadata_weight",
+        ],
+        "component_decimals": 4,
+        "final_score_decimals": 4,
+        "sort_key": [
+            {"field": field, "direction": direction}
+            for field, direction in PRODUCTION_RERANK_KEY_FIELDS
+        ],
+        "missing_values": {
+            "citation_count": "max(value, 0)",
+            "year": "zero",
+            "title": "Paper schema requires a string; casefold is exact",
+        },
+    }
+
+
+def trace_ranking_decision(
+    query_analysis: QueryAnalysis,
+    judgement: JudgementResult,
+    original_index: int,
+) -> dict[str, object]:
+    """Observe the exact existing score and sort key for one candidate."""
+
+    scored = _score_judgement(query_analysis, judgement, original_index)
+    return {
+        "score_breakdown": scored.score_breakdown.model_dump(mode="json"),
+        "sort_key": list(_sort_key(scored)),
+        "tie_key": list(_sort_key(scored)[:-1]),
+        "original_index": original_index,
+    }
 
 
 def _to_ranked_paper(rank: int, scored: _ScoredJudgement) -> RankedPaper:
