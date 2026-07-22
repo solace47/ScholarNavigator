@@ -131,7 +131,10 @@ def test_paper_fields_identifiers_urls_and_sources_are_preserved() -> None:
 
     response = map_search_service_output_to_api_result("run_real_2", output)
     mapped = response.highly_relevant_papers[0].paper
+    ranked = response.highly_relevant_papers[0]
 
+    assert ranked.result_identity.startswith("result:")
+    assert len(ranked.authority_digest) == 64
     assert mapped.title == "Mapped Paper"
     assert mapped.authors == ["Alice", "Bob"]
     assert mapped.year == 2025
@@ -182,8 +185,8 @@ def test_highly_partial_and_filtered_categories_are_mapped_correctly() -> None:
     assert [item.paper.title for item in response.highly_relevant_papers] == ["Highly"]
     assert [item.paper.title for item in response.partially_relevant_papers] == [
         "Partial",
-        "Weak",
     ]
+    assert "filtered_paper:3:weakly_relevant:0.9000:Weak" in response.missing_evidence
     assert (
         "filtered_paper:4:irrelevant:0.1235:Irrelevant"
         in response.missing_evidence
@@ -571,7 +574,7 @@ def _paper(
     pubmed_id: str | None = None,
     sources: list[str] | None = None,
     abstract: str = "A mapped paper about LLM reranking and scientific retrieval.",
-    year: int = 2025,
+    year: int | None = 2025,
 ) -> Paper:
     slug = title.casefold().replace(" ", "-")
     return Paper(

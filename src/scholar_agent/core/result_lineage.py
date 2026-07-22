@@ -266,6 +266,17 @@ def result_identity(paper: Paper) -> str:
     return f"result:{stable_sha256(payload)}"
 
 
+def ranked_result_authority_digest(ranked: Any) -> str:
+    """Hash one authoritative ranked result before public display transforms."""
+
+    payload = (
+        ranked.model_dump(mode="json")
+        if hasattr(ranked, "model_dump")
+        else ranked
+    )
+    return stable_sha256({"ranked_result": payload})
+
+
 def restrict_result_lineage_document(
     document: Mapping[str, Any], final_papers: Sequence[Paper]
 ) -> dict[str, Any]:

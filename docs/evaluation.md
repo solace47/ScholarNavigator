@@ -1000,6 +1000,33 @@ PYTHONPATH=src python scripts/check_tiebreak_qualification.py verify \
 `not_eligible`、用法错误。该资格只证明稳定决胜规则的可复现性，不证明排序相关性、
 Precision、Recall/F1 或官方成绩，也不修改 current_rules 默认行为或 evidence 结论。
 
+## Record160 Top-20 交付保真
+
+`top20_delivery_fidelity_v1` 在读取统计前冻结 `final_returned` 权威阶段、最多 20 条语义、
+统一身份、必要/可空字段、UTF-8 编码、分页和出口版本。它从 1,093 个只读 Snapshot key
+经生产 canonicalization、去重、`current_rules` Judgement、reranker 和正式 selector 精确
+重建 160 条主分析 query 的 1,396 条最终结果；2 条既有无成功来源排除保持不变。
+
+门禁逐项验证公共 API、JSON、JSONL 和前端展示的数量、身份、顺序、字段及分页
+round-trip。公共结果新增 `result_identity` 作为稳定前端 key，并以 `authority_digest` 绑定
+展示安全变换前的完整权威结果；未知年份保持 `null`。产品默认 tie-break 仍为
+`original_index_v1`，`deterministic_tiebreak_v2` 不进入这次权威重建。仓库没有生产 CSV/
+表格结果出口，因此固定报告 `unsupported_export`；Record160 旧运行缺少新式 run manifest
+和提交代，复现胶囊固定报告 `not_eligible`，两者均不得伪造为通过。
+
+```bash
+PYTHONPATH=src python scripts/check_top20_delivery_fidelity.py run \
+  --contract benchmark/top20_delivery_contract_v1.json \
+  --output /tmp/top20-delivery-fidelity
+PYTHONPATH=src python scripts/check_top20_delivery_fidelity.py verify \
+  --output /tmp/top20-delivery-fidelity
+```
+
+退出码 `0/2/3/4` 分别表示全出口通过、交付或 round-trip 违规、`not_eligible`/
+`unsupported_export`、用法错误。该门禁不生成比赛提交文件，不猜测官方 schema，也不证明
+相关性、Precision、Recall/F1 或官方成绩。完整只读清单见
+[`docs/top20-delivery-fidelity.md`](top20-delivery-fidelity.md)。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

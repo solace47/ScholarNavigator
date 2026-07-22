@@ -7,6 +7,10 @@ from collections import defaultdict
 from scholar_agent.core import api_schemas as api
 from scholar_agent.core.identity import paper_identifier_set
 from scholar_agent.core.paper_schemas import Paper as InternalPaper
+from scholar_agent.core.result_lineage import (
+    ranked_result_authority_digest,
+    result_identity,
+)
 from scholar_agent.core.untrusted_metadata import (
     opaque_record_identity,
     protect_text,
@@ -25,6 +29,10 @@ from scholar_agent.core.synthesis_schemas import (
     SynthesisEvidenceRow as InternalSynthesisEvidenceRow,
     SynthesisFinding as InternalSynthesisFinding,
     SynthesisOutput as InternalSynthesisOutput,
+)
+from scholar_agent.evaluation.selection import (
+    DEFAULT_RESULT_POLICY,
+    select_ranked_results,
 )
 from scholar_agent.services.search_service import SearchServiceOutput
 
@@ -65,13 +73,22 @@ def map_search_service_output_to_api_result(
     partially_relevant: list[api.RankedPaper] = []
     missing_evidence = _missing_evidence(output)
 
+    selected = select_ranked_results(output, policy=DEFAULT_RESULT_POLICY)
+    selected_object_ids = {id(item) for item in selected}
     for ranked in output.ranked_papers:
         mapped = map_ranked_paper(ranked)
-        if ranked.category == "highly_relevant":
+        if id(ranked) in selected_object_ids and ranked.category == "highly_relevant":
             highly_relevant.append(mapped)
-        elif ranked.category in {"partially_relevant", "weakly_relevant"}:
+        elif (
+            id(ranked) in selected_object_ids
+            and ranked.category == "partially_relevant"
+        ):
             partially_relevant.append(mapped)
-        elif ranked.category in {"irrelevant", "insufficient_evidence"}:
+        elif ranked.category in {
+            "weakly_relevant",
+            "irrelevant",
+            "insufficient_evidence",
+        }:
             missing_evidence.append(_filtered_paper_diagnostic(ranked))
             identifier = _filtered_paper_identifier(ranked.paper)
             if identifier:
@@ -106,6 +123,23 @@ def map_search_service_output_to_api_result(
     )
 
 
+def map_final_ranked_papers(
+    ranked_papers: list[InternalRankedPaper],
+) -> list[api.RankedPaper]:
+    """Map the formal public result set using the shared production selector.
+
+    This narrow helper is also the delivery audit boundary: it applies the same
+    Top-K/category contract as the API without constructing unrelated run
+    diagnostics or introducing a second result-selection implementation.
+    """
+
+    selected = select_ranked_results(
+        {"ranked_papers": ranked_papers},
+        policy=DEFAULT_RESULT_POLICY,
+    )
+    return [map_ranked_paper(item) for item in selected]
+
+
 def map_paper(paper: InternalPaper) -> api.Paper:
     """Map an internal Paper into an API Paper."""
 
@@ -116,7 +150,7 @@ def map_paper(paper: InternalPaper) -> api.Paper:
             _public_text(author, "paper.author", record_identity)
             for author in paper.authors
         ],
-        year=paper.year or 0,
+        year=paper.year,
         venue=(
             _public_text(paper.venue, "paper.venue", record_identity)
             if paper.venue is not None
@@ -151,6 +185,8 @@ def map_ranked_paper(ranked: InternalRankedPaper) -> api.RankedPaper:
     """Map an internal RankedPaper into an API RankedPaper."""
 
     return api.RankedPaper(
+        result_identity=result_identity(ranked.paper),
+        authority_digest=ranked_result_authority_digest(ranked),
         rank=ranked.rank,
         paper=map_paper(ranked.paper),
         relevance_score=ranked.final_score,

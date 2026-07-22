@@ -211,7 +211,7 @@ class PaperUrls(BaseModel):
 class Paper(BaseModel):
     title: str
     authors: list[str]
-    year: int
+    year: int | None = None
     venue: str | None = None
     abstract: str
     identifiers: PaperIdentifiers = Field(default_factory=PaperIdentifiers)
@@ -277,6 +277,8 @@ class RRFListContribution(BaseModel):
 
 
 class RankedPaper(BaseModel):
+    result_identity: str
+    authority_digest: str
     rank: int
     paper: Paper
     relevance_score: float = Field(ge=0.0, le=1.0)

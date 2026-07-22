@@ -209,7 +209,7 @@ export interface PaperUrls {
 export interface Paper {
   title: string;
   authors: string[];
-  year: number;
+  year: number | null;
   venue?: string | null;
   abstract: string;
   identifiers: PaperIdentifiers;
@@ -268,6 +268,8 @@ export interface SynthesisOutput {
 }
 
 export interface RankedPaper {
+  result_identity: string;
+  authority_digest: string;
   rank: number;
   paper: Paper;
   relevance_score: number;

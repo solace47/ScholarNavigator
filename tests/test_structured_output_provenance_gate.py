@@ -40,6 +40,8 @@ def _fixture() -> dict[str, object]:
         "sources": ["arxiv"],
     }
     candidate = {
+        "authority_digest": "2" * 64,
+        "result_identity": "result:" + ("1" * 64),
         "rank": 1,
         "paper": paper,
         "relevance_score": 0.8,

@@ -44,6 +44,7 @@ import {
   identifierEntries,
   safeExternalUrl,
 } from "@/lib/format";
+import { top20PaperKey } from "@/lib/top20-delivery";
 import type {
   CostReport,
   RankedPaper,
@@ -2117,7 +2118,7 @@ function PaperSection({
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {papers.map((paper) => (
-          <PaperCard key={`${paper.rank}-${paper.paper.title}`} paper={paper} />
+          <PaperCard key={top20PaperKey(paper)} paper={paper} />
         ))}
       </div>
     </section>
