@@ -917,6 +917,34 @@ PYTHONPATH=src python scripts/check_source_reliability.py verify
 诊断来源可用性、结构化产出和流水线静默损失；产出量、约束放行和 Top-20 出现均不证明
 相关性、Precision、Recall/F1 或官方成绩，也不会自动改变来源配置或 evidence 结论。
 
+## Record160 显式约束决策审计
+
+`constraint_decision_audit_v1` 在读取冻结候选前固定八个 `QueryConstraint` 字段、生产谓词
+版本、字段来源、缺失值语义、组合顺序、单约束留出和查询结构分层。实现直接调用
+`JudgementAgent` 的生产 term、paper-type、venue 与 time 谓词，并沿用统一身份去重、
+`current_rules` Judgement、reranker 和 `highly_and_partial` selector；不存在第二套过滤器。
+每个候选的 expected/matched 参数仅保存计数和哈希，论文身份、查询身份及 component 均为
+opaque 摘要，原 query、标题、摘要、标识和错误正文不进入审计产物。
+
+决策状态固定为 `passed/failed/not_applicable/unknown`。null、空字符串和字段存在分别记录；
+缺少 title+abstract、venue 或 year 时为 `unknown`，同时保留生产布尔结果，避免把无法验证
+静默写成明确不匹配。`QueryConstraint.domains` 只参与 planning，候选 Judgement 的 domain
+信号来自 `QueryAnalysis.domain`，因此该字段明确标为 candidate predicate 不适用。审计要求
+全部候选记录所有失败集合，并从记录独立重建 constraint survivor 与 Top-20 身份；约束值及
+`explicit_fields` 顺序置换必须保持 score、category、排名和结果不变。
+
+```bash
+PYTHONPATH=src python scripts/check_constraint_decisions.py run \
+  --protocol benchmark/constraint_decision_audit_v1_protocol.json \
+  --output /tmp/constraint-decision-audit
+PYTHONPATH=src python scripts/check_constraint_decisions.py verify \
+  --output /tmp/constraint-decision-audit
+```
+
+退出码 `0/2/3/4` 分别表示完成、重建或字段语义违规、`not_eligible`、用法错误。每次单字段
+留出都重新调用同一生产判断/排序链，只描述规则选择性、正负证据耦合与 Top-20 填充变化；
+它不是可部署替代方案，不证明相关性、Precision、Recall 或官方成绩，也不会自动放宽约束。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。

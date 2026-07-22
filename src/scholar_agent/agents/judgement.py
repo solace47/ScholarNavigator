@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -141,6 +143,18 @@ JUDGEMENT_CATEGORY_ORDER = {
     "irrelevant": 3,
     "insufficient_evidence": 4,
 }
+
+PRODUCTION_CONSTRAINT_PREDICATE_VERSION = "constraint-predicates-current-rules-v1"
+PRODUCTION_CONSTRAINT_ORDER = (
+    "exclude_terms",
+    "must_include_terms",
+    "methods",
+    "datasets",
+    "domains",
+    "paper_types",
+    "venues",
+    "time_range",
+)
 
 LLM_JUDGEMENT_BATCH_SIZE_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_BATCH_SIZE"
 LLM_JUDGEMENT_MAX_PAPERS_ENV = "SCHOLAR_AGENT_LLM_JUDGEMENT_MAX_PAPERS"
@@ -1507,6 +1521,392 @@ def _constraint_results(
             paper,
         )
     return results
+
+
+def production_constraint_catalog() -> dict[str, Any]:
+    """Return the candidate-level constraint contract used by current rules.
+
+    This catalog is observational metadata for offline audits.  The predicates
+    remain the same helpers used by :func:`judge_papers`; no filtering path is
+    introduced here.
+    """
+
+    return {
+        "predicate_version": PRODUCTION_CONSTRAINT_PREDICATE_VERSION,
+        "field_order": list(PRODUCTION_CONSTRAINT_ORDER),
+        "fields": {
+            "exclude_terms": {
+                "evidence_fields": ["title", "abstract"],
+                "enforcement": "hard_guard",
+                "combination": "no_expected_term_matches",
+                "missing_value": "unknown_when_all_evidence_text_is_empty",
+            },
+            "must_include_terms": {
+                "evidence_fields": ["title", "abstract"],
+                "enforcement": "scoring_and_explicit_guard",
+                "combination": "all_when_explicit_otherwise_scoring_any",
+                "missing_value": "unknown_when_all_evidence_text_is_empty",
+            },
+            "methods": {
+                "evidence_fields": ["title", "abstract"],
+                "enforcement": "scoring_only",
+                "combination": "any_expected_term_matches",
+                "missing_value": "unknown_when_all_evidence_text_is_empty",
+            },
+            "datasets": {
+                "evidence_fields": ["title", "abstract"],
+                "enforcement": "scoring_and_explicit_soft_guard",
+                "combination": "any_expected_term_matches",
+                "missing_value": "unknown_when_all_evidence_text_is_empty",
+            },
+            "domains": {
+                "evidence_fields": [],
+                "enforcement": "planning_only_not_consumed_by_candidate_predicate",
+                "combination": "not_applicable",
+                "missing_value": "not_applicable",
+            },
+            "paper_types": {
+                "evidence_fields": ["title", "abstract"],
+                "enforcement": "scoring_and_soft_guard",
+                "combination": "any_production_alias_matches",
+                "missing_value": "unknown_when_all_evidence_text_is_empty",
+            },
+            "venues": {
+                "evidence_fields": ["venue"],
+                "enforcement": "scoring_only",
+                "combination": "any_normalized_venue_matches",
+                "missing_value": "unknown_when_venue_is_null_or_empty",
+            },
+            "time_range": {
+                "evidence_fields": ["year"],
+                "enforcement": "scoring_and_out_of_range_guard",
+                "combination": "all_present_inclusive_bounds_match",
+                "missing_value": "unknown_when_year_is_null",
+            },
+        },
+    }
+
+
+def trace_constraint_decisions(
+    query_analysis: QueryAnalysis,
+    paper: Paper,
+    *,
+    config: JudgementRuleConfig | None = None,
+) -> list[dict[str, Any]]:
+    """Trace all production constraint dimensions without changing judgement.
+
+    Expected and matched terms are represented only by counts and stable
+    digests.  Raw query or paper metadata is intentionally excluded so the
+    trace can be persisted as an opaque offline diagnostic.
+    """
+
+    resolved = config or CURRENT_RULES_CONFIG
+    constraints = query_analysis.constraints
+    explicit = set(constraints.explicit_fields)
+    text_state = _constraint_text_field_state(paper)
+    output: list[dict[str, Any]] = []
+
+    def term_decision(
+        name: str,
+        values: list[str],
+        *,
+        mode: Literal["any", "all", "none"],
+        lexical_policy: LexicalNormalizationPolicy = "off",
+    ) -> None:
+        base = _constraint_decision_base(
+            name,
+            values,
+            explicit=name in explicit,
+            field_lineage=text_state,
+        )
+        if not values:
+            output.append(
+                {**base, "status": "not_applicable", "reason_code": "no_values"}
+            )
+            return
+        matches, evidence = _matching_constraint_terms(
+            values,
+            paper,
+            lexical_policy=lexical_policy,
+        )
+        matched_keys = {item.casefold() for item in matches}
+        value_keys = {item.casefold() for item in values if item.strip()}
+        if mode == "none":
+            predicate = not matched_keys
+        elif mode == "all":
+            predicate = bool(value_keys) and value_keys.issubset(matched_keys)
+        else:
+            predicate = bool(matched_keys)
+        matched_fields = sorted({item.source for item in evidence})
+        update = {
+            "matched_value_count": len(matched_keys),
+            "matched_value_sha256": _constraint_value_digest(matches),
+            "matched_evidence_fields": matched_fields,
+            "production_predicate_result": predicate,
+        }
+        if text_state[0]["state"] == "empty" and text_state[1]["state"] == "empty":
+            output.append(
+                {
+                    **base,
+                    **update,
+                    "status": "unknown",
+                    "reason_code": "title_and_abstract_empty",
+                }
+            )
+            return
+        reason = {
+            ("exclude_terms", True): "no_excluded_term_matched",
+            ("exclude_terms", False): "excluded_term_matched",
+            ("must_include_terms", True): "required_term_predicate_passed",
+            ("must_include_terms", False): "required_term_predicate_failed",
+            ("methods", True): "method_term_matched",
+            ("methods", False): "method_term_not_matched",
+            ("datasets", True): "dataset_term_matched",
+            ("datasets", False): "dataset_term_not_matched",
+        }[(name, predicate)]
+        output.append(
+            {
+                **base,
+                **update,
+                "status": "passed" if predicate else "failed",
+                "reason_code": reason,
+            }
+        )
+
+    term_decision("exclude_terms", constraints.exclude_terms, mode="none")
+    term_decision(
+        "must_include_terms",
+        constraints.must_include_terms,
+        mode="all" if "must_include_terms" in explicit else "any",
+        lexical_policy=resolved.lexical_normalization_policy,
+    )
+    term_decision(
+        "methods",
+        constraints.methods,
+        mode="any",
+        lexical_policy=resolved.lexical_normalization_policy,
+    )
+    term_decision("datasets", constraints.datasets, mode="any")
+
+    domain_base = _constraint_decision_base(
+        "domains",
+        constraints.domains,
+        explicit="domains" in explicit,
+        field_lineage=[],
+    )
+    output.append(
+        {
+            **domain_base,
+            "status": "not_applicable",
+            "reason_code": (
+                "not_consumed_by_candidate_predicate"
+                if constraints.domains
+                else "no_values"
+            ),
+        }
+    )
+
+    type_base = _constraint_decision_base(
+        "paper_types",
+        list(constraints.paper_types),
+        explicit="paper_types" in explicit,
+        field_lineage=text_state,
+    )
+    if not constraints.paper_types:
+        output.append(
+            {**type_base, "status": "not_applicable", "reason_code": "no_values"}
+        )
+    else:
+        matches, evidence = _matched_paper_types(constraints.paper_types, paper)
+        predicate = bool(matches)
+        type_update = {
+            "matched_value_count": len(matches),
+            "matched_value_sha256": _constraint_value_digest(matches),
+            "matched_evidence_fields": sorted({item.source for item in evidence}),
+            "production_predicate_result": predicate,
+        }
+        if text_state[0]["state"] == "empty" and text_state[1]["state"] == "empty":
+            output.append(
+                {
+                    **type_base,
+                    **type_update,
+                    "status": "unknown",
+                    "reason_code": "title_and_abstract_empty",
+                }
+            )
+        else:
+            output.append(
+                {
+                    **type_base,
+                    **type_update,
+                    "status": "passed" if predicate else "failed",
+                    "reason_code": (
+                        "paper_type_matched" if predicate else "paper_type_not_matched"
+                    ),
+                }
+            )
+
+    venue_base = _constraint_decision_base(
+        "venues",
+        constraints.venues,
+        explicit="venues" in explicit,
+        field_lineage=[_field_state("venue", paper.venue)],
+    )
+    if not constraints.venues:
+        output.append(
+            {**venue_base, "status": "not_applicable", "reason_code": "no_values"}
+        )
+    else:
+        venue_key = _normalize_venue(paper.venue or "")
+        predicate = bool(venue_key) and any(
+            _normalize_venue(value) in venue_key for value in constraints.venues
+        )
+        venue_update = {
+            "matched_value_count": int(predicate),
+            "matched_value_sha256": (
+                _constraint_value_digest(
+                    [
+                        value
+                        for value in constraints.venues
+                        if _normalize_venue(value) in venue_key
+                    ]
+                )
+                if predicate
+                else _constraint_value_digest([])
+            ),
+            "matched_evidence_fields": ["venue"] if predicate else [],
+            "production_predicate_result": predicate,
+        }
+        if paper.venue is None or not paper.venue.strip():
+            output.append(
+                {
+                    **venue_base,
+                    **venue_update,
+                    "status": "unknown",
+                    "reason_code": (
+                        "venue_null" if paper.venue is None else "venue_empty"
+                    ),
+                }
+            )
+        else:
+            output.append(
+                {
+                    **venue_base,
+                    **venue_update,
+                    "status": "passed" if predicate else "failed",
+                    "reason_code": "venue_matched" if predicate else "venue_not_matched",
+                }
+            )
+
+    time_range = constraints.time_range
+    time_values = (
+        []
+        if time_range is None
+        else [
+            f"start:{time_range.start_year}",
+            f"end:{time_range.end_year}",
+        ]
+    )
+    time_base = _constraint_decision_base(
+        "time_range",
+        time_values,
+        explicit="time_range" in explicit,
+        field_lineage=[_field_state("year", paper.year)],
+    )
+    if time_range is None:
+        output.append(
+            {**time_base, "status": "not_applicable", "reason_code": "no_values"}
+        )
+    else:
+        predicate = paper.year is not None and not _outside_time_range(
+            constraints, paper
+        )
+        time_update = {
+            "matched_value_count": int(predicate),
+            "matched_value_sha256": _constraint_value_digest(
+                time_values if predicate else []
+            ),
+            "matched_evidence_fields": ["year"] if paper.year is not None else [],
+            "production_predicate_result": predicate,
+        }
+        if paper.year is None:
+            output.append(
+                {
+                    **time_base,
+                    **time_update,
+                    "status": "unknown",
+                    "reason_code": "year_null",
+                }
+            )
+        else:
+            output.append(
+                {
+                    **time_base,
+                    **time_update,
+                    "status": "passed" if predicate else "failed",
+                    "reason_code": (
+                        "within_time_range" if predicate else "outside_time_range"
+                    ),
+                }
+            )
+
+    if [item["constraint"] for item in output] != list(PRODUCTION_CONSTRAINT_ORDER):
+        raise RuntimeError("production constraint trace order drift")
+    return output
+
+
+def _constraint_decision_base(
+    name: str,
+    values: list[str],
+    *,
+    explicit: bool,
+    field_lineage: list[dict[str, str]],
+) -> dict[str, Any]:
+    catalog = production_constraint_catalog()["fields"][name]
+    return {
+        "constraint": name,
+        "predicate_version": PRODUCTION_CONSTRAINT_PREDICATE_VERSION,
+        "enforcement": catalog["enforcement"],
+        "explicit": explicit,
+        "expected_value_count": len(_dedupe_terms(values)),
+        "expected_value_sha256": _constraint_value_digest(values),
+        "field_lineage": field_lineage,
+        "matched_value_count": 0,
+        "matched_value_sha256": _constraint_value_digest([]),
+        "matched_evidence_fields": [],
+        "production_predicate_result": None,
+    }
+
+
+def _constraint_text_field_state(paper: Paper) -> list[dict[str, str]]:
+    return [
+        _field_state("title", paper.title),
+        _field_state("abstract", paper.abstract),
+    ]
+
+
+def _field_state(field: str, value: Any) -> dict[str, str]:
+    if value is None:
+        state = "null"
+    elif isinstance(value, str) and not value.strip():
+        state = "empty"
+    else:
+        state = "present"
+    return {"field": field, "state": state}
+
+
+def _constraint_value_digest(values: list[str]) -> str:
+    normalized = sorted(
+        {str(value).strip().casefold() for value in values if str(value).strip()}
+    )
+    payload = json.dumps(
+        normalized,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _hard_constraint_failures(
