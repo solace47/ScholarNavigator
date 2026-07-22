@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "fcb9ef95c756f183161a376f28640ea1d750d1ecdd86203154727d6faec42e7d"
+      "sha256": "e379159eb21697cfa86b3f726486c3c91117394fa05e96265081c3a9d461c4e5"
     },
     {
       "document_id": "contest_requirements",
@@ -67,29 +67,16 @@
   ],
   "claims": [
     {
-      "boundary": "Startup instructions alone establish no validation or quality claim.",
-      "claim_id": "readme_operational_entrypoint",
-      "document_id": "readme",
-      "evidence_ids": [
-        "evidence_registry_gate"
-      ],
-      "scope": "operational_documentation",
-      "statement": "The README is covered as operational setup documentation, not as validation evidence.",
-      "status": "not_applicable"
-    },
-    {
-      "boundary": "These are engineering integrity checks and do not establish retrieval quality.",
-      "claim_id": "architecture_offline_integrity_gates",
+      "boundary": "The production default remains original_index_v1; qualification does not enable v2.",
+      "claim_id": "architecture_default_policy_isolation",
       "document_id": "architecture",
       "evidence_ids": [
-        "constraint_decision_manifest",
-        "ranking_decision_manifest",
-        "source_reliability_manifest",
-        "tiebreak_manifest",
-        "top20_delivery_manifest"
+        "evidence_registry_gate",
+        "tiebreak_aggregate",
+        "top20_delivery_aggregate"
       ],
       "scope": "engineering_capability",
-      "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "statement": "current_rules is the only registered default and deterministic_tiebreak_v2 remains disabled by default.",
       "status": "verified"
     },
     {
@@ -117,6 +104,34 @@
       "status": "verified"
     },
     {
+      "boundary": "These are engineering integrity checks and do not establish retrieval quality.",
+      "claim_id": "architecture_offline_integrity_gates",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "constraint_decision_manifest",
+        "ranking_decision_manifest",
+        "source_reliability_manifest",
+        "tiebreak_manifest",
+        "top20_delivery_manifest"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The current frontend webpack artifact is not byte reproducible, so the release candidate is not qualified; this is not a quality or official validation claim.",
+      "claim_id": "architecture_release_candidate_reproducibility",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "release_candidate_contract",
+        "release_candidate_python_lock",
+        "release_candidate_reproducibility"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The fixed-source offline release gate records a deterministic source and dependency closure and exposes cross-tree artifact drift.",
+      "status": "internal_only"
+    },
+    {
       "boundary": "Freshness verifies dependency closure and rerun scope only; it does not recompute evidence, alter historical conclusions, or remove formal blockers.",
       "claim_id": "architecture_validation_evidence_freshness",
       "document_id": "architecture",
@@ -127,67 +142,6 @@
       "scope": "engineering_capability",
       "statement": "Tracked readiness evidence, gates, and claims have precise semantic dependencies and deterministic stale-impact propagation.",
       "status": "verified"
-    },
-    {
-      "boundary": "The production default remains original_index_v1; qualification does not enable v2.",
-      "claim_id": "architecture_default_policy_isolation",
-      "document_id": "architecture",
-      "evidence_ids": [
-        "evidence_registry_gate",
-        "tiebreak_aggregate",
-        "top20_delivery_aggregate"
-      ],
-      "scope": "engineering_capability",
-      "statement": "current_rules is the only registered default and deterministic_tiebreak_v2 remains disabled by default.",
-      "status": "verified"
-    },
-    {
-      "boundary": "Record160 is a partial, order-biased internal sample and is not Full1000.",
-      "claim_id": "evaluation_record160_population",
-      "document_id": "evaluation",
-      "evidence_ids": [
-        "source_reliability_aggregate",
-        "top20_delivery_aggregate"
-      ],
-      "scope": "internal_validation",
-      "statement": "The frozen prefix has 162 terminal query records, of which 160 enter the main internal analysis and 2 are excluded by the pre-existing no-successful-source rule.",
-      "status": "internal_only"
-    },
-    {
-      "boundary": "The audit uses only preregistered pre-retrieval features and cannot infer any unfinished-query retrieval outcome or quality.",
-      "claim_id": "evaluation_record160_extrapolation_boundary",
-      "document_id": "architecture",
-      "evidence_ids": [
-        "completion_bias_aggregate",
-        "completion_bias_manifest"
-      ],
-      "scope": "internal_validation",
-      "statement": "Record160 findings are restricted to the frozen 160-query main-analysis population because Record162 is a source-order prefix with substantial component coverage gaps.",
-      "status": "internal_only"
-    },
-    {
-      "boundary": "Funnel counts describe availability and pipeline loss, not relevance or source quality.",
-      "claim_id": "evaluation_source_diagnostics",
-      "document_id": "evaluation",
-      "evidence_ids": [
-        "source_reliability_aggregate",
-        "source_reliability_manifest"
-      ],
-      "scope": "internal_diagnostic",
-      "statement": "The source reliability funnel is exactly reconstructed from 1,093 observed Snapshot keys for 160 included queries.",
-      "status": "internal_only"
-    },
-    {
-      "boundary": "Delivery fidelity proves transport preservation only; unsupported exports remain explicit.",
-      "claim_id": "evaluation_top20_delivery",
-      "document_id": "evaluation",
-      "evidence_ids": [
-        "top20_delivery_aggregate",
-        "top20_delivery_manifest"
-      ],
-      "scope": "internal_validation",
-      "statement": "The supported API, JSON, JSONL, pagination, and frontend paths preserve 1,396 frozen final results across 160 included queries.",
-      "status": "internal_only"
     },
     {
       "blocker_id": "full1000_incomplete",
@@ -226,6 +180,42 @@
       "status": "blocked"
     },
     {
+      "boundary": "The audit uses only preregistered pre-retrieval features and cannot infer any unfinished-query retrieval outcome or quality.",
+      "claim_id": "evaluation_record160_extrapolation_boundary",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "completion_bias_aggregate",
+        "completion_bias_manifest"
+      ],
+      "scope": "internal_validation",
+      "statement": "Record160 findings are restricted to the frozen 160-query main-analysis population because Record162 is a source-order prefix with substantial component coverage gaps.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Record160 is a partial, order-biased internal sample and is not Full1000.",
+      "claim_id": "evaluation_record160_population",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "top20_delivery_aggregate"
+      ],
+      "scope": "internal_validation",
+      "statement": "The frozen prefix has 162 terminal query records, of which 160 enter the main internal analysis and 2 are excluded by the pre-existing no-successful-source rule.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Funnel counts describe availability and pipeline loss, not relevance or source quality.",
+      "claim_id": "evaluation_source_diagnostics",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "source_reliability_manifest"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The source reliability funnel is exactly reconstructed from 1,093 observed Snapshot keys for 160 included queries.",
+      "status": "internal_only"
+    },
+    {
       "boundary": "The ablation describes identity coverage and ranking stability only, never relevance.",
       "claim_id": "evaluation_source_fusion_coverage",
       "document_id": "evaluation",
@@ -236,20 +226,52 @@
       "scope": "internal_diagnostic",
       "statement": "Four-source full, leave-one-source-out, and single-source coverage diagnostics are reproducible for the frozen Record160 population.",
       "status": "internal_only"
+    },
+    {
+      "boundary": "Delivery fidelity proves transport preservation only; unsupported exports remain explicit.",
+      "claim_id": "evaluation_top20_delivery",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "top20_delivery_aggregate",
+        "top20_delivery_manifest"
+      ],
+      "scope": "internal_validation",
+      "statement": "The supported API, JSON, JSONL, pagination, and frontend paths preserve 1,396 frozen final results across 160 included queries.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Startup instructions alone establish no validation or quality claim.",
+      "claim_id": "readme_operational_entrypoint",
+      "document_id": "readme",
+      "evidence_ids": [
+        "evidence_registry_gate"
+      ],
+      "scope": "operational_documentation",
+      "statement": "The README is covered as operational setup documentation, not as validation evidence.",
+      "status": "not_applicable"
     }
   ],
   "code_identity": {
     "files": [
-      "benchmark/validation_readiness_bundle_v1_contract.json",
+      "benchmark/release_candidate_reproducibility_v1_contract.json",
+      "benchmark/release_candidate_reproducibility_v1_python_lock.json",
+      "benchmark/release_candidate_reproducibility_v1_spec.json",
       "benchmark/validation_evidence_freshness_v1_contract.json",
-      "docs/validation-readiness.md",
+      "benchmark/validation_readiness_bundle_v1_contract.json",
+      "docs/release-candidate-reproducibility.md",
       "docs/validation-evidence-freshness.md",
+      "docs/validation-readiness.md",
+      "scripts/check_release_candidate.py",
       "scripts/check_validation_freshness.py",
       "scripts/check_validation_readiness.py",
+      "scripts/freeze_release_candidate_contract.py",
+      "scripts/freeze_release_candidate_evidence.py",
+      "scripts/freeze_validation_freshness_baseline.py",
+      "src/scholar_agent/evaluation/release_candidate_reproducibility.py",
       "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
     ],
-    "implementation_base_commit": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e"
+    "implementation_base_commit": "a743c59c719dd10db742cbd526f8f09c5ba13839"
   },
   "consistency_assertions": [
     {
@@ -443,230 +465,6 @@
     {
       "checks": [
         {
-          "equals": "validation_evidence_freshness_v1",
-          "pointer": "/protocol"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "validation_freshness_protocol",
-      "format": "json",
-      "path": "benchmark/validation_evidence_freshness_v1_contract.json",
-      "protocol": "validation_evidence_freshness_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "1ad585e993e7883d7e916f73cd757234ab05704de1d00e0a31c246725313fec2"
-    },
-    {
-      "checks": [
-        {
-          "equals": "fresh_with_declared_blockers",
-          "pointer": "/status"
-        },
-        {
-          "equals": 0,
-          "pointer": "/violation_count"
-        },
-        {
-          "equals": false,
-          "pointer": "/formal_validation_complete"
-        }
-      ],
-      "dependencies": [
-        "validation_freshness_protocol"
-      ],
-      "evidence_id": "validation_freshness_current",
-      "format": "json",
-      "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
-      "protocol": "validation_evidence_freshness_v1",
-      "required": true,
-      "role": "freshness_baseline_closure",
-      "sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2"
-    },
-    {
-      "checks": [
-        {
-          "equals": "synthetic_impact_verified",
-          "pointer": "/status"
-        },
-        {
-          "equals": 4,
-          "pointer": "/scenario_count"
-        }
-      ],
-      "dependencies": [
-        "validation_freshness_protocol",
-        "validation_freshness_current"
-      ],
-      "evidence_id": "validation_freshness_synthetic_impact",
-      "format": "json",
-      "path": "benchmark/validation_evidence_freshness_v1_evidence/synthetic_impact.json",
-      "protocol": "validation_evidence_freshness_v1",
-      "required": true,
-      "role": "change_impact_conformance",
-      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
-    },
-    {
-      "checks": [
-        {
-          "equals": "human_annotation_delivery_v1",
-          "pointer": "/contract"
-        },
-        {
-          "equals": 471,
-          "pointer": "/expected_item_count"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "human_annotation_delivery_protocol",
-      "format": "json",
-      "path": "benchmark/human_annotation_delivery_v1_protocol.json",
-      "protocol": "human_annotation_delivery_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "e691bf1990abcc39a3dc28ab9790aae24f91caf99a20609812bc9f616826f647"
-    },
-    {
-      "checks": [
-        {
-          "equals": "validated",
-          "pointer": "/synthetic_gate_state"
-        },
-        {
-          "equals": null,
-          "pointer": "/statistics"
-        }
-      ],
-      "dependencies": [
-        "human_annotation_delivery_protocol"
-      ],
-      "evidence_id": "human_annotation_delivery_dry_run",
-      "format": "json",
-      "path": "benchmark/human_annotation_delivery_v1_evidence/dry_run.json",
-      "protocol": "human_annotation_delivery_v1",
-      "required": true,
-      "role": "engineering_conformance",
-      "sha256": "4923c7b7bd8574e34c4d1e174402530e6c830909a69a0080fd238e882daf43a2"
-    },
-    {
-      "checks": [
-        {
-          "equals": "blocked_awaiting_real_annotators",
-          "pointer": "/state"
-        },
-        {
-          "equals": false,
-          "pointer": "/formal_validation_complete"
-        },
-        {
-          "equals": null,
-          "pointer": "/statistics"
-        }
-      ],
-      "dependencies": [
-        "human_annotation_delivery_protocol",
-        "human_annotation_delivery_dry_run"
-      ],
-      "evidence_id": "human_annotation_delivery_readiness",
-      "format": "json",
-      "path": "benchmark/human_annotation_delivery_v1_evidence/readiness.json",
-      "protocol": "human_annotation_delivery_v1",
-      "required": true,
-      "role": "formal_blocker_boundary",
-      "sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2"
-    },
-    {
-      "checks": [
-        {
-          "equals": "external_scorer_handoff_v1",
-          "pointer": "/analysis"
-        },
-        {
-          "equals": "not_provided",
-          "pointer": "/official_package/input_schema"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "external_scorer_protocol",
-      "format": "json",
-      "path": "benchmark/external_scorer_handoff_v1_protocol.json",
-      "protocol": "external_scorer_handoff_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "60adfa40f3ba09d25c980a7614416d947d15393110542048bed1318eed0b69b7"
-    },
-    {
-      "checks": [
-        {
-          "equals": "handoff_chain_verified",
-          "pointer": "/status"
-        },
-        {
-          "equals": 15,
-          "pointer": "/scenario_count"
-        },
-        {
-          "equals": false,
-          "pointer": "/official_score_generated"
-        }
-      ],
-      "dependencies": [
-        "external_scorer_protocol"
-      ],
-      "evidence_id": "external_scorer_synthetic_matrix",
-      "format": "json",
-      "path": "benchmark/external_scorer_handoff_v1_evidence/synthetic_matrix.json",
-      "protocol": "external_scorer_handoff_v1",
-      "required": true,
-      "role": "engineering_conformance",
-      "sha256": "63e8ff9400f93f524b28ece2141abc015b9384882c2589c6599564b62b0fea00"
-    },
-    {
-      "checks": [
-        {
-          "equals": "blocked_missing_official_scorer_or_complete_input",
-          "pointer": "/status"
-        },
-        {
-          "equals": 3,
-          "pointer": "/exit_code"
-        },
-        {
-          "equals": false,
-          "pointer": "/official_score_generated"
-        }
-      ],
-      "dependencies": [
-        "external_scorer_protocol",
-        "full1000_resume_summary",
-        "official_scorer_blocked"
-      ],
-      "evidence_id": "external_scorer_readiness",
-      "format": "json",
-      "path": "benchmark/external_scorer_handoff_v1_evidence/readiness.json",
-      "protocol": "external_scorer_handoff_v1",
-      "required": true,
-      "role": "formal_blocker_handoff",
-      "sha256": "ba5e44ec9150c195e2c93571443aba0f267aeba42a76b6c1b02e05e7e60ae5a3"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completion_bias_audit_v1",
-          "pointer": "/analysis"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "completion_bias_protocol",
-      "format": "json",
-      "path": "benchmark/completion_bias_audit_v1_protocol.json",
-      "protocol": "completion_bias_audit_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "d2ec17c54190104b8165aa13990e534b2ba1b517a23a48f16acd2712965af7d8"
-    },
-    {
-      "checks": [
-        {
           "equals": "completed",
           "pointer": "/status"
         },
@@ -711,182 +509,18 @@
     {
       "checks": [
         {
-          "equals": "top20_delivery_fidelity_v1",
+          "equals": "completion_bias_audit_v1",
           "pointer": "/analysis"
         }
       ],
       "dependencies": [],
-      "evidence_id": "top20_delivery_contract",
+      "evidence_id": "completion_bias_protocol",
       "format": "json",
-      "path": "benchmark/top20_delivery_contract_v1.json",
-      "protocol": "top20_delivery_fidelity_v1",
+      "path": "benchmark/completion_bias_audit_v1_protocol.json",
+      "protocol": "completion_bias_audit_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "bbe386cbee1cec4e2ec85c9280ace4e194620bdf4e4f7cee053f6dd06793f30b"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed_with_unsupported_exports",
-          "pointer": "/status"
-        },
-        {
-          "equals": 3,
-          "pointer": "/exit_code"
-        }
-      ],
-      "dependencies": [
-        "top20_delivery_contract"
-      ],
-      "evidence_id": "top20_delivery_aggregate",
-      "format": "json",
-      "path": "benchmark/top20_delivery_fidelity_v1_result/aggregate.json",
-      "protocol": "top20_delivery_fidelity_v1",
-      "required": true,
-      "role": "aggregate",
-      "sha256": "5dadd3a1637865a2a05d8d2099c02b4cfdd6d619778dbfed5454604b82b2b626"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed_with_unsupported_exports",
-          "pointer": "/status"
-        }
-      ],
-      "dependencies": [
-        "top20_delivery_aggregate"
-      ],
-      "evidence_id": "top20_delivery_manifest",
-      "format": "json",
-      "path": "benchmark/top20_delivery_fidelity_v1_result/manifest.json",
-      "protocol": "top20_delivery_fidelity_v1",
-      "required": true,
-      "role": "integrity_manifest",
-      "sha256": "a68dcecb5c948217fbb0f11ee17d08572b988888f18038d2453956a594678cd8"
-    },
-    {
-      "checks": [
-        {
-          "equals": "source_reliability_diagnostics_v1",
-          "pointer": "/analysis"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "source_reliability_protocol",
-      "format": "json",
-      "path": "benchmark/source_reliability_diagnostics_v1_protocol.json",
-      "protocol": "source_reliability_diagnostics_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "9df9f920d0f52869bef808fddc73a8dbead39fdf9edd8b0ff467b8147fa075db"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        },
-        {
-          "equals": 0,
-          "pointer": "/silent_loss/accounting_violation_count"
-        }
-      ],
-      "dependencies": [
-        "source_reliability_protocol"
-      ],
-      "evidence_id": "source_reliability_aggregate",
-      "format": "json",
-      "path": "benchmark/source_reliability_diagnostics_v1_result/aggregate.json",
-      "protocol": "source_reliability_diagnostics_v1",
-      "required": true,
-      "role": "aggregate",
-      "sha256": "65407e5c3dd992cd418e9f7c5509c2508cf1a688a676bd156a7b980a1f5bea87"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "dependencies": [
-        "source_reliability_aggregate"
-      ],
-      "evidence_id": "source_reliability_manifest",
-      "format": "json",
-      "path": "benchmark/source_reliability_diagnostics_v1_result/manifest.json",
-      "protocol": "source_reliability_diagnostics_v1",
-      "required": true,
-      "role": "integrity_manifest",
-      "sha256": "cbf44ced10fc90807c0e966e1b0925d09d04dc8b29ac39f9a7b9a55d3760b413"
-    },
-    {
-      "checks": [
-        {
-          "equals": "source_fusion_ablation_v1",
-          "pointer": "/analysis"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "source_fusion_protocol",
-      "format": "json",
-      "path": "benchmark/source_fusion_ablation_v1_protocol.json",
-      "protocol": "source_fusion_ablation_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "dbf1a340ed4b66aefb62db496ce9992f39476d7b04024df97192d509d7922111"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "dependencies": [
-        "source_fusion_protocol"
-      ],
-      "evidence_id": "source_fusion_aggregate",
-      "format": "json",
-      "path": "benchmark/source_fusion_ablation_v1_result/aggregate.json",
-      "protocol": "source_fusion_ablation_v1",
-      "required": true,
-      "role": "aggregate",
-      "sha256": "716b170c1e453083ac916ee121eff883c639642414b658fddcce372e6450d29f"
-    },
-    {
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "dependencies": [
-        "source_fusion_aggregate"
-      ],
-      "evidence_id": "source_fusion_manifest",
-      "format": "json",
-      "path": "benchmark/source_fusion_ablation_v1_result/manifest.json",
-      "protocol": "source_fusion_ablation_v1",
-      "required": true,
-      "role": "integrity_manifest",
-      "sha256": "5a1f45caa408f03cb12c5aeddd7458322d75e39b74e7fab854ac08703314bed4"
-    },
-    {
-      "checks": [
-        {
-          "equals": "constraint_decision_audit_v1",
-          "pointer": "/analysis"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "constraint_decision_protocol",
-      "format": "json",
-      "path": "benchmark/constraint_decision_audit_v1_protocol.json",
-      "protocol": "constraint_decision_audit_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "284456f8a26d941421d51a89f97b72314b536be3ce9d0c10433e0a383667b0dc"
+      "sha256": "d2ec17c54190104b8165aa13990e534b2ba1b517a23a48f16acd2712965af7d8"
     },
     {
       "checks": [
@@ -909,92 +543,118 @@
     {
       "checks": [
         {
-          "equals": "ranking_decision_audit_v1",
+          "equals": "constraint_decision_audit_v1",
           "pointer": "/analysis"
         }
       ],
       "dependencies": [],
-      "evidence_id": "ranking_decision_protocol",
+      "evidence_id": "constraint_decision_protocol",
       "format": "json",
-      "path": "benchmark/ranking_decision_audit_v1_protocol.json",
-      "protocol": "ranking_decision_audit_v1",
+      "path": "benchmark/constraint_decision_audit_v1_protocol.json",
+      "protocol": "constraint_decision_audit_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "5a38bb255c8d56d172b323ffd8ab71275ed7d7273bece05654d932dbcb93052b"
+      "sha256": "284456f8a26d941421d51a89f97b72314b536be3ce9d0c10433e0a383667b0dc"
     },
     {
       "checks": [
         {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "dependencies": [
-        "ranking_decision_protocol"
-      ],
-      "evidence_id": "ranking_decision_manifest",
-      "format": "json",
-      "path": "benchmark/ranking_decision_audit_v1_result/manifest.json",
-      "protocol": "ranking_decision_audit_v1",
-      "required": true,
-      "role": "integrity_manifest",
-      "sha256": "ed0823bc53d0402c58ea86a17dec30f8e56e36903b17080c78e09dbac19c42a8"
-    },
-    {
-      "checks": [
+          "equals": true,
+          "pointer": "/gate/passed"
+        },
         {
-          "equals": "deterministic_tiebreak_qualification_v1",
-          "pointer": "/analysis"
+          "equals": [
+            "current_rules"
+          ],
+          "pointer": "/inventory/default_enabled_strategy_ids"
+        },
+        {
+          "equals": "internal_benchmark_evidence_not_official_score",
+          "pointer": "/score_scope"
         }
       ],
       "dependencies": [],
-      "evidence_id": "tiebreak_protocol",
+      "evidence_id": "evidence_registry_gate",
       "format": "json",
-      "path": "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
-      "protocol": "deterministic_tiebreak_qualification_v1",
+      "path": "benchmark/evidence_registry_result.json",
+      "protocol": "experiment_evidence_registry_v1",
       "required": true,
-      "role": "protocol",
-      "sha256": "e0850efb8b4338e65f0eaca150a579260c3aff3675c71c837a840661dfaa76d2"
+      "role": "default_policy_gate",
+      "sha256": "2b36d6cf09e79721550815a7ebc360bef2dd420e4cc3986197fe351caa428b1d"
     },
     {
       "checks": [
         {
-          "equals": "qualified_for_review",
+          "equals": "external_scorer_handoff_v1",
+          "pointer": "/analysis"
+        },
+        {
+          "equals": "not_provided",
+          "pointer": "/official_package/input_schema"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "external_scorer_protocol",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_protocol.json",
+      "protocol": "external_scorer_handoff_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "60adfa40f3ba09d25c980a7614416d947d15393110542048bed1318eed0b69b7"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_missing_official_scorer_or_complete_input",
           "pointer": "/status"
         },
         {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
           "equals": false,
-          "pointer": "/qualification/automatic_enable_permitted"
+          "pointer": "/official_score_generated"
         }
       ],
       "dependencies": [
-        "tiebreak_protocol"
+        "external_scorer_protocol",
+        "full1000_resume_summary",
+        "official_scorer_blocked"
       ],
-      "evidence_id": "tiebreak_aggregate",
+      "evidence_id": "external_scorer_readiness",
       "format": "json",
-      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/aggregate.json",
-      "protocol": "deterministic_tiebreak_qualification_v1",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/readiness.json",
+      "protocol": "external_scorer_handoff_v1",
       "required": true,
-      "role": "aggregate",
-      "sha256": "787b29002a7d9fd1b6403b88981f3ececc93bd6f40696786e80ab2015ead8c48"
+      "role": "formal_blocker_handoff",
+      "sha256": "ba5e44ec9150c195e2c93571443aba0f267aeba42a76b6c1b02e05e7e60ae5a3"
     },
     {
       "checks": [
         {
-          "equals": "qualified_for_review",
+          "equals": "handoff_chain_verified",
           "pointer": "/status"
+        },
+        {
+          "equals": 15,
+          "pointer": "/scenario_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/official_score_generated"
         }
       ],
       "dependencies": [
-        "tiebreak_aggregate"
+        "external_scorer_protocol"
       ],
-      "evidence_id": "tiebreak_manifest",
+      "evidence_id": "external_scorer_synthetic_matrix",
       "format": "json",
-      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/manifest.json",
-      "protocol": "deterministic_tiebreak_qualification_v1",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/synthetic_matrix.json",
+      "protocol": "external_scorer_handoff_v1",
       "required": true,
-      "role": "integrity_manifest",
-      "sha256": "fdb6620a55143e4e9da933403a78438c568c74c0f6d42a64f78b33043ddaa833"
+      "role": "engineering_conformance",
+      "sha256": "63e8ff9400f93f524b28ece2141abc015b9384882c2589c6599564b62b0fea00"
     },
     {
       "checks": [
@@ -1019,6 +679,75 @@
       "required": true,
       "role": "formal_blocker",
       "sha256": "940d09c5d4f51f834da80dd73819987e14639ac561956576b00370130025f045"
+    },
+    {
+      "checks": [
+        {
+          "equals": "validated",
+          "pointer": "/synthetic_gate_state"
+        },
+        {
+          "equals": null,
+          "pointer": "/statistics"
+        }
+      ],
+      "dependencies": [
+        "human_annotation_delivery_protocol"
+      ],
+      "evidence_id": "human_annotation_delivery_dry_run",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/dry_run.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "engineering_conformance",
+      "sha256": "4923c7b7bd8574e34c4d1e174402530e6c830909a69a0080fd238e882daf43a2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "human_annotation_delivery_v1",
+          "pointer": "/contract"
+        },
+        {
+          "equals": 471,
+          "pointer": "/expected_item_count"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "human_annotation_delivery_protocol",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_protocol.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "e691bf1990abcc39a3dc28ab9790aae24f91caf99a20609812bc9f616826f647"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_awaiting_real_annotators",
+          "pointer": "/state"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "equals": null,
+          "pointer": "/statistics"
+        }
+      ],
+      "dependencies": [
+        "human_annotation_delivery_protocol",
+        "human_annotation_delivery_dry_run"
+      ],
+      "evidence_id": "human_annotation_delivery_readiness",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/readiness.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "formal_blocker_boundary",
+      "sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2"
     },
     {
       "checks": [
@@ -1067,28 +796,386 @@
     {
       "checks": [
         {
-          "equals": true,
-          "pointer": "/gate/passed"
-        },
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "ranking_decision_protocol"
+      ],
+      "evidence_id": "ranking_decision_manifest",
+      "format": "json",
+      "path": "benchmark/ranking_decision_audit_v1_result/manifest.json",
+      "protocol": "ranking_decision_audit_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "ed0823bc53d0402c58ea86a17dec30f8e56e36903b17080c78e09dbac19c42a8"
+    },
+    {
+      "checks": [
         {
-          "equals": [
-            "current_rules"
-          ],
-          "pointer": "/inventory/default_enabled_strategy_ids"
-        },
-        {
-          "equals": "internal_benchmark_evidence_not_official_score",
-          "pointer": "/score_scope"
+          "equals": "ranking_decision_audit_v1",
+          "pointer": "/analysis"
         }
       ],
       "dependencies": [],
-      "evidence_id": "evidence_registry_gate",
+      "evidence_id": "ranking_decision_protocol",
       "format": "json",
-      "path": "benchmark/evidence_registry_result.json",
-      "protocol": "experiment_evidence_registry_v1",
+      "path": "benchmark/ranking_decision_audit_v1_protocol.json",
+      "protocol": "ranking_decision_audit_v1",
       "required": true,
-      "role": "default_policy_gate",
-      "sha256": "2b36d6cf09e79721550815a7ebc360bef2dd420e4cc3986197fe351caa428b1d"
+      "role": "protocol",
+      "sha256": "5a38bb255c8d56d172b323ffd8ab71275ed7d7273bece05654d932dbcb93052b"
+    },
+    {
+      "checks": [
+        {
+          "equals": "a743c59c719dd10db742cbd526f8f09c5ba13839",
+          "pointer": "/source_commit"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "release_candidate_contract",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_contract.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "release_engineering_contract",
+      "sha256": "5fd108ff252ec53837d787709177258ed322a29efb6d87e46e5459f2714fa638"
+    },
+    {
+      "checks": [
+        {
+          "equals": true,
+          "pointer": "/complete"
+        }
+      ],
+      "dependencies": [
+        "release_candidate_contract"
+      ],
+      "evidence_id": "release_candidate_python_lock",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_python_lock.json",
+      "protocol": "python_installed_metadata_lock_v1",
+      "required": true,
+      "role": "release_dependency_closure",
+      "sha256": "ddde2709b51035f0aee02431cd1fb2e6bc46e63be6ea9bdb15d621542cf12918"
+    },
+    {
+      "checks": [
+        {
+          "equals": "build_or_supply_chain_violation",
+          "pointer": "/status"
+        },
+        {
+          "equals": "not_qualified",
+          "pointer": "/qualification"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "release_candidate_contract",
+        "release_candidate_python_lock"
+      ],
+      "evidence_id": "release_candidate_reproducibility",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_evidence/current.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "release_engineering_evidence",
+      "sha256": "6b07107b94d8f25b1abf6a49baf68446f76b0b93fdad4e157c6ca7199073226c"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_fusion_protocol"
+      ],
+      "evidence_id": "source_fusion_aggregate",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/aggregate.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "716b170c1e453083ac916ee121eff883c639642414b658fddcce372e6450d29f"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_fusion_aggregate"
+      ],
+      "evidence_id": "source_fusion_manifest",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/manifest.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "5a1f45caa408f03cb12c5aeddd7458322d75e39b74e7fab854ac08703314bed4"
+    },
+    {
+      "checks": [
+        {
+          "equals": "source_fusion_ablation_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "source_fusion_protocol",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_protocol.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "dbf1a340ed4b66aefb62db496ce9992f39476d7b04024df97192d509d7922111"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/silent_loss/accounting_violation_count"
+        }
+      ],
+      "dependencies": [
+        "source_reliability_protocol"
+      ],
+      "evidence_id": "source_reliability_aggregate",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/aggregate.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "65407e5c3dd992cd418e9f7c5509c2508cf1a688a676bd156a7b980a1f5bea87"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_reliability_aggregate"
+      ],
+      "evidence_id": "source_reliability_manifest",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/manifest.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "cbf44ced10fc90807c0e966e1b0925d09d04dc8b29ac39f9a7b9a55d3760b413"
+    },
+    {
+      "checks": [
+        {
+          "equals": "source_reliability_diagnostics_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "source_reliability_protocol",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_protocol.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "9df9f920d0f52869bef808fddc73a8dbead39fdf9edd8b0ff467b8147fa075db"
+    },
+    {
+      "checks": [
+        {
+          "equals": "qualified_for_review",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/qualification/automatic_enable_permitted"
+        }
+      ],
+      "dependencies": [
+        "tiebreak_protocol"
+      ],
+      "evidence_id": "tiebreak_aggregate",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/aggregate.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "787b29002a7d9fd1b6403b88981f3ececc93bd6f40696786e80ab2015ead8c48"
+    },
+    {
+      "checks": [
+        {
+          "equals": "qualified_for_review",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "tiebreak_aggregate"
+      ],
+      "evidence_id": "tiebreak_manifest",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/manifest.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "fdb6620a55143e4e9da933403a78438c568c74c0f6d42a64f78b33043ddaa833"
+    },
+    {
+      "checks": [
+        {
+          "equals": "deterministic_tiebreak_qualification_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "tiebreak_protocol",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "e0850efb8b4338e65f0eaca150a579260c3aff3675c71c837a840661dfaa76d2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed_with_unsupported_exports",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        }
+      ],
+      "dependencies": [
+        "top20_delivery_contract"
+      ],
+      "evidence_id": "top20_delivery_aggregate",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/aggregate.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "5dadd3a1637865a2a05d8d2099c02b4cfdd6d619778dbfed5454604b82b2b626"
+    },
+    {
+      "checks": [
+        {
+          "equals": "top20_delivery_fidelity_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "top20_delivery_contract",
+      "format": "json",
+      "path": "benchmark/top20_delivery_contract_v1.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "bbe386cbee1cec4e2ec85c9280ace4e194620bdf4e4f7cee053f6dd06793f30b"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed_with_unsupported_exports",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "top20_delivery_aggregate"
+      ],
+      "evidence_id": "top20_delivery_manifest",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/manifest.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "a68dcecb5c948217fbb0f11ee17d08572b988888f18038d2453956a594678cd8"
+    },
+    {
+      "checks": [
+        {
+          "equals": "fresh_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/violation_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "validation_freshness_protocol"
+      ],
+      "evidence_id": "validation_freshness_current",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "freshness_baseline_closure",
+      "sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981"
+    },
+    {
+      "checks": [
+        {
+          "equals": "validation_evidence_freshness_v1",
+          "pointer": "/protocol"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "validation_freshness_protocol",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_contract.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "c66b1a5d1792a170d77fda826cc02e4e29decce16019971831f45f5f1477fcea"
+    },
+    {
+      "checks": [
+        {
+          "equals": "synthetic_impact_verified",
+          "pointer": "/status"
+        },
+        {
+          "equals": 4,
+          "pointer": "/scenario_count"
+        }
+      ],
+      "dependencies": [
+        "validation_freshness_protocol",
+        "validation_freshness_current"
+      ],
+      "evidence_id": "validation_freshness_synthetic_impact",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/synthetic_impact.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "change_impact_conformance",
+      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
     }
   ],
   "execution": {
@@ -1102,21 +1189,76 @@
   "read_only_gates": [
     {
       "arguments": [
-        "scripts/check_validation_freshness.py",
-        "verify-current"
+        "scripts/check_completion_bias.py",
+        "verify",
+        "--protocol",
+        "benchmark/completion_bias_audit_v1_protocol.json",
+        "--output",
+        "benchmark/completion_bias_audit_v1_release"
       ],
       "checks": [
         {
-          "equals": "fresh_with_declared_blockers",
+          "equals": "completed",
           "pointer": "/status"
-        },
-        {
-          "equals": 0,
-          "pointer": "/violation_count"
         }
       ],
       "expected_exit_code": 0,
-      "gate_id": "validation_evidence_freshness",
+      "gate_id": "completion_bias",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_constraint_decisions.py",
+        "verify",
+        "--output",
+        "benchmark/constraint_decision_audit_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "constraint_decisions",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_evidence_registry.py",
+        "check",
+        "--manifest",
+        "benchmark/evidence_registry_manifest.json",
+        "--output",
+        "{temporary_output}"
+      ],
+      "checks": [
+        {
+          "equals": true,
+          "pointer": "/passed"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "evidence_registry",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_external_scorer_handoff.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "blocked_missing_official_scorer_or_complete_input",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "external_scorer_handoff",
       "timeout_seconds": 60
     },
     {
@@ -1142,12 +1284,31 @@
     },
     {
       "arguments": [
-        "scripts/check_external_scorer_handoff.py",
-        "audit-readiness"
+        "scripts/check_ranking_decisions.py",
+        "verify",
+        "--output",
+        "benchmark/ranking_decision_audit_v1_result"
       ],
       "checks": [
         {
-          "equals": "blocked_missing_official_scorer_or_complete_input",
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "ranking_decisions",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_release_candidate.py",
+        "audit-readiness",
+        "--evidence",
+        "benchmark/release_candidate_reproducibility_v1_evidence/current.json"
+      ],
+      "checks": [
+        {
+          "equals": "build_or_supply_chain_violation",
           "pointer": "/status"
         },
         {
@@ -1155,63 +1316,8 @@
           "pointer": "/formal_validation_complete"
         }
       ],
-      "expected_exit_code": 3,
-      "gate_id": "external_scorer_handoff",
-      "timeout_seconds": 60
-    },
-    {
-      "arguments": [
-        "scripts/check_completion_bias.py",
-        "verify",
-        "--protocol",
-        "benchmark/completion_bias_audit_v1_protocol.json",
-        "--output",
-        "benchmark/completion_bias_audit_v1_release"
-      ],
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "expected_exit_code": 0,
-      "gate_id": "completion_bias",
-      "timeout_seconds": 60
-    },
-    {
-      "arguments": [
-        "scripts/check_evidence_registry.py",
-        "check",
-        "--manifest",
-        "benchmark/evidence_registry_manifest.json",
-        "--output",
-        "{temporary_output}"
-      ],
-      "checks": [
-        {
-          "equals": true,
-          "pointer": "/passed"
-        }
-      ],
-      "expected_exit_code": 0,
-      "gate_id": "evidence_registry",
-      "timeout_seconds": 60
-    },
-    {
-      "arguments": [
-        "scripts/check_source_reliability.py",
-        "verify",
-        "--output",
-        "benchmark/source_reliability_diagnostics_v1_result"
-      ],
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "expected_exit_code": 0,
-      "gate_id": "source_reliability",
+      "expected_exit_code": 2,
+      "gate_id": "release_candidate_reproducibility",
       "timeout_seconds": 60
     },
     {
@@ -1233,10 +1339,10 @@
     },
     {
       "arguments": [
-        "scripts/check_constraint_decisions.py",
+        "scripts/check_source_reliability.py",
         "verify",
         "--output",
-        "benchmark/constraint_decision_audit_v1_result"
+        "benchmark/source_reliability_diagnostics_v1_result"
       ],
       "checks": [
         {
@@ -1245,24 +1351,7 @@
         }
       ],
       "expected_exit_code": 0,
-      "gate_id": "constraint_decisions",
-      "timeout_seconds": 60
-    },
-    {
-      "arguments": [
-        "scripts/check_ranking_decisions.py",
-        "verify",
-        "--output",
-        "benchmark/ranking_decision_audit_v1_result"
-      ],
-      "checks": [
-        {
-          "equals": "completed",
-          "pointer": "/status"
-        }
-      ],
-      "expected_exit_code": 0,
-      "gate_id": "ranking_decisions",
+      "gate_id": "source_reliability",
       "timeout_seconds": 60
     },
     {
@@ -1304,6 +1393,25 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_validation_freshness.py",
+        "verify-current"
+      ],
+      "checks": [
+        {
+          "equals": "fresh_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/violation_count"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "validation_evidence_freshness",
       "timeout_seconds": 60
     }
   ],

@@ -56,7 +56,13 @@ def build(spec: dict[str, Any]) -> dict[str, Any]:
     for source in spec["components"]:
         row = dict(source)
         row["files"] = sorted(set(row["files"]))
-        row["implementation_commit"] = _git("log", "-1", "--format=%H", "--", *row["files"])
+        # A reviewed baseline may introduce a new tracked artifact in the same
+        # commit that will contain this contract.  Before that commit exists,
+        # git log has no path history; the explicitly verified baseline HEAD is
+        # the only admissible provenance boundary (never a later commit).
+        row["implementation_commit"] = (
+            _git("log", "-1", "--format=%H", "--", *row["files"]) or base_head
+        )
         row["basis_digest"] = component_digest(row, ROOT)
         components.append(row)
     components.sort(key=lambda row: row["component_id"])
@@ -77,7 +83,9 @@ def build(spec: dict[str, Any]) -> dict[str, Any]:
             "evidence_id": evidence_id,
             "artifact_path": artifact_path,
             "artifact_sha256": str(source["sha256"]),
-            "artifact_commit": _git("log", "-1", "--format=%H", "--", artifact_path),
+            "artifact_commit": (
+                _git("log", "-1", "--format=%H", "--", artifact_path) or base_head
+            ),
             "baseline_commit": base_head,
             "components": sorted(components_for_evidence),
             "declared_state": "blocked" if evidence_id in set(spec["blocked_evidence_ids"]) else "fresh",

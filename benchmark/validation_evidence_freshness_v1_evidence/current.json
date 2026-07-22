@@ -1,5 +1,5 @@
 {
-  "baseline_head": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e",
+  "baseline_head": "a743c59c719dd10db742cbd526f8f09c5ba13839",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -28,6 +28,14 @@
     {
       "claim_id": "architecture_offline_integrity_gates",
       "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_release_candidate_reproducibility",
+      "declared_state": "internal_only",
       "reasons": [],
       "stale_components": [],
       "stale_evidence": [],
@@ -106,7 +114,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 19,
+  "component_count": 20,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -239,6 +247,30 @@
     {
       "declared_state": "fresh",
       "evidence_id": "ranking_decision_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "release_candidate_contract",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "release_candidate_python_lock",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "release_candidate_reproducibility",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -401,6 +433,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "release_candidate_reproducibility",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "source_fusion",
       "reasons": [],
       "stale_components": [],
@@ -437,7 +477,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 8,
-    "fresh": 43,
+    "fresh": 48,
     "not_applicable": 1,
     "stale": 0
   },

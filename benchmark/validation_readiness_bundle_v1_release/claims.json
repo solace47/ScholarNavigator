@@ -1,13 +1,13 @@
 {
-  "claim_count": 14,
-  "claim_evidence_coverage_count": 14,
+  "claim_count": 15,
+  "claim_evidence_coverage_count": 15,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "fcb9ef95c756f183161a376f28640ea1d750d1ecdd86203154727d6faec42e7d",
-      "size": 35365
+      "sha256": "e379159eb21697cfa86b3f726486c3c91117394fa05e96265081c3a9d461c4e5",
+      "size": 35980
     },
     {
       "document_id": "contest_requirements",
@@ -80,6 +80,19 @@
       "scope": "engineering_capability",
       "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
       "status": "verified"
+    },
+    {
+      "boundary": "The current frontend webpack artifact is not byte reproducible, so the release candidate is not qualified; this is not a quality or official validation claim.",
+      "claim_id": "architecture_release_candidate_reproducibility",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "release_candidate_contract",
+        "release_candidate_python_lock",
+        "release_candidate_reproducibility"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The fixed-source offline release gate records a deterministic source and dependency closure and exposes cross-tree artifact drift.",
+      "status": "internal_only"
     },
     {
       "boundary": "Freshness verifies dependency closure and rerun scope only; it does not recompute evidence, alter historical conclusions, or remove formal blockers.",
@@ -202,7 +215,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 6,
+    "architecture": 7,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -211,7 +224,7 @@
   "schema_version": "1",
   "status_counts": {
     "blocked": 3,
-    "internal_only": 5,
+    "internal_only": 6,
     "not_applicable": 1,
     "verified": 5
   }

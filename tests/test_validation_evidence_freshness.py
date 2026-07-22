@@ -34,10 +34,10 @@ def test_current_inventory_is_closed_and_fresh(contract: dict[str, object]) -> N
     report = verify_current(contract, repository_root=ROOT)
     assert report["status"] == "fresh_with_declared_blockers"
     assert report["exit_code"] == 0
-    assert report["component_count"] == 19
+    assert report["component_count"] == 20
     assert report["state_counts"] == {
         "blocked": 8,
-        "fresh": 43,
+        "fresh": 48,
         "not_applicable": 1,
         "stale": 0,
     }

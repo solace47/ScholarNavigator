@@ -190,6 +190,41 @@
       "size": 7472
     },
     {
+      "dependencies": [],
+      "evidence_id": "release_candidate_contract",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_contract.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "role": "release_engineering_contract",
+      "sha256": "5fd108ff252ec53837d787709177258ed322a29efb6d87e46e5459f2714fa638",
+      "size": 63206
+    },
+    {
+      "dependencies": [
+        "release_candidate_contract"
+      ],
+      "evidence_id": "release_candidate_python_lock",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_python_lock.json",
+      "protocol": "python_installed_metadata_lock_v1",
+      "role": "release_dependency_closure",
+      "sha256": "ddde2709b51035f0aee02431cd1fb2e6bc46e63be6ea9bdb15d621542cf12918",
+      "size": 9874
+    },
+    {
+      "dependencies": [
+        "release_candidate_contract",
+        "release_candidate_python_lock"
+      ],
+      "evidence_id": "release_candidate_reproducibility",
+      "format": "json",
+      "path": "benchmark/release_candidate_reproducibility_v1_evidence/current.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "role": "release_engineering_evidence",
+      "sha256": "6b07107b94d8f25b1abf6a49baf68446f76b0b93fdad4e157c6ca7199073226c",
+      "size": 1601
+    },
+    {
       "dependencies": [
         "source_fusion_protocol"
       ],
@@ -334,8 +369,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2",
-      "size": 11305
+      "sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981",
+      "size": 12365
     },
     {
       "dependencies": [],
@@ -344,8 +379,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "1ad585e993e7883d7e916f73cd757234ab05704de1d00e0a31c246725313fec2",
-      "size": 43969
+      "sha256": "c66b1a5d1792a170d77fda826cc02e4e29decce16019971831f45f5f1477fcea",
+      "size": 48113
     },
     {
       "dependencies": [
@@ -361,7 +396,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 32,
+  "evidence_count": 35,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

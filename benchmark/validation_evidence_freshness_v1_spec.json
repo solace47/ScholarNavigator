@@ -1,5 +1,5 @@
 {
-  "baseline_head": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e",
+  "baseline_head": "a743c59c719dd10db742cbd526f8f09c5ba13839",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
@@ -8,24 +8,65 @@
     "official_scorer_blocked"
   ],
   "claim_component_bindings": {
-    "architecture_default_policy_isolation": ["default_policy", "evidence_registry", "tiebreak", "top20_delivery"],
-    "architecture_external_scorer_handoff_ready": ["external_scorer", "full1000_resume", "top20_delivery"],
-    "architecture_human_annotation_delivery_ready": ["human_annotation", "human_precision"],
-    "architecture_offline_integrity_gates": ["constraint_decision", "ranking_decision", "source_fusion", "source_reliability", "tiebreak", "top20_delivery"],
-    "contest_full1000_completion": ["full1000_resume"],
-    "contest_human_precision": ["human_precision"],
-    "contest_official_scorer_alignment": ["official_scorer_absence"],
-    "evaluation_record160_extrapolation_boundary": ["completion_bias"],
-    "evaluation_record160_population": ["source_reliability", "top20_delivery"],
-    "evaluation_source_diagnostics": ["source_reliability"],
-    "evaluation_source_fusion_coverage": ["source_fusion"],
-    "evaluation_top20_delivery": ["top20_delivery"],
-    "readme_operational_entrypoint": ["default_policy", "evidence_registry"]
+    "architecture_default_policy_isolation": [
+      "default_policy",
+      "evidence_registry",
+      "tiebreak",
+      "top20_delivery"
+    ],
+    "architecture_external_scorer_handoff_ready": [
+      "external_scorer",
+      "full1000_resume",
+      "top20_delivery"
+    ],
+    "architecture_human_annotation_delivery_ready": [
+      "human_annotation",
+      "human_precision"
+    ],
+    "architecture_offline_integrity_gates": [
+      "constraint_decision",
+      "ranking_decision",
+      "source_fusion",
+      "source_reliability",
+      "tiebreak",
+      "top20_delivery"
+    ],
+    "architecture_release_candidate_reproducibility": [
+      "release_candidate_reproducibility"
+    ],
+    "contest_full1000_completion": [
+      "full1000_resume"
+    ],
+    "contest_human_precision": [
+      "human_precision"
+    ],
+    "contest_official_scorer_alignment": [
+      "official_scorer_absence"
+    ],
+    "evaluation_record160_extrapolation_boundary": [
+      "completion_bias"
+    ],
+    "evaluation_record160_population": [
+      "source_reliability",
+      "top20_delivery"
+    ],
+    "evaluation_source_diagnostics": [
+      "source_reliability"
+    ],
+    "evaluation_source_fusion_coverage": [
+      "source_fusion"
+    ],
+    "evaluation_top20_delivery": [
+      "top20_delivery"
+    ],
+    "readme_operational_entrypoint": [
+      "default_policy",
+      "evidence_registry"
+    ]
   },
   "components": [
     {
       "component_id": "completion_bias",
-      "kind": "statistics_and_data_identity",
       "files": [
         "benchmark/autoscholar_query_independence_baseline/query_assignments.jsonl",
         "benchmark/autoscholar_query_planning_input.jsonl",
@@ -33,79 +74,79 @@
         "benchmark/top20_delivery_fidelity_v1_result/case_diagnostics.jsonl",
         "scripts/check_completion_bias.py",
         "src/scholar_agent/evaluation/completion_bias_audit.py"
-      ]
+      ],
+      "kind": "statistics_and_data_identity"
     },
     {
       "component_id": "constraint_decision",
-      "kind": "audit_implementation",
       "files": [
         "benchmark/constraint_decision_audit_v1_protocol.json",
         "scripts/check_constraint_decisions.py",
         "src/scholar_agent/evaluation/constraint_decision_audit.py"
-      ]
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "constraint_runtime",
-      "kind": "production_semantics",
       "files": [
         "src/scholar_agent/agents/judgement.py",
         "src/scholar_agent/agents/judgement_config.py",
         "src/scholar_agent/core/search_schemas.py"
-      ]
+      ],
+      "kind": "production_semantics"
     },
     {
       "component_id": "default_policy",
-      "kind": "production_configuration",
       "files": [
         "src/scholar_agent/agents/judgement_config.py",
         "src/scholar_agent/core/search_schemas.py",
         "src/scholar_agent/evaluation/selection.py",
         "src/scholar_agent/retrieval/query_adapter.py",
         "src/scholar_agent/services/search_service.py"
-      ]
+      ],
+      "kind": "production_configuration"
     },
     {
       "component_id": "evidence_registry",
-      "kind": "registry_and_cli",
       "files": [
         "benchmark/evidence_registry_manifest.json",
         "scripts/check_evidence_registry.py",
         "src/scholar_agent/evaluation/evidence_registry.py"
-      ]
+      ],
+      "kind": "registry_and_cli"
     },
     {
       "component_id": "external_scorer",
-      "kind": "protocol_cli_and_sandbox",
       "files": [
         "benchmark/external_scorer_handoff_v1_protocol.json",
         "scripts/check_external_scorer_handoff.py",
         "scripts/external_scorer_worker.py",
         "src/scholar_agent/evaluation/external_scorer_handoff.py"
-      ]
+      ],
+      "kind": "protocol_cli_and_sandbox"
     },
     {
       "component_id": "full1000_resume",
-      "kind": "data_identity_and_resume",
       "files": [
         "benchmark/autoscholar_full1000_resume/resume_manifest.json",
         "scripts/audit_autoscholar_snapshot_resume.py",
         "src/scholar_agent/evaluation/snapshot_resume.py"
-      ]
+      ],
+      "kind": "data_identity_and_resume"
     },
     {
       "component_id": "human_annotation",
-      "kind": "offline_annotation_delivery",
       "files": [
         "benchmark/human_annotation_delivery_v1_protocol.json",
         "benchmark/human_annotation_delivery_v1_release/annotator-A/app.js",
         "benchmark/human_annotation_delivery_v1_release/annotator-B/app.js",
         "scripts/check_human_annotation_delivery.py",
         "src/scholar_agent/evaluation/human_annotation_delivery.py"
-      ]
+      ],
+      "kind": "offline_annotation_delivery"
     },
     {
       "component_id": "human_precision",
-      "kind": "rubric_and_statistics",
       "files": [
         "benchmark/human_precision_adjudication_v1_protocol.json",
         "benchmark/lexical_normalization_precision_annotation/public/annotation_schema.json",
@@ -113,67 +154,89 @@
         "src/scholar_agent/evaluation/full_swap_precision_annotation.py",
         "src/scholar_agent/evaluation/human_precision_adjudication.py",
         "src/scholar_agent/evaluation/precision_annotation.py"
-      ]
+      ],
+      "kind": "rubric_and_statistics"
     },
     {
       "component_id": "identity_runtime",
-      "kind": "production_identity",
       "files": [
         "src/scholar_agent/core/dedup.py",
         "src/scholar_agent/core/identity.py",
         "src/scholar_agent/core/paper_schemas.py"
-      ]
+      ],
+      "kind": "production_identity"
     },
     {
       "component_id": "official_scorer_absence",
-      "kind": "formal_blocker_specification",
-      "files": ["docs/contest/requirements.md"]
+      "files": [
+        "docs/contest/requirements.md"
+      ],
+      "kind": "formal_blocker_specification"
     },
     {
       "component_id": "ranking_decision",
-      "kind": "audit_implementation",
       "files": [
         "benchmark/ranking_decision_audit_v1_protocol.json",
         "scripts/check_ranking_decisions.py",
         "src/scholar_agent/evaluation/ranking_decision_audit.py"
-      ]
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "ranking_runtime",
-      "kind": "production_semantics",
       "files": [
         "src/scholar_agent/agents/judgement.py",
         "src/scholar_agent/agents/judgement_config.py",
         "src/scholar_agent/agents/reranker.py",
         "src/scholar_agent/evaluation/selection.py"
-      ]
+      ],
+      "kind": "production_semantics"
     },
     {
       "component_id": "readiness_publication",
-      "kind": "claim_boundary_documentation",
-      "files": ["docs/validation-readiness.md"]
+      "files": [
+        "docs/validation-readiness.md"
+      ],
+      "kind": "claim_boundary_documentation"
+    },
+    {
+      "component_id": "release_candidate_reproducibility",
+      "files": [
+        "benchmark/release_candidate_reproducibility_v1_contract.json",
+        "benchmark/release_candidate_reproducibility_v1_evidence/current.json",
+        "benchmark/release_candidate_reproducibility_v1_python_lock.json",
+        "benchmark/release_candidate_reproducibility_v1_spec.json",
+        "docs/release-candidate-reproducibility.md",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "requirements.txt",
+        "scripts/check_release_candidate.py",
+        "scripts/freeze_release_candidate_contract.py",
+        "scripts/freeze_release_candidate_evidence.py",
+        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
+      ],
+      "kind": "release_build_and_dependency_closure"
     },
     {
       "component_id": "source_fusion",
-      "kind": "audit_implementation",
       "files": [
         "benchmark/source_fusion_ablation_v1_protocol.json",
         "scripts/check_source_fusion_ablation.py",
         "src/scholar_agent/evaluation/source_fusion_ablation.py"
-      ]
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "source_reliability",
-      "kind": "audit_implementation",
       "files": [
         "benchmark/source_reliability_diagnostics_v1_protocol.json",
         "scripts/check_source_reliability.py",
         "src/scholar_agent/evaluation/source_reliability_diagnostics.py"
-      ]
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "source_runtime",
-      "kind": "production_connectors_and_canonicalization",
       "files": [
         "src/scholar_agent/connectors/arxiv.py",
         "src/scholar_agent/connectors/openalex.py",
@@ -184,20 +247,20 @@
         "src/scholar_agent/core/identity.py",
         "src/scholar_agent/core/paper_schemas.py",
         "src/scholar_agent/services/search_service.py"
-      ]
+      ],
+      "kind": "production_connectors_and_canonicalization"
     },
     {
       "component_id": "tiebreak",
-      "kind": "audit_implementation",
       "files": [
         "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
         "scripts/check_tiebreak_qualification.py",
         "src/scholar_agent/evaluation/tiebreak_qualification.py"
-      ]
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "top20_delivery",
-      "kind": "delivery_api_frontend_and_audit",
       "files": [
         "benchmark/top20_delivery_contract_v1.json",
         "frontend/src/components/scholar-navigator-app.tsx",
@@ -209,39 +272,158 @@
         "src/scholar_agent/core/api_schemas.py",
         "src/scholar_agent/evaluation/top20_delivery_fidelity.py",
         "src/scholar_agent/services/api_mapper.py"
-      ]
+      ],
+      "kind": "delivery_api_frontend_and_audit"
     }
   ],
   "evidence_component_bindings": {
-    "completion_bias_aggregate": ["completion_bias", "identity_runtime"],
-    "completion_bias_manifest": ["completion_bias", "identity_runtime"],
-    "completion_bias_protocol": ["completion_bias", "identity_runtime"],
-    "constraint_decision_manifest": ["constraint_decision", "constraint_runtime", "identity_runtime"],
-    "constraint_decision_protocol": ["constraint_decision", "constraint_runtime", "identity_runtime"],
-    "evidence_registry_gate": ["default_policy", "evidence_registry"],
-    "external_scorer_protocol": ["external_scorer", "full1000_resume", "top20_delivery"],
-    "external_scorer_readiness": ["external_scorer", "full1000_resume", "top20_delivery"],
-    "external_scorer_synthetic_matrix": ["external_scorer"],
-    "full1000_resume_summary": ["full1000_resume"],
-    "human_annotation_delivery_dry_run": ["human_annotation", "human_precision"],
-    "human_annotation_delivery_protocol": ["human_annotation", "human_precision"],
-    "human_annotation_delivery_readiness": ["human_annotation", "human_precision"],
-    "human_precision_pending": ["human_precision", "identity_runtime", "ranking_runtime"],
-    "official_scorer_blocked": ["official_scorer_absence"],
-    "ranking_decision_manifest": ["identity_runtime", "ranking_decision", "ranking_runtime"],
-    "ranking_decision_protocol": ["identity_runtime", "ranking_decision", "ranking_runtime"],
-    "source_fusion_aggregate": ["identity_runtime", "ranking_runtime", "source_fusion", "source_runtime"],
-    "source_fusion_manifest": ["identity_runtime", "ranking_runtime", "source_fusion", "source_runtime"],
-    "source_fusion_protocol": ["identity_runtime", "ranking_runtime", "source_fusion", "source_runtime"],
-    "source_reliability_aggregate": ["identity_runtime", "ranking_runtime", "source_reliability", "source_runtime"],
-    "source_reliability_manifest": ["identity_runtime", "ranking_runtime", "source_reliability", "source_runtime"],
-    "source_reliability_protocol": ["identity_runtime", "ranking_runtime", "source_reliability", "source_runtime"],
-    "tiebreak_aggregate": ["identity_runtime", "ranking_runtime", "tiebreak"],
-    "tiebreak_manifest": ["identity_runtime", "ranking_runtime", "tiebreak"],
-    "tiebreak_protocol": ["identity_runtime", "ranking_runtime", "tiebreak"],
-    "top20_delivery_aggregate": ["identity_runtime", "ranking_runtime", "top20_delivery"],
-    "top20_delivery_contract": ["identity_runtime", "ranking_runtime", "top20_delivery"],
-    "top20_delivery_manifest": ["identity_runtime", "ranking_runtime", "top20_delivery"]
+    "completion_bias_aggregate": [
+      "completion_bias",
+      "identity_runtime"
+    ],
+    "completion_bias_manifest": [
+      "completion_bias",
+      "identity_runtime"
+    ],
+    "completion_bias_protocol": [
+      "completion_bias",
+      "identity_runtime"
+    ],
+    "constraint_decision_manifest": [
+      "constraint_decision",
+      "constraint_runtime",
+      "identity_runtime"
+    ],
+    "constraint_decision_protocol": [
+      "constraint_decision",
+      "constraint_runtime",
+      "identity_runtime"
+    ],
+    "evidence_registry_gate": [
+      "default_policy",
+      "evidence_registry"
+    ],
+    "external_scorer_protocol": [
+      "external_scorer",
+      "full1000_resume",
+      "top20_delivery"
+    ],
+    "external_scorer_readiness": [
+      "external_scorer",
+      "full1000_resume",
+      "top20_delivery"
+    ],
+    "external_scorer_synthetic_matrix": [
+      "external_scorer"
+    ],
+    "full1000_resume_summary": [
+      "full1000_resume"
+    ],
+    "human_annotation_delivery_dry_run": [
+      "human_annotation",
+      "human_precision"
+    ],
+    "human_annotation_delivery_protocol": [
+      "human_annotation",
+      "human_precision"
+    ],
+    "human_annotation_delivery_readiness": [
+      "human_annotation",
+      "human_precision"
+    ],
+    "human_precision_pending": [
+      "human_precision",
+      "identity_runtime",
+      "ranking_runtime"
+    ],
+    "official_scorer_blocked": [
+      "official_scorer_absence"
+    ],
+    "ranking_decision_manifest": [
+      "identity_runtime",
+      "ranking_decision",
+      "ranking_runtime"
+    ],
+    "ranking_decision_protocol": [
+      "identity_runtime",
+      "ranking_decision",
+      "ranking_runtime"
+    ],
+    "release_candidate_contract": [
+      "release_candidate_reproducibility"
+    ],
+    "release_candidate_python_lock": [
+      "release_candidate_reproducibility"
+    ],
+    "release_candidate_reproducibility": [
+      "release_candidate_reproducibility"
+    ],
+    "source_fusion_aggregate": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_fusion",
+      "source_runtime"
+    ],
+    "source_fusion_manifest": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_fusion",
+      "source_runtime"
+    ],
+    "source_fusion_protocol": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_fusion",
+      "source_runtime"
+    ],
+    "source_reliability_aggregate": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_reliability",
+      "source_runtime"
+    ],
+    "source_reliability_manifest": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_reliability",
+      "source_runtime"
+    ],
+    "source_reliability_protocol": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_reliability",
+      "source_runtime"
+    ],
+    "tiebreak_aggregate": [
+      "identity_runtime",
+      "ranking_runtime",
+      "tiebreak"
+    ],
+    "tiebreak_manifest": [
+      "identity_runtime",
+      "ranking_runtime",
+      "tiebreak"
+    ],
+    "tiebreak_protocol": [
+      "identity_runtime",
+      "ranking_runtime",
+      "tiebreak"
+    ],
+    "top20_delivery_aggregate": [
+      "identity_runtime",
+      "ranking_runtime",
+      "top20_delivery"
+    ],
+    "top20_delivery_contract": [
+      "identity_runtime",
+      "ranking_runtime",
+      "top20_delivery"
+    ],
+    "top20_delivery_manifest": [
+      "identity_runtime",
+      "ranking_runtime",
+      "top20_delivery"
+    ]
   },
   "exemptions": [
     {
@@ -251,23 +433,73 @@
     }
   ],
   "gate_component_bindings": {
-    "completion_bias": ["completion_bias", "identity_runtime"],
-    "constraint_decisions": ["constraint_decision", "constraint_runtime", "identity_runtime"],
-    "evidence_registry": ["default_policy", "evidence_registry"],
-    "external_scorer_handoff": ["external_scorer", "full1000_resume", "top20_delivery"],
-    "human_annotation_delivery": ["human_annotation", "human_precision"],
-    "ranking_decisions": ["identity_runtime", "ranking_decision", "ranking_runtime"],
-    "source_fusion": ["identity_runtime", "ranking_runtime", "source_fusion", "source_runtime"],
-    "source_reliability": ["identity_runtime", "ranking_runtime", "source_reliability", "source_runtime"],
-    "tiebreak_qualification": ["identity_runtime", "ranking_runtime", "tiebreak"],
-    "top20_delivery_fidelity": ["identity_runtime", "ranking_runtime", "top20_delivery"]
+    "completion_bias": [
+      "completion_bias",
+      "identity_runtime"
+    ],
+    "constraint_decisions": [
+      "constraint_decision",
+      "constraint_runtime",
+      "identity_runtime"
+    ],
+    "evidence_registry": [
+      "default_policy",
+      "evidence_registry"
+    ],
+    "external_scorer_handoff": [
+      "external_scorer",
+      "full1000_resume",
+      "top20_delivery"
+    ],
+    "human_annotation_delivery": [
+      "human_annotation",
+      "human_precision"
+    ],
+    "ranking_decisions": [
+      "identity_runtime",
+      "ranking_decision",
+      "ranking_runtime"
+    ],
+    "release_candidate_reproducibility": [
+      "release_candidate_reproducibility"
+    ],
+    "source_fusion": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_fusion",
+      "source_runtime"
+    ],
+    "source_reliability": [
+      "identity_runtime",
+      "ranking_runtime",
+      "source_reliability",
+      "source_runtime"
+    ],
+    "tiebreak_qualification": [
+      "identity_runtime",
+      "ranking_runtime",
+      "tiebreak"
+    ],
+    "top20_delivery_fidelity": [
+      "identity_runtime",
+      "ranking_runtime",
+      "top20_delivery"
+    ]
   },
   "protocol": "validation_evidence_freshness_v1_spec",
   "readiness_contract_path": "benchmark/validation_readiness_bundle_v1_contract.json",
   "schema_version": "1",
   "self_exclusions": {
-    "claims": ["architecture_validation_evidence_freshness"],
-    "evidence": ["validation_freshness_current", "validation_freshness_protocol", "validation_freshness_synthetic_impact"],
-    "gates": ["validation_evidence_freshness"]
+    "claims": [
+      "architecture_validation_evidence_freshness"
+    ],
+    "evidence": [
+      "validation_freshness_current",
+      "validation_freshness_protocol",
+      "validation_freshness_synthetic_impact"
+    ],
+    "gates": [
+      "validation_evidence_freshness"
+    ]
   }
 }

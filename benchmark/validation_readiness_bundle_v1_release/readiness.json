@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 14,
+  "claim_count": 15,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
-    "implementation_base_commit": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e",
+    "implementation_base_commit": "a743c59c719dd10db742cbd526f8f09c5ba13839",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 8,
-    "implementation_tree_sha256": "754d320fbddc2ca92118a27a76f4430b4928ad618b5859c4d5159de792756f00"
+    "implementation_file_count": 17,
+    "implementation_tree_sha256": "e91e4fb8c01b760af984a863835c26871d71a4ad67cd543f79fb6ba1fd7154da"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 11,
+  "read_only_gate_count": 12,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -58,6 +58,12 @@
       "status": "completed"
     },
     {
+      "exit_code": 2,
+      "gate_id": "release_candidate_reproducibility",
+      "output_sha256": "6cb185767da87f41793fceb31b299a7a748f17eb1fc11057b807c2fe415e7c71",
+      "status": "build_or_supply_chain_violation"
+    },
+    {
       "exit_code": 0,
       "gate_id": "source_fusion",
       "output_sha256": "780d15d947346ba0034ce492ae1e11a0fc82d36425f516a01288bd4dfea73dc2",
@@ -84,7 +90,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2",
+      "output_sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981",
       "status": "fresh_with_declared_blockers"
     }
   ],
