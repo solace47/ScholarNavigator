@@ -34,10 +34,10 @@ def test_current_inventory_is_closed_and_fresh(contract: dict[str, object]) -> N
     report = verify_current(contract, repository_root=ROOT)
     assert report["status"] == "fresh_with_declared_blockers"
     assert report["exit_code"] == 0
-    assert report["component_count"] == 25
+    assert report["component_count"] == 26
     assert report["state_counts"] == {
-        "blocked": 14,
-        "fresh": 71,
+        "blocked": 15,
+        "fresh": 74,
         "not_applicable": 1,
         "stale": 0,
     }
@@ -79,6 +79,7 @@ def test_annotation_interface_does_not_invalidate_source_funnel(
     )
     assert _stale_ids(report, "gates", "gate_id") == {"human_annotation_delivery"}
     assert _stale_ids(report, "evidence", "evidence_id") == {
+        "formal_evidence_quarantine_readiness",
         "formal_validation_clearance_current",
         "human_annotation_delivery_dry_run",
         "human_annotation_delivery_protocol",

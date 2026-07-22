@@ -1,7 +1,8 @@
 {
-  "baseline_head": "e1e2545cab9d6f2ecf0e95be157d4c1e71376ec8",
+  "baseline_head": "473414bc952ba9ef8f36d70af791f59674e9c6cf",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
+    "formal_evidence_quarantine_readiness",
     "full1000_resume_summary",
     "human_annotation_delivery_readiness",
     "human_precision_pending",
@@ -28,6 +29,11 @@
     "architecture_formal_validation_clearance_gated": [
       "formal_validation_clearance",
       "full1000_execution",
+      "human_precision",
+      "official_scorer_absence"
+    ],
+    "architecture_formal_evidence_quarantine_ready": [
+      "formal_evidence_quarantine",
       "human_precision",
       "official_scorer_absence"
     ],
@@ -150,6 +156,16 @@
         "src/scholar_agent/evaluation/external_scorer_handoff.py"
       ],
       "kind": "protocol_cli_and_sandbox"
+    },
+    {
+      "component_id": "formal_evidence_quarantine",
+      "files": [
+        "benchmark/formal_evidence_quarantine_v1_protocol.json",
+        "docs/formal-evidence-quarantine.md",
+        "scripts/check_formal_evidence_quarantine.py",
+        "src/scholar_agent/evaluation/formal_evidence_quarantine.py"
+      ],
+      "kind": "formal_evidence_intake_isolation_and_posthoc_firewall"
     },
     {
       "component_id": "formal_validation_clearance",
@@ -435,6 +451,14 @@
     "frontend_reproducible_release_contract": [
       "frontend_reproducible_build"
     ],
+    "formal_evidence_quarantine_protocol": [
+      "formal_evidence_quarantine"
+    ],
+    "formal_evidence_quarantine_readiness": [
+      "formal_evidence_quarantine",
+      "human_precision",
+      "official_scorer_absence"
+    ],
     "formal_validation_clearance_current": [
       "formal_validation_clearance",
       "full1000_execution",
@@ -630,6 +654,11 @@
       "external_scorer",
       "full1000_resume",
       "top20_delivery"
+    ],
+    "formal_evidence_quarantine": [
+      "formal_evidence_quarantine",
+      "human_precision",
+      "official_scorer_absence"
     ],
     "formal_validation_clearance": [
       "formal_validation_clearance",

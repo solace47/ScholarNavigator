@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "f74902f008304bcad70550afe4c726b029b03736f3aba77cfb2aa907702443c8"
+      "sha256": "b84ec46a49bd7973aa18c21523377b0937ba81e4344dad6a21beb11a592c82c6"
     },
     {
       "document_id": "contest_requirements",
@@ -199,6 +199,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Formal validation clearance is controlled by strict machine-evidence predicates and a fail-closed receipt state machine.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Only temporary synthetic evidence exercises the controls; no real label or official scorer evidence is present and no formal blocker is removed.",
+      "claim_id": "architecture_formal_evidence_quarantine_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_evidence_quarantine_protocol",
+        "formal_evidence_quarantine_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Formal evaluation evidence has a fail-closed intake, consumer boundary, and post-hoc contamination gate.",
       "status": "verified"
     },
     {
@@ -1529,6 +1541,58 @@
     {
       "checks": [
         {
+          "equals": "formal_evidence_quarantine_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "formal_evidence_quarantine_protocol",
+      "format": "json",
+      "path": "benchmark/formal_evidence_quarantine_v1_protocol.json",
+      "protocol": "formal_evidence_quarantine_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "63b9cc16123b63a6b30732878bfed76c03d744d1b0e862c7c9ddd2dca30dc7a4"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_no_real_formal_evidence",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "formal_evidence_quarantine_protocol",
+        "human_annotation_delivery_readiness",
+        "external_scorer_readiness"
+      ],
+      "evidence_id": "formal_evidence_quarantine_readiness",
+      "format": "json",
+      "path": "benchmark/formal_evidence_quarantine_v1_evidence/readiness.json",
+      "protocol": "formal_evidence_quarantine_v1",
+      "required": true,
+      "role": "current_boundary_state",
+      "sha256": "93aab19c45d4ed85a160e7b68b9cac3eb45defd2085aa5b44b1ef6a7bb4d70c3"
+    },
+    {
+      "checks": [
+        {
           "equals": "partially_satisfied",
           "pointer": "/status"
         },
@@ -1743,7 +1807,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "367b2ded4c70e90bd96c5df39515dbe85ddc181ff9626816cb6a7646728a59c6"
+      "sha256": "54ccb2045853e1291237c9ac3038665ffc8aa4ff2c20f315753d193eb68ff305"
     },
     {
       "checks": [
@@ -1759,7 +1823,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "3a479b483f0f9fec16530a7eba2c2176ae68cc4c7e6a49c7c35380f32ea6be12"
+      "sha256": "4b486d1e0f6f7f0f8ef4e79f36feb57e0f5a4661e9a0159657554f241a3096d1"
     },
     {
       "checks": [
@@ -2044,6 +2108,29 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_formal_evidence_quarantine.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "blocked_no_real_formal_evidence",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "formal_evidence_quarantine",
       "timeout_seconds": 60
     },
     {

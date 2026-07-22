@@ -304,6 +304,12 @@ partial、fake、synthetic 或 LLM 代理都不能满足相应谓词。三项证
 `partially_satisfied`，仍返回阻断退出码 3；契约见
 [`docs/formal-validation-clearance.md`](formal-validation-clearance.md)。
 
+未来真实人工标签、裁决和官方 scorer 产物由 `formal_evidence_quarantine_v1` 隔离。正式证据只可
+通过 evaluation/reporting/clearance 的登记 reader 读取；检索、query planning、Prompt、排序、
+预算、默认策略和前端搜索运行时均不得导入或读取。intake 后任何上述生产语义变化会使对应声明
+成为 `stale_for_claim`，不能用同一证据后验选型后仍声称独立验证。当前仅有临时合成隔离演练，
+详见 [`docs/formal-evidence-quarantine.md`](formal-evidence-quarantine.md)。
+
 `JudgementRuleConfig.lexical_normalization_policy` 默认固定为 `off`。显式实验值 `lexical_normalization_v1` 只在 topic、must-have、method、domain 的既有文本证据匹配失败后尝试 NFKC/casefold、Unicode 标点与连字符分词、点分字母缩写、英文所有格和固定的保守单复数归一；它不扩展语义、不做模糊匹配，也不作用于 dataset、exclude、paper type、venue、time 或 task。命中仍使用原字段权重、分面上限、负分、阈值、类别门和 Reranker。特征向量为每个新增证据记录原词、规范形式、标题/摘要字段和受分面上限约束后的边际分数；旧 Snapshot 未含该字段时按空列表兼容。
 
 ## API 运行生命周期

@@ -103,6 +103,30 @@
       "size": 2393
     },
     {
+      "dependencies": [],
+      "evidence_id": "formal_evidence_quarantine_protocol",
+      "format": "json",
+      "path": "benchmark/formal_evidence_quarantine_v1_protocol.json",
+      "protocol": "formal_evidence_quarantine_v1",
+      "role": "protocol",
+      "sha256": "63b9cc16123b63a6b30732878bfed76c03d744d1b0e862c7c9ddd2dca30dc7a4",
+      "size": 2887
+    },
+    {
+      "dependencies": [
+        "external_scorer_readiness",
+        "formal_evidence_quarantine_protocol",
+        "human_annotation_delivery_readiness"
+      ],
+      "evidence_id": "formal_evidence_quarantine_readiness",
+      "format": "json",
+      "path": "benchmark/formal_evidence_quarantine_v1_evidence/readiness.json",
+      "protocol": "formal_evidence_quarantine_v1",
+      "role": "current_boundary_state",
+      "sha256": "93aab19c45d4ed85a160e7b68b9cac3eb45defd2085aa5b44b1ef6a7bb4d70c3",
+      "size": 569
+    },
+    {
       "dependencies": [
         "external_scorer_readiness",
         "formal_validation_clearance_protocol",
@@ -618,8 +642,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "367b2ded4c70e90bd96c5df39515dbe85ddc181ff9626816cb6a7646728a59c6",
-      "size": 18523
+      "sha256": "54ccb2045853e1291237c9ac3038665ffc8aa4ff2c20f315753d193eb68ff305",
+      "size": 19375
     },
     {
       "dependencies": [],
@@ -628,8 +652,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "3a479b483f0f9fec16530a7eba2c2176ae68cc4c7e6a49c7c35380f32ea6be12",
-      "size": 73012
+      "sha256": "4b486d1e0f6f7f0f8ef4e79f36feb57e0f5a4661e9a0159657554f241a3096d1",
+      "size": 76171
     },
     {
       "dependencies": [
@@ -645,7 +669,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 56,
+  "evidence_count": 58,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

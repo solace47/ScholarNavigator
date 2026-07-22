@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 19,
+  "claim_count": 20,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
     "implementation_file_count": 32,
-    "implementation_tree_sha256": "e4cd02fb71785e5d1a766bbbd0dd4c4a361f4a00bdab01c1be32dab83aa51f4d"
+    "implementation_tree_sha256": "21ffd072e646efe6651d8dbb46ab1c720ceef8d11108fa86ee3eb7a96e717603"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 16,
+  "read_only_gate_count": 17,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -44,6 +44,12 @@
       "gate_id": "external_scorer_handoff",
       "output_sha256": "09090400f80130d1fa2f9aafe9df4c6a512da985d22defe1a5cc5770ad8e2610",
       "status": "blocked_missing_official_scorer_or_complete_input"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "formal_evidence_quarantine",
+      "output_sha256": "93aab19c45d4ed85a160e7b68b9cac3eb45defd2085aa5b44b1ef6a7bb4d70c3",
+      "status": "blocked_no_real_formal_evidence"
     },
     {
       "exit_code": 3,
@@ -114,7 +120,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "367b2ded4c70e90bd96c5df39515dbe85ddc181ff9626816cb6a7646728a59c6",
+      "output_sha256": "54ccb2045853e1291237c9ac3038665ffc8aa4ff2c20f315753d193eb68ff305",
       "status": "fresh_with_declared_blockers"
     }
   ],

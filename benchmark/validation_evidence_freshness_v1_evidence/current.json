@@ -1,5 +1,5 @@
 {
-  "baseline_head": "e1e2545cab9d6f2ecf0e95be157d4c1e71376ec8",
+  "baseline_head": "473414bc952ba9ef8f36d70af791f59674e9c6cf",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -11,6 +11,14 @@
     },
     {
       "claim_id": "architecture_external_scorer_handoff_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_formal_evidence_quarantine_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -146,7 +154,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 25,
+  "component_count": 26,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -219,6 +227,22 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_evidence_quarantine_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "formal_evidence_quarantine_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
     },
     {
       "declared_state": "fresh",
@@ -617,6 +641,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "formal_evidence_quarantine",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "formal_validation_clearance",
       "reasons": [],
       "stale_components": [],
@@ -708,8 +740,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 14,
-    "fresh": 71,
+    "blocked": 15,
+    "fresh": 74,
     "not_applicable": 1,
     "stale": 0
   },

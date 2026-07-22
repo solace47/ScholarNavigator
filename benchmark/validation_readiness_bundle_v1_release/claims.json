@@ -1,13 +1,13 @@
 {
-  "claim_count": 19,
-  "claim_evidence_coverage_count": 19,
+  "claim_count": 20,
+  "claim_evidence_coverage_count": 20,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "f74902f008304bcad70550afe4c726b029b03736f3aba77cfb2aa907702443c8",
-      "size": 38604
+      "sha256": "b84ec46a49bd7973aa18c21523377b0937ba81e4344dad6a21beb11a592c82c6",
+      "size": 39172
     },
     {
       "document_id": "contest_requirements",
@@ -52,6 +52,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Only temporary synthetic evidence exercises the controls; no real label or official scorer evidence is present and no formal blocker is removed.",
+      "claim_id": "architecture_formal_evidence_quarantine_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_evidence_quarantine_protocol",
+        "formal_evidence_quarantine_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Formal evaluation evidence has a fail-closed intake, consumer boundary, and post-hoc contamination gate.",
       "status": "verified"
     },
     {
@@ -273,7 +285,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 11,
+    "architecture": 12,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -284,6 +296,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 7
+    "verified": 8
   }
 }
