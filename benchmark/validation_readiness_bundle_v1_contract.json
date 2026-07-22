@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2f9465205c5e7924872560393d3aad00ac28afc193930cea96bbb78a75a216b2"
+      "sha256": "d5aa65bcac3e248234d75dde019d352e7c290f1c3c26466c1679c467bd920eb9"
     },
     {
       "document_id": "contest_requirements",
@@ -90,6 +90,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic conformance proves only the isolated handoff mechanism; the missing official package/schema and incomplete Full1000 input remain formal blockers.",
+      "claim_id": "architecture_external_scorer_handoff_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "external_scorer_synthetic_matrix",
+        "external_scorer_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
       "status": "verified"
     },
     {
@@ -209,9 +221,23 @@
       "scripts/check_validation_readiness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
     ],
-    "implementation_base_commit": "c4709c5ad849284fd6d00356573a06957038149b"
+    "implementation_base_commit": "f5aa45608ef4f4625677c8c343292b04731b7f6e"
   },
   "consistency_assertions": [
+    {
+      "assertion_id": "external_scorer_formal_validation_incomplete",
+      "expected": false,
+      "observations": [
+        {
+          "evidence_id": "external_scorer_synthetic_matrix",
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "evidence_id": "external_scorer_readiness",
+          "pointer": "/formal_validation_complete"
+        }
+      ]
+    },
     {
       "assertion_id": "full_query_count",
       "expected": 1000,
@@ -386,6 +412,80 @@
     }
   ],
   "evidence": [
+    {
+      "checks": [
+        {
+          "equals": "external_scorer_handoff_v1",
+          "pointer": "/analysis"
+        },
+        {
+          "equals": "not_provided",
+          "pointer": "/official_package/input_schema"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "external_scorer_protocol",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_protocol.json",
+      "protocol": "external_scorer_handoff_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "60adfa40f3ba09d25c980a7614416d947d15393110542048bed1318eed0b69b7"
+    },
+    {
+      "checks": [
+        {
+          "equals": "handoff_chain_verified",
+          "pointer": "/status"
+        },
+        {
+          "equals": 15,
+          "pointer": "/scenario_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/official_score_generated"
+        }
+      ],
+      "dependencies": [
+        "external_scorer_protocol"
+      ],
+      "evidence_id": "external_scorer_synthetic_matrix",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/synthetic_matrix.json",
+      "protocol": "external_scorer_handoff_v1",
+      "required": true,
+      "role": "engineering_conformance",
+      "sha256": "63e8ff9400f93f524b28ece2141abc015b9384882c2589c6599564b62b0fea00"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_missing_official_scorer_or_complete_input",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": false,
+          "pointer": "/official_score_generated"
+        }
+      ],
+      "dependencies": [
+        "external_scorer_protocol",
+        "full1000_resume_summary",
+        "official_scorer_blocked"
+      ],
+      "evidence_id": "external_scorer_readiness",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/readiness.json",
+      "protocol": "external_scorer_handoff_v1",
+      "required": true,
+      "role": "formal_blocker_handoff",
+      "sha256": "ba5e44ec9150c195e2c93571443aba0f267aeba42a76b6c1b02e05e7e60ae5a3"
+    },
     {
       "checks": [
         {
@@ -838,6 +938,25 @@
   },
   "protocol": "validation_readiness_bundle_v1",
   "read_only_gates": [
+    {
+      "arguments": [
+        "scripts/check_external_scorer_handoff.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "blocked_missing_official_scorer_or_complete_input",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "external_scorer_handoff",
+      "timeout_seconds": 60
+    },
     {
       "arguments": [
         "scripts/check_completion_bias.py",

@@ -1,13 +1,13 @@
 {
-  "claim_count": 11,
-  "claim_evidence_coverage_count": 11,
+  "claim_count": 12,
+  "claim_evidence_coverage_count": 12,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2f9465205c5e7924872560393d3aad00ac28afc193930cea96bbb78a75a216b2",
-      "size": 33364
+      "sha256": "d5aa65bcac3e248234d75dde019d352e7c290f1c3c26466c1679c467bd920eb9",
+      "size": 34056
     },
     {
       "document_id": "contest_requirements",
@@ -40,6 +40,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "current_rules is the only registered default and deterministic_tiebreak_v2 remains disabled by default.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic conformance proves only the isolated handoff mechanism; the missing official package/schema and incomplete Full1000 input remain formal blockers.",
+      "claim_id": "architecture_external_scorer_handoff_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "external_scorer_readiness",
+        "external_scorer_synthetic_matrix"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
       "status": "verified"
     },
     {
@@ -166,7 +178,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 3,
+    "architecture": 4,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -177,6 +189,6 @@
     "blocked": 3,
     "internal_only": 5,
     "not_applicable": 1,
-    "verified": 2
+    "verified": 3
   }
 }

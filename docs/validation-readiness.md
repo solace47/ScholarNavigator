@@ -19,6 +19,10 @@
 Record160，并将 Record160 的覆盖、来源、排序、约束与交付声明限制在冻结 160 条总体；它不
 解除 Full1000 阻断，也不推断其余查询的检索表现。
 
+`external_scorer_handoff_v1` 作为独立工程声明登记：严格合成 package 已验证 canonical
+handoff、隔离子进程、输入不可变和双次确定性，但真实 readiness 仍以退出码 3 保持 blocked。
+该声明不提供官方 Schema、指标或成绩，也不解除 Full1000 与官方 scorer 两项阻断。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。

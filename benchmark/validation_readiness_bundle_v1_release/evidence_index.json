@@ -68,6 +68,42 @@
     },
     {
       "dependencies": [],
+      "evidence_id": "external_scorer_protocol",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_protocol.json",
+      "protocol": "external_scorer_handoff_v1",
+      "role": "protocol",
+      "sha256": "60adfa40f3ba09d25c980a7614416d947d15393110542048bed1318eed0b69b7",
+      "size": 4143
+    },
+    {
+      "dependencies": [
+        "external_scorer_protocol",
+        "full1000_resume_summary",
+        "official_scorer_blocked"
+      ],
+      "evidence_id": "external_scorer_readiness",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/readiness.json",
+      "protocol": "external_scorer_handoff_v1",
+      "role": "formal_blocker_handoff",
+      "sha256": "ba5e44ec9150c195e2c93571443aba0f267aeba42a76b6c1b02e05e7e60ae5a3",
+      "size": 896
+    },
+    {
+      "dependencies": [
+        "external_scorer_protocol"
+      ],
+      "evidence_id": "external_scorer_synthetic_matrix",
+      "format": "json",
+      "path": "benchmark/external_scorer_handoff_v1_evidence/synthetic_matrix.json",
+      "protocol": "external_scorer_handoff_v1",
+      "role": "engineering_conformance",
+      "sha256": "63e8ff9400f93f524b28ece2141abc015b9384882c2589c6599564b62b0fea00",
+      "size": 2393
+    },
+    {
+      "dependencies": [],
       "evidence_id": "full1000_resume_summary",
       "format": "json",
       "path": "benchmark/autoscholar_full1000_resume/summary.json",
@@ -255,7 +291,7 @@
       "size": 838
     }
   ],
-  "evidence_count": 23,
+  "evidence_count": 26,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

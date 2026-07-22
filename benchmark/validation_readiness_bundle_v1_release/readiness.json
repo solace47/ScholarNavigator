@@ -1,15 +1,15 @@
 {
   "blocker_count": 3,
-  "claim_count": 11,
+  "claim_count": 12,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
-    "implementation_base_commit": "c4709c5ad849284fd6d00356573a06957038149b",
+    "implementation_base_commit": "f5aa45608ef4f4625677c8c343292b04731b7f6e",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
     "implementation_file_count": 4,
-    "implementation_tree_sha256": "4637c6c9d586fa93c286d1379d4aa9a8c2d3f8f7c8468077cd603c73acfbb882"
+    "implementation_tree_sha256": "a7c4e120727a674366fce7e05ca6e7211bac46a6e37a50ef7e49f0b03f608745"
   },
-  "consistency_assertion_count": 11,
+  "consistency_assertion_count": 12,
   "execution": {
     "gold_or_qrels_loaded": false,
     "llm_request_count": 0,
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 8,
+  "read_only_gate_count": 9,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -38,6 +38,12 @@
       "gate_id": "evidence_registry",
       "output_sha256": "c46fc3d964dbd46142d120fe1de23c6db6210967997da5e18ea68043afa9dbc9",
       "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "external_scorer_handoff",
+      "output_sha256": "09090400f80130d1fa2f9aafe9df4c6a512da985d22defe1a5cc5770ad8e2610",
+      "status": "blocked_missing_official_scorer_or_complete_input"
     },
     {
       "exit_code": 0,
