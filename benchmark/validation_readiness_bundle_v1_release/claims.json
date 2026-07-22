@@ -1,13 +1,13 @@
 {
-  "claim_count": 10,
-  "claim_evidence_coverage_count": 10,
+  "claim_count": 11,
+  "claim_evidence_coverage_count": 11,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "c2b61d01c34c4eff08fc09ed1e9f83cf2786631d6379a75c59cd0e79fdf622d9",
-      "size": 32854
+      "sha256": "2f9465205c5e7924872560393d3aad00ac28afc193930cea96bbb78a75a216b2",
+      "size": 33364
     },
     {
       "document_id": "contest_requirements",
@@ -94,6 +94,18 @@
       "status": "blocked"
     },
     {
+      "boundary": "The audit uses only preregistered pre-retrieval features and cannot infer any unfinished-query retrieval outcome or quality.",
+      "claim_id": "evaluation_record160_extrapolation_boundary",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "completion_bias_aggregate",
+        "completion_bias_manifest"
+      ],
+      "scope": "internal_validation",
+      "statement": "Record160 findings are restricted to the frozen 160-query main-analysis population because Record162 is a source-order prefix with substantial component coverage gaps.",
+      "status": "internal_only"
+    },
+    {
       "boundary": "Record160 is a partial, order-biased internal sample and is not Full1000.",
       "claim_id": "evaluation_record160_population",
       "document_id": "evaluation",
@@ -154,7 +166,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 2,
+    "architecture": 3,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -163,7 +175,7 @@
   "schema_version": "1",
   "status_counts": {
     "blocked": 3,
-    "internal_only": 4,
+    "internal_only": 5,
     "not_applicable": 1,
     "verified": 2
   }

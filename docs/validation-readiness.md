@@ -15,6 +15,10 @@
 - `current_rules` 默认状态、实验 tie-break 默认关闭状态和关键门禁退出码；
 - Full1000、人工 Precision、官方 scorer/schema 三项不可替代的正式阻断。
 
+包还登记 `completion_bias_audit_v1` 的只读证据。该证据精确闭合 Full1000、Record162 和
+Record160，并将 Record160 的覆盖、来源、排序、约束与交付声明限制在冻结 160 条总体；它不
+解除 Full1000 阻断，也不推断其余查询的检索表现。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。

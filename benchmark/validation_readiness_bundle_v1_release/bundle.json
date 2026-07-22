@@ -1,12 +1,19 @@
 {
   "code_identity": {
-    "implementation_base_commit": "4d1470206eedcd03d4e154aaee2415970c5762f1",
+    "implementation_base_commit": "c4709c5ad849284fd6d00356573a06957038149b",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
     "implementation_file_count": 4,
-    "implementation_tree_sha256": "654eef2e3bcbab8547a8d1dae04cc9b36ae778cf1ade3bacc2931a7f5736d07c"
+    "implementation_tree_sha256": "4637c6c9d586fa93c286d1379d4aa9a8c2d3f8f7c8468077cd603c73acfbb882"
   },
   "dependency_graph": {
+    "completion_bias_aggregate": [
+      "completion_bias_protocol"
+    ],
+    "completion_bias_manifest": [
+      "completion_bias_aggregate"
+    ],
+    "completion_bias_protocol": [],
     "constraint_decision_manifest": [
       "constraint_decision_protocol"
     ],
@@ -50,28 +57,28 @@
   },
   "files": {
     "README.md": {
-      "sha256": "3c4f28235adcb69f0cc625ff8c50bd1ff740159e12ee8d81925445734d8f544e",
+      "sha256": "be177034826a6c2ac68414561a1adee67a975bdcded88d471de82d9dd2b37c90",
       "size": 783
     },
     "claims.json": {
-      "sha256": "e42e703bd1676e23b6f955674816666e9737eaf4c709cd586aa159b8b6dd5cc8",
-      "size": 6450
+      "sha256": "acd38b4b18be0a108270fff2bed6a4bd5a79807ad24b78c4e389269f6d49210f",
+      "size": 7076
     },
     "competition_checklist.md": {
       "sha256": "3a1dfe64dcbf1212eefac506e407f709eb7322f2e1519adeb2cbfa352faf75fb",
       "size": 913
     },
     "evidence_index.json": {
-      "sha256": "bb90cd0af2880f477758b4630716991688fc5c20197a6573caee61e234ecf843",
-      "size": 7987
+      "sha256": "2ad546cf55a10c76c45a7f28474213dfcbd1356715abbdf31525eb40a6d12124",
+      "size": 9155
     },
     "missing_inputs.json": {
       "sha256": "c8d19df63c02253023fb48856a5aab7345ec21c8289f8c2aa62434a9391aa3b5",
       "size": 1771
     },
     "readiness.json": {
-      "sha256": "abbe97223a03e61cbb4310f19f80d3cc044de6852b8ba4f234349c861b284152",
-      "size": 2407
+      "sha256": "39697bfc7e6a24755f470339abd1a117fc15a54903890d31157dab9bae9c3154",
+      "size": 2597
     }
   },
   "generation_command": "PYTHONPATH=src python scripts/check_validation_readiness.py generate --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release",

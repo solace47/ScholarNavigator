@@ -2,8 +2,8 @@
 
 This deterministic, offline bundle indexes tracked engineering and internal validation evidence. It does not contain source paper/query text, private mappings, credentials, temporary logs, or third-party source code.
 
-- Claim trace coverage: 10/10
-- Cross-evidence assertions: 10 consistent
+- Claim trace coverage: 11/11
+- Cross-evidence assertions: 11 consistent
 - Declared formal blockers: 3
 - Overall status: `ready_with_declared_blockers`
 

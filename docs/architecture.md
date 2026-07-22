@@ -251,6 +251,12 @@ Replay 或 evaluator，只读取已经跟踪的聚合证据、协议与阻断记
 官方 scorer/schema 仍是独立正式验证前置条件。详见
 [`docs/validation-readiness.md`](validation-readiness.md)。
 
+部分完成样本的外推边界由 `completion_bias_audit_v1` 独立审计。该层只读取检索前可见的
+query 结构、稳定顺序和既有查询连通分量，通过精确 opaque identity 闭合 Full1000、
+Record162 与 Record160；它不读取检索候选、来源产出、gold 或质量指标，也不进入
+SearchService。审计结果只限制 Record160 结论的适用总体，不推断未完成查询表现。契约与命令见
+[`docs/completion-bias-audit.md`](completion-bias-audit.md)。
+
 `JudgementRuleConfig.lexical_normalization_policy` 默认固定为 `off`。显式实验值 `lexical_normalization_v1` 只在 topic、must-have、method、domain 的既有文本证据匹配失败后尝试 NFKC/casefold、Unicode 标点与连字符分词、点分字母缩写、英文所有格和固定的保守单复数归一；它不扩展语义、不做模糊匹配，也不作用于 dataset、exclude、paper type、venue、time 或 task。命中仍使用原字段权重、分面上限、负分、阈值、类别门和 Reranker。特征向量为每个新增证据记录原词、规范形式、标题/摘要字段和受分面上限约束后的边际分数；旧 Snapshot 未含该字段时按空列表兼容。
 
 ## API 运行生命周期

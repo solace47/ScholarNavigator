@@ -2,6 +2,40 @@
   "evidence": [
     {
       "dependencies": [
+        "completion_bias_protocol"
+      ],
+      "evidence_id": "completion_bias_aggregate",
+      "format": "json",
+      "path": "benchmark/completion_bias_audit_v1_release/audit.json",
+      "protocol": "completion_bias_audit_v1",
+      "role": "aggregate",
+      "sha256": "87d3a4612b1795586d6844ac28c35b80ece339ae8df7523aa611fb62ff353680",
+      "size": 51646
+    },
+    {
+      "dependencies": [
+        "completion_bias_aggregate"
+      ],
+      "evidence_id": "completion_bias_manifest",
+      "format": "json",
+      "path": "benchmark/completion_bias_audit_v1_release/bundle.json",
+      "protocol": "completion_bias_audit_v1",
+      "role": "integrity_manifest",
+      "sha256": "1fa4113f234ba38b2b158b0d69ebf45f8c51b1d593e8cab27b59bd9a1d2b39e1",
+      "size": 1063
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "completion_bias_protocol",
+      "format": "json",
+      "path": "benchmark/completion_bias_audit_v1_protocol.json",
+      "protocol": "completion_bias_audit_v1",
+      "role": "protocol",
+      "sha256": "d2ec17c54190104b8165aa13990e534b2ba1b517a23a48f16acd2712965af7d8",
+      "size": 5964
+    },
+    {
+      "dependencies": [
         "constraint_decision_protocol"
       ],
       "evidence_id": "constraint_decision_manifest",
@@ -221,7 +255,7 @@
       "size": 838
     }
   ],
-  "evidence_count": 20,
+  "evidence_count": 23,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }
