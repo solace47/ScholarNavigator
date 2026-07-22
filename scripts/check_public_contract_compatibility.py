@@ -57,7 +57,6 @@ def _parser() -> argparse.ArgumentParser:
     compare = commands.add_parser("compare")
     compare.add_argument("--from", dest="from_path", required=True)
     compare.add_argument("--to", dest="to_path", required=True)
-    compare.add_argument("--allow-optional-additions", action="store_true")
     audit = commands.add_parser("audit-readiness")
     audit.add_argument("--baseline", default=str(DEFAULT_BASELINE))
     return parser
@@ -99,11 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             right = load_json(Path(args.to_path))
             validate_snapshot(left)
             validate_snapshot(right)
-            result = compare_snapshots(
-                left,
-                right,
-                extension_policy="allow_optional" if args.allow_optional_additions else "forbid",
-            )
+            result = compare_snapshots(left, right)
             result["exit_code"] = EXIT_COMPATIBLE if result["classification"] == "compatible" else EXIT_BREAKING
             result["formal_validation_complete"] = False
             _emit(result)

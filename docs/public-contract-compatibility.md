@@ -5,19 +5,20 @@ CLI 和机器产物契约。它只治理工程兼容性，不定义官方 Schema
 
 ## 覆盖与归一化
 
-- OpenAPI 路径、方法、参数、响应 Schema 和状态码；描述、示例等非语义展示字段不进入摘要。
-- `frontend/src/types/api.ts` 的导出类型、字段可空性，以及与同名 OpenAPI 模型的顶层字段闭合。
-- run provenance、readiness、formal clearance、人工标注交付和外部 scorer handoff CLI 的命令、参数、默认值与固定退出码。
-- `run_manifest_v1` 及 readiness、clearance、人工标注和 scorer handoff 机器 JSON 的版本与顶层字段类型。
+- OpenAPI 路径、方法、参数、响应递归 Schema 和状态码；描述文字等非语义展示字段不进入摘要。
+- `frontend/src/types/api.ts` 的逐字段类型、required/optional、nullable，以及 request producer / response consumer 的方向兼容性。FastAPI 默认输出字段以真实 `jsonable_encoder` fixture 证明会稳定出现。
+- run provenance、readiness、formal clearance、人工标注交付和外部 scorer handoff CLI 的命令与参数；每个 CLI 还运行固定安全探针，冻结真实退出码、stderr 边界及递归机器 JSON Schema。
+- `run_manifest_v1` 及 readiness、clearance、人工标注和 scorer handoff 机器 JSON 的递归结构、null/missing 区别、严格未知字段策略和版本。
 
 基线不复制 query、论文正文、私有映射或凭据，也排除绝对路径、时间戳和描述文本顺序。
 
 ## 兼容性语义
 
 - 删除或重命名字段、类型/可空性变化、枚举收窄、退出码变化、顺序语义变化均为 `breaking`。
-- 对严格消费者新增字段默认也是 `breaking`。
-- 只有调用方显式声明允许未知可选字段时，新增字段才是 `additive_review_required`；它仍不能自动通过当前基线。
-- 同一协议版本的 breaking 漂移直接失败。版本升级必须保留旧版读取验证或提供显式迁移器，不能只刷新基线。
+- 对 `additionalProperties=false` 或其他严格消费者新增字段始终是 `breaking`，CLI 不提供全局放宽参数。
+- 只有基线在精确 JSON Pointer 登记允许扩展、节点允许未知字段且新增字段确实 optional 时，才是 `additive_review_required`；它仍不能自动通过当前基线。
+- 同一协议版本的 breaking 漂移直接失败。`supported_read_versions` 与 migration registry 明确登记旧读能力；版本升级缺少旧读验证或已知迁移器时失败，不能只刷新基线。
+- JSON 输入拒绝重复键、NaN/Infinity 和非法 UTF-8。文档命令仅作为命令引用清单；本门禁不声称已验证文档中的示例输出，机器输出契约来自可执行 CLI 探针。
 
 ## 使用
 

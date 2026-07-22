@@ -8,23 +8,51 @@
   "cli_contracts": {
     "external_scorer_handoff": {
       "exit_codes": [0, 2, 3, 4],
-      "path": "scripts/check_external_scorer_handoff.py"
+      "path": "scripts/check_external_scorer_handoff.py",
+      "probes": [
+        {"arguments": ["prepare", "--output", "{temp}/prepared"], "command": "prepare", "expected_exit_code": 3, "probe_id": "prepare"},
+        {"arguments": ["verify-package", "--package", "{temp}/missing"], "command": "verify-package", "expected_exit_code": 2, "probe_id": "verify_package"},
+        {"arguments": ["run", "--package", "{temp}/missing", "--handoff", "{temp}/missing-handoff", "--output", "{temp}/run"], "command": "run", "expected_exit_code": 2, "probe_id": "run"},
+        {"arguments": ["audit-readiness"], "command": "audit-readiness", "expected_exit_code": 3, "probe_id": "audit_readiness"}
+      ]
     },
     "formal_validation_clearance": {
       "exit_codes": [0, 2, 3, 4],
-      "path": "scripts/check_formal_validation_clearance.py"
+      "path": "scripts/check_formal_validation_clearance.py",
+      "probes": [
+        {"arguments": ["audit-current"], "command": "audit-current", "expected_exit_code": 3, "probe_id": "audit_current"},
+        {"arguments": ["evaluate", "--evidence", "{temp}/missing.json"], "command": "evaluate", "expected_exit_code": 2, "probe_id": "evaluate"},
+        {"arguments": ["issue-receipt", "--evidence", "{temp}/missing.json", "--receipt", "{temp}/receipt.json"], "command": "issue-receipt", "expected_exit_code": 2, "probe_id": "issue_receipt"},
+        {"arguments": ["verify-receipt", "--evidence", "{temp}/missing.json", "--receipt", "{temp}/missing-receipt.json"], "command": "verify-receipt", "expected_exit_code": 2, "probe_id": "verify_receipt"}
+      ]
     },
     "human_annotation_delivery": {
       "exit_codes": [0, 2, 3, 4],
-      "path": "scripts/check_human_annotation_delivery.py"
+      "path": "scripts/check_human_annotation_delivery.py",
+      "probes": [
+        {"arguments": ["prepare", "--package", "{temp}/package"], "command": "prepare", "expected_exit_code": 0, "probe_id": "prepare"},
+        {"arguments": ["verify-package", "--package", "{temp}/missing"], "command": "verify-package", "expected_exit_code": 4, "probe_id": "verify_package"},
+        {"arguments": ["ingest", "--package", "{temp}/missing", "--annotator-a", "{temp}/a.json", "--annotator-b", "{temp}/b.json"], "command": "ingest", "expected_exit_code": 4, "probe_id": "ingest"},
+        {"arguments": ["dry-run", "--package", "{temp}/unused"], "command": "dry-run", "expected_exit_code": 0, "probe_id": "dry_run"},
+        {"arguments": ["audit-readiness", "--package", "{temp}/missing"], "command": "audit-readiness", "expected_exit_code": 3, "probe_id": "audit_readiness"}
+      ]
     },
     "run_provenance": {
       "exit_codes": [0, 2, 3, 4],
-      "path": "scripts/check_run_provenance.py"
+      "path": "scripts/check_run_provenance.py",
+      "probes": [
+        {"arguments": ["generate", "--spec", "{temp}/missing.json", "--output", "{temp}/manifest.json"], "command": "generate", "expected_exit_code": 4, "probe_id": "generate"},
+        {"arguments": ["validate", "--manifest", "{temp}/missing.json"], "command": "validate", "expected_exit_code": 2, "probe_id": "validate"},
+        {"arguments": ["audit-legacy", "--profile", "benchmark/run_provenance_legacy_profiles.json"], "command": "audit-legacy", "expected_exit_code": 2, "probe_id": "audit_legacy"}
+      ]
     },
     "validation_readiness": {
       "exit_codes": [0, 2, 3, 4],
-      "path": "scripts/check_validation_readiness.py"
+      "path": "scripts/check_validation_readiness.py",
+      "probes": [
+        {"arguments": ["generate", "--contract", "benchmark/__public_contract_missing__.json", "--bundle", "{temp}/missing"], "command": "generate", "expected_exit_code": 2, "probe_id": "generate"},
+        {"arguments": ["verify", "--contract", "benchmark/__public_contract_missing__.json", "--bundle", "{temp}/missing"], "command": "verify", "expected_exit_code": 2, "probe_id": "verify"}
+      ]
     }
   },
   "documentation_files": [
@@ -42,9 +70,15 @@
     "quality_metric_count": 0,
     "snapshot_write_count": 0
   },
+  "extension_policies": {},
   "formal_validation_complete": false,
   "frontend_types": "frontend/src/types/api.ts",
   "protocol": "public_contract_compatibility_v1",
   "schema_version": "1",
-  "source_commit": "62e009a9134f1446b90c892c6de438adc1e7995e"
+  "source_commit": "62e009a9134f1446b90c892c6de438adc1e7995e",
+  "version_governance": {
+    "current_write_version": "1",
+    "migration_registry": {},
+    "supported_read_versions": ["1"]
+  }
 }

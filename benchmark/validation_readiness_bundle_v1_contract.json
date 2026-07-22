@@ -1888,7 +1888,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "483d98fb246dee20eb91818da5d1d9bdbe6367cec012b98a2491bed65b1cc8a6"
+      "sha256": "623fec2e482c3778dca2b8eb4c050549d4af28149c449d8d1eaa94f1503b553d"
     },
     {
       "checks": [
@@ -1904,7 +1904,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "920bad6d3cc9dfd14a4a7b3a0be35edbc0de90d7db90d858171b73fddde56168"
+      "sha256": "9b0d35cd4bcb2b48aff13dec2d7dd3381c536c31fbdb8a0a11580463d18f4f2b"
     },
     {
       "checks": [
@@ -1949,7 +1949,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "c3f7d3872448b79a2f105e21aa9ac5baf652a4615a98f5d4de4c79bdb02dd4c1"
+      "sha256": "c1b0f425a9222be59796df7f65bc9636442a86cc9daceddbfb0766b5e8299cdc"
     },
     {
       "checks": [
@@ -1976,7 +1976,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "b4f58b0606e2734b7f81b8e42d9a51dc2a9b4debd38e51d4aade233c0dd29fbd"
+      "sha256": "c3e9ba3c0b85255b3ea32a5ec4a1737578b2ee07405b8ed8ba1ab2700482c9d5"
     },
     {
       "checks": [
@@ -1996,7 +1996,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "0938e46586f285b185e5b0e28ad1b09f011afa3d9ca8cd2fd1a6ebbb48b546c9"
+      "sha256": "e0e36595289e780a49da0d9fbbbeb10c33434dd4addd1f1a6e9980e67808c9b9"
     }
   ],
   "execution": {
