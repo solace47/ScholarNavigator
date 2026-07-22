@@ -894,6 +894,29 @@ PYTHONPATH=src python scripts/check_source_fusion_ablation.py verify
 该审计的“覆盖”“独占”只描述冻结候选身份和排名稳健性，不代表论文相关性、人工
 Precision、Recall/F1 或官方成绩，也不会改变任何来源或实验策略的默认开关。
 
+## Record160 来源可靠性漏斗
+
+`source_reliability_diagnostics_v1` 在四源融合审计的同一冻结 Record162 上复用 160 条
+主分析 query、2 条既有排除、1,093 个检索 Snapshot key，以及生产 adapter 后论文模型、
+统一身份去重、候选预算、current_rules 约束、排序和 Top-20 选择路径。协议预先固定请求
+终态、失败分类、漏斗阶段、unknown 处理、查询语法分层和 connected-component bootstrap；
+来源失败、空响应或低产出不会触发样本删除。
+
+漏斗分别记录 logical request、权威 Snapshot、parsed Paper、canonical identity、源内唯一
+身份、跨源去重、全局预算、约束放行和 Top-20 贡献。旧 Snapshot 没有持久化 provider
+原始响应或 pre-parser record count，因此 raw→parsed 损失必须为 `unknown`；不得从已解析
+Paper 数反推。重复 Snapshot 引用只计一次响应，unknown Schema、状态/记录矛盾、失败伪装
+为空成功及数量不守恒均由门禁拒绝。
+
+```bash
+PYTHONPATH=src python scripts/check_source_reliability.py run
+PYTHONPATH=src python scripts/check_source_reliability.py verify
+```
+
+退出码 `0/2/3/4` 分别表示完成、重建或守恒违规、`not_eligible`、用法错误。输出只用于
+诊断来源可用性、结构化产出和流水线静默损失；产出量、约束放行和 Top-20 出现均不证明
+相关性、Precision、Recall/F1 或官方成绩，也不会自动改变来源配置或 evidence 结论。
+
 ## 限制
 
 sample fixture 使用本地假检索器，只验证评测流程、分组开关和输出可复现性，不代表真实 benchmark 性能。
