@@ -297,6 +297,13 @@ Record160/162 因缺少新式 manifest、提交代、账本和来源血缘而不
 Full1000 未完成阻断。契约与命令见
 [`docs/full1000-execution-readiness.md`](full1000-execution-readiness.md)。
 
+独立外部复核交付由 `standalone_auditor_bundle_v1` 提供。它从 readiness 与
+freshness 的脱敏机器摘要生成确定性数据归档，并附带一个仅依赖 Python 标准库、可在
+`python -I -S` 下运行的单文件验证器。验证器不导入仓库模块、不执行归档代码、不联网，
+也不读取归档外文件；未公开内部证据只登记哈希并明确标记为外部不可复核引用。该层只证明
+发布哈希链、声明边界和阻断清单的完整性，不证明发布者身份、检索质量或官方成绩。详见
+[`docs/standalone-auditor-bundle.md`](standalone-auditor-bundle.md)。
+
 三项正式阻断的解除由 `formal_validation_clearance_v1` 单独控制。状态机只接受完整、当前、
 哈希闭合的 Full1000 提交证据、双人真实人工标注/裁决证据和官方 scorer 沙箱输出；legacy、
 partial、fake、synthetic 或 LLM 代理都不能满足相应谓词。三项证据与 freshness、默认策略状态

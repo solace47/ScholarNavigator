@@ -1,0 +1,22 @@
+{
+  "blocker_count": 3,
+  "claim_count": 20,
+  "evidence_reference_count": 58,
+  "execution": {
+    "archive_code_execution_count": 0,
+    "external_file_read_count": 0,
+    "network_request_count": 0,
+    "subprocess_count": 0
+  },
+  "formal_validation_complete": false,
+  "protocol": "standalone_auditor_bundle_v1",
+  "schema_version": "1",
+  "source_commit": "9617504fe48f4fdddea409f8c65d931c25eade24",
+  "status": "verified_with_declared_blockers",
+  "verification": {
+    "archive_byte_identical_across_builds": true,
+    "report_byte_identical_across_environments": true,
+    "standard_library_isolated_mode": "python_-I_-S",
+    "temporary_archive_not_tracked": true
+  }
+}

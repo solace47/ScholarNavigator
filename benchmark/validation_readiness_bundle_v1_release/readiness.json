@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 20,
+  "claim_count": 21,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 32,
-    "implementation_tree_sha256": "c267b602e12e503447f991eb6bf520a37964ee41d41807f9fc94976f4d272ed3"
+    "implementation_file_count": 36,
+    "implementation_tree_sha256": "8d1e1d5ae6068308f236eea5a3a133c8b19235c84fe64560426fbe71b749eed4"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 17,
+  "read_only_gate_count": 18,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -107,6 +107,12 @@
     },
     {
       "exit_code": 0,
+      "gate_id": "standalone_auditor_bundle",
+      "output_sha256": "07157439bc271de6675f92b9b8a2c782d187f61d371089f9b15c6ce7a706728f",
+      "status": "verified_with_declared_blockers"
+    },
+    {
+      "exit_code": 0,
       "gate_id": "tiebreak_qualification",
       "output_sha256": "67c762bf3f4bfe9fd402d80bb89536859f8425f2ec07bd22eb72172785a42216",
       "status": "qualified_for_review"
@@ -120,7 +126,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "82b9f955eb7681f74ff6c091ec32438c1d320e871ed212a77a33b289a01da0f5",
+      "output_sha256": "dc3de51e45fbc6c1f51d3dcf320c7dbe5f5918acbedb944f6844140df79630ad",
       "status": "fresh_with_declared_blockers"
     }
   ],

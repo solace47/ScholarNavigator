@@ -1,5 +1,5 @@
 {
-  "baseline_head": "e80cb767c2266a23e5e4f0c8280f8d5a174300fe",
+  "baseline_head": "9617504fe48f4fdddea409f8c65d931c25eade24",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -82,6 +82,14 @@
       "state": "fresh"
     },
     {
+      "claim_id": "architecture_standalone_auditor_bundle_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
       "claim_id": "contest_full1000_completion",
       "declared_state": "blocked",
       "reasons": [],
@@ -154,7 +162,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 26,
+  "component_count": 27,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -550,6 +558,22 @@
     },
     {
       "declared_state": "fresh",
+      "evidence_id": "standalone_auditor_bundle_contract",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "standalone_auditor_bundle_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "evidence_id": "tiebreak_aggregate",
       "reasons": [],
       "stale_components": [],
@@ -721,6 +745,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "standalone_auditor_bundle",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "tiebreak_qualification",
       "reasons": [],
       "stale_components": [],
@@ -741,7 +773,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 74,
+    "fresh": 78,
     "not_applicable": 1,
     "stale": 0
   },

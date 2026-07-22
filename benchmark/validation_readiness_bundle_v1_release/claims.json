@@ -1,13 +1,13 @@
 {
-  "claim_count": 20,
-  "claim_evidence_coverage_count": 20,
+  "claim_count": 21,
+  "claim_evidence_coverage_count": 21,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "b84ec46a49bd7973aa18c21523377b0937ba81e4344dad6a21beb11a592c82c6",
-      "size": 39172
+      "sha256": "4b73170d2ba7f985360f6b7647a8402bc92e519cfe2be9b3dc24a9f3add2bd22",
+      "size": 39814
     },
     {
       "document_id": "contest_requirements",
@@ -165,6 +165,18 @@
       "status": "internal_only"
     },
     {
+      "boundary": "The archive proves a closed publication hash chain and declared boundaries, not publisher identity, unpublished evidence contents, retrieval quality, human Precision, or an official score.",
+      "claim_id": "architecture_standalone_auditor_bundle_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "standalone_auditor_bundle_contract",
+        "standalone_auditor_bundle_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "A deterministic evidence archive can be verified outside the repository with a Python-standard-library single-file verifier under isolated mode.",
+      "status": "verified"
+    },
+    {
       "boundary": "Freshness verifies dependency closure and rerun scope only; it does not recompute evidence, alter historical conclusions, or remove formal blockers.",
       "claim_id": "architecture_validation_evidence_freshness",
       "document_id": "architecture",
@@ -285,7 +297,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 12,
+    "architecture": 13,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -296,6 +308,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 8
+    "verified": 9
   }
 }

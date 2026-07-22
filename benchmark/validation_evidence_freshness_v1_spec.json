@@ -1,5 +1,5 @@
 {
-  "baseline_head": "e80cb767c2266a23e5e4f0c8280f8d5a174300fe",
+  "baseline_head": "9617504fe48f4fdddea409f8c65d931c25eade24",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -65,6 +65,9 @@
       "frontend_reproducible_build",
       "python_dependency_lock",
       "release_candidate_reproducibility"
+    ],
+    "architecture_standalone_auditor_bundle_ready": [
+      "standalone_auditor_bundle"
     ],
     "contest_full1000_completion": [
       "full1000_resume"
@@ -386,6 +389,16 @@
       "kind": "audit_implementation"
     },
     {
+      "component_id": "standalone_auditor_bundle",
+      "files": [
+        "benchmark/standalone_auditor_bundle_v1_contract.json",
+        "benchmark/standalone_auditor_bundle_v1_evidence/readiness.json",
+        "docs/standalone-auditor-bundle.md",
+        "scripts/check_standalone_auditor_bundle.py"
+      ],
+      "kind": "standalone_external_audit_publication"
+    },
+    {
       "component_id": "top20_delivery",
       "files": [
         "benchmark/top20_delivery_contract_v1.json",
@@ -598,6 +611,12 @@
       "source_reliability",
       "source_runtime"
     ],
+    "standalone_auditor_bundle_contract": [
+      "standalone_auditor_bundle"
+    ],
+    "standalone_auditor_bundle_readiness": [
+      "standalone_auditor_bundle"
+    ],
     "tiebreak_aggregate": [
       "identity_runtime",
       "ranking_runtime",
@@ -699,6 +718,9 @@
       "ranking_runtime",
       "source_reliability",
       "source_runtime"
+    ],
+    "standalone_auditor_bundle": [
+      "standalone_auditor_bundle"
     ],
     "tiebreak_qualification": [
       "identity_runtime",

@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "b84ec46a49bd7973aa18c21523377b0937ba81e4344dad6a21beb11a592c82c6"
+      "sha256": "4b73170d2ba7f985360f6b7647a8402bc92e519cfe2be9b3dc24a9f3add2bd22"
     },
     {
       "document_id": "contest_requirements",
@@ -172,6 +172,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Tracked readiness evidence, gates, and claims have precise semantic dependencies and deterministic stale-impact propagation.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The archive proves a closed publication hash chain and declared boundaries, not publisher identity, unpublished evidence contents, retrieval quality, human Precision, or an official score.",
+      "claim_id": "architecture_standalone_auditor_bundle_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "standalone_auditor_bundle_contract",
+        "standalone_auditor_bundle_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "A deterministic evidence archive can be verified outside the repository with a Python-standard-library single-file verifier under isolated mode.",
       "status": "verified"
     },
     {
@@ -333,16 +345,20 @@
       "benchmark/release_candidate_reproducibility_v1_contract.json",
       "benchmark/release_candidate_reproducibility_v1_python_lock.json",
       "benchmark/release_candidate_reproducibility_v1_spec.json",
+      "benchmark/standalone_auditor_bundle_v1_contract.json",
+      "benchmark/standalone_auditor_bundle_v1_evidence/readiness.json",
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
       "docs/offline-wheelhouse-intake.md",
       "docs/release-candidate-reproducibility.md",
+      "docs/standalone-auditor-bundle.md",
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
       "scripts/check_offline_wheelhouse.py",
       "scripts/check_release_candidate.py",
+      "scripts/check_standalone_auditor_bundle.py",
       "scripts/check_validation_freshness.py",
       "scripts/check_validation_readiness.py",
       "scripts/freeze_frontend_reproducible_build_contract.py",
@@ -1786,6 +1802,52 @@
     {
       "checks": [
         {
+          "equals": "standalone_auditor_bundle_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "standalone_auditor_bundle_contract",
+      "format": "json",
+      "path": "benchmark/standalone_auditor_bundle_v1_contract.json",
+      "protocol": "standalone_auditor_bundle_v1",
+      "required": true,
+      "role": "standalone_publication_contract",
+      "sha256": "d82eddd9b893a7718625a88b9f01820f5fd0441e91e685ca9def5bcad91bd5ef"
+    },
+    {
+      "checks": [
+        {
+          "equals": "verified_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "equals": 3,
+          "pointer": "/blocker_count"
+        }
+      ],
+      "dependencies": [
+        "standalone_auditor_bundle_contract"
+      ],
+      "evidence_id": "standalone_auditor_bundle_readiness",
+      "format": "json",
+      "path": "benchmark/standalone_auditor_bundle_v1_evidence/readiness.json",
+      "protocol": "standalone_auditor_bundle_v1",
+      "required": true,
+      "role": "external_auditor_readiness",
+      "sha256": "bfedf48ac9e43d8f8cb55d22144c0ed326c5218f338e9927d484e203bc2db571"
+    },
+    {
+      "checks": [
+        {
           "equals": "fresh_with_declared_blockers",
           "pointer": "/status"
         },
@@ -1807,7 +1869,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "82b9f955eb7681f74ff6c091ec32438c1d320e871ed212a77a33b289a01da0f5"
+      "sha256": "dc3de51e45fbc6c1f51d3dcf320c7dbe5f5918acbedb944f6844140df79630ad"
     },
     {
       "checks": [
@@ -1823,7 +1885,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "d3a0b3939ad5b903567721d1187a78369f2b7f9cb1d73969b50c83f80f74e1e9"
+      "sha256": "5ff56243b64e590c0acd54217761bee6ceaec4b0109af7b49cfea88e38ccc068"
     },
     {
       "checks": [
@@ -1858,6 +1920,25 @@
   },
   "protocol": "validation_readiness_bundle_v1",
   "read_only_gates": [
+    {
+      "arguments": [
+        "scripts/check_standalone_auditor_bundle.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "verified_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "standalone_auditor_bundle",
+      "timeout_seconds": 60
+    },
     {
       "arguments": [
         "scripts/check_completion_bias.py",
