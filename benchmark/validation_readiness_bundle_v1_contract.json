@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "e379159eb21697cfa86b3f726486c3c91117394fa05e96265081c3a9d461c4e5"
+      "sha256": "7758860199ee80f1ebf9be7f56fb43854f128e3d0fd2c36ede065012ecf5b134"
     },
     {
       "document_id": "contest_requirements",
@@ -119,16 +119,19 @@
       "status": "verified"
     },
     {
-      "boundary": "The current frontend webpack artifact is not byte reproducible, so the release candidate is not qualified; this is not a quality or official validation claim.",
+      "boundary": "Frontend reproducibility is qualified, but the complete release candidate remains not qualified because Python direct requirements are not precisely locked; this is not a quality or official validation claim.",
       "claim_id": "architecture_release_candidate_reproducibility",
       "document_id": "architecture",
       "evidence_ids": [
+        "frontend_reproducible_build_protocol",
+        "frontend_reproducible_build_qualification",
+        "frontend_reproducible_release_contract",
         "release_candidate_contract",
         "release_candidate_python_lock",
         "release_candidate_reproducibility"
       ],
       "scope": "internal_diagnostic",
-      "statement": "The fixed-source offline release gate records a deterministic source and dependency closure and exposes cross-tree artifact drift.",
+      "statement": "The fixed-source offline release gate now produces byte-identical frontend archives across isolated source parents while preserving the historical path-drift evidence.",
       "status": "internal_only"
     },
     {
@@ -253,25 +256,33 @@
   ],
   "code_identity": {
     "files": [
+      "benchmark/frontend_reproducible_build_v1_evidence/current.json",
+      "benchmark/frontend_reproducible_build_v1_protocol.json",
+      "benchmark/frontend_reproducible_build_v1_release_contract.json",
       "benchmark/release_candidate_reproducibility_v1_contract.json",
       "benchmark/release_candidate_reproducibility_v1_python_lock.json",
       "benchmark/release_candidate_reproducibility_v1_spec.json",
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
+      "docs/frontend-reproducible-build.md",
       "docs/release-candidate-reproducibility.md",
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
+      "scripts/check_frontend_reproducible_build.py",
       "scripts/check_release_candidate.py",
       "scripts/check_validation_freshness.py",
       "scripts/check_validation_readiness.py",
+      "scripts/freeze_frontend_reproducible_build_contract.py",
+      "scripts/freeze_frontend_reproducible_build_evidence.py",
       "scripts/freeze_release_candidate_contract.py",
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
+      "src/scholar_agent/evaluation/frontend_reproducible_build.py",
       "src/scholar_agent/evaluation/release_candidate_reproducibility.py",
       "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
     ],
-    "implementation_base_commit": "a743c59c719dd10db742cbd526f8f09c5ba13839"
+    "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19"
   },
   "consistency_assertions": [
     {
@@ -655,6 +666,84 @@
       "required": true,
       "role": "engineering_conformance",
       "sha256": "63e8ff9400f93f524b28ece2141abc015b9384882c2589c6599564b62b0fea00"
+    },
+    {
+      "checks": [
+        {
+          "equals": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
+          "pointer": "/release_source_commit"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "frontend_reproducible_build_protocol",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_protocol.json",
+      "protocol": "frontend_reproducible_build_v1",
+      "required": true,
+      "role": "frontend_release_protocol",
+      "sha256": "bbcf37e8cbee87863bcb8bfb632a5e470803fccf9982c40d2d4a508fcaba5d96"
+    },
+    {
+      "checks": [
+        {
+          "equals": "qualified",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/fixed_pair/differing_member_count"
+        },
+        {
+          "equals": true,
+          "pointer": "/release_candidate/frontend_qualified"
+        },
+        {
+          "equals": "build_or_supply_chain_violation",
+          "pointer": "/release_candidate/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "frontend_reproducible_build_protocol",
+        "frontend_reproducible_release_contract",
+        "release_candidate_reproducibility"
+      ],
+      "evidence_id": "frontend_reproducible_build_qualification",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_evidence/current.json",
+      "protocol": "frontend_reproducible_build_v1",
+      "required": true,
+      "role": "frontend_release_qualification",
+      "sha256": "5f2e1f317f0ac65489c12134d4ad03e7e13672abbc84b49c8b936566c6e54b58"
+    },
+    {
+      "checks": [
+        {
+          "equals": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
+          "pointer": "/source_commit"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "frontend_reproducible_build_protocol"
+      ],
+      "evidence_id": "frontend_reproducible_release_contract",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_release_contract.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "frontend_release_input",
+      "sha256": "cecc8ee80ff10bac68269cb303a998b1a3bb413dc846a1c7f4a584550ad7a32a"
     },
     {
       "checks": [
@@ -1136,7 +1225,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981"
+      "sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f"
     },
     {
       "checks": [
@@ -1152,7 +1241,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "c66b1a5d1792a170d77fda826cc02e4e29decce16019971831f45f5f1477fcea"
+      "sha256": "5eacdef7d5f0057053d4fc8489cd510fe2c9671eecdc66175567317c1dbc7077"
     },
     {
       "checks": [
@@ -1301,22 +1390,20 @@
     },
     {
       "arguments": [
-        "scripts/check_release_candidate.py",
-        "audit-readiness",
-        "--evidence",
-        "benchmark/release_candidate_reproducibility_v1_evidence/current.json"
+        "scripts/check_frontend_reproducible_build.py",
+        "verify"
       ],
       "checks": [
         {
-          "equals": "build_or_supply_chain_violation",
+          "equals": "qualified",
           "pointer": "/status"
         },
         {
-          "equals": false,
-          "pointer": "/formal_validation_complete"
+          "equals": "build_or_supply_chain_violation",
+          "pointer": "/release_candidate_status"
         }
       ],
-      "expected_exit_code": 2,
+      "expected_exit_code": 0,
       "gate_id": "release_candidate_reproducibility",
       "timeout_seconds": 60
     },

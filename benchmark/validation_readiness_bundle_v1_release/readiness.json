@@ -3,11 +3,11 @@
   "claim_count": 15,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
-    "implementation_base_commit": "a743c59c719dd10db742cbd526f8f09c5ba13839",
+    "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 17,
-    "implementation_tree_sha256": "e91e4fb8c01b760af984a863835c26871d71a4ad67cd543f79fb6ba1fd7154da"
+    "implementation_file_count": 25,
+    "implementation_tree_sha256": "8661b953339ee84c43c8a4965a2e041a90c4b50d4f74c3c017f30da10b19d0e7"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -58,10 +58,10 @@
       "status": "completed"
     },
     {
-      "exit_code": 2,
+      "exit_code": 0,
       "gate_id": "release_candidate_reproducibility",
-      "output_sha256": "6cb185767da87f41793fceb31b299a7a748f17eb1fc11057b807c2fe415e7c71",
-      "status": "build_or_supply_chain_violation"
+      "output_sha256": "e1786657d28fbb9ecae71d57ed7b7bb2f81c7b1fd5f8c04aa1049faa946b27f9",
+      "status": "qualified"
     },
     {
       "exit_code": 0,
@@ -90,7 +90,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981",
+      "output_sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f",
       "status": "fresh_with_declared_blockers"
     }
   ],

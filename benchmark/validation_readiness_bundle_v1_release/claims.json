@@ -6,8 +6,8 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "e379159eb21697cfa86b3f726486c3c91117394fa05e96265081c3a9d461c4e5",
-      "size": 35980
+      "sha256": "7758860199ee80f1ebf9be7f56fb43854f128e3d0fd2c36ede065012ecf5b134",
+      "size": 36139
     },
     {
       "document_id": "contest_requirements",
@@ -82,16 +82,19 @@
       "status": "verified"
     },
     {
-      "boundary": "The current frontend webpack artifact is not byte reproducible, so the release candidate is not qualified; this is not a quality or official validation claim.",
+      "boundary": "Frontend reproducibility is qualified, but the complete release candidate remains not qualified because Python direct requirements are not precisely locked; this is not a quality or official validation claim.",
       "claim_id": "architecture_release_candidate_reproducibility",
       "document_id": "architecture",
       "evidence_ids": [
+        "frontend_reproducible_build_protocol",
+        "frontend_reproducible_build_qualification",
+        "frontend_reproducible_release_contract",
         "release_candidate_contract",
         "release_candidate_python_lock",
         "release_candidate_reproducibility"
       ],
       "scope": "internal_diagnostic",
-      "statement": "The fixed-source offline release gate records a deterministic source and dependency closure and exposes cross-tree artifact drift.",
+      "statement": "The fixed-source offline release gate now produces byte-identical frontend archives across isolated source parents while preserving the historical path-drift evidence.",
       "status": "internal_only"
     },
     {

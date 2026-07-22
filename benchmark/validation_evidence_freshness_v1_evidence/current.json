@@ -1,5 +1,5 @@
 {
-  "baseline_head": "a743c59c719dd10db742cbd526f8f09c5ba13839",
+  "baseline_head": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -114,7 +114,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 20,
+  "component_count": 21,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -183,6 +183,30 @@
     {
       "declared_state": "fresh",
       "evidence_id": "external_scorer_synthetic_matrix",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "frontend_reproducible_build_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "frontend_reproducible_build_qualification",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "frontend_reproducible_release_contract",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -477,7 +501,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 8,
-    "fresh": 48,
+    "fresh": 51,
     "not_applicable": 1,
     "stale": 0
   },

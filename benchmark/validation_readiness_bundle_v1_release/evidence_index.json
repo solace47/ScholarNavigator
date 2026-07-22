@@ -104,6 +104,42 @@
     },
     {
       "dependencies": [],
+      "evidence_id": "frontend_reproducible_build_protocol",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_protocol.json",
+      "protocol": "frontend_reproducible_build_v1",
+      "role": "frontend_release_protocol",
+      "sha256": "bbcf37e8cbee87863bcb8bfb632a5e470803fccf9982c40d2d4a508fcaba5d96",
+      "size": 1764
+    },
+    {
+      "dependencies": [
+        "frontend_reproducible_build_protocol",
+        "frontend_reproducible_release_contract",
+        "release_candidate_reproducibility"
+      ],
+      "evidence_id": "frontend_reproducible_build_qualification",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_evidence/current.json",
+      "protocol": "frontend_reproducible_build_v1",
+      "role": "frontend_release_qualification",
+      "sha256": "5f2e1f317f0ac65489c12134d4ad03e7e13672abbc84b49c8b936566c6e54b58",
+      "size": 38229
+    },
+    {
+      "dependencies": [
+        "frontend_reproducible_build_protocol"
+      ],
+      "evidence_id": "frontend_reproducible_release_contract",
+      "format": "json",
+      "path": "benchmark/frontend_reproducible_build_v1_release_contract.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "role": "frontend_release_input",
+      "sha256": "cecc8ee80ff10bac68269cb303a998b1a3bb413dc846a1c7f4a584550ad7a32a",
+      "size": 64462
+    },
+    {
+      "dependencies": [],
       "evidence_id": "full1000_resume_summary",
       "format": "json",
       "path": "benchmark/autoscholar_full1000_resume/summary.json",
@@ -369,8 +405,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "38d9608b8b5b5b9ae6e593bb460b50244f219bc0026f0010f38425871a16e981",
-      "size": 12365
+      "sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f",
+      "size": 13026
     },
     {
       "dependencies": [],
@@ -379,8 +415,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "c66b1a5d1792a170d77fda826cc02e4e29decce16019971831f45f5f1477fcea",
-      "size": 48113
+      "sha256": "5eacdef7d5f0057053d4fc8489cd510fe2c9671eecdc66175567317c1dbc7077",
+      "size": 51552
     },
     {
       "dependencies": [
@@ -396,7 +432,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 35,
+  "evidence_count": 38,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

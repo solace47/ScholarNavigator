@@ -30,8 +30,9 @@ PYTHONPATH=src python scripts/check_release_candidate.py audit-readiness \
 
 ## 当前资格
 
-固定提交的两棵独立源码树中，wheel、源码归档和 SBOM 逐字节一致；前端 webpack 静态归档仍因
-构建输出漂移而不一致，且 11 条 Python 根声明未精确锁定，因此发布候选当前为
-`not_qualified`，退出码为 2。门禁不忽略或规范化
-实际内容差异，也不把 Turbopack 沙箱限制当成产品失败。该证据只证明构建闭包和差异检测已建立，
-不证明当前软件包可发布、检索质量、正式验证或官方成绩。
+历史 a743 构建中，wheel、源码归档和 SBOM 逐字节一致，但前端 webpack 静态归档随源码父路径
+漂移；原始失败证据保持不变。后续 `frontend_reproducible_build_v1` 通过 canonical staging
+消除了该路径依赖，当前两份前端归档的 56 个成员逐字节一致。由于 11 条 Python 根声明仍未
+精确锁定，完整发布候选继续为 `not_qualified`、退出码为 2。门禁不忽略或规范化实际内容差异，
+也不把 Turbopack 沙箱限制当成产品失败。详见
+[`docs/frontend-reproducible-build.md`](frontend-reproducible-build.md)。

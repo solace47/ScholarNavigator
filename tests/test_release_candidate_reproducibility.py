@@ -36,7 +36,9 @@ CONTRACT_PATH = ROOT / "benchmark/release_candidate_reproducibility_v1_contract.
 
 @pytest.fixture(scope="module")
 def contract() -> dict[str, object]:
-    return load_contract(CONTRACT_PATH, ROOT)
+    # The a743 contract is immutable historical evidence.  Newer HEADs may
+    # still verify its blobs without treating it as the current build input.
+    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
 def test_contract_binds_exact_git_source_and_excludes_local_state(contract: dict[str, object]) -> None:

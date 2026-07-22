@@ -1,5 +1,5 @@
 {
-  "baseline_head": "a743c59c719dd10db742cbd526f8f09c5ba13839",
+  "baseline_head": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
@@ -32,6 +32,7 @@
       "top20_delivery"
     ],
     "architecture_release_candidate_reproducibility": [
+      "frontend_reproducible_build",
       "release_candidate_reproducibility"
     ],
     "contest_full1000_completion": [
@@ -124,6 +125,23 @@
         "src/scholar_agent/evaluation/external_scorer_handoff.py"
       ],
       "kind": "protocol_cli_and_sandbox"
+    },
+    {
+      "component_id": "frontend_reproducible_build",
+      "files": [
+        "benchmark/frontend_reproducible_build_v1_protocol.json",
+        "benchmark/frontend_reproducible_build_v1_release_contract.json",
+        "benchmark/frontend_reproducible_build_v1_evidence/current.json",
+        "docs/frontend-reproducible-build.md",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "scripts/check_frontend_reproducible_build.py",
+        "scripts/freeze_frontend_reproducible_build_contract.py",
+        "scripts/freeze_frontend_reproducible_build_evidence.py",
+        "src/scholar_agent/evaluation/frontend_reproducible_build.py",
+        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
+      ],
+      "kind": "frontend_release_build_and_runtime_fidelity"
     },
     {
       "component_id": "full1000_resume",
@@ -316,6 +334,15 @@
     "external_scorer_synthetic_matrix": [
       "external_scorer"
     ],
+    "frontend_reproducible_build_protocol": [
+      "frontend_reproducible_build"
+    ],
+    "frontend_reproducible_build_qualification": [
+      "frontend_reproducible_build"
+    ],
+    "frontend_reproducible_release_contract": [
+      "frontend_reproducible_build"
+    ],
     "full1000_resume_summary": [
       "full1000_resume"
     ],
@@ -461,7 +488,7 @@
       "ranking_runtime"
     ],
     "release_candidate_reproducibility": [
-      "release_candidate_reproducibility"
+      "frontend_reproducible_build"
     ],
     "source_fusion": [
       "identity_runtime",

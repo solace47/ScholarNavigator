@@ -438,7 +438,25 @@ def _minimal_build_env(home: Path, temp: Path, contract: Mapping[str, Any]) -> d
 
 
 def build_frontend(source_root: Path, output: Path, contract: Mapping[str, Any], repository_root: Path, profile_root: Path) -> dict[str, Any]:
-    frontend = source_root / "frontend"
+    staging = contract.get("frontend_canonical_staging")
+    canonical_parent: Path | None = None
+    lock_path: Path | None = None
+    effective_source = source_root
+    if staging:
+        if staging.get("strategy") != "posix_tmp_fixed_source_digest_v1":
+            raise ReleaseCandidateError("frontend_staging_strategy_unsupported")
+        digest = str(contract["source_manifest_sha256"])
+        canonical_parent = Path("/tmp") / str(staging["namespace"]) / digest[:24]
+        lock_path = canonical_parent.with_name(canonical_parent.name + ".lock")
+        canonical_parent.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            lock_path.mkdir()
+        except FileExistsError as exc:
+            raise ReleaseCandidateNotReady("frontend_canonical_staging_busy") from exc
+        shutil.rmtree(canonical_parent, ignore_errors=True)
+        effective_source = canonical_parent / "source"
+        shutil.copytree(source_root, effective_source, copy_function=shutil.copyfile)
+    frontend = effective_source / "frontend"
     overlay = contract["frontend_build_overlay"]
     if sha256_bytes(str(overlay["content"]).encode()) != overlay["sha256"]:
         raise ReleaseCandidateError("frontend_overlay_hash_mismatch")
@@ -468,43 +486,52 @@ def build_frontend(source_root: Path, output: Path, contract: Mapping[str, Any],
     home.mkdir(parents=True)
     temp.mkdir(parents=True)
     next_cli = modules / ".bin/next"
-    completed = subprocess.run(
-        [str(next_cli), "build", "--webpack"],
-        cwd=frontend,
-        env=_minimal_build_env(home, temp, contract),
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-    if completed.returncode != 0:
-        raise ReleaseCandidateNotReady("offline_frontend_build_failed")
-    build = frontend / ".next"
-    required = [build / "BUILD_ID", build / "static", build / "server/app"]
-    if any(not item.exists() for item in required):
-        raise ReleaseCandidateNotReady("frontend_static_output_missing")
-    files: dict[str, bytes] = {}
-    allowed_names = {
-        "BUILD_ID", "app-build-manifest.json", "build-manifest.json", "prerender-manifest.json", "routes-manifest.json"
-    }
-    for path in build.rglob("*"):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(build).as_posix()
-        if relative in allowed_names or relative.startswith("static/") or (
-            relative.startswith("server/app/") and path.suffix in {".html", ".rsc", ".txt", ".json"}
-        ):
-            files[f"frontend/{relative}"] = path.read_bytes()
-    for path in (frontend / "public").rglob("*") if (frontend / "public").is_dir() else []:
-        if path.is_file():
-            files[f"frontend/public/{path.relative_to(frontend / 'public').as_posix()}"] = path.read_bytes()
-    if not files:
-        raise ReleaseCandidateNotReady("frontend_static_member_set_empty")
-    forbidden = [str(source_root).encode(), str(repository_root).encode(), str(home).encode(), str(temp).encode()]
-    if any(token and token in content for content in files.values() for token in forbidden):
-        raise ReleaseCandidateError("absolute_path_embedded_in_frontend")
-    output.write_bytes(_tar_bytes(files, contract))
-    return {"path": output.name, "size": output.stat().st_size, "sha256": sha256_file(output), "member_count": len(files)}
+    try:
+        completed = subprocess.run(
+            [str(next_cli), "build", "--webpack"],
+            cwd=frontend,
+            env=_minimal_build_env(home, temp, contract),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if completed.returncode != 0:
+            raise ReleaseCandidateNotReady("offline_frontend_build_failed")
+        build = frontend / ".next"
+        required = [build / "BUILD_ID", build / "static", build / "server/app"]
+        if any(not item.exists() for item in required):
+            raise ReleaseCandidateNotReady("frontend_static_output_missing")
+        files: dict[str, bytes] = {}
+        allowed_names = {
+            "BUILD_ID", "app-build-manifest.json", "build-manifest.json", "prerender-manifest.json", "routes-manifest.json"
+        }
+        for path in build.rglob("*"):
+            if not path.is_file():
+                continue
+            relative = path.relative_to(build).as_posix()
+            if relative in allowed_names or relative.startswith("static/") or (
+                relative.startswith("server/app/") and path.suffix in {".html", ".rsc", ".txt", ".json"}
+            ):
+                files[f"frontend/{relative}"] = path.read_bytes()
+        for path in (frontend / "public").rglob("*") if (frontend / "public").is_dir() else []:
+            if path.is_file():
+                files[f"frontend/public/{path.relative_to(frontend / 'public').as_posix()}"] = path.read_bytes()
+        if not files:
+            raise ReleaseCandidateNotReady("frontend_static_member_set_empty")
+        forbidden = [
+            str(source_root).encode(), str(effective_source).encode(), str(repository_root).encode(),
+            str(home).encode(), str(temp).encode(),
+        ]
+        if any(token and token in content for content in files.values() for token in forbidden):
+            raise ReleaseCandidateError("absolute_path_embedded_in_frontend")
+        output.write_bytes(_tar_bytes(files, contract))
+        return {"path": output.name, "size": output.stat().st_size, "sha256": sha256_file(output), "member_count": len(files)}
+    finally:
+        if canonical_parent is not None:
+            shutil.rmtree(canonical_parent, ignore_errors=True)
+        if lock_path is not None:
+            shutil.rmtree(lock_path, ignore_errors=True)
 
 
 def _dependency_report(root: Path, contract: Mapping[str, Any]) -> tuple[dict[str, Any], list[str]]:
