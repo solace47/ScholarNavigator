@@ -1807,7 +1807,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "54ccb2045853e1291237c9ac3038665ffc8aa4ff2c20f315753d193eb68ff305"
+      "sha256": "82b9f955eb7681f74ff6c091ec32438c1d320e871ed212a77a33b289a01da0f5"
     },
     {
       "checks": [
@@ -1823,7 +1823,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "4b486d1e0f6f7f0f8ef4e79f36feb57e0f5a4661e9a0159657554f241a3096d1"
+      "sha256": "d3a0b3939ad5b903567721d1187a78369f2b7f9cb1d73969b50c83f80f74e1e9"
     },
     {
       "checks": [

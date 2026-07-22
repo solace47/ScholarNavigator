@@ -39,6 +39,52 @@ EXECUTION = {
 }
 _DIGEST_CHARS = frozenset("0123456789abcdef")
 _READ_METHODS = {"read_text", "read_bytes", "open"}
+_PROTOCOL_KEYS = {
+    "allowed_consumer_prefixes",
+    "evidence_types",
+    "execution",
+    "formal_validation_complete",
+    "forbidden_consumer_roots",
+    "forbidden_data_tokens",
+    "forbidden_path_tokens",
+    "forbidden_structured_keys",
+    "intake_contract",
+    "lifecycle_states",
+    "posthoc_protected_components",
+    "prohibited_uses",
+    "protocol",
+    "schema_version",
+    "source_commit",
+}
+_EVIDENCE_TYPES = {
+    "human_annotation_labels",
+    "human_adjudication_result",
+    "official_scorer_package",
+    "official_scorer_output",
+}
+_LIFECYCLE_STATES = {
+    "received",
+    "validated",
+    "locked",
+    "reported",
+    "stale_for_claim",
+    "invalid",
+}
+_FROZEN_SECURITY_POLICY_FIELDS = (
+    "source_commit",
+    "allowed_consumer_prefixes",
+    "evidence_types",
+    "prohibited_uses",
+    "lifecycle_states",
+    "forbidden_consumer_roots",
+    "forbidden_data_tokens",
+    "forbidden_path_tokens",
+    "forbidden_structured_keys",
+    "posthoc_protected_components",
+)
+_FROZEN_SECURITY_POLICY_SHA256 = (
+    "fea82ba0e6465524ef90df6181d4c5d1df056e838bab421a445fe0a33039f41b"
+)
 
 
 class QuarantineError(RuntimeError):
@@ -172,12 +218,47 @@ def load_protocol(path: Path) -> dict[str, Any]:
         raise QuarantineError("protocol_unavailable") from exc
     if not isinstance(value, dict) or value.get("protocol") != PROTOCOL or value.get("schema_version") != SCHEMA_VERSION:
         raise QuarantineError("protocol_version_invalid")
-    if value.get("execution") != EXECUTION or value.get("formal_validation_complete") is not False:
-        raise QuarantineError("offline_boundary_drift")
-    if not _is_commit(value.get("source_commit")):
-        raise QuarantineError("protocol_source_commit_invalid")
-    if value.get("intake_contract") != INTAKE_CONTRACT:
-        raise QuarantineError("intake_contract_drift")
+    try:
+        if set(value) != _PROTOCOL_KEYS:
+            raise ValueError
+        if value["execution"] != EXECUTION or value["formal_validation_complete"] is not False:
+            raise ValueError
+        if not _is_commit(value["source_commit"]) or value["intake_contract"] != INTAKE_CONTRACT:
+            raise ValueError
+        if set(value["evidence_types"]) != _EVIDENCE_TYPES:
+            raise ValueError
+        if set(value["lifecycle_states"]) != _LIFECYCLE_STATES:
+            raise ValueError
+        for key in (
+            "allowed_consumer_prefixes",
+            "evidence_types",
+            "forbidden_consumer_roots",
+            "forbidden_data_tokens",
+            "forbidden_path_tokens",
+            "forbidden_structured_keys",
+            "lifecycle_states",
+            "prohibited_uses",
+        ):
+            items = value[key]
+            if not isinstance(items, list) or not items or not all(isinstance(item, str) and item for item in items) or len(items) != len(set(items)):
+                raise ValueError
+        components = value["posthoc_protected_components"]
+        if not isinstance(components, dict) or not components:
+            raise ValueError
+        for component, paths in components.items():
+            if not isinstance(component, str) or not component or not isinstance(paths, list) or not paths or not all(isinstance(item, str) and item for item in paths):
+                raise ValueError
+            for registered_path in paths:
+                _safe_relative(registered_path.rstrip("/"))
+        for root in value["forbidden_consumer_roots"]:
+            _safe_relative(root)
+        frozen_policy = {
+            field: value[field] for field in _FROZEN_SECURITY_POLICY_FIELDS
+        }
+        if stable_hash(frozen_policy) != _FROZEN_SECURITY_POLICY_SHA256:
+            raise ValueError
+    except (KeyError, TypeError, ValueError, QuarantineError) as exc:
+        raise QuarantineError("protocol_schema_invalid") from exc
     return value
 
 
@@ -198,7 +279,14 @@ def build_intake_manifest(
         relative = path.relative_to(root).as_posix()
     except ValueError as exc:
         raise QuarantineError("evidence_outside_intake_root") from exc
-    artifact = {"path": _safe_relative(relative), "size": path.stat().st_size, "sha256": sha256_file(path)}
+    try:
+        artifact = {
+            "path": _safe_relative(relative),
+            "size": path.stat().st_size,
+            "sha256": sha256_file(path),
+        }
+    except (OSError, UnicodeError) as exc:
+        raise QuarantineError("evidence_artifact_unavailable") from exc
     identity_payload = {"artifact": artifact, "evidence_type": evidence_type, "input_binding": dict(input_binding)}
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -283,6 +371,8 @@ def _validate_chronology(manifest: FormalEvidenceIntakeManifestV1, repository_ro
 
 def _module_name(root: Path, path: Path) -> str:
     relative = path.relative_to(root / "src").with_suffix("")
+    if relative.name == "__init__":
+        relative = relative.parent
     return ".".join(relative.parts)
 
 
@@ -299,7 +389,9 @@ def verify_boundaries(repository_root: Path, protocol: Mapping[str, Any]) -> dic
     trees: dict[Path, ast.AST] = {}
     graph: dict[str, set[str]] = {}
     if source_root.is_dir():
-        for path in sorted(source_root.rglob("*.py")):
+        source_paths = sorted(source_root.rglob("*.py"))
+        known_modules = {_module_name(root, path) for path in source_paths}
+        for path in source_paths:
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=path.as_posix())
             except (OSError, UnicodeError, SyntaxError) as exc:
@@ -311,11 +403,14 @@ def verify_boundaries(repository_root: Path, protocol: Mapping[str, Any]) -> dic
                 if isinstance(node, ast.Import):
                     imports.update(alias.name for alias in node.names)
                 elif isinstance(node, ast.ImportFrom):
-                    resolved = _resolve_import_from(module_name, path.name == "__init__.py", node)
-                    if resolved:
-                        imports.add(resolved)
+                    imports.update(
+                        _resolve_import_from(
+                            module_name, path.name == "__init__.py", node, known_modules
+                        )
+                    )
             graph[module_name] = imports
     runtime_modules: set[str] = set()
+    runtime_module_paths: dict[str, str] = {}
     for relative_root in protocol["forbidden_consumer_roots"]:
         scan_root = root / relative_root
         if not scan_root.exists():
@@ -328,7 +423,9 @@ def verify_boundaries(repository_root: Path, protocol: Mapping[str, Any]) -> dic
                 except (OSError, UnicodeError, SyntaxError) as exc:
                     raise QuarantineError("boundary_source_unreadable") from exc
             if source_root in path.resolve().parents:
-                runtime_modules.add(_module_name(root, path))
+                runtime_module = _module_name(root, path)
+                runtime_modules.add(runtime_module)
+                runtime_module_paths[runtime_module] = path.relative_to(root).as_posix()
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call) and _call_reads_path(node):
                     for argument in node.args[:1]:
@@ -364,10 +461,9 @@ def verify_boundaries(repository_root: Path, protocol: Mapping[str, Any]) -> dic
     for module in sorted(runtime_modules):
         chain = _import_path(graph, module, protected_module)
         if chain:
-            relative = "src/" + module.replace(".", "/") + ".py"
             violations.append(
                 {
-                    "path": relative,
+                    "path": runtime_module_paths[module],
                     "invariant": "production_imports_formal_evidence",
                     "symbol": stable_hash(chain),
                 }
@@ -400,17 +496,32 @@ def _import_path(graph: Mapping[str, set[str]], start: str, target: str) -> list
     return []
 
 
-def _resolve_import_from(module: str, is_package: bool, node: ast.ImportFrom) -> str:
+def _resolve_import_from(
+    module: str,
+    is_package: bool,
+    node: ast.ImportFrom,
+    known_modules: set[str],
+) -> set[str]:
     if node.level == 0:
-        return str(node.module or "")
-    package = module.split(".") if is_package else module.split(".")[:-1]
-    remove = node.level - 1
-    if remove > len(package):
-        return ""
-    base = package[: len(package) - remove] if remove else package
-    if node.module:
-        base.extend(node.module.split("."))
-    return ".".join(base)
+        resolved = str(node.module or "")
+    else:
+        package = module.split(".") if is_package else module.split(".")[:-1]
+        remove = node.level - 1
+        if remove > len(package):
+            return set()
+        base = package[: len(package) - remove] if remove else package
+        if node.module:
+            base.extend(node.module.split("."))
+        resolved = ".".join(base)
+    imports = {resolved} if resolved else set()
+    for alias in node.names:
+        candidate = f"{resolved}.{alias.name}" if resolved else alias.name
+        # ``from package import name`` can import either an attribute or a
+        # submodule.  Only retain the expanded candidate when a source module
+        # with that identity exists, avoiding attribute false positives.
+        if candidate in known_modules:
+            imports.add(candidate)
+    return imports
 
 
 def _call_reads_path(node: ast.Call) -> bool:

@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -79,6 +81,49 @@ def test_direct_and_indirect_production_imports_are_rejected(
     assert report["exit_code"] == EXIT_VIOLATION
     assert report["violation_count"] == 3
     assert any(row["path"].endswith("retrieval/indirect.py") for row in report["violations"])
+
+
+def test_package_init_and_from_package_submodule_bridges_are_rejected(
+    tmp_path: Path, protocol: dict[str, object]
+) -> None:
+    retrieval = tmp_path / "src/scholar_agent/retrieval"
+    core = tmp_path / "src/scholar_agent/core"
+    retrieval.mkdir(parents=True)
+    core.mkdir(parents=True)
+    (core / "formal_bridge.py").write_text(
+        "import scholar_agent.evaluation.formal_evidence_quarantine\n", encoding="utf-8"
+    )
+    (retrieval / "absolute.py").write_text(
+        "from scholar_agent.core import formal_bridge\n", encoding="utf-8"
+    )
+    (retrieval / "formal_bridge.py").write_text(
+        "import scholar_agent.evaluation.formal_evidence_quarantine\n", encoding="utf-8"
+    )
+    (retrieval / "relative.py").write_text(
+        "from . import formal_bridge\n", encoding="utf-8"
+    )
+    (retrieval / "__init__.py").write_text(
+        "from . import formal_bridge\n", encoding="utf-8"
+    )
+    report = verify_boundaries(
+        tmp_path,
+        _fixture_protocol(
+            protocol, ["src/scholar_agent/retrieval", "src/scholar_agent/core"]
+        ),
+    )
+    paths = {row["path"] for row in report["violations"]}
+    assert report["exit_code"] == EXIT_VIOLATION
+    assert "src/scholar_agent/retrieval/absolute.py" in paths
+    assert "src/scholar_agent/retrieval/relative.py" in paths
+    assert "src/scholar_agent/retrieval/__init__.py" in paths
+
+
+def test_existing_services_selection_dependency_is_not_a_false_positive(
+    protocol: dict[str, object],
+) -> None:
+    report = verify_boundaries(ROOT, protocol)
+    assert report["exit_code"] == EXIT_READY
+    assert not any(row["path"].startswith("src/scholar_agent/services/") for row in report["violations"])
 
 
 def test_relative_import_and_frontend_asset_leakage_are_rejected(
@@ -282,3 +327,166 @@ def test_cli_readiness_and_determinism(
 def test_cli_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main([]) == 4
     assert '"status": "usage_error"' in capsys.readouterr().out
+
+
+def test_cli_missing_artifact_is_stable_exit_two_without_traceback(
+    tmp_path: Path,
+) -> None:
+    digest = "a" * 64
+    binding = tmp_path / "binding.json"
+    chronology = tmp_path / "chronology.json"
+    binding.write_text(
+        json.dumps(
+            {
+                "contract": "comparison_plan_v1",
+                "plan_sha256": digest,
+                "run_manifest_sha256": digest,
+                "query_order_sha256": digest,
+            }
+        ),
+        encoding="utf-8",
+    )
+    chronology.write_text(
+        json.dumps(
+            {
+                "preregistration_commit": "1" * 40,
+                "execution_commit": "2" * 40,
+                "intake_commit": "3" * 40,
+                "report_code_commit": "4" * 40,
+                "proof": "synthetic_fixture_only",
+            }
+        ),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_formal_evidence_quarantine.py"),
+            "intake-dry-run",
+            "--artifact",
+            str(tmp_path / "missing.json"),
+            "--evidence-root",
+            str(tmp_path),
+            "--evidence-type",
+            "human_annotation_labels",
+            "--binding",
+            str(binding),
+            "--chronology",
+            str(chronology),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    report = json.loads(completed.stdout)
+    assert completed.returncode == EXIT_VIOLATION
+    assert report["error_code"] == "evidence_artifact_unavailable"
+    assert completed.stderr == ""
+    assert "Traceback" not in completed.stdout
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "missing_protocol",
+        "malformed_protocol",
+        "incomplete_protocol",
+        "malformed_binding",
+    ],
+)
+def test_cli_bad_protocol_or_json_never_leaks_traceback(
+    tmp_path: Path, kind: str
+) -> None:
+    protocol_path = tmp_path / "protocol.json"
+    protocol_path.write_text("{broken", encoding="utf-8")
+    if kind == "missing_protocol":
+        protocol_path = tmp_path / "absent.json"
+    elif kind == "incomplete_protocol":
+        incomplete = json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
+        incomplete.pop("allowed_consumer_prefixes")
+        protocol_path.write_text(json.dumps(incomplete), encoding="utf-8")
+    command = [
+        sys.executable,
+        str(ROOT / "scripts/check_formal_evidence_quarantine.py"),
+        "--protocol",
+        str(protocol_path if kind != "malformed_binding" else PROTOCOL_PATH),
+    ]
+    if kind == "malformed_binding":
+        bad = tmp_path / "binding.json"
+        bad.write_text("[]", encoding="utf-8")
+        chronology = tmp_path / "chronology.json"
+        chronology.write_text("{}", encoding="utf-8")
+        artifact = tmp_path / "artifact.json"
+        artifact.write_text("{}", encoding="utf-8")
+        command.extend(
+            [
+                "intake-dry-run",
+                "--artifact",
+                str(artifact),
+                "--evidence-root",
+                str(tmp_path),
+                "--evidence-type",
+                "human_annotation_labels",
+                "--binding",
+                str(bad),
+                "--chronology",
+                str(chronology),
+            ]
+        )
+    else:
+        command.append("verify-boundaries")
+    completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+    report = json.loads(completed.stdout)
+    assert completed.returncode == EXIT_VIOLATION
+    assert report["exit_code"] == EXIT_VIOLATION
+    if kind == "incomplete_protocol":
+        assert report["error_code"] == "protocol_schema_invalid"
+    assert completed.stderr == ""
+    assert "Traceback" not in completed.stdout
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "allowed_consumer",
+        "empty_forbidden_roots",
+        "replace_forbidden_root",
+        "delete_prohibited_use",
+        "source_commit",
+    ],
+)
+def test_cli_rejects_frozen_security_policy_drift_without_traceback(
+    tmp_path: Path, mutation: str
+) -> None:
+    payload = json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
+    if mutation == "allowed_consumer":
+        payload["allowed_consumer_prefixes"] = ["scholar_agent.services."]
+    elif mutation == "empty_forbidden_roots":
+        payload["forbidden_consumer_roots"] = []
+    elif mutation == "replace_forbidden_root":
+        payload["forbidden_consumer_roots"][0] = "src/nonexistent"
+    elif mutation == "delete_prohibited_use":
+        payload["prohibited_uses"].pop()
+    else:
+        payload["source_commit"] = "f" * 40
+    protocol_path = tmp_path / f"{mutation}.json"
+    protocol_path.write_text(json.dumps(payload), encoding="utf-8")
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/check_formal_evidence_quarantine.py"),
+            "--protocol",
+            str(protocol_path),
+            "verify-boundaries",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    report = json.loads(completed.stdout)
+    assert completed.returncode == EXIT_VIOLATION
+    assert report["error_code"] == "protocol_schema_invalid"
+    assert completed.stderr == ""
+    assert "Traceback" not in completed.stdout

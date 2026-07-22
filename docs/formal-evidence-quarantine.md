@@ -30,7 +30,7 @@ PYTHONPATH=src python scripts/check_formal_evidence_quarantine.py intake-dry-run
   --evidence-type human_annotation_labels --binding <binding.json> \
   --chronology <chronology.json>
 PYTHONPATH=src python scripts/check_formal_evidence_quarantine.py audit-contamination \
-  --manifest <intake.json> --changes <changes.json>
+  --manifest <intake.json> --evidence-root <quarantine-root> --changes <changes.json>
 ```
 
 退出码为 `0=quarantine_controls_ready`、`2=leakage_or_posthoc_violation`、

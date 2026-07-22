@@ -102,7 +102,10 @@ def main(argv: list[str] | None = None) -> int:
             verify_intake_manifest(manifest, evidence_root=Path(args.evidence_root), protocol=protocol)
             payload = manifest.model_dump(mode="json")
             if args.output:
-                Path(args.output).write_bytes(canonical_json(payload))
+                try:
+                    Path(args.output).write_bytes(canonical_json(payload))
+                except (OSError, UnicodeError) as exc:
+                    raise QuarantineError("cli_output_unavailable") from exc
             report = {
                 "schema_version": SCHEMA_VERSION,
                 "protocol": PROTOCOL,
@@ -132,6 +135,10 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
     except QuarantineError as exc:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "violation", "exit_code": EXIT_VIOLATION, "error_code": str(exc), "formal_validation_complete": False}
+        _emit(report)
+        return EXIT_VIOLATION
+    except (KeyError, OSError, UnicodeError, ValueError, TypeError):
+        report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "violation", "exit_code": EXIT_VIOLATION, "error_code": "cli_filesystem_or_input_error", "formal_validation_complete": False}
         _emit(report)
         return EXIT_VIOLATION
 
