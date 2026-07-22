@@ -1,0 +1,886 @@
+{
+  "blockers": [
+    {
+      "blocker_id": "full1000_incomplete",
+      "evidence_ids": [
+        "full1000_resume_summary"
+      ],
+      "future_integration_point": "complete the frozen resume plan, then create and verify a new immutable full-run evidence artifact",
+      "missing_external_input": "a completed 1000-query run with authoritative terminal records for every planned query",
+      "non_substitutes": [
+        "Record160 coverage",
+        "delivery fidelity",
+        "source diagnostics"
+      ],
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "human_precision_missing",
+      "evidence_ids": [
+        "human_precision_pending"
+      ],
+      "future_integration_point": "import two independent human annotations and adjudicate all disagreements through human_precision_adjudication_v1",
+      "missing_external_input": "complete independent human labels and adjudication for the frozen blind package",
+      "non_substitutes": [
+        "LLM proxy judging",
+        "coverage ablation",
+        "stability checks"
+      ],
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "official_scorer_schema_missing",
+      "evidence_ids": [
+        "official_scorer_blocked"
+      ],
+      "future_integration_point": "bind a versioned official scorer or complete official scoring specification before implementing the adapter",
+      "missing_external_input": "an exact official scorer or complete official schema and formula",
+      "non_substitutes": [
+        "internal evaluator metrics",
+        "LLM proxy judging",
+        "Top-20 delivery fidelity"
+      ],
+      "status": "blocked"
+    }
+  ],
+  "claim_sources": [
+    {
+      "document_id": "architecture",
+      "path": "docs/architecture.md",
+      "sha256": "c2b61d01c34c4eff08fc09ed1e9f83cf2786631d6379a75c59cd0e79fdf622d9"
+    },
+    {
+      "document_id": "contest_requirements",
+      "path": "docs/contest/requirements.md",
+      "sha256": "24197215df7917178a7789ecc59bfde365c9ae7b4ddaa782dcc40f03b7fd2cf0"
+    },
+    {
+      "document_id": "evaluation",
+      "path": "docs/evaluation.md",
+      "sha256": "2a366de0ecbfbaebf0bb424c88432adf961e45b72b836a6ddb0d0a29f089d2d2"
+    },
+    {
+      "document_id": "readme",
+      "path": "README.md",
+      "sha256": "a734fd418fed4a7a7c22000129b0b841055e5ff3a183e221e4a1453cbc63a9cc"
+    }
+  ],
+  "claims": [
+    {
+      "boundary": "Startup instructions alone establish no validation or quality claim.",
+      "claim_id": "readme_operational_entrypoint",
+      "document_id": "readme",
+      "evidence_ids": [
+        "evidence_registry_gate"
+      ],
+      "scope": "operational_documentation",
+      "statement": "The README is covered as operational setup documentation, not as validation evidence.",
+      "status": "not_applicable"
+    },
+    {
+      "boundary": "These are engineering integrity checks and do not establish retrieval quality.",
+      "claim_id": "architecture_offline_integrity_gates",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "constraint_decision_manifest",
+        "ranking_decision_manifest",
+        "source_reliability_manifest",
+        "tiebreak_manifest",
+        "top20_delivery_manifest"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The production default remains original_index_v1; qualification does not enable v2.",
+      "claim_id": "architecture_default_policy_isolation",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "evidence_registry_gate",
+        "tiebreak_aggregate",
+        "top20_delivery_aggregate"
+      ],
+      "scope": "engineering_capability",
+      "statement": "current_rules is the only registered default and deterministic_tiebreak_v2 remains disabled by default.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Record160 is a partial, order-biased internal sample and is not Full1000.",
+      "claim_id": "evaluation_record160_population",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "top20_delivery_aggregate"
+      ],
+      "scope": "internal_validation",
+      "statement": "The frozen prefix has 162 terminal query records, of which 160 enter the main internal analysis and 2 are excluded by the pre-existing no-successful-source rule.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Funnel counts describe availability and pipeline loss, not relevance or source quality.",
+      "claim_id": "evaluation_source_diagnostics",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "source_reliability_manifest"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The source reliability funnel is exactly reconstructed from 1,093 observed Snapshot keys for 160 included queries.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Delivery fidelity proves transport preservation only; unsupported exports remain explicit.",
+      "claim_id": "evaluation_top20_delivery",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "top20_delivery_aggregate",
+        "top20_delivery_manifest"
+      ],
+      "scope": "internal_validation",
+      "statement": "The supported API, JSON, JSONL, pagination, and frontend paths preserve 1,396 frozen final results across 160 included queries.",
+      "status": "internal_only"
+    },
+    {
+      "blocker_id": "full1000_incomplete",
+      "boundary": "The 160-query prefix must never be presented as a completed 1000-query run.",
+      "claim_id": "contest_full1000_completion",
+      "document_id": "contest_requirements",
+      "evidence_ids": [
+        "full1000_resume_summary"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "A complete Full1000 baseline is not yet available.",
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "human_precision_missing",
+      "boundary": "No numerical Precision or agreement value may be inferred from empty templates.",
+      "claim_id": "contest_human_precision",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "human_precision_pending"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "Real independent human Precision labels and adjudication are not complete.",
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "official_scorer_schema_missing",
+      "boundary": "Internal metrics and delivery checks must not be described as official scores.",
+      "claim_id": "contest_official_scorer_alignment",
+      "document_id": "contest_requirements",
+      "evidence_ids": [
+        "official_scorer_blocked"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "Official scorer/schema alignment remains blocked because the exact official semantics are unavailable.",
+      "status": "blocked"
+    },
+    {
+      "boundary": "The ablation describes identity coverage and ranking stability only, never relevance.",
+      "claim_id": "evaluation_source_fusion_coverage",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_fusion_aggregate",
+        "source_fusion_manifest"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "Four-source full, leave-one-source-out, and single-source coverage diagnostics are reproducible for the frozen Record160 population.",
+      "status": "internal_only"
+    }
+  ],
+  "code_identity": {
+    "files": [
+      "benchmark/validation_readiness_bundle_v1_contract.json",
+      "docs/validation-readiness.md",
+      "scripts/check_validation_readiness.py",
+      "src/scholar_agent/evaluation/validation_readiness.py"
+    ],
+    "implementation_base_commit": "4d1470206eedcd03d4e154aaee2415970c5762f1"
+  },
+  "consistency_assertions": [
+    {
+      "assertion_id": "record_case_count",
+      "expected": 162,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/closure/record_case_count"
+        },
+        {
+          "evidence_id": "source_reliability_aggregate",
+          "pointer": "/closure/record_case_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/closure/record_case_count"
+        },
+        {
+          "evidence_id": "full1000_resume_summary",
+          "pointer": "/record_terminal_case_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "included_main_case_count",
+      "expected": 160,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/closure/included_main_case_count"
+        },
+        {
+          "evidence_id": "source_reliability_aggregate",
+          "pointer": "/closure/included_main_case_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/closure/included_main_case_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "excluded_case_count",
+      "expected": 2,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/closure/excluded_no_successful_source_count"
+        },
+        {
+          "evidence_id": "source_reliability_aggregate",
+          "pointer": "/closure/excluded_no_successful_source_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/closure/excluded_no_successful_source_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "snapshot_key_count",
+      "expected": 1093,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/closure/observed_snapshot_key_count"
+        },
+        {
+          "evidence_id": "source_reliability_aggregate",
+          "pointer": "/closure/observed_snapshot_key_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/closure/observed_snapshot_key_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "final_result_count",
+      "expected": 1396,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/closure/authoritative_final_result_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/full/top20_fill_count/query_distribution/total"
+        }
+      ]
+    },
+    {
+      "assertion_id": "reconstruction_exact_case_count",
+      "expected": 160,
+      "observations": [
+        {
+          "evidence_id": "source_reliability_aggregate",
+          "pointer": "/closure/reconstruction_exact_case_count"
+        },
+        {
+          "evidence_id": "source_fusion_aggregate",
+          "pointer": "/closure/reconstruction_exact_case_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "tiebreak_v2_default_disabled",
+      "expected": false,
+      "observations": [
+        {
+          "evidence_id": "top20_delivery_aggregate",
+          "pointer": "/policy_isolation/deterministic_tiebreak_v2_default_enabled"
+        },
+        {
+          "evidence_id": "tiebreak_aggregate",
+          "pointer": "/policy/v2_enabled_by_default"
+        }
+      ]
+    },
+    {
+      "assertion_id": "current_rules_only_default",
+      "expected": [
+        "current_rules"
+      ],
+      "observations": [
+        {
+          "evidence_id": "evidence_registry_gate",
+          "pointer": "/inventory/default_enabled_strategy_ids"
+        }
+      ]
+    },
+    {
+      "assertion_id": "human_annotation_pending",
+      "expected": "pending_human_labels",
+      "observations": [
+        {
+          "evidence_id": "human_precision_pending",
+          "pointer": "/annotation_status"
+        }
+      ]
+    },
+    {
+      "assertion_id": "official_scorer_blocked",
+      "expected": "blocked_missing_exact_official_scorer_or_formula",
+      "observations": [
+        {
+          "evidence_id": "official_scorer_blocked",
+          "pointer": "/status"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "checks": [
+        {
+          "equals": "top20_delivery_fidelity_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "top20_delivery_contract",
+      "format": "json",
+      "path": "benchmark/top20_delivery_contract_v1.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "bbe386cbee1cec4e2ec85c9280ace4e194620bdf4e4f7cee053f6dd06793f30b"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed_with_unsupported_exports",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        }
+      ],
+      "dependencies": [
+        "top20_delivery_contract"
+      ],
+      "evidence_id": "top20_delivery_aggregate",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/aggregate.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "5dadd3a1637865a2a05d8d2099c02b4cfdd6d619778dbfed5454604b82b2b626"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed_with_unsupported_exports",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "top20_delivery_aggregate"
+      ],
+      "evidence_id": "top20_delivery_manifest",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/manifest.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "a68dcecb5c948217fbb0f11ee17d08572b988888f18038d2453956a594678cd8"
+    },
+    {
+      "checks": [
+        {
+          "equals": "source_reliability_diagnostics_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "source_reliability_protocol",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_protocol.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "9df9f920d0f52869bef808fddc73a8dbead39fdf9edd8b0ff467b8147fa075db"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/silent_loss/accounting_violation_count"
+        }
+      ],
+      "dependencies": [
+        "source_reliability_protocol"
+      ],
+      "evidence_id": "source_reliability_aggregate",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/aggregate.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "65407e5c3dd992cd418e9f7c5509c2508cf1a688a676bd156a7b980a1f5bea87"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_reliability_aggregate"
+      ],
+      "evidence_id": "source_reliability_manifest",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/manifest.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "cbf44ced10fc90807c0e966e1b0925d09d04dc8b29ac39f9a7b9a55d3760b413"
+    },
+    {
+      "checks": [
+        {
+          "equals": "source_fusion_ablation_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "source_fusion_protocol",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_protocol.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "dbf1a340ed4b66aefb62db496ce9992f39476d7b04024df97192d509d7922111"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_fusion_protocol"
+      ],
+      "evidence_id": "source_fusion_aggregate",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/aggregate.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "716b170c1e453083ac916ee121eff883c639642414b658fddcce372e6450d29f"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "source_fusion_aggregate"
+      ],
+      "evidence_id": "source_fusion_manifest",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/manifest.json",
+      "protocol": "source_fusion_ablation_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "5a1f45caa408f03cb12c5aeddd7458322d75e39b74e7fab854ac08703314bed4"
+    },
+    {
+      "checks": [
+        {
+          "equals": "constraint_decision_audit_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "constraint_decision_protocol",
+      "format": "json",
+      "path": "benchmark/constraint_decision_audit_v1_protocol.json",
+      "protocol": "constraint_decision_audit_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "284456f8a26d941421d51a89f97b72314b536be3ce9d0c10433e0a383667b0dc"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "constraint_decision_protocol"
+      ],
+      "evidence_id": "constraint_decision_manifest",
+      "format": "json",
+      "path": "benchmark/constraint_decision_audit_v1_result/manifest.json",
+      "protocol": "constraint_decision_audit_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "c367f5e4d94996a011937607b212173d2be4af31a95c0c67afdb0564ff9c8cd0"
+    },
+    {
+      "checks": [
+        {
+          "equals": "ranking_decision_audit_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "ranking_decision_protocol",
+      "format": "json",
+      "path": "benchmark/ranking_decision_audit_v1_protocol.json",
+      "protocol": "ranking_decision_audit_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "5a38bb255c8d56d172b323ffd8ab71275ed7d7273bece05654d932dbcb93052b"
+    },
+    {
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "ranking_decision_protocol"
+      ],
+      "evidence_id": "ranking_decision_manifest",
+      "format": "json",
+      "path": "benchmark/ranking_decision_audit_v1_result/manifest.json",
+      "protocol": "ranking_decision_audit_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "ed0823bc53d0402c58ea86a17dec30f8e56e36903b17080c78e09dbac19c42a8"
+    },
+    {
+      "checks": [
+        {
+          "equals": "deterministic_tiebreak_qualification_v1",
+          "pointer": "/analysis"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "tiebreak_protocol",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "e0850efb8b4338e65f0eaca150a579260c3aff3675c71c837a840661dfaa76d2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "qualified_for_review",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/qualification/automatic_enable_permitted"
+        }
+      ],
+      "dependencies": [
+        "tiebreak_protocol"
+      ],
+      "evidence_id": "tiebreak_aggregate",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/aggregate.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "aggregate",
+      "sha256": "787b29002a7d9fd1b6403b88981f3ececc93bd6f40696786e80ab2015ead8c48"
+    },
+    {
+      "checks": [
+        {
+          "equals": "qualified_for_review",
+          "pointer": "/status"
+        }
+      ],
+      "dependencies": [
+        "tiebreak_aggregate"
+      ],
+      "evidence_id": "tiebreak_manifest",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/manifest.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "required": true,
+      "role": "integrity_manifest",
+      "sha256": "fdb6620a55143e4e9da933403a78438c568c74c0f6d42a64f78b33043ddaa833"
+    },
+    {
+      "checks": [
+        {
+          "equals": 6858,
+          "pointer": "/required_key_count"
+        },
+        {
+          "equals": 162,
+          "pointer": "/record_terminal_case_count"
+        },
+        {
+          "equals": true,
+          "pointer": "/classification_closed"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "full1000_resume_summary",
+      "format": "json",
+      "path": "benchmark/autoscholar_full1000_resume/summary.json",
+      "protocol": "autoscholar_full1000_resume_manifest_v1",
+      "required": true,
+      "role": "formal_blocker",
+      "sha256": "940d09c5d4f51f834da80dd73819987e14639ac561956576b00370130025f045"
+    },
+    {
+      "checks": [
+        {
+          "equals": "pending_human_labels",
+          "pointer": "/annotation_status"
+        },
+        {
+          "equals": null,
+          "pointer": "/metrics/cohen_kappa"
+        },
+        {
+          "equals": null,
+          "pointer": "/metrics/paired_precision_at_20_difference"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "human_precision_pending",
+      "format": "json",
+      "path": "benchmark/lexical_normalization_record160_precision_result.json",
+      "protocol": "lexical_normalization_record160_precision_package_v1",
+      "required": true,
+      "role": "formal_blocker",
+      "sha256": "6987139238c2576ed49df6c146dd6bb7fb0cb399ee186e706337623b5db2da98"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_missing_exact_official_scorer_or_formula",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/decision/scorer_adapter_implemented"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "official_scorer_blocked",
+      "format": "json",
+      "path": "benchmark/official_scorer_alignment_blocked.json",
+      "protocol": "official_scorer_alignment_audit_v1",
+      "required": true,
+      "role": "formal_blocker",
+      "sha256": "e1629f7e7dfe632746b51a5446d9aa7a18909683966a0ac2053d97e0eb08e237"
+    },
+    {
+      "checks": [
+        {
+          "equals": true,
+          "pointer": "/gate/passed"
+        },
+        {
+          "equals": [
+            "current_rules"
+          ],
+          "pointer": "/inventory/default_enabled_strategy_ids"
+        },
+        {
+          "equals": "internal_benchmark_evidence_not_official_score",
+          "pointer": "/score_scope"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "evidence_registry_gate",
+      "format": "json",
+      "path": "benchmark/evidence_registry_result.json",
+      "protocol": "experiment_evidence_registry_v1",
+      "required": true,
+      "role": "default_policy_gate",
+      "sha256": "2b36d6cf09e79721550815a7ebc360bef2dd420e4cc3986197fe351caa428b1d"
+    }
+  ],
+  "execution": {
+    "gold_or_qrels_loaded": false,
+    "llm_request_count": 0,
+    "network_request_count": 0,
+    "quality_metric_count": 0,
+    "snapshot_write_count": 0
+  },
+  "protocol": "validation_readiness_bundle_v1",
+  "read_only_gates": [
+    {
+      "arguments": [
+        "scripts/check_evidence_registry.py",
+        "check",
+        "--manifest",
+        "benchmark/evidence_registry_manifest.json",
+        "--output",
+        "{temporary_output}"
+      ],
+      "checks": [
+        {
+          "equals": true,
+          "pointer": "/passed"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "evidence_registry",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_source_reliability.py",
+        "verify",
+        "--output",
+        "benchmark/source_reliability_diagnostics_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "source_reliability",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_source_fusion_ablation.py",
+        "verify",
+        "--output",
+        "benchmark/source_fusion_ablation_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "source_fusion",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_constraint_decisions.py",
+        "verify",
+        "--output",
+        "benchmark/constraint_decision_audit_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "constraint_decisions",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_ranking_decisions.py",
+        "verify",
+        "--output",
+        "benchmark/ranking_decision_audit_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "ranking_decisions",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_tiebreak_qualification.py",
+        "verify",
+        "--output",
+        "benchmark/deterministic_tiebreak_qualification_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "qualified_for_review",
+          "pointer": "/status"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "tiebreak_qualification",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_top20_delivery_fidelity.py",
+        "verify",
+        "--output",
+        "benchmark/top20_delivery_fidelity_v1_result"
+      ],
+      "checks": [
+        {
+          "equals": "completed_with_unsupported_exports",
+          "pointer": "/status"
+        },
+        {
+          "equals": [
+            "csv_table",
+            "reproduction_capsule"
+          ],
+          "pointer": "/unsupported_or_ineligible_exports"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    }
+  ],
+  "release": {
+    "generation_command": "PYTHONPATH=src python scripts/check_validation_readiness.py generate --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release",
+    "status": "ready_with_declared_blockers",
+    "verification_command": "PYTHONPATH=src python scripts/check_validation_readiness.py verify --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release"
+  },
+  "schema_version": "1",
+  "workspace": {
+    "preserved_path": "third_party/paper-qa",
+    "required_state": "modified_nested_worktree"
+  }
+}

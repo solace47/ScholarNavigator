@@ -1,0 +1,170 @@
+{
+  "claim_count": 10,
+  "claim_evidence_coverage_count": 10,
+  "claim_evidence_coverage_rate": 1.0,
+  "claim_sources": [
+    {
+      "document_id": "architecture",
+      "path": "docs/architecture.md",
+      "sha256": "c2b61d01c34c4eff08fc09ed1e9f83cf2786631d6379a75c59cd0e79fdf622d9",
+      "size": 32854
+    },
+    {
+      "document_id": "contest_requirements",
+      "path": "docs/contest/requirements.md",
+      "sha256": "24197215df7917178a7789ecc59bfde365c9ae7b4ddaa782dcc40f03b7fd2cf0",
+      "size": 2085
+    },
+    {
+      "document_id": "evaluation",
+      "path": "docs/evaluation.md",
+      "sha256": "2a366de0ecbfbaebf0bb424c88432adf961e45b72b836a6ddb0d0a29f089d2d2",
+      "size": 118822
+    },
+    {
+      "document_id": "readme",
+      "path": "README.md",
+      "sha256": "a734fd418fed4a7a7c22000129b0b841055e5ff3a183e221e4a1453cbc63a9cc",
+      "size": 606
+    }
+  ],
+  "claims": [
+    {
+      "boundary": "The production default remains original_index_v1; qualification does not enable v2.",
+      "claim_id": "architecture_default_policy_isolation",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "evidence_registry_gate",
+        "tiebreak_aggregate",
+        "top20_delivery_aggregate"
+      ],
+      "scope": "engineering_capability",
+      "statement": "current_rules is the only registered default and deterministic_tiebreak_v2 remains disabled by default.",
+      "status": "verified"
+    },
+    {
+      "boundary": "These are engineering integrity checks and do not establish retrieval quality.",
+      "claim_id": "architecture_offline_integrity_gates",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "constraint_decision_manifest",
+        "ranking_decision_manifest",
+        "source_reliability_manifest",
+        "tiebreak_manifest",
+        "top20_delivery_manifest"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "status": "verified"
+    },
+    {
+      "blocker_id": "full1000_incomplete",
+      "boundary": "The 160-query prefix must never be presented as a completed 1000-query run.",
+      "claim_id": "contest_full1000_completion",
+      "document_id": "contest_requirements",
+      "evidence_ids": [
+        "full1000_resume_summary"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "A complete Full1000 baseline is not yet available.",
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "human_precision_missing",
+      "boundary": "No numerical Precision or agreement value may be inferred from empty templates.",
+      "claim_id": "contest_human_precision",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "human_precision_pending"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "Real independent human Precision labels and adjudication are not complete.",
+      "status": "blocked"
+    },
+    {
+      "blocker_id": "official_scorer_schema_missing",
+      "boundary": "Internal metrics and delivery checks must not be described as official scores.",
+      "claim_id": "contest_official_scorer_alignment",
+      "document_id": "contest_requirements",
+      "evidence_ids": [
+        "official_scorer_blocked"
+      ],
+      "scope": "formal_validation_requirement",
+      "statement": "Official scorer/schema alignment remains blocked because the exact official semantics are unavailable.",
+      "status": "blocked"
+    },
+    {
+      "boundary": "Record160 is a partial, order-biased internal sample and is not Full1000.",
+      "claim_id": "evaluation_record160_population",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "top20_delivery_aggregate"
+      ],
+      "scope": "internal_validation",
+      "statement": "The frozen prefix has 162 terminal query records, of which 160 enter the main internal analysis and 2 are excluded by the pre-existing no-successful-source rule.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Funnel counts describe availability and pipeline loss, not relevance or source quality.",
+      "claim_id": "evaluation_source_diagnostics",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_reliability_aggregate",
+        "source_reliability_manifest"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The source reliability funnel is exactly reconstructed from 1,093 observed Snapshot keys for 160 included queries.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "The ablation describes identity coverage and ranking stability only, never relevance.",
+      "claim_id": "evaluation_source_fusion_coverage",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "source_fusion_aggregate",
+        "source_fusion_manifest"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "Four-source full, leave-one-source-out, and single-source coverage diagnostics are reproducible for the frozen Record160 population.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Delivery fidelity proves transport preservation only; unsupported exports remain explicit.",
+      "claim_id": "evaluation_top20_delivery",
+      "document_id": "evaluation",
+      "evidence_ids": [
+        "top20_delivery_aggregate",
+        "top20_delivery_manifest"
+      ],
+      "scope": "internal_validation",
+      "statement": "The supported API, JSON, JSONL, pagination, and frontend paths preserve 1,396 frozen final results across 160 included queries.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Startup instructions alone establish no validation or quality claim.",
+      "claim_id": "readme_operational_entrypoint",
+      "document_id": "readme",
+      "evidence_ids": [
+        "evidence_registry_gate"
+      ],
+      "scope": "operational_documentation",
+      "statement": "The README is covered as operational setup documentation, not as validation evidence.",
+      "status": "not_applicable"
+    }
+  ],
+  "document_coverage": {
+    "architecture": 2,
+    "contest_requirements": 2,
+    "evaluation": 5,
+    "readme": 1
+  },
+  "protocol": "validation_readiness_bundle_v1",
+  "schema_version": "1",
+  "status_counts": {
+    "blocked": 3,
+    "internal_only": 4,
+    "not_applicable": 1,
+    "verified": 2
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "blocker_count": 3,
+  "claim_count": 10,
+  "claim_evidence_coverage_rate": 1.0,
+  "code_identity": {
+    "implementation_base_commit": "4d1470206eedcd03d4e154aaee2415970c5762f1",
+    "implementation_base_commit_exists": true,
+    "implementation_base_is_ancestor_of_head": true,
+    "implementation_file_count": 4,
+    "implementation_tree_sha256": "654eef2e3bcbab8547a8d1dae04cc9b36ae778cf1ade3bacc2931a7f5736d07c"
+  },
+  "consistency_assertion_count": 10,
+  "execution": {
+    "gold_or_qrels_loaded": false,
+    "llm_request_count": 0,
+    "network_request_count": 0,
+    "quality_metric_count": 0,
+    "snapshot_write_count": 0
+  },
+  "formal_validation_complete": false,
+  "protocol": "validation_readiness_bundle_v1",
+  "read_only_gate_count": 7,
+  "read_only_gates": [
+    {
+      "exit_code": 0,
+      "gate_id": "constraint_decisions",
+      "output_sha256": "176b4001c30ec4aa84413268c2000186a3726fa08f6e22c839be83f3f9f94d79",
+      "status": "completed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "evidence_registry",
+      "output_sha256": "c46fc3d964dbd46142d120fe1de23c6db6210967997da5e18ea68043afa9dbc9",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "ranking_decisions",
+      "output_sha256": "6af8b57503c213ea1493eb56439acef11a1a308f15a8a87662bf48aa78f0230b",
+      "status": "completed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "source_fusion",
+      "output_sha256": "780d15d947346ba0034ce492ae1e11a0fc82d36425f516a01288bd4dfea73dc2",
+      "status": "completed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "source_reliability",
+      "output_sha256": "38e983880b0245a17035798ac63170bb960fdd66c3652c1443e4dda5a5e92fab",
+      "status": "completed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "tiebreak_qualification",
+      "output_sha256": "67c762bf3f4bfe9fd402d80bb89536859f8425f2ec07bd22eb72172785a42216",
+      "status": "qualified_for_review"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "top20_delivery_fidelity",
+      "output_sha256": "e22d910aac9e2287d6db590995e7c1c5db4667d1fdf905a2fde4065799fadf17",
+      "status": "completed_with_unsupported_exports"
+    }
+  ],
+  "schema_version": "1",
+  "status": "ready_with_declared_blockers",
+  "workspace": {
+    "preserved_nested_worktree_count": 1,
+    "preserved_nested_worktree_state_verified": true,
+    "unexpected_nested_worktree_entry_count": 0
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "code_identity": {
+    "implementation_base_commit": "4d1470206eedcd03d4e154aaee2415970c5762f1",
+    "implementation_base_commit_exists": true,
+    "implementation_base_is_ancestor_of_head": true,
+    "implementation_file_count": 4,
+    "implementation_tree_sha256": "654eef2e3bcbab8547a8d1dae04cc9b36ae778cf1ade3bacc2931a7f5736d07c"
+  },
+  "dependency_graph": {
+    "constraint_decision_manifest": [
+      "constraint_decision_protocol"
+    ],
+    "constraint_decision_protocol": [],
+    "evidence_registry_gate": [],
+    "full1000_resume_summary": [],
+    "human_precision_pending": [],
+    "official_scorer_blocked": [],
+    "ranking_decision_manifest": [
+      "ranking_decision_protocol"
+    ],
+    "ranking_decision_protocol": [],
+    "source_fusion_aggregate": [
+      "source_fusion_protocol"
+    ],
+    "source_fusion_manifest": [
+      "source_fusion_aggregate"
+    ],
+    "source_fusion_protocol": [],
+    "source_reliability_aggregate": [
+      "source_reliability_protocol"
+    ],
+    "source_reliability_manifest": [
+      "source_reliability_aggregate"
+    ],
+    "source_reliability_protocol": [],
+    "tiebreak_aggregate": [
+      "tiebreak_protocol"
+    ],
+    "tiebreak_manifest": [
+      "tiebreak_aggregate"
+    ],
+    "tiebreak_protocol": [],
+    "top20_delivery_aggregate": [
+      "top20_delivery_contract"
+    ],
+    "top20_delivery_contract": [],
+    "top20_delivery_manifest": [
+      "top20_delivery_aggregate"
+    ]
+  },
+  "files": {
+    "README.md": {
+      "sha256": "3c4f28235adcb69f0cc625ff8c50bd1ff740159e12ee8d81925445734d8f544e",
+      "size": 783
+    },
+    "claims.json": {
+      "sha256": "e42e703bd1676e23b6f955674816666e9737eaf4c709cd586aa159b8b6dd5cc8",
+      "size": 6450
+    },
+    "competition_checklist.md": {
+      "sha256": "3a1dfe64dcbf1212eefac506e407f709eb7322f2e1519adeb2cbfa352faf75fb",
+      "size": 913
+    },
+    "evidence_index.json": {
+      "sha256": "bb90cd0af2880f477758b4630716991688fc5c20197a6573caee61e234ecf843",
+      "size": 7987
+    },
+    "missing_inputs.json": {
+      "sha256": "c8d19df63c02253023fb48856a5aab7345ec21c8289f8c2aa62434a9391aa3b5",
+      "size": 1771
+    },
+    "readiness.json": {
+      "sha256": "abbe97223a03e61cbb4310f19f80d3cc044de6852b8ba4f234349c861b284152",
+      "size": 2407
+    }
+  },
+  "generation_command": "PYTHONPATH=src python scripts/check_validation_readiness.py generate --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release",
+  "protocol": "validation_readiness_bundle_v1",
+  "schema_version": "1",
+  "status": "ready_with_declared_blockers",
+  "verification_command": "PYTHONPATH=src python scripts/check_validation_readiness.py verify --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release"
+}

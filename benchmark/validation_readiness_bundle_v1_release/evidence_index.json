@@ -1,0 +1,227 @@
+{
+  "evidence": [
+    {
+      "dependencies": [
+        "constraint_decision_protocol"
+      ],
+      "evidence_id": "constraint_decision_manifest",
+      "format": "json",
+      "path": "benchmark/constraint_decision_audit_v1_result/manifest.json",
+      "protocol": "constraint_decision_audit_v1",
+      "role": "integrity_manifest",
+      "sha256": "c367f5e4d94996a011937607b212173d2be4af31a95c0c67afdb0564ff9c8cd0",
+      "size": 801
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "constraint_decision_protocol",
+      "format": "json",
+      "path": "benchmark/constraint_decision_audit_v1_protocol.json",
+      "protocol": "constraint_decision_audit_v1",
+      "role": "protocol",
+      "sha256": "284456f8a26d941421d51a89f97b72314b536be3ce9d0c10433e0a383667b0dc",
+      "size": 9263
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "evidence_registry_gate",
+      "format": "json",
+      "path": "benchmark/evidence_registry_result.json",
+      "protocol": "experiment_evidence_registry_v1",
+      "role": "default_policy_gate",
+      "sha256": "2b36d6cf09e79721550815a7ebc360bef2dd420e4cc3986197fe351caa428b1d",
+      "size": 1275
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "full1000_resume_summary",
+      "format": "json",
+      "path": "benchmark/autoscholar_full1000_resume/summary.json",
+      "protocol": "autoscholar_full1000_resume_manifest_v1",
+      "role": "formal_blocker",
+      "sha256": "940d09c5d4f51f834da80dd73819987e14639ac561956576b00370130025f045",
+      "size": 4566
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "human_precision_pending",
+      "format": "json",
+      "path": "benchmark/lexical_normalization_record160_precision_result.json",
+      "protocol": "lexical_normalization_record160_precision_package_v1",
+      "role": "formal_blocker",
+      "sha256": "6987139238c2576ed49df6c146dd6bb7fb0cb399ee186e706337623b5db2da98",
+      "size": 3025
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "official_scorer_blocked",
+      "format": "json",
+      "path": "benchmark/official_scorer_alignment_blocked.json",
+      "protocol": "official_scorer_alignment_audit_v1",
+      "role": "formal_blocker",
+      "sha256": "e1629f7e7dfe632746b51a5446d9aa7a18909683966a0ac2053d97e0eb08e237",
+      "size": 4559
+    },
+    {
+      "dependencies": [
+        "ranking_decision_protocol"
+      ],
+      "evidence_id": "ranking_decision_manifest",
+      "format": "json",
+      "path": "benchmark/ranking_decision_audit_v1_result/manifest.json",
+      "protocol": "ranking_decision_audit_v1",
+      "role": "integrity_manifest",
+      "sha256": "ed0823bc53d0402c58ea86a17dec30f8e56e36903b17080c78e09dbac19c42a8",
+      "size": 798
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "ranking_decision_protocol",
+      "format": "json",
+      "path": "benchmark/ranking_decision_audit_v1_protocol.json",
+      "protocol": "ranking_decision_audit_v1",
+      "role": "protocol",
+      "sha256": "5a38bb255c8d56d172b323ffd8ab71275ed7d7273bece05654d932dbcb93052b",
+      "size": 7472
+    },
+    {
+      "dependencies": [
+        "source_fusion_protocol"
+      ],
+      "evidence_id": "source_fusion_aggregate",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/aggregate.json",
+      "protocol": "source_fusion_ablation_v1",
+      "role": "aggregate",
+      "sha256": "716b170c1e453083ac916ee121eff883c639642414b658fddcce372e6450d29f",
+      "size": 41936
+    },
+    {
+      "dependencies": [
+        "source_fusion_aggregate"
+      ],
+      "evidence_id": "source_fusion_manifest",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_result/manifest.json",
+      "protocol": "source_fusion_ablation_v1",
+      "role": "integrity_manifest",
+      "sha256": "5a1f45caa408f03cb12c5aeddd7458322d75e39b74e7fab854ac08703314bed4",
+      "size": 613
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "source_fusion_protocol",
+      "format": "json",
+      "path": "benchmark/source_fusion_ablation_v1_protocol.json",
+      "protocol": "source_fusion_ablation_v1",
+      "role": "protocol",
+      "sha256": "dbf1a340ed4b66aefb62db496ce9992f39476d7b04024df97192d509d7922111",
+      "size": 4917
+    },
+    {
+      "dependencies": [
+        "source_reliability_protocol"
+      ],
+      "evidence_id": "source_reliability_aggregate",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/aggregate.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "role": "aggregate",
+      "sha256": "65407e5c3dd992cd418e9f7c5509c2508cf1a688a676bd156a7b980a1f5bea87",
+      "size": 34669
+    },
+    {
+      "dependencies": [
+        "source_reliability_aggregate"
+      ],
+      "evidence_id": "source_reliability_manifest",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_result/manifest.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "role": "integrity_manifest",
+      "sha256": "cbf44ced10fc90807c0e966e1b0925d09d04dc8b29ac39f9a7b9a55d3760b413",
+      "size": 621
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "source_reliability_protocol",
+      "format": "json",
+      "path": "benchmark/source_reliability_diagnostics_v1_protocol.json",
+      "protocol": "source_reliability_diagnostics_v1",
+      "role": "protocol",
+      "sha256": "9df9f920d0f52869bef808fddc73a8dbead39fdf9edd8b0ff467b8147fa075db",
+      "size": 8735
+    },
+    {
+      "dependencies": [
+        "tiebreak_protocol"
+      ],
+      "evidence_id": "tiebreak_aggregate",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/aggregate.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "role": "aggregate",
+      "sha256": "787b29002a7d9fd1b6403b88981f3ececc93bd6f40696786e80ab2015ead8c48",
+      "size": 5204
+    },
+    {
+      "dependencies": [
+        "tiebreak_aggregate"
+      ],
+      "evidence_id": "tiebreak_manifest",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_result/manifest.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "role": "integrity_manifest",
+      "sha256": "fdb6620a55143e4e9da933403a78438c568c74c0f6d42a64f78b33043ddaa833",
+      "size": 988
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "tiebreak_protocol",
+      "format": "json",
+      "path": "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
+      "protocol": "deterministic_tiebreak_qualification_v1",
+      "role": "protocol",
+      "sha256": "e0850efb8b4338e65f0eaca150a579260c3aff3675c71c837a840661dfaa76d2",
+      "size": 5715
+    },
+    {
+      "dependencies": [
+        "top20_delivery_contract"
+      ],
+      "evidence_id": "top20_delivery_aggregate",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/aggregate.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "role": "aggregate",
+      "sha256": "5dadd3a1637865a2a05d8d2099c02b4cfdd6d619778dbfed5454604b82b2b626",
+      "size": 3860
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "top20_delivery_contract",
+      "format": "json",
+      "path": "benchmark/top20_delivery_contract_v1.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "role": "protocol",
+      "sha256": "bbe386cbee1cec4e2ec85c9280ace4e194620bdf4e4f7cee053f6dd06793f30b",
+      "size": 6606
+    },
+    {
+      "dependencies": [
+        "top20_delivery_aggregate"
+      ],
+      "evidence_id": "top20_delivery_manifest",
+      "format": "json",
+      "path": "benchmark/top20_delivery_fidelity_v1_result/manifest.json",
+      "protocol": "top20_delivery_fidelity_v1",
+      "role": "integrity_manifest",
+      "sha256": "a68dcecb5c948217fbb0f11ee17d08572b988888f18038d2453956a594678cd8",
+      "size": 838
+    }
+  ],
+  "evidence_count": 20,
+  "protocol": "validation_readiness_bundle_v1",
+  "schema_version": "1"
+}
