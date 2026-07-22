@@ -103,6 +103,31 @@
       "size": 2393
     },
     {
+      "dependencies": [
+        "external_scorer_readiness",
+        "formal_validation_clearance_protocol",
+        "full1000_execution_plan",
+        "human_annotation_delivery_readiness"
+      ],
+      "evidence_id": "formal_validation_clearance_current",
+      "format": "json",
+      "path": "benchmark/formal_validation_clearance_v1_evidence/current.json",
+      "protocol": "formal_validation_clearance_v1",
+      "role": "current_blocker_state",
+      "sha256": "580194bba27a5f51a2675e5175ad8866d2d1abbb93db1189ae116c6d0ace8c56",
+      "size": 2023
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "formal_validation_clearance_protocol",
+      "format": "json",
+      "path": "benchmark/formal_validation_clearance_v1_protocol.json",
+      "protocol": "formal_validation_clearance_v1",
+      "role": "protocol",
+      "sha256": "b37118f7741e8132eb3ab1436f7d73aff336d6351d601c8e86cc8f1c691903b5",
+      "size": 1825
+    },
+    {
       "dependencies": [],
       "evidence_id": "frontend_reproducible_build_protocol",
       "format": "json",
@@ -593,8 +618,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "562b9aad035e512b3ba1000c551659d13ee5c5024dd79c94d9357cc6d782539c",
-      "size": 17673
+      "sha256": "367b2ded4c70e90bd96c5df39515dbe85ddc181ff9626816cb6a7646728a59c6",
+      "size": 18523
     },
     {
       "dependencies": [],
@@ -603,8 +628,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "bb84dbc5c94413dd226b4f86eadd318eba8fda1bd033445a404e32a627b360c9",
-      "size": 69723
+      "sha256": "3a479b483f0f9fec16530a7eba2c2176ae68cc4c7e6a49c7c35380f32ea6be12",
+      "size": 73012
     },
     {
       "dependencies": [
@@ -620,7 +645,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 54,
+  "evidence_count": 56,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

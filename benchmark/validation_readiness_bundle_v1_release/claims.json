@@ -1,13 +1,13 @@
 {
-  "claim_count": 18,
-  "claim_evidence_coverage_count": 18,
+  "claim_count": 19,
+  "claim_evidence_coverage_count": 19,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "655765e46831c5b71cd49bec20ffa1bb6f7f083be95c6c034c80f8f85a71ee90",
-      "size": 38013
+      "sha256": "f74902f008304bcad70550afe4c726b029b03736f3aba77cfb2aa907702443c8",
+      "size": 38604
     },
     {
       "document_id": "contest_requirements",
@@ -52,6 +52,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The state machine is verified, but current real evidence remains incomplete; synthetic transitions and receipts cannot remove any formal blocker.",
+      "claim_id": "architecture_formal_validation_clearance_gated",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_validation_clearance_current",
+        "formal_validation_clearance_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Formal validation clearance is controlled by strict machine-evidence predicates and a fail-closed receipt state machine.",
       "status": "verified"
     },
     {
@@ -261,7 +273,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 10,
+    "architecture": 11,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -272,6 +284,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 6
+    "verified": 7
   }
 }

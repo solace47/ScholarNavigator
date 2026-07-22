@@ -297,6 +297,13 @@ Record160/162 因缺少新式 manifest、提交代、账本和来源血缘而不
 Full1000 未完成阻断。契约与命令见
 [`docs/full1000-execution-readiness.md`](full1000-execution-readiness.md)。
 
+三项正式阻断的解除由 `formal_validation_clearance_v1` 单独控制。状态机只接受完整、当前、
+哈希闭合的 Full1000 提交证据、双人真实人工标注/裁决证据和官方 scorer 沙箱输出；legacy、
+partial、fake、synthetic 或 LLM 代理都不能满足相应谓词。三项证据与 freshness、默认策略状态
+同时通过后才允许生成无私钥的自哈希 `clearance_receipt_v1`。当前真实审计为
+`partially_satisfied`，仍返回阻断退出码 3；契约见
+[`docs/formal-validation-clearance.md`](formal-validation-clearance.md)。
+
 `JudgementRuleConfig.lexical_normalization_policy` 默认固定为 `off`。显式实验值 `lexical_normalization_v1` 只在 topic、must-have、method、domain 的既有文本证据匹配失败后尝试 NFKC/casefold、Unicode 标点与连字符分词、点分字母缩写、英文所有格和固定的保守单复数归一；它不扩展语义、不做模糊匹配，也不作用于 dataset、exclude、paper type、venue、time 或 task。命中仍使用原字段权重、分面上限、负分、阈值、类别门和 Reranker。特征向量为每个新增证据记录原词、规范形式、标题/摘要字段和受分面上限约束后的边际分数；旧 Snapshot 未含该字段时按空列表兼容。
 
 ## API 运行生命周期

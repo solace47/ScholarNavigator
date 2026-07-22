@@ -1,5 +1,5 @@
 {
-  "baseline_head": "b20b2adbb8af25439e3e38088d0f672b4030f93a",
+  "baseline_head": "e1e2545cab9d6f2ecf0e95be157d4c1e71376ec8",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
@@ -24,6 +24,12 @@
       "external_scorer",
       "full1000_resume",
       "top20_delivery"
+    ],
+    "architecture_formal_validation_clearance_gated": [
+      "formal_validation_clearance",
+      "full1000_execution",
+      "human_precision",
+      "official_scorer_absence"
     ],
     "architecture_full1000_execution_plan_ready": [
       "full1000_execution"
@@ -144,6 +150,16 @@
         "src/scholar_agent/evaluation/external_scorer_handoff.py"
       ],
       "kind": "protocol_cli_and_sandbox"
+    },
+    {
+      "component_id": "formal_validation_clearance",
+      "files": [
+        "benchmark/formal_validation_clearance_v1_protocol.json",
+        "docs/formal-validation-clearance.md",
+        "scripts/check_formal_validation_clearance.py",
+        "src/scholar_agent/evaluation/formal_validation_clearance.py"
+      ],
+      "kind": "formal_blocker_state_machine_and_receipt"
     },
     {
       "component_id": "frontend_reproducible_build",
@@ -419,6 +435,15 @@
     "frontend_reproducible_release_contract": [
       "frontend_reproducible_build"
     ],
+    "formal_validation_clearance_current": [
+      "formal_validation_clearance",
+      "full1000_execution",
+      "human_precision",
+      "official_scorer_absence"
+    ],
+    "formal_validation_clearance_protocol": [
+      "formal_validation_clearance"
+    ],
     "full1000_resume_summary": [
       "full1000_resume"
     ],
@@ -605,6 +630,12 @@
       "external_scorer",
       "full1000_resume",
       "top20_delivery"
+    ],
+    "formal_validation_clearance": [
+      "formal_validation_clearance",
+      "full1000_execution",
+      "human_precision",
+      "official_scorer_absence"
     ],
     "full1000_execution_readiness": [
       "full1000_execution"

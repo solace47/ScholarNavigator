@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "655765e46831c5b71cd49bec20ffa1bb6f7f083be95c6c034c80f8f85a71ee90"
+      "sha256": "f74902f008304bcad70550afe4c726b029b03736f3aba77cfb2aa907702443c8"
     },
     {
       "document_id": "contest_requirements",
@@ -187,6 +187,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "The frozen Full1000 query-only population has an immutable sharded execution plan and a deterministic zero-network fake-adapter preflight.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The state machine is verified, but current real evidence remains incomplete; synthetic transitions and receipts cannot remove any formal blocker.",
+      "claim_id": "architecture_formal_validation_clearance_gated",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_validation_clearance_current",
+        "formal_validation_clearance_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Formal validation clearance is controlled by strict machine-evidence predicates and a fail-closed receipt state machine.",
       "status": "verified"
     },
     {
@@ -1517,6 +1529,63 @@
     {
       "checks": [
         {
+          "equals": "partially_satisfied",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "equals": false,
+          "pointer": "/synthetic_test_only"
+        }
+      ],
+      "dependencies": [
+        "formal_validation_clearance_protocol",
+        "full1000_execution_plan",
+        "human_annotation_delivery_readiness",
+        "external_scorer_readiness"
+      ],
+      "evidence_id": "formal_validation_clearance_current",
+      "format": "json",
+      "path": "benchmark/formal_validation_clearance_v1_evidence/current.json",
+      "protocol": "formal_validation_clearance_v1",
+      "required": true,
+      "role": "current_blocker_state",
+      "sha256": "580194bba27a5f51a2675e5175ad8866d2d1abbb93db1189ae116c6d0ace8c56"
+    },
+    {
+      "checks": [
+        {
+          "equals": "formal_validation_clearance_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "equals": "not_used",
+          "pointer": "/receipt/private_key"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "formal_validation_clearance_protocol",
+      "format": "json",
+      "path": "benchmark/formal_validation_clearance_v1_protocol.json",
+      "protocol": "formal_validation_clearance_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "b37118f7741e8132eb3ab1436f7d73aff336d6351d601c8e86cc8f1c691903b5"
+    },
+    {
+      "checks": [
+        {
           "equals": "execution_plan_ready_but_network_blocked",
           "pointer": "/status"
         },
@@ -1674,7 +1743,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "562b9aad035e512b3ba1000c551659d13ee5c5024dd79c94d9357cc6d782539c"
+      "sha256": "367b2ded4c70e90bd96c5df39515dbe85ddc181ff9626816cb6a7646728a59c6"
     },
     {
       "checks": [
@@ -1690,7 +1759,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "bb84dbc5c94413dd226b4f86eadd318eba8fda1bd033445a404e32a627b360c9"
+      "sha256": "3a479b483f0f9fec16530a7eba2c2176ae68cc4c7e6a49c7c35380f32ea6be12"
     },
     {
       "checks": [
@@ -1975,6 +2044,25 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_formal_validation_clearance.py",
+        "audit-current"
+      ],
+      "checks": [
+        {
+          "equals": "partially_satisfied",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "formal_validation_clearance",
       "timeout_seconds": 60
     },
     {
