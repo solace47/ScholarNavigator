@@ -1239,7 +1239,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "45bd2dfd5139f3466c60dab860b70613588ca11f67aa64cb53d191b39b492a23"
+      "sha256": "f2279465f50d65ce8ddbb195b2348281fda883cf00b5b7756e38a6976c3f2a43"
     },
     {
       "checks": [
@@ -1255,7 +1255,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "6e34a9f6f60c68dc760e77337703e0c9ae816b5417f060a40414ae9238fc3753"
+      "sha256": "ca059c3a27825a40461738d3514759860ac6283925a929209378f9668cc9788f"
     },
     {
       "checks": [

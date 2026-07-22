@@ -89,7 +89,7 @@
       "docs/evaluation.md",
       "docs/report/technical_report.md"
     ],
-    "tracked_evidence_file_count": 68,
+    "tracked_evidence_file_count": 69,
     "tracked_evidence_files": [
       {
         "path": "benchmark/autoscholar_full1000_resume/resume_manifest.json",
@@ -290,6 +290,10 @@
       {
         "path": "benchmark/llm_relevance_judging_v1_record160_incomplete/manifest.json",
         "sha256": "4f7765445dc0e4cf1ef3d52433cf30d113acfc864b3fd2cc0d35f90dbc06e4de"
+      },
+      {
+        "path": "benchmark/python_dependency_lock_v1_manifest.json",
+        "sha256": "d83da09ed13fb1e3b1868c2096912fce06f592b2be9a1d608533f089b19d8910"
       },
       {
         "path": "benchmark/ranking_decision_audit_v1_result/aggregate.json",
