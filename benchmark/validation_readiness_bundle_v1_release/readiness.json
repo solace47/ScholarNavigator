@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 16,
+  "claim_count": 17,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 25,
-    "implementation_tree_sha256": "041645e26c9338f5bea50b9721577ac4376506ade068c8da96647fcab638a27d"
+    "implementation_file_count": 32,
+    "implementation_tree_sha256": "0cdf99a646bfa1dd065d568e6e2773762db67fa1f01cd58dcb6763558483e679"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 13,
+  "read_only_gate_count": 14,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -50,6 +50,12 @@
       "gate_id": "human_annotation_delivery",
       "output_sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2",
       "status": "verified"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "offline_wheelhouse_intake",
+      "output_sha256": "36ebe2de38dae886754ba1e43c0cc728ad8eae6d665518330730a7e518bd1cdb",
+      "status": "not_ready_missing_required_wheels"
     },
     {
       "exit_code": 3,
@@ -96,7 +102,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "f2279465f50d65ce8ddbb195b2348281fda883cf00b5b7756e38a6976c3f2a43",
+      "output_sha256": "6ede3a594d29cb130d1245cc24f701b4025b7cf91b714a4c1002bcf994a87fec",
       "status": "fresh_with_declared_blockers"
     }
   ],

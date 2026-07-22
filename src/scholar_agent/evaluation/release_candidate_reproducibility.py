@@ -571,6 +571,17 @@ def _dependency_report(root: Path, contract: Mapping[str, Any]) -> tuple[dict[st
             violations.append("python_dependency_lock_not_qualified")
         if dependency_contract.get("offline_install_qualified") is not True:
             violations.append("python_offline_install_not_qualified")
+    wheelhouse_contract = contract.get("offline_wheelhouse_intake")
+    if wheelhouse_contract is not None:
+        if wheelhouse_contract.get("protocol") != "offline_wheelhouse_intake_v1":
+            violations.append("python_wheelhouse_contract_version_mismatch")
+        manifest_path = root / str(wheelhouse_contract.get("manifest_path") or "")
+        if not manifest_path.is_file():
+            violations.append("python_wheelhouse_manifest_missing")
+        elif sha256_file(manifest_path) != wheelhouse_contract.get("manifest_sha256"):
+            violations.append("python_wheelhouse_manifest_drift")
+        if wheelhouse_contract.get("real_wheelhouse_qualified") is not True:
+            violations.append("python_offline_wheelhouse_not_qualified")
     for relative, expected in contract["dependency_inputs"].items():
         path = root / relative
         if not path.is_file():

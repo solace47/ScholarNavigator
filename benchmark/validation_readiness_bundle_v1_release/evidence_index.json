@@ -205,6 +205,77 @@
     },
     {
       "dependencies": [
+        "offline_wheelhouse_manifest"
+      ],
+      "evidence_id": "offline_wheelhouse_install_test",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/install_test.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "role": "real_install_qualification",
+      "sha256": "ff5f031149c26943b1ab43b19bbc8d1ac61ad0f4425a75b90594345f6fe5f66e",
+      "size": 3092
+    },
+    {
+      "dependencies": [
+        "offline_wheelhouse_protocol"
+      ],
+      "evidence_id": "offline_wheelhouse_manifest",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_manifest.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "role": "real_artifact_inventory",
+      "sha256": "adcbb6a908f1987ff1ce6141c5821de1f6b4447349b8bb2d3224c04e1f220789",
+      "size": 3465
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "offline_wheelhouse_protocol",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_protocol.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "role": "protocol",
+      "sha256": "0a73d131fe4ec0e2396fb5764758404bc2200663f9b69ab73a3e5514e32d3118",
+      "size": 1290
+    },
+    {
+      "dependencies": [
+        "offline_wheelhouse_install_test",
+        "offline_wheelhouse_manifest"
+      ],
+      "evidence_id": "offline_wheelhouse_release_review",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/release_review.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "role": "double_build_release_review",
+      "sha256": "24674e6c359539eb9ae98ed85b48e70a872b0e5db63acd09085e09dde6fa11ea",
+      "size": 1637
+    },
+    {
+      "dependencies": [
+        "offline_wheelhouse_protocol"
+      ],
+      "evidence_id": "offline_wheelhouse_synthetic",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/synthetic_install.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "role": "synthetic_dual_venv_proof",
+      "sha256": "0785e476c314e5ecdbf40a2fc27ff1d05ce7f258584bdb3c0b9c769d62d9515a",
+      "size": 893
+    },
+    {
+      "dependencies": [
+        "offline_wheelhouse_manifest"
+      ],
+      "evidence_id": "offline_wheelhouse_verification",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/verification.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "role": "real_intake_verification",
+      "sha256": "36ebe2de38dae886754ba1e43c0cc728ad8eae6d665518330730a7e518bd1cdb",
+      "size": 3238
+    },
+    {
+      "dependencies": [
         "python_dependency_lock_protocol"
       ],
       "evidence_id": "python_dependency_lock_manifest",
@@ -464,8 +535,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "f2279465f50d65ce8ddbb195b2348281fda883cf00b5b7756e38a6976c3f2a43",
-      "size": 14521
+      "sha256": "6ede3a594d29cb130d1245cc24f701b4025b7cf91b714a4c1002bcf994a87fec",
+      "size": 16216
     },
     {
       "dependencies": [],
@@ -474,8 +545,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "ca059c3a27825a40461738d3514759860ac6283925a929209378f9668cc9788f",
-      "size": 57629
+      "sha256": "d4002732f4a687ff56d651322df5a2b85770bff68d36ab3f16819609a45a2048",
+      "size": 64336
     },
     {
       "dependencies": [
@@ -491,7 +562,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 43,
+  "evidence_count": 49,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

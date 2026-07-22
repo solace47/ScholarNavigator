@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "ed67111bbc12890dd8de512aa9b9a4167f6c00a58d7acfa774a2ae6fa354da5d"
+      "sha256": "91851c91f60319364cc7f702120319f818ec5cc29dcf2410f32182d809685b20"
     },
     {
       "document_id": "contest_requirements",
@@ -119,19 +119,17 @@
       "status": "verified"
     },
     {
-      "boundary": "Frontend reproducibility is qualified, but the complete release candidate remains not qualified because Python direct requirements are not precisely locked; this is not a quality or official validation claim.",
-      "claim_id": "architecture_release_candidate_reproducibility",
+      "boundary": "The real 23-wheel set is absent and remains not qualified; temporary synthetic wheels prove only the intake and installer mechanics.",
+      "claim_id": "architecture_offline_wheelhouse_intake",
       "document_id": "architecture",
       "evidence_ids": [
-        "frontend_reproducible_build_protocol",
-        "frontend_reproducible_build_qualification",
-        "frontend_reproducible_release_contract",
-        "release_candidate_contract",
-        "release_candidate_python_lock",
-        "release_candidate_reproducibility"
+        "offline_wheelhouse_manifest",
+        "offline_wheelhouse_release_review",
+        "offline_wheelhouse_synthetic",
+        "offline_wheelhouse_verification"
       ],
-      "scope": "internal_diagnostic",
-      "statement": "The fixed-source offline release gate now produces byte-identical frontend archives across isolated source parents while preserving the historical path-drift evidence.",
+      "scope": "internal_validation",
+      "statement": "The offline wheelhouse intake validates exact locked wheels, supply-chain metadata, and deterministic offline installation without downloading artifacts.",
       "status": "internal_only"
     },
     {
@@ -146,6 +144,22 @@
       ],
       "scope": "internal_diagnostic",
       "statement": "Python runtime and development dependencies have exact environment-bound declarations and a deterministic installed-metadata closure.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Frontend reproducibility is qualified, but the complete release candidate remains not qualified because Python direct requirements are not precisely locked; this is not a quality or official validation claim.",
+      "claim_id": "architecture_release_candidate_reproducibility",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "frontend_reproducible_build_protocol",
+        "frontend_reproducible_build_qualification",
+        "frontend_reproducible_release_contract",
+        "release_candidate_contract",
+        "release_candidate_python_lock",
+        "release_candidate_reproducibility"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "The fixed-source offline release gate now produces byte-identical frontend archives across isolated source parents while preserving the historical path-drift evidence.",
       "status": "internal_only"
     },
     {
@@ -273,16 +287,22 @@
       "benchmark/frontend_reproducible_build_v1_evidence/current.json",
       "benchmark/frontend_reproducible_build_v1_protocol.json",
       "benchmark/frontend_reproducible_build_v1_release_contract.json",
+      "benchmark/offline_wheelhouse_intake_v1_manifest.json",
+      "benchmark/offline_wheelhouse_intake_v1_protocol.json",
+      "benchmark/offline_wheelhouse_intake_v1_release_closure.json",
+      "benchmark/offline_wheelhouse_intake_v1_release_contract.json",
       "benchmark/release_candidate_reproducibility_v1_contract.json",
       "benchmark/release_candidate_reproducibility_v1_python_lock.json",
       "benchmark/release_candidate_reproducibility_v1_spec.json",
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
+      "docs/offline-wheelhouse-intake.md",
       "docs/release-candidate-reproducibility.md",
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
+      "scripts/check_offline_wheelhouse.py",
       "scripts/check_release_candidate.py",
       "scripts/check_validation_freshness.py",
       "scripts/check_validation_readiness.py",
@@ -292,6 +312,7 @@
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
+      "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
       "src/scholar_agent/evaluation/release_candidate_reproducibility.py",
       "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
@@ -899,6 +920,269 @@
     {
       "checks": [
         {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_wheelhouse_qualified"
+        }
+      ],
+      "dependencies": [
+        "offline_wheelhouse_manifest"
+      ],
+      "evidence_id": "offline_wheelhouse_install_test",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/install_test.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "required": true,
+      "role": "real_install_qualification",
+      "sha256": "ff5f031149c26943b1ab43b19bbc8d1ac61ad0f4425a75b90594345f6fe5f66e"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_required_wheels",
+          "pointer": "/status"
+        },
+        {
+          "equals": 23,
+          "pointer": "/expected_wheel_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/accepted_wheel_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_wheelhouse_qualified"
+        }
+      ],
+      "dependencies": [
+        "offline_wheelhouse_protocol"
+      ],
+      "evidence_id": "offline_wheelhouse_manifest",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_manifest.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "required": true,
+      "role": "real_artifact_inventory",
+      "sha256": "adcbb6a908f1987ff1ce6141c5821de1f6b4447349b8bb2d3224c04e1f220789"
+    },
+    {
+      "checks": [
+        {
+          "equals": "offline_wheelhouse_intake_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "offline_wheelhouse_protocol",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_protocol.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "0a73d131fe4ec0e2396fb5764758404bc2200663f9b69ab73a3e5514e32d3118"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_qualified",
+          "pointer": "/qualification"
+        },
+        {
+          "equals": [
+            "python_offline_install_not_qualified",
+            "python_offline_wheelhouse_not_qualified"
+          ],
+          "pointer": "/dependency_violations"
+        }
+      ],
+      "dependencies": [
+        "offline_wheelhouse_manifest",
+        "offline_wheelhouse_install_test"
+      ],
+      "evidence_id": "offline_wheelhouse_release_review",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/release_review.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "double_build_release_review",
+      "sha256": "24674e6c359539eb9ae98ed85b48e70a872b0e5db63acd09085e09dde6fa11ea"
+    },
+    {
+      "checks": [
+        {
+          "equals": 0,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": true,
+          "pointer": "/synthetic_only"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_wheelhouse_qualified"
+        }
+      ],
+      "dependencies": [
+        "offline_wheelhouse_protocol"
+      ],
+      "evidence_id": "offline_wheelhouse_synthetic",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/synthetic_install.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "required": true,
+      "role": "synthetic_dual_venv_proof",
+      "sha256": "0785e476c314e5ecdbf40a2fc27ff1d05ce7f258584bdb3c0b9c769d62d9515a"
+    },
+    {
+      "checks": [
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_wheelhouse_qualified"
+        }
+      ],
+      "dependencies": [
+        "offline_wheelhouse_manifest"
+      ],
+      "evidence_id": "offline_wheelhouse_verification",
+      "format": "json",
+      "path": "benchmark/offline_wheelhouse_intake_v1_evidence/verification.json",
+      "protocol": "offline_wheelhouse_intake_v1",
+      "required": true,
+      "role": "real_intake_verification",
+      "sha256": "36ebe2de38dae886754ba1e43c0cc728ad8eae6d665518330730a7e518bd1cdb"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": false,
+          "pointer": "/offline_install_qualified"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_protocol"
+      ],
+      "evidence_id": "python_dependency_lock_manifest",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_manifest.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "installed_metadata_dependency_closure",
+      "sha256": "d83da09ed13fb1e3b1868c2096912fce06f592b2be9a1d608533f089b19d8910"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_offline_install",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "dual_venv_offline_install_qualification",
+      "sha256": "e5130dfa9e4b9f4eac7a45e50eebdaf71475844eefde3ada5c2f944cfb9fcf6a"
+    },
+    {
+      "checks": [
+        {
+          "equals": "python_dependency_lock_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "python_dependency_lock_protocol",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_protocol.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "c1e9570e11b9048b49290a5b5731d9794a585785e4c3ec98902885f1349954f9"
+    },
+    {
+      "checks": [
+        {
+          "equals": "build_or_supply_chain_violation",
+          "pointer": "/status"
+        },
+        {
+          "equals": "not_qualified",
+          "pointer": "/qualification"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest",
+        "python_dependency_lock_offline_install"
+      ],
+      "evidence_id": "python_dependency_lock_release_review",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/release_review.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "double_build_release_review",
+      "sha256": "ca170291c9751dab333902c01fa35b7be43052d9dc0c00a702f92814f63ae85f"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": [],
+          "pointer": "/violations"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_verification",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/verification.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "lock_and_metadata_verification",
+      "sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e"
+    },
+    {
+      "checks": [
+        {
           "equals": "completed",
           "pointer": "/status"
         }
@@ -1239,7 +1523,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "f2279465f50d65ce8ddbb195b2348281fda883cf00b5b7756e38a6976c3f2a43"
+      "sha256": "6ede3a594d29cb130d1245cc24f701b4025b7cf91b714a4c1002bcf994a87fec"
     },
     {
       "checks": [
@@ -1255,7 +1539,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "ca059c3a27825a40461738d3514759860ac6283925a929209378f9668cc9788f"
+      "sha256": "d4002732f4a687ff56d651322df5a2b85770bff68d36ab3f16819609a45a2048"
     },
     {
       "checks": [
@@ -1279,123 +1563,6 @@
       "required": true,
       "role": "change_impact_conformance",
       "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
-    },
-    {
-      "checks": [
-        {
-          "equals": "not_ready_missing_verified_version_or_artifact",
-          "pointer": "/status"
-        },
-        {
-          "equals": true,
-          "pointer": "/lock_qualified"
-        },
-        {
-          "equals": false,
-          "pointer": "/offline_install_qualified"
-        }
-      ],
-      "dependencies": [
-        "python_dependency_lock_protocol"
-      ],
-      "evidence_id": "python_dependency_lock_manifest",
-      "format": "json",
-      "path": "benchmark/python_dependency_lock_v1_manifest.json",
-      "protocol": "python_dependency_lock_v1",
-      "required": true,
-      "role": "installed_metadata_dependency_closure",
-      "sha256": "d83da09ed13fb1e3b1868c2096912fce06f592b2be9a1d608533f089b19d8910"
-    },
-    {
-      "checks": [
-        {
-          "equals": "not_ready_missing_verified_version_or_artifact",
-          "pointer": "/status"
-        },
-        {
-          "equals": 3,
-          "pointer": "/exit_code"
-        }
-      ],
-      "dependencies": [
-        "python_dependency_lock_manifest"
-      ],
-      "evidence_id": "python_dependency_lock_offline_install",
-      "format": "json",
-      "path": "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
-      "protocol": "python_dependency_lock_v1",
-      "required": true,
-      "role": "dual_venv_offline_install_qualification",
-      "sha256": "e5130dfa9e4b9f4eac7a45e50eebdaf71475844eefde3ada5c2f944cfb9fcf6a"
-    },
-    {
-      "checks": [
-        {
-          "equals": "python_dependency_lock_v1",
-          "pointer": "/protocol"
-        },
-        {
-          "equals": false,
-          "pointer": "/formal_validation_complete"
-        }
-      ],
-      "dependencies": [],
-      "evidence_id": "python_dependency_lock_protocol",
-      "format": "json",
-      "path": "benchmark/python_dependency_lock_v1_protocol.json",
-      "protocol": "python_dependency_lock_v1",
-      "required": true,
-      "role": "protocol",
-      "sha256": "c1e9570e11b9048b49290a5b5731d9794a585785e4c3ec98902885f1349954f9"
-    },
-    {
-      "checks": [
-        {
-          "equals": "build_or_supply_chain_violation",
-          "pointer": "/status"
-        },
-        {
-          "equals": "not_qualified",
-          "pointer": "/qualification"
-        }
-      ],
-      "dependencies": [
-        "python_dependency_lock_manifest",
-        "python_dependency_lock_offline_install"
-      ],
-      "evidence_id": "python_dependency_lock_release_review",
-      "format": "json",
-      "path": "benchmark/python_dependency_lock_v1_evidence/release_review.json",
-      "protocol": "release_candidate_reproducibility_v1",
-      "required": true,
-      "role": "double_build_release_review",
-      "sha256": "ca170291c9751dab333902c01fa35b7be43052d9dc0c00a702f92814f63ae85f"
-    },
-    {
-      "checks": [
-        {
-          "equals": "not_ready_missing_verified_version_or_artifact",
-          "pointer": "/status"
-        },
-        {
-          "equals": true,
-          "pointer": "/lock_qualified"
-        },
-        {
-          "equals": [],
-          "pointer": "/violations"
-        }
-      ],
-      "dependencies": [
-        "python_dependency_lock_manifest"
-      ],
-      "evidence_id": "python_dependency_lock_verification",
-      "format": "json",
-      "path": "benchmark/python_dependency_lock_v1_evidence/verification.json",
-      "protocol": "python_dependency_lock_v1",
-      "required": true,
-      "role": "lock_and_metadata_verification",
-      "sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e"
     }
   ],
   "execution": {
@@ -1500,6 +1667,52 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "human_annotation_delivery",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_offline_wheelhouse.py",
+        "verify"
+      ],
+      "checks": [
+        {
+          "equals": "not_ready_missing_required_wheels",
+          "pointer": "/status"
+        },
+        {
+          "equals": 23,
+          "pointer": "/expected_wheel_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_wheelhouse_qualified"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "offline_wheelhouse_intake",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_python_dependency_lock.py",
+        "verify"
+      ],
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": false,
+          "pointer": "/offline_install_qualified"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "python_dependency_lock",
       "timeout_seconds": 60
     },
     {
@@ -1611,29 +1824,6 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
-      "timeout_seconds": 60
-    },
-    {
-      "arguments": [
-        "scripts/check_python_dependency_lock.py",
-        "verify"
-      ],
-      "checks": [
-        {
-          "equals": "not_ready_missing_verified_version_or_artifact",
-          "pointer": "/status"
-        },
-        {
-          "equals": true,
-          "pointer": "/lock_qualified"
-        },
-        {
-          "equals": false,
-          "pointer": "/offline_install_qualified"
-        }
-      ],
-      "expected_exit_code": 3,
-      "gate_id": "python_dependency_lock",
       "timeout_seconds": 60
     },
     {

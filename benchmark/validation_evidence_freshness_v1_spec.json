@@ -1,11 +1,15 @@
 {
-  "baseline_head": "cb9ea810ee8d4b0818b7106f9221801c13725801",
+  "baseline_head": "d6d37eb1f0d9a7cff1e41fce69d1b6b4d9175548",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
     "human_annotation_delivery_readiness",
     "human_precision_pending",
     "official_scorer_blocked",
+    "offline_wheelhouse_install_test",
+    "offline_wheelhouse_manifest",
+    "offline_wheelhouse_release_review",
+    "offline_wheelhouse_verification",
     "python_dependency_lock_offline_install",
     "python_dependency_lock_release_review"
   ],
@@ -33,12 +37,17 @@
       "tiebreak",
       "top20_delivery"
     ],
-    "architecture_release_candidate_reproducibility": [
-      "frontend_reproducible_build",
+    "architecture_offline_wheelhouse_intake": [
+      "offline_wheelhouse_intake",
       "python_dependency_lock",
       "release_candidate_reproducibility"
     ],
     "architecture_python_dependency_lock": [
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
+    ],
+    "architecture_release_candidate_reproducibility": [
+      "frontend_reproducible_build",
       "python_dependency_lock",
       "release_candidate_reproducibility"
     ],
@@ -197,6 +206,25 @@
         "docs/contest/requirements.md"
       ],
       "kind": "formal_blocker_specification"
+    },
+    {
+      "component_id": "offline_wheelhouse_intake",
+      "files": [
+        "benchmark/offline_wheelhouse_intake_v1_protocol.json",
+        "benchmark/offline_wheelhouse_intake_v1_manifest.json",
+        "benchmark/offline_wheelhouse_intake_v1_release_contract.json",
+        "benchmark/offline_wheelhouse_intake_v1_release_closure.json",
+        "benchmark/offline_wheelhouse_intake_v1_evidence/install_test.json",
+        "benchmark/offline_wheelhouse_intake_v1_evidence/release_audit.json",
+        "benchmark/offline_wheelhouse_intake_v1_evidence/release_review.json",
+        "benchmark/offline_wheelhouse_intake_v1_evidence/synthetic_install.json",
+        "benchmark/offline_wheelhouse_intake_v1_evidence/verification.json",
+        "docs/offline-wheelhouse-intake.md",
+        "scripts/check_offline_wheelhouse.py",
+        "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
+        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
+      ],
+      "kind": "offline_artifact_supply_chain_and_install_qualification"
     },
     {
       "component_id": "python_dependency_lock",
@@ -395,6 +423,26 @@
     "official_scorer_blocked": [
       "official_scorer_absence"
     ],
+    "offline_wheelhouse_install_test": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_manifest": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_protocol": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_release_review": [
+      "offline_wheelhouse_intake",
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
+    ],
+    "offline_wheelhouse_synthetic": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_verification": [
+      "offline_wheelhouse_intake"
+    ],
     "python_dependency_lock_manifest": [
       "python_dependency_lock"
     ],
@@ -527,6 +575,9 @@
     "human_annotation_delivery": [
       "human_annotation",
       "human_precision"
+    ],
+    "offline_wheelhouse_intake": [
+      "offline_wheelhouse_intake"
     ],
     "python_dependency_lock": [
       "python_dependency_lock",

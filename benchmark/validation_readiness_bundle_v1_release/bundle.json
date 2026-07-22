@@ -3,8 +3,8 @@
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 25,
-    "implementation_tree_sha256": "041645e26c9338f5bea50b9721577ac4376506ade068c8da96647fcab638a27d"
+    "implementation_file_count": 32,
+    "implementation_tree_sha256": "0cdf99a646bfa1dd065d568e6e2773762db67fa1f01cd58dcb6763558483e679"
   },
   "dependency_graph": {
     "completion_bias_aggregate": [
@@ -48,6 +48,23 @@
     ],
     "human_precision_pending": [],
     "official_scorer_blocked": [],
+    "offline_wheelhouse_install_test": [
+      "offline_wheelhouse_manifest"
+    ],
+    "offline_wheelhouse_manifest": [
+      "offline_wheelhouse_protocol"
+    ],
+    "offline_wheelhouse_protocol": [],
+    "offline_wheelhouse_release_review": [
+      "offline_wheelhouse_install_test",
+      "offline_wheelhouse_manifest"
+    ],
+    "offline_wheelhouse_synthetic": [
+      "offline_wheelhouse_protocol"
+    ],
+    "offline_wheelhouse_verification": [
+      "offline_wheelhouse_manifest"
+    ],
     "python_dependency_lock_manifest": [
       "python_dependency_lock_protocol"
     ],
@@ -113,28 +130,28 @@
   },
   "files": {
     "README.md": {
-      "sha256": "b8b5f97c1d78aab31d85db923c5a4e2e1435c351b2939cca5dba911e269489c4",
+      "sha256": "c64601b8c00f2c23ddf84920e43bb1075c18aa24ba81d723efd036ed9970c2ab",
       "size": 783
     },
     "claims.json": {
-      "sha256": "0cf5c7bd8dfc5776c0d2a11dc0dc8fbbc9bbe1b5cc5e96995aa41f7ef323518d",
-      "size": 10691
+      "sha256": "d291247457b4fc544f4fde09f412e3d00d8c07c5bb386e5ea3de1ca9c78cb1a4",
+      "size": 11400
     },
     "competition_checklist.md": {
       "sha256": "3a1dfe64dcbf1212eefac506e407f709eb7322f2e1519adeb2cbfa352faf75fb",
       "size": 913
     },
     "evidence_index.json": {
-      "sha256": "2c86d16ada6421825e65c25fab7315402d228bb809ec498fe0819fb472de112f",
-      "size": 18067
+      "sha256": "68422df43dd9141f37ec3683b21e8592b711e5c48c28e3ecc6ce7acbb74dcabc",
+      "size": 20685
     },
     "missing_inputs.json": {
       "sha256": "c8d19df63c02253023fb48856a5aab7345ec21c8289f8c2aa62434a9391aa3b5",
       "size": 1771
     },
     "readiness.json": {
-      "sha256": "f3812939a27628f2cc436acadda1e50bd1528bb9f14106dec82acac16e586ea3",
-      "size": 3701
+      "sha256": "d4aad39a0bee5dbf2cb10b1c94066543b2d4ccf26fa25cd5e21e61c9ffc62817",
+      "size": 3925
     }
   },
   "generation_command": "PYTHONPATH=src python scripts/check_validation_readiness.py generate --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release",

@@ -1,5 +1,5 @@
 {
-  "baseline_head": "cb9ea810ee8d4b0818b7106f9221801c13725801",
+  "baseline_head": "d6d37eb1f0d9a7cff1e41fce69d1b6b4d9175548",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -28,6 +28,14 @@
     {
       "claim_id": "architecture_offline_integrity_gates",
       "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_offline_wheelhouse_intake",
+      "declared_state": "internal_only",
       "reasons": [],
       "stale_components": [],
       "stale_evidence": [],
@@ -122,7 +130,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 22,
+  "component_count": 23,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -263,6 +271,54 @@
     {
       "declared_state": "blocked",
       "evidence_id": "official_scorer_blocked",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "offline_wheelhouse_install_test",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "offline_wheelhouse_manifest",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "offline_wheelhouse_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "offline_wheelhouse_release_review",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "offline_wheelhouse_synthetic",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "offline_wheelhouse_verification",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -497,6 +553,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "offline_wheelhouse_intake",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "python_dependency_lock",
       "reasons": [],
       "stale_components": [],
@@ -556,8 +620,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 10,
-    "fresh": 56,
+    "blocked": 14,
+    "fresh": 60,
     "not_applicable": 1,
     "stale": 0
   },

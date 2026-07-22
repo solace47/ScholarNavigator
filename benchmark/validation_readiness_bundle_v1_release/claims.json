@@ -1,13 +1,13 @@
 {
-  "claim_count": 16,
-  "claim_evidence_coverage_count": 16,
+  "claim_count": 17,
+  "claim_evidence_coverage_count": 17,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "ed67111bbc12890dd8de512aa9b9a4167f6c00a58d7acfa774a2ae6fa354da5d",
-      "size": 36809
+      "sha256": "91851c91f60319364cc7f702120319f818ec5cc29dcf2410f32182d809685b20",
+      "size": 37349
     },
     {
       "document_id": "contest_requirements",
@@ -80,6 +80,20 @@
       "scope": "engineering_capability",
       "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
       "status": "verified"
+    },
+    {
+      "boundary": "The real 23-wheel set is absent and remains not qualified; temporary synthetic wheels prove only the intake and installer mechanics.",
+      "claim_id": "architecture_offline_wheelhouse_intake",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "offline_wheelhouse_manifest",
+        "offline_wheelhouse_release_review",
+        "offline_wheelhouse_synthetic",
+        "offline_wheelhouse_verification"
+      ],
+      "scope": "internal_validation",
+      "statement": "The offline wheelhouse intake validates exact locked wheels, supply-chain metadata, and deterministic offline installation without downloading artifacts.",
+      "status": "internal_only"
     },
     {
       "boundary": "Exact installed-metadata closure is verified, but the complete local wheelhouse and dual isolated installation proof are absent; historical release evidence and formal blockers remain unchanged.",
@@ -232,7 +246,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 8,
+    "architecture": 9,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -241,7 +255,7 @@
   "schema_version": "1",
   "status_counts": {
     "blocked": 3,
-    "internal_only": 7,
+    "internal_only": 8,
     "not_applicable": 1,
     "verified": 5
   }
