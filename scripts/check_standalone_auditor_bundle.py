@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import posixpath
+import re
 import stat
 import subprocess
 import sys
@@ -34,6 +35,23 @@ REQUIRED_BLOCKERS = {
     "human_precision_missing",
     "official_scorer_schema_missing",
 }
+REQUIRED_BLOCKED_CLAIMS = {
+    "contest_full1000_completion",
+    "contest_human_precision",
+    "contest_official_scorer_alignment",
+}
+REQUIRED_SOURCE_ROLES = {
+    "claims",
+    "clearance",
+    "evidence_index",
+    "freshness",
+    "missing_inputs",
+    "readiness",
+    "readiness_contract",
+    "release_bundle",
+}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 CANONICAL_MEMBERS = {
     "blockers.json",
     "claims.json",
@@ -77,11 +95,207 @@ def strict_json(value: bytes) -> object:
             object_pairs_hook=pairs,
             parse_constant=lambda _value: (_ for _ in ()).throw(AuditError("nonfinite_json_number")),
         )
-    except (UnicodeError, json.JSONDecodeError) as exc:
+    except (UnicodeError, json.JSONDecodeError, RecursionError, MemoryError) as exc:
         raise AuditError("invalid_utf8_or_json") from exc
-    if canonical_bytes(result) != value:
+    try:
+        canonical = canonical_bytes(result)
+    except (RecursionError, MemoryError, TypeError, ValueError) as exc:
+        raise AuditError("json_resource_or_type_limit") from exc
+    if canonical != value:
         raise AuditError("noncanonical_json")
     return result
+
+
+def _object(value: object, *, keys: set[str], reason: str) -> dict[str, object]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise AuditError(reason)
+    return value
+
+
+def _list(value: object, *, reason: str, maximum: int = 4096) -> list[object]:
+    if not isinstance(value, list) or len(value) > maximum:
+        raise AuditError(reason)
+    return value
+
+
+def _string(value: object, *, reason: str, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value):
+        raise AuditError(reason)
+    return value
+
+
+def _integer(value: object, *, reason: str, minimum: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise AuditError(reason)
+    return value
+
+
+def _string_list(value: object, *, reason: str) -> list[str]:
+    rows = _list(value, reason=reason)
+    if any(not isinstance(item, str) or not item for item in rows):
+        raise AuditError(reason)
+    strings = [str(item) for item in rows]
+    if strings != sorted(set(strings)):
+        raise AuditError(reason)
+    return strings
+
+
+def _validate_manifest(value: object) -> dict[str, object]:
+    manifest = _object(
+        value,
+        keys={
+            "files", "formal_validation_complete", "generated_from_commit",
+            "manifest_self_sha256", "protocol", "schema_version", "source_commit",
+            "status", "verifier_sha256",
+        },
+        reason="manifest_schema_invalid",
+    )
+    if (
+        manifest["protocol"] != PROTOCOL
+        or manifest["schema_version"] != SCHEMA
+        or manifest["status"] != "verified_with_declared_blockers"
+        or manifest["formal_validation_complete"] is not False
+        or not isinstance(manifest["source_commit"], str)
+        or not COMMIT_RE.fullmatch(manifest["source_commit"])
+        or not isinstance(manifest["generated_from_commit"], str)
+        or not COMMIT_RE.fullmatch(manifest["generated_from_commit"])
+        or not isinstance(manifest["manifest_self_sha256"], str)
+        or not SHA256_RE.fullmatch(manifest["manifest_self_sha256"])
+        or not isinstance(manifest["verifier_sha256"], str)
+        or not SHA256_RE.fullmatch(manifest["verifier_sha256"])
+    ):
+        raise AuditError("manifest_schema_invalid")
+    inventory = _list(manifest["files"], reason="manifest_inventory_invalid", maximum=32)
+    paths: set[str] = set()
+    for raw in inventory:
+        item = _object(raw, keys={"path", "role", "sha256", "size"}, reason="manifest_file_entry_invalid")
+        name = _safe_name(_string(item["path"], reason="manifest_file_entry_invalid"))
+        if name in paths:
+            raise AuditError("duplicate_manifest_inventory_entry")
+        paths.add(name)
+        if item["role"] not in {"auditable_data", "standalone_verifier"}:
+            raise AuditError("manifest_file_entry_invalid")
+        if not isinstance(item["sha256"], str) or not SHA256_RE.fullmatch(item["sha256"]):
+            raise AuditError("manifest_file_entry_invalid")
+        _integer(item["size"], reason="manifest_file_entry_invalid")
+    return manifest
+
+
+def _validate_claims(value: object) -> dict[str, object]:
+    document = _object(value, keys={"claims", "protocol", "schema_version"}, reason="claims_schema_invalid")
+    if document["protocol"] != PROTOCOL or document["schema_version"] != SCHEMA:
+        raise AuditError("claims_schema_invalid")
+    seen: set[str] = set()
+    blocked: set[str] = set()
+    for raw in _list(document["claims"], reason="claims_schema_invalid"):
+        row = _object(raw, keys={"boundary", "claim_id", "evidence_ids", "scope", "status"}, reason="claim_entry_invalid")
+        identity = _string(row["claim_id"], reason="claim_entry_invalid")
+        if identity in seen:
+            raise AuditError("duplicate_claim_identity")
+        seen.add(identity)
+        _string(row["boundary"], reason="claim_entry_invalid")
+        _string(row["scope"], reason="claim_entry_invalid")
+        if row["status"] not in {"verified", "internal_only", "blocked", "not_applicable"}:
+            raise AuditError("claim_entry_invalid")
+        if row["status"] == "blocked":
+            blocked.add(identity)
+        _string_list(row["evidence_ids"], reason="claim_entry_invalid")
+    if not seen or blocked != REQUIRED_BLOCKED_CLAIMS:
+        raise AuditError("blocked_claim_boundary_drift")
+    return document
+
+
+def _validate_evidence(value: object) -> dict[str, object]:
+    document = _object(value, keys={"evidence", "protocol", "schema_version"}, reason="evidence_schema_invalid")
+    if document["protocol"] != PROTOCOL or document["schema_version"] != SCHEMA:
+        raise AuditError("evidence_schema_invalid")
+    seen: set[str] = set()
+    for raw in _list(document["evidence"], reason="evidence_schema_invalid"):
+        row = _object(raw, keys={"evidence_id", "protocol", "role", "sha256", "size", "verification_scope"}, reason="evidence_entry_invalid")
+        identity = _string(row["evidence_id"], reason="evidence_entry_invalid")
+        if identity in seen:
+            raise AuditError("duplicate_evidence_identity")
+        seen.add(identity)
+        for key in ("protocol", "role"):
+            _string(row[key], reason="evidence_entry_invalid")
+        if not isinstance(row["sha256"], str) or not SHA256_RE.fullmatch(row["sha256"]):
+            raise AuditError("evidence_entry_invalid")
+        _integer(row["size"], reason="evidence_entry_invalid")
+        if row["verification_scope"] != "externally_unverifiable_reference":
+            raise AuditError("internal_evidence_overclaimed")
+    if not seen:
+        raise AuditError("evidence_inventory_empty")
+    return document
+
+
+def _validate_blockers(value: object) -> dict[str, object]:
+    document = _object(value, keys={"blocker_count", "blockers", "protocol", "schema_version"}, reason="blockers_schema_invalid")
+    if document["protocol"] != PROTOCOL or document["schema_version"] != SCHEMA or document["blocker_count"] != 3:
+        raise AuditError("blockers_schema_invalid")
+    seen: set[str] = set()
+    for raw in _list(document["blockers"], reason="blockers_schema_invalid", maximum=3):
+        row = _object(raw, keys={"blocker_id", "evidence_ids", "future_integration_point", "missing_external_input", "non_substitutes", "status"}, reason="blocker_entry_invalid")
+        identity = _string(row["blocker_id"], reason="blocker_entry_invalid")
+        if identity in seen or row["status"] != "blocked":
+            raise AuditError("blocker_entry_invalid")
+        seen.add(identity)
+        _string_list(row["evidence_ids"], reason="blocker_entry_invalid")
+        _string_list(row["non_substitutes"], reason="blocker_entry_invalid")
+        _string(row["future_integration_point"], reason="blocker_entry_invalid")
+        _string(row["missing_external_input"], reason="blocker_entry_invalid")
+    if seen != REQUIRED_BLOCKERS:
+        raise AuditError("formal_blocker_set_drift")
+    return document
+
+
+def _validate_freshness(value: object) -> dict[str, object]:
+    document = _object(value, keys={"baseline_head", "protocol", "stale_count", "status"}, reason="freshness_schema_invalid")
+    if (
+        not isinstance(document["baseline_head"], str)
+        or not COMMIT_RE.fullmatch(document["baseline_head"])
+        or document["protocol"] != "validation_evidence_freshness_v1"
+        or document["stale_count"] != 0
+        or document["status"] != "fresh_with_declared_blockers"
+    ):
+        raise AuditError("stale_evidence_present")
+    return document
+
+
+def _validate_policy(value: object) -> dict[str, object]:
+    document = _object(value, keys={"default_strategy", "deterministic_tiebreak_v2_default_enabled"}, reason="policy_schema_invalid")
+    if document != {"default_strategy": "current_rules", "deterministic_tiebreak_v2_default_enabled": False}:
+        raise AuditError("default_policy_drift")
+    return document
+
+
+def _validate_readiness(value: object) -> dict[str, object]:
+    document = _object(value, keys={"formal_validation_complete", "published_readiness_status", "status"}, reason="readiness_schema_invalid")
+    if document != {"formal_validation_complete": False, "published_readiness_status": "ready_with_declared_blockers", "status": "verified_with_declared_blockers"}:
+        raise AuditError("formal_status_overclaimed")
+    return document
+
+
+def _validate_dependencies(value: object) -> dict[str, object]:
+    document = _object(value, keys={"implementation_commit_ancestry", "source_files"}, reason="dependencies_schema_invalid")
+    ancestry = _object(document["implementation_commit_ancestry"], keys={"head_commit", "source_commit", "source_is_ancestor"}, reason="implementation_commit_ancestry_invalid")
+    if (
+        not isinstance(ancestry["head_commit"], str)
+        or not COMMIT_RE.fullmatch(ancestry["head_commit"])
+        or not isinstance(ancestry["source_commit"], str)
+        or not COMMIT_RE.fullmatch(ancestry["source_commit"])
+        or ancestry["source_is_ancestor"] is not True
+    ):
+        raise AuditError("implementation_commit_ancestry_invalid")
+    roles: set[str] = set()
+    for raw in _list(document["source_files"], reason="source_files_schema_invalid", maximum=16):
+        row = _object(raw, keys={"role", "sha256"}, reason="source_file_entry_invalid")
+        role = _string(row["role"], reason="source_file_entry_invalid")
+        if role in roles or not isinstance(row["sha256"], str) or not SHA256_RE.fullmatch(row["sha256"]):
+            raise AuditError("source_file_entry_invalid")
+        roles.add(role)
+    if roles != REQUIRED_SOURCE_ROLES:
+        raise AuditError("source_role_inventory_drift")
+    return document
 
 
 def _safe_name(name: str) -> str:
@@ -144,19 +358,12 @@ def verify_archive(path: Path) -> dict[str, object]:
     rows = _read_archive(path)
     if MANIFEST not in rows:
         raise AuditError("manifest_missing")
-    manifest = strict_json(rows[MANIFEST])
-    if not isinstance(manifest, dict):
-        raise AuditError("manifest_not_object")
-    if manifest.get("protocol") != PROTOCOL or manifest.get("schema_version") != SCHEMA:
-        raise AuditError("protocol_or_schema_mismatch")
-    inventory = manifest.get("files")
-    if not isinstance(inventory, list):
-        raise AuditError("manifest_inventory_invalid")
+    manifest = _validate_manifest(strict_json(rows[MANIFEST]))
+    inventory = manifest["files"]
     expected = {MANIFEST}
     for item in inventory:
-        if not isinstance(item, dict) or set(item) != {"path", "role", "sha256", "size"}:
-            raise AuditError("manifest_file_entry_invalid")
-        name = _safe_name(str(item["path"])); expected.add(name)
+        name = str(item["path"])
+        expected.add(name)
         if name not in rows or len(rows[name]) != item["size"] or digest(rows[name]) != item["sha256"]:
             raise AuditError("member_hash_or_size_mismatch")
     if set(rows) != expected or expected - {MANIFEST} != CANONICAL_MEMBERS:
@@ -166,38 +373,26 @@ def verify_archive(path: Path) -> dict[str, object]:
     values: dict[str, object] = {}
     for name in sorted(CANONICAL_MEMBERS - {VERIFIER}):
         values[name] = strict_json(rows[name])
-    claims = values["claims.json"]; evidence = values["evidence_index.json"]
-    blockers = values["blockers.json"]; readiness = values["readiness.json"]
-    freshness = values["freshness.json"]; policy = values["policy.json"]
-    dependencies = values["protocol_dependencies.json"]
-    if not all(isinstance(value, dict) for value in (claims, evidence, blockers, readiness, freshness, policy, dependencies)):
-        raise AuditError("bundle_document_not_object")
-    evidence_ids = {row.get("evidence_id") for row in evidence.get("evidence", []) if isinstance(row, dict)}
-    if any(ref not in evidence_ids for row in claims.get("claims", []) for ref in row.get("evidence_ids", [])):
+    claims = _validate_claims(values["claims.json"])
+    evidence = _validate_evidence(values["evidence_index.json"])
+    blockers = _validate_blockers(values["blockers.json"])
+    readiness = _validate_readiness(values["readiness.json"])
+    freshness = _validate_freshness(values["freshness.json"])
+    policy = _validate_policy(values["policy.json"])
+    dependencies = _validate_dependencies(values["protocol_dependencies.json"])
+    evidence_ids = {str(row["evidence_id"]) for row in evidence["evidence"]}
+    if any(ref not in evidence_ids for row in claims["claims"] for ref in row["evidence_ids"]):
         raise AuditError("claim_evidence_reference_missing")
-    if any(row.get("verification_scope") != "externally_unverifiable_reference" for row in evidence.get("evidence", [])):
-        raise AuditError("internal_evidence_overclaimed")
-    blocker_ids = {row.get("blocker_id") for row in blockers.get("blockers", []) if isinstance(row, dict)}
-    if blocker_ids != REQUIRED_BLOCKERS or blockers.get("blocker_count") != 3:
-        raise AuditError("formal_blocker_set_drift")
-    if readiness.get("formal_validation_complete") is not False or readiness.get("status") != "verified_with_declared_blockers":
-        raise AuditError("formal_status_overclaimed")
-    if freshness.get("stale_count") != 0 or freshness.get("status") != "fresh_with_declared_blockers":
-        raise AuditError("stale_evidence_present")
-    if policy != {"default_strategy": "current_rules", "deterministic_tiebreak_v2_default_enabled": False}:
-        raise AuditError("default_policy_drift")
-    ancestry = dependencies.get("implementation_commit_ancestry")
-    if not isinstance(ancestry, dict) or ancestry.get("source_is_ancestor") is not True:
-        raise AuditError("implementation_commit_ancestry_invalid")
-    if ancestry.get("source_commit") != manifest.get("source_commit") or ancestry.get("head_commit") != manifest.get("generated_from_commit"):
+    ancestry = dependencies["implementation_commit_ancestry"]
+    if ancestry["source_commit"] != manifest["source_commit"] or ancestry["head_commit"] != manifest["generated_from_commit"]:
         raise AuditError("implementation_commit_identity_mismatch")
     if digest(rows[VERIFIER]) != manifest.get("verifier_sha256"):
         raise AuditError("verifier_hash_mismatch")
     return {
         "archive_sha256": digest(path.read_bytes()),
         "blocker_count": 3,
-        "claim_count": len(claims.get("claims", [])),
-        "evidence_reference_count": len(evidence.get("evidence", [])),
+        "claim_count": len(claims["claims"]),
+        "evidence_reference_count": len(evidence["evidence"]),
         "execution": {"archive_code_execution_count": 0, "external_file_read_count": 0, "network_request_count": 0, "subprocess_count": 0},
         "exit_code": EXIT_PASSED,
         "formal_validation_complete": False,
@@ -208,7 +403,10 @@ def verify_archive(path: Path) -> dict[str, object]:
 
 
 def _load(path: Path) -> dict[str, object]:
-    value = strict_json(path.read_bytes())
+    try:
+        value = strict_json(path.read_bytes())
+    except FileNotFoundError as exc:
+        raise NotReady("required_shareable_source_missing") from exc
     if not isinstance(value, dict): raise AuditError("source_not_object")
     return value
 
@@ -229,15 +427,156 @@ def _git(root: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
+def _validate_contract(value: object) -> dict[str, object]:
+    contract = _object(
+        value,
+        keys={
+            "archive", "execution", "formal_validation_complete", "policy",
+            "protocol", "required_blockers", "schema_version", "source_commit",
+            "sources", "status",
+        },
+        reason="contract_schema_invalid",
+    )
+    if (
+        contract["protocol"] != PROTOCOL
+        or contract["schema_version"] != SCHEMA
+        or contract["formal_validation_complete"] is not False
+        or contract["status"] != "verified_with_declared_blockers"
+        or not isinstance(contract["source_commit"], str)
+        or not COMMIT_RE.fullmatch(contract["source_commit"])
+    ):
+        raise AuditError("contract_schema_invalid")
+    if set(_string_list(contract["required_blockers"], reason="contract_schema_invalid")) != REQUIRED_BLOCKERS:
+        raise AuditError("contract_blocker_set_drift")
+    _validate_policy(contract["policy"])
+    if contract["execution"] != {
+        "archive_code_execution_count": 0,
+        "external_file_read_count": 0,
+        "network_request_count": 0,
+        "subprocess_count": 0,
+    }:
+        raise AuditError("contract_execution_boundary_drift")
+    archive = _object(contract["archive"], keys={"compression", "fixed_mode", "fixed_timestamp", "max_file_bytes", "max_files", "max_total_bytes"}, reason="contract_archive_schema_invalid")
+    if (
+        archive["compression"] != "stored"
+        or archive["fixed_mode"] != 420
+        or archive["fixed_timestamp"] != [1980, 1, 1, 0, 0, 0]
+        or archive["max_file_bytes"] != 1048576
+        or archive["max_files"] != 32
+        or archive["max_total_bytes"] != 5242880
+    ):
+        raise AuditError("contract_archive_boundary_drift")
+    sources = _object(contract["sources"], keys=REQUIRED_SOURCE_ROLES, reason="contract_source_inventory_drift")
+    for path in sources.values():
+        _string(path, reason="contract_source_path_invalid")
+    return contract
+
+
+def _audit_sources(contract_path: Path, root: Path) -> tuple[dict[str, object], dict[str, dict[str, object]], dict[str, str]]:
+    contract = _validate_contract(_load(contract_path))
+    sources: dict[str, dict[str, object]] = {}
+    source_paths: dict[str, Path] = {}
+    for role, raw_path in contract["sources"].items():
+        path = _repo_path(root, str(raw_path))
+        sources[role] = _load(path)
+        source_paths[role] = path
+    source_hashes = {role: digest(path.read_bytes()) for role, path in source_paths.items()}
+
+    release_bundle = _object(
+        sources["release_bundle"],
+        keys={"code_identity", "dependency_graph", "files", "generation_command", "protocol", "schema_version", "status", "verification_command"},
+        reason="release_bundle_schema_invalid",
+    )
+    if release_bundle["protocol"] != "validation_readiness_bundle_v1" or release_bundle["status"] != "ready_with_declared_blockers":
+        raise AuditError("release_bundle_status_drift")
+    release_files = release_bundle["files"]
+    if not isinstance(release_files, dict):
+        raise AuditError("release_bundle_inventory_invalid")
+    for role, member in {
+        "claims": "claims.json",
+        "evidence_index": "evidence_index.json",
+        "missing_inputs": "missing_inputs.json",
+        "readiness": "readiness.json",
+    }.items():
+        entry = release_files.get(member)
+        if not isinstance(entry, dict) or set(entry) != {"sha256", "size"}:
+            raise AuditError("release_bundle_inventory_invalid")
+        path = source_paths[role]
+        if entry["sha256"] != source_hashes[role] or entry["size"] != path.stat().st_size:
+            raise AuditError("shareable_source_hash_drift")
+
+    claims_source = sources["claims"]
+    evidence_source = sources["evidence_index"]
+    if not isinstance(claims_source.get("claims"), list) or not isinstance(evidence_source.get("evidence"), list):
+        raise AuditError("shareable_source_schema_invalid")
+    sanitized_claims = {
+        "claims": [
+            {key: row[key] for key in ("boundary", "claim_id", "evidence_ids", "scope", "status")}
+            for row in claims_source["claims"]
+            if isinstance(row, dict)
+        ],
+        "protocol": PROTOCOL,
+        "schema_version": SCHEMA,
+    }
+    if len(sanitized_claims["claims"]) != len(claims_source["claims"]):
+        raise AuditError("shareable_source_schema_invalid")
+    sanitized_evidence = {
+        "evidence": [
+            {
+                "evidence_id": row["evidence_id"], "protocol": row["protocol"],
+                "role": row["role"], "sha256": row["sha256"], "size": row["size"],
+                "verification_scope": "externally_unverifiable_reference",
+            }
+            for row in evidence_source["evidence"]
+            if isinstance(row, dict)
+        ],
+        "protocol": PROTOCOL,
+        "schema_version": SCHEMA,
+    }
+    if len(sanitized_evidence["evidence"]) != len(evidence_source["evidence"]):
+        raise AuditError("shareable_source_schema_invalid")
+    claims = _validate_claims(sanitized_claims)
+    evidence = _validate_evidence(sanitized_evidence)
+    evidence_ids = {str(row["evidence_id"]) for row in evidence["evidence"]}
+    if any(ref not in evidence_ids for row in claims["claims"] for ref in row["evidence_ids"]):
+        raise AuditError("claim_evidence_reference_missing")
+
+    missing = sources["missing_inputs"]
+    _validate_blockers({"blocker_count": missing.get("blocker_count"), "blockers": missing.get("blockers"), "protocol": PROTOCOL, "schema_version": SCHEMA})
+    freshness = sources["freshness"]
+    state_counts = freshness.get("state_counts")
+    if not isinstance(state_counts, dict) or state_counts.get("stale") != 0 or freshness.get("status") != "fresh_with_declared_blockers" or freshness.get("formal_validation_complete") is not False:
+        raise AuditError("freshness_source_not_closed")
+    readiness = sources["readiness"]
+    if readiness.get("status") != "ready_with_declared_blockers" or readiness.get("formal_validation_complete") is not False or readiness.get("blocker_count") != 3:
+        raise AuditError("readiness_source_not_closed")
+    clearance = sources["clearance"]
+    prerequisites = clearance.get("global_prerequisites")
+    passed = prerequisites.get("passed") if isinstance(prerequisites, dict) else None
+    if not isinstance(passed, list) or set(passed) < {"current_rules_default", "default_tiebreak_unchanged", "fresh"} or clearance.get("formal_validation_complete") is not False:
+        raise AuditError("policy_prerequisite_missing")
+
+    readiness_contract = sources["readiness_contract"]
+    registered = {
+        str(row.get("path")): str(row.get("sha256"))
+        for row in readiness_contract.get("evidence", [])
+        if isinstance(row, dict)
+    }
+    for role in ("freshness",):
+        relative = str(contract["sources"][role])
+        if registered.get(relative) != source_hashes[role]:
+            raise AuditError("readiness_registered_source_hash_drift")
+    standalone_contract_relative = str(Path(contract_path).resolve().relative_to(root.resolve())).replace(os.sep, "/")
+    if registered.get(standalone_contract_relative) != digest(contract_path.read_bytes()):
+        raise AuditError("readiness_registered_contract_hash_drift")
+    return contract, sources, source_hashes
+
+
 def build_archive(contract_path: Path, output: Path, root: Path) -> dict[str, object]:
-    contract = _load(contract_path)
-    if contract.get("protocol") != PROTOCOL or contract.get("schema_version") != SCHEMA:
-        raise AuditError("contract_version_invalid")
+    contract, sources, source_hashes = _audit_sources(contract_path.resolve(), root)
     source_commit = str(contract.get("source_commit")); head = _git(root, "rev-parse", "HEAD")
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", source_commit, head], cwd=root, check=False).returncode == 0
     if not ancestor: raise AuditError("source_commit_not_ancestor")
-    sources = {key: _load(_repo_path(root, value)) for key, value in contract["sources"].items()}
-    source_hashes = {key: digest(_repo_path(root, value).read_bytes()) for key, value in contract["sources"].items()}
     missing = sources["missing_inputs"]
     if {row.get("blocker_id") for row in missing.get("blockers", [])} != REQUIRED_BLOCKERS:
         raise AuditError("required_blocker_set_drift")
@@ -295,13 +634,26 @@ def main(argv: list[str] | None = None) -> int:
             if first.read_bytes() != second.read_bytes() or canonical_bytes(one) != canonical_bytes(two): raise AuditError("archive_or_report_byte_mismatch")
             report = {**one, "comparison": "byte_identical"}
         else:
-            contract = _load(Path(args.repository_root).resolve() / args.contract)
-            if contract.get("status") != "verified_with_declared_blockers": raise NotReady("shareable_evidence_not_ready")
-            report = {"blocker_count": 3, "exit_code": 0, "formal_validation_complete": False, "protocol": PROTOCOL, "schema_version": SCHEMA, "status": "verified_with_declared_blockers"}
+            root = Path(args.repository_root).resolve()
+            contract_path = Path(args.contract)
+            if not contract_path.is_absolute():
+                contract_path = root / contract_path
+            _contract, sources, _hashes = _audit_sources(contract_path.resolve(), root)
+            report = {
+                "blocker_count": 3,
+                "claim_count": len(sources["claims"]["claims"]),
+                "evidence_reference_count": len(sources["evidence_index"]["evidence"]),
+                "exit_code": 0,
+                "formal_validation_complete": False,
+                "protocol": PROTOCOL,
+                "schema_version": SCHEMA,
+                "shareable_source_count": len(REQUIRED_SOURCE_ROLES),
+                "status": "verified_with_declared_blockers",
+            }
         _emit(report); return EXIT_PASSED
     except NotReady as exc:
         _emit({"error_code": str(exc), "exit_code": EXIT_NOT_READY, "protocol": PROTOCOL, "schema_version": SCHEMA, "status": "not_ready_missing_shareable_evidence"}); return EXIT_NOT_READY
-    except (AuditError, OSError, KeyError, TypeError, ValueError) as exc:
+    except Exception as exc:
         _emit({"error_code": str(exc) if isinstance(exc, AuditError) else "controlled_input_failure", "exit_code": EXIT_VIOLATION, "protocol": PROTOCOL, "schema_version": SCHEMA, "status": "integrity_or_claim_violation"}); return EXIT_VIOLATION
     except SystemExit as exc:
         if exc.code == 0: raise

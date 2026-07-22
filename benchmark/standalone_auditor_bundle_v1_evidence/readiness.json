@@ -17,6 +17,7 @@
     "archive_byte_identical_across_builds": true,
     "report_byte_identical_across_environments": true,
     "standard_library_isolated_mode": "python_-I_-S",
-    "temporary_archive_not_tracked": true
+    "temporary_archive_not_tracked": true,
+    "trusted_verifier_separate_from_archive": true
   }
 }

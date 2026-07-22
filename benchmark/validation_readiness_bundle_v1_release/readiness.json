@@ -7,7 +7,7 @@
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
     "implementation_file_count": 36,
-    "implementation_tree_sha256": "8d1e1d5ae6068308f236eea5a3a133c8b19235c84fe64560426fbe71b749eed4"
+    "implementation_tree_sha256": "43655dec775fa225a59215f020f98a7acee6ec011a10806b168f70a44e9cc66b"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -108,7 +108,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "07157439bc271de6675f92b9b8a2c782d187f61d371089f9b15c6ce7a706728f",
+      "output_sha256": "c03e812f06961a3862f34d532f3cc47bfdf4bcdbf42000880f27fe718d15a697",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -126,7 +126,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "dc3de51e45fbc6c1f51d3dcf320c7dbe5f5918acbedb944f6844140df79630ad",
+      "output_sha256": "846067d4dd2fa2070719806f36fb7ed5b7400468d5f887463568a500adb6a265",
       "status": "fresh_with_declared_blockers"
     }
   ],

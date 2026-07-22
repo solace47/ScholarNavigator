@@ -13,21 +13,22 @@ an external reviewer check the publication's closed hash chain without
 claiming that a hash authenticates the publisher or independently proves the
 unpublished artifact's contents.
 
-The verifier uses only the Python standard library. A reviewer may copy
-`verify.py` out of the archive and run it from an untrusted checkout-free
-directory:
+The verifier uses only the Python standard library. A reviewer receives a
+trusted copy of the repository verifier separately from the archive under
+review, copies that trusted file into a checkout-free directory, and runs:
 
 ```bash
 python -I -S verify.py verify standalone-auditor.zip
 ```
 
 It reads only the named archive, does not import SPAR modules, execute archive
-members, use the network, or launch subprocesses. It rejects extra, missing,
+members, use the network, or launch subprocesses. The ZIP's `verify.py` is
+checked only as inert data against the trusted verifier hash; it is never
+extracted and executed during verification. It rejects extra, missing,
 duplicate, linked, absolute, traversing, Unicode-colliding, oversized, highly
 compressed, non-UTF-8, non-canonical, duplicate-key, and non-finite JSON
-members. The embedded verifier is checked as data against its manifest hash;
-the trusted copy used to start verification is never executed from inside the
-archive.
+members. This separation avoids treating code supplied by the object under
+review as the verifier's trust root.
 
 Repository operators build and compare temporary archives with:
 

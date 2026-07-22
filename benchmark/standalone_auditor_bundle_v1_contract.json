@@ -39,7 +39,9 @@
     "evidence_index": "benchmark/validation_readiness_bundle_v1_release/evidence_index.json",
     "freshness": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
     "missing_inputs": "benchmark/validation_readiness_bundle_v1_release/missing_inputs.json",
-    "readiness": "benchmark/validation_readiness_bundle_v1_release/readiness.json"
+    "readiness": "benchmark/validation_readiness_bundle_v1_release/readiness.json",
+    "readiness_contract": "benchmark/validation_readiness_bundle_v1_contract.json",
+    "release_bundle": "benchmark/validation_readiness_bundle_v1_release/bundle.json"
   },
   "status": "verified_with_declared_blockers"
 }

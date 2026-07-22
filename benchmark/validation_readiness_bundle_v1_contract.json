@@ -1817,7 +1817,7 @@
       "protocol": "standalone_auditor_bundle_v1",
       "required": true,
       "role": "standalone_publication_contract",
-      "sha256": "d82eddd9b893a7718625a88b9f01820f5fd0441e91e685ca9def5bcad91bd5ef"
+      "sha256": "311435e51dc93a6e2d2bbc26682f7a4e907d39ca85cc82886b768be3d971fbef"
     },
     {
       "checks": [
@@ -1843,7 +1843,7 @@
       "protocol": "standalone_auditor_bundle_v1",
       "required": true,
       "role": "external_auditor_readiness",
-      "sha256": "bfedf48ac9e43d8f8cb55d22144c0ed326c5218f338e9927d484e203bc2db571"
+      "sha256": "5661d93a28b27cff1c8a3c54d2172d5d45310a3b32f468eafab6a0a1cb4e7d1c"
     },
     {
       "checks": [
@@ -1869,7 +1869,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "dc3de51e45fbc6c1f51d3dcf320c7dbe5f5918acbedb944f6844140df79630ad"
+      "sha256": "846067d4dd2fa2070719806f36fb7ed5b7400468d5f887463568a500adb6a265"
     },
     {
       "checks": [
@@ -1885,7 +1885,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "5ff56243b64e590c0acd54217761bee6ceaec4b0109af7b49cfea88e38ccc068"
+      "sha256": "44875d4d042230bbf43004df5f2bd26ede84ab6bdf477bd5c10e0475f4213cdb"
     },
     {
       "checks": [

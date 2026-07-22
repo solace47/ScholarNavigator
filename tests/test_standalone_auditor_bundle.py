@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -43,14 +44,47 @@ def _rewrite(source: Path, target: Path, transform) -> None:
             archive.writestr(info, content)
 
 
+def _reseal(source: Path, target: Path, member: str, content: bytes) -> None:
+    with zipfile.ZipFile(source) as archive:
+        rows = {info.filename: archive.read(info) for info in archive.infolist()}
+    rows[member] = content
+    manifest = json.loads(rows["manifest.json"])
+    for item in manifest["files"]:
+        if item["path"] == member:
+            item["size"] = len(content)
+            item["sha256"] = bundle.digest(content)
+            break
+    else:
+        raise AssertionError(member)
+    manifest["manifest_self_sha256"] = bundle._self_hash(manifest)
+    rows["manifest.json"] = bundle.canonical_bytes(manifest)
+    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+        for name, value in sorted(rows.items()):
+            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+            info.external_attr = 0o100644 << 16
+            info.create_system = 3
+            archive.writestr(info, value)
+
+
+def _run_trusted_verifier(tmp_path: Path, archive: Path, *extra: str) -> subprocess.CompletedProcess[bytes]:
+    verifier = tmp_path / "trusted" / "verify.py"
+    verifier.parent.mkdir(exist_ok=True)
+    verifier.write_bytes(SCRIPT.read_bytes())
+    return subprocess.run(
+        [sys.executable, "-I", "-S", str(verifier), "verify", str(archive), *extra],
+        cwd=tmp_path,
+        env={"HOME": str(tmp_path / "home"), "TMPDIR": str(tmp_path / "tmp"), "PATH": os.environ.get("PATH", ""), "PYTHONHASHSEED": "11"},
+        capture_output=True,
+        check=False,
+    )
+
+
 def test_two_builds_and_isolated_standard_library_verify_are_byte_stable(tmp_path: Path) -> None:
     first = _build(tmp_path, "one.zip")
     second = _build(tmp_path, "two.zip")
     assert first.read_bytes() == second.read_bytes()
-    with zipfile.ZipFile(first) as archive:
-        verifier = tmp_path / "foreign" / "verify.py"
-        verifier.parent.mkdir()
-        verifier.write_bytes(archive.read("verify.py"))
+    verifier = tmp_path / "trusted-verifier.py"
+    verifier.write_bytes(SCRIPT.read_bytes())
     reports = []
     for suffix in ("a", "b"):
         cwd = tmp_path / suffix / "cwd"
@@ -88,16 +122,10 @@ def test_inventory_tamper_missing_and_extra_are_rejected(tmp_path: Path, kind: s
 
 
 def _mutate_json(source: Path, target: Path, member: str, mutate) -> None:
-    def change(rows):
-        result = []
-        for info, content in rows:
-            if info.filename == member:
-                value = json.loads(content)
-                mutate(value)
-                content = bundle.canonical_bytes(value)
-            result.append((info, content))
-        return result
-    _rewrite(source, target, change)
+    with zipfile.ZipFile(source) as archive:
+        value = json.loads(archive.read(member))
+    mutate(value)
+    _reseal(source, target, member, bundle.canonical_bytes(value))
 
 
 @pytest.mark.parametrize(
@@ -117,9 +145,34 @@ def test_claim_blocker_freshness_policy_and_commit_attacks_fail(
     source = _build(tmp_path)
     target = tmp_path / "attack.zip"
     _mutate_json(source, target, member, mutation)
-    # Even if an attacker changes data, the unchanged manifest catches it first.
     with pytest.raises(bundle.AuditError):
         bundle.verify_archive(target)
+
+
+def test_resealed_malformed_claims_and_duplicate_manifest_inventory_fail_closed(tmp_path: Path) -> None:
+    source = _build(tmp_path)
+    malformed = tmp_path / "malformed.zip"
+    _reseal(source, malformed, "claims.json", bundle.canonical_bytes({"claims": "invalid", "protocol": bundle.PROTOCOL, "schema_version": "1"}))
+    completed = _run_trusted_verifier(tmp_path, malformed)
+    assert completed.returncode == 2
+    assert completed.stderr == b""
+    assert json.loads(completed.stdout)["error_code"] == "claims_schema_invalid"
+
+    with zipfile.ZipFile(source) as archive:
+        rows = {info.filename: archive.read(info) for info in archive.infolist()}
+    manifest = json.loads(rows["manifest.json"])
+    manifest["files"].append(dict(manifest["files"][0]))
+    manifest["manifest_self_sha256"] = bundle._self_hash(manifest)
+    rows["manifest.json"] = bundle.canonical_bytes(manifest)
+    duplicate = tmp_path / "duplicate-inventory.zip"
+    with zipfile.ZipFile(duplicate, "w", compression=zipfile.ZIP_STORED) as archive:
+        for name, content in sorted(rows.items()):
+            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0)); info.external_attr = 0o100644 << 16; info.create_system = 3
+            archive.writestr(info, content)
+    completed = _run_trusted_verifier(tmp_path, duplicate)
+    assert completed.returncode == 2
+    assert completed.stderr == b""
+    assert json.loads(completed.stdout)["error_code"] == "duplicate_manifest_inventory_entry"
 
 
 def test_duplicate_key_path_traversal_and_link_are_rejected(tmp_path: Path) -> None:
@@ -157,6 +210,26 @@ def test_malformed_utf8_nonfinite_and_resource_limits_are_rejected(tmp_path: Pat
         bundle.verify_archive(target)
 
 
+def test_recursive_and_resource_boundaries_have_stable_cli_errors(tmp_path: Path) -> None:
+    source = _build(tmp_path)
+    recursive = tmp_path / "recursive.zip"
+    deep = ("[" * 2000 + "0" + "]" * 2000 + "\n").encode()
+    _reseal(source, recursive, "claims.json", deep)
+    completed = _run_trusted_verifier(tmp_path, recursive)
+    assert completed.returncode == 2
+    assert completed.stderr == b""
+    assert json.loads(completed.stdout)["status"] == "integrity_or_claim_violation"
+
+    oversized = tmp_path / "resource.zip"
+    def add_large(rows):
+        info = zipfile.ZipInfo("large.bin", (1980, 1, 1, 0, 0, 0)); info.external_attr = 0o100644 << 16; info.create_system = 3
+        return [*rows, (info, b"x" * (1024 * 1024 + 1))]
+    _rewrite(source, oversized, add_large)
+    completed = _run_trusted_verifier(tmp_path, oversized)
+    assert completed.returncode == 2
+    assert completed.stderr == b""
+
+
 def test_claim_reference_and_overclaim_are_rejected_after_resealing(tmp_path: Path) -> None:
     source = _build(tmp_path)
     with zipfile.ZipFile(source) as archive:
@@ -175,3 +248,51 @@ def test_claim_reference_and_overclaim_are_rejected_after_resealing(tmp_path: Pa
             archive.writestr(info, content)
     with pytest.raises(bundle.AuditError, match="claim_evidence_reference_missing"):
         bundle.verify_archive(target)
+
+
+def _audit_root(tmp_path: Path) -> tuple[Path, Path]:
+    root = tmp_path / "repo"
+    contract = json.loads((ROOT / "benchmark/standalone_auditor_bundle_v1_contract.json").read_text())
+    contract_path = root / "benchmark/standalone_auditor_bundle_v1_contract.json"
+    contract_path.parent.mkdir(parents=True)
+    contract_path.write_bytes(bundle.canonical_bytes(contract))
+    for relative in contract["sources"].values():
+        source = ROOT / relative
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    # The copied readiness contract binds the copied standalone contract.
+    readiness_contract = json.loads((root / contract["sources"]["readiness_contract"]).read_text())
+    for item in readiness_contract["evidence"]:
+        if item.get("path") == "benchmark/standalone_auditor_bundle_v1_contract.json":
+            item["sha256"] = bundle.digest(contract_path.read_bytes())
+    (root / contract["sources"]["readiness_contract"]).write_bytes(bundle.canonical_bytes(readiness_contract))
+    return root, contract_path
+
+
+def test_audit_readiness_distinguishes_missing_and_drifted_sources(tmp_path: Path) -> None:
+    root, contract_path = _audit_root(tmp_path)
+    contract = json.loads(contract_path.read_text())
+    missing = root / contract["sources"]["claims"]
+    missing.rename(missing.with_suffix(".absent"))
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT), "audit-readiness", "--repository-root", str(root), "--contract", str(contract_path)],
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 3
+    assert completed.stderr == b""
+
+    root, contract_path = _audit_root(tmp_path / "drift")
+    contract = json.loads(contract_path.read_text())
+    claims_path = root / contract["sources"]["claims"]
+    claims = json.loads(claims_path.read_text())
+    claims["claim_count"] += 1
+    claims_path.write_bytes(bundle.canonical_bytes(claims))
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT), "audit-readiness", "--repository-root", str(root), "--contract", str(contract_path)],
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert completed.stderr == b""
