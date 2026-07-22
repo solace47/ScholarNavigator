@@ -113,6 +113,41 @@
       "size": 4566
     },
     {
+      "dependencies": [
+        "human_annotation_delivery_protocol"
+      ],
+      "evidence_id": "human_annotation_delivery_dry_run",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/dry_run.json",
+      "protocol": "human_annotation_delivery_v1",
+      "role": "engineering_conformance",
+      "sha256": "4923c7b7bd8574e34c4d1e174402530e6c830909a69a0080fd238e882daf43a2",
+      "size": 404
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "human_annotation_delivery_protocol",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_protocol.json",
+      "protocol": "human_annotation_delivery_v1",
+      "role": "protocol",
+      "sha256": "e691bf1990abcc39a3dc28ab9790aae24f91caf99a20609812bc9f616826f647",
+      "size": 1620
+    },
+    {
+      "dependencies": [
+        "human_annotation_delivery_dry_run",
+        "human_annotation_delivery_protocol"
+      ],
+      "evidence_id": "human_annotation_delivery_readiness",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/readiness.json",
+      "protocol": "human_annotation_delivery_v1",
+      "role": "formal_blocker_boundary",
+      "sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2",
+      "size": 410
+    },
+    {
       "dependencies": [],
       "evidence_id": "human_precision_pending",
       "format": "json",
@@ -291,7 +326,7 @@
       "size": 838
     }
   ],
-  "evidence_count": 26,
+  "evidence_count": 29,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

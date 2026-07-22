@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "d5aa65bcac3e248234d75dde019d352e7c290f1c3c26466c1679c467bd920eb9"
+      "sha256": "bc92ce0c7edcf9e2c8f0afb94fb19e2b2cc8eb08a93fa88c5da8b72534b0127b"
     },
     {
       "document_id": "contest_requirements",
@@ -102,6 +102,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic recovery proves only package delivery and import integrity; no real labels, Precision, agreement, or official score are produced.",
+      "claim_id": "architecture_human_annotation_delivery_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "human_annotation_delivery_dry_run",
+        "human_annotation_delivery_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Two complete 471-item blind annotator packages, isolated aliases, locked export, and deterministic operator recovery are ready for offline delivery.",
       "status": "verified"
     },
     {
@@ -412,6 +424,75 @@
     }
   ],
   "evidence": [
+    {
+      "checks": [
+        {
+          "equals": "human_annotation_delivery_v1",
+          "pointer": "/contract"
+        },
+        {
+          "equals": 471,
+          "pointer": "/expected_item_count"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "human_annotation_delivery_protocol",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_protocol.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "e691bf1990abcc39a3dc28ab9790aae24f91caf99a20609812bc9f616826f647"
+    },
+    {
+      "checks": [
+        {
+          "equals": "validated",
+          "pointer": "/synthetic_gate_state"
+        },
+        {
+          "equals": null,
+          "pointer": "/statistics"
+        }
+      ],
+      "dependencies": [
+        "human_annotation_delivery_protocol"
+      ],
+      "evidence_id": "human_annotation_delivery_dry_run",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/dry_run.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "engineering_conformance",
+      "sha256": "4923c7b7bd8574e34c4d1e174402530e6c830909a69a0080fd238e882daf43a2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "blocked_awaiting_real_annotators",
+          "pointer": "/state"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        },
+        {
+          "equals": null,
+          "pointer": "/statistics"
+        }
+      ],
+      "dependencies": [
+        "human_annotation_delivery_protocol",
+        "human_annotation_delivery_dry_run"
+      ],
+      "evidence_id": "human_annotation_delivery_readiness",
+      "format": "json",
+      "path": "benchmark/human_annotation_delivery_v1_evidence/readiness.json",
+      "protocol": "human_annotation_delivery_v1",
+      "required": true,
+      "role": "formal_blocker_boundary",
+      "sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2"
+    },
     {
       "checks": [
         {
@@ -938,6 +1019,27 @@
   },
   "protocol": "validation_readiness_bundle_v1",
   "read_only_gates": [
+    {
+      "arguments": [
+        "scripts/check_human_annotation_delivery.py",
+        "audit-readiness",
+        "--package",
+        "benchmark/human_annotation_delivery_v1_release"
+      ],
+      "checks": [
+        {
+          "equals": "blocked_awaiting_real_annotators",
+          "pointer": "/state"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "human_annotation_delivery",
+      "timeout_seconds": 60
+    },
     {
       "arguments": [
         "scripts/check_external_scorer_handoff.py",

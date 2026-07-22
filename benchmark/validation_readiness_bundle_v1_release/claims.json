@@ -1,13 +1,13 @@
 {
-  "claim_count": 12,
-  "claim_evidence_coverage_count": 12,
+  "claim_count": 13,
+  "claim_evidence_coverage_count": 13,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "d5aa65bcac3e248234d75dde019d352e7c290f1c3c26466c1679c467bd920eb9",
-      "size": 34056
+      "sha256": "bc92ce0c7edcf9e2c8f0afb94fb19e2b2cc8eb08a93fa88c5da8b72534b0127b",
+      "size": 34662
     },
     {
       "document_id": "contest_requirements",
@@ -52,6 +52,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "The immutable canonical handoff, hermetic scorer subprocess, strict output validation, and deterministic rerun chain are verified with preregistered synthetic scorer packages.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic recovery proves only package delivery and import integrity; no real labels, Precision, agreement, or official score are produced.",
+      "claim_id": "architecture_human_annotation_delivery_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "human_annotation_delivery_dry_run",
+        "human_annotation_delivery_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Two complete 471-item blind annotator packages, isolated aliases, locked export, and deterministic operator recovery are ready for offline delivery.",
       "status": "verified"
     },
     {
@@ -178,7 +190,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 4,
+    "architecture": 5,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -189,6 +201,6 @@
     "blocked": 3,
     "internal_only": 5,
     "not_applicable": 1,
-    "verified": 3
+    "verified": 4
   }
 }

@@ -23,6 +23,10 @@ Record160，并将 Record160 的覆盖、来源、排序、约束与交付声明
 handoff、隔离子进程、输入不可变和双次确定性，但真实 readiness 仍以退出码 3 保持 blocked。
 该声明不提供官方 Schema、指标或成绩，也不解除 Full1000 与官方 scorer 两项阻断。
 
+`human_annotation_delivery_v1` 也仅登记为工程链路就绪：两套 471 项盲化包、operator-only
+恢复映射和合成回收/裁决演练已经离线验证，但真实标注数仍为 0，统计保持 `null`。因此
+`human_precision_missing` 阻断和 `formal_validation_complete=false` 均保持不变。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。
