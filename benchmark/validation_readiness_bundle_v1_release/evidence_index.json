@@ -205,6 +205,65 @@
     },
     {
       "dependencies": [
+        "python_dependency_lock_protocol"
+      ],
+      "evidence_id": "python_dependency_lock_manifest",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_manifest.json",
+      "protocol": "python_dependency_lock_v1",
+      "role": "installed_metadata_dependency_closure",
+      "sha256": "d83da09ed13fb1e3b1868c2096912fce06f592b2be9a1d608533f089b19d8910",
+      "size": 26147
+    },
+    {
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_offline_install",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
+      "protocol": "python_dependency_lock_v1",
+      "role": "dual_venv_offline_install_qualification",
+      "sha256": "e5130dfa9e4b9f4eac7a45e50eebdaf71475844eefde3ada5c2f944cfb9fcf6a",
+      "size": 1912
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "python_dependency_lock_protocol",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_protocol.json",
+      "protocol": "python_dependency_lock_v1",
+      "role": "protocol",
+      "sha256": "c1e9570e11b9048b49290a5b5731d9794a585785e4c3ec98902885f1349954f9",
+      "size": 918
+    },
+    {
+      "dependencies": [
+        "python_dependency_lock_manifest",
+        "python_dependency_lock_offline_install"
+      ],
+      "evidence_id": "python_dependency_lock_release_review",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/release_review.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "role": "double_build_release_review",
+      "sha256": "ca170291c9751dab333902c01fa35b7be43052d9dc0c00a702f92814f63ae85f",
+      "size": 1590
+    },
+    {
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_verification",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/verification.json",
+      "protocol": "python_dependency_lock_v1",
+      "role": "lock_and_metadata_verification",
+      "sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e",
+      "size": 2156
+    },
+    {
+      "dependencies": [
         "ranking_decision_protocol"
       ],
       "evidence_id": "ranking_decision_manifest",
@@ -405,8 +464,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f",
-      "size": 13026
+      "sha256": "45bd2dfd5139f3466c60dab860b70613588ca11f67aa64cb53d191b39b492a23",
+      "size": 14521
     },
     {
       "dependencies": [],
@@ -415,8 +474,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "5eacdef7d5f0057053d4fc8489cd510fe2c9671eecdc66175567317c1dbc7077",
-      "size": 51552
+      "sha256": "6e34a9f6f60c68dc760e77337703e0c9ae816b5417f060a40414ae9238fc3753",
+      "size": 57629
     },
     {
       "dependencies": [
@@ -432,7 +491,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 38,
+  "evidence_count": 43,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

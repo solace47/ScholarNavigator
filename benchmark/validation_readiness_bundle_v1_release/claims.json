@@ -1,13 +1,13 @@
 {
-  "claim_count": 15,
-  "claim_evidence_coverage_count": 15,
+  "claim_count": 16,
+  "claim_evidence_coverage_count": 16,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "7758860199ee80f1ebf9be7f56fb43854f128e3d0fd2c36ede065012ecf5b134",
-      "size": 36139
+      "sha256": "ed67111bbc12890dd8de512aa9b9a4167f6c00a58d7acfa774a2ae6fa354da5d",
+      "size": 36809
     },
     {
       "document_id": "contest_requirements",
@@ -80,6 +80,20 @@
       "scope": "engineering_capability",
       "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
       "status": "verified"
+    },
+    {
+      "boundary": "Exact installed-metadata closure is verified, but the complete local wheelhouse and dual isolated installation proof are absent; historical release evidence and formal blockers remain unchanged.",
+      "claim_id": "architecture_python_dependency_lock",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "python_dependency_lock_manifest",
+        "python_dependency_lock_offline_install",
+        "python_dependency_lock_release_review",
+        "python_dependency_lock_verification"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "Python runtime and development dependencies have exact environment-bound declarations and a deterministic installed-metadata closure.",
+      "status": "internal_only"
     },
     {
       "boundary": "Frontend reproducibility is qualified, but the complete release candidate remains not qualified because Python direct requirements are not precisely locked; this is not a quality or official validation claim.",
@@ -218,7 +232,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 7,
+    "architecture": 8,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -227,7 +241,7 @@
   "schema_version": "1",
   "status_counts": {
     "blocked": 3,
-    "internal_only": 6,
+    "internal_only": 7,
     "not_applicable": 1,
     "verified": 5
   }

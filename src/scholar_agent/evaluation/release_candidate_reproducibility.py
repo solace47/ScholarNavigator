@@ -362,10 +362,16 @@ def build_wheel(source_root: Path, output: Path, contract: Mapping[str, Any]) ->
         relative = str(item["path"])
         if relative.startswith("src/scholar_agent/") and not relative.endswith((".pyc", ".DS_Store")):
             members[relative.removeprefix("src/")] = (source_root / relative).read_bytes()
-    requirements = [
-        line.strip() for line in (source_root / "requirements.txt").read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
+    dependency_contract = contract.get("python_dependency_lock")
+    requirements = (
+        list(dependency_contract["runtime_requires_dist"])
+        if dependency_contract is not None
+        else [
+            line.strip()
+            for line in (source_root / "requirements.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    )
     metadata_text = "\n".join([
         "Metadata-Version: 2.3",
         "Name: spar-scholar-agent",
@@ -557,6 +563,14 @@ def _dependency_report(root: Path, contract: Mapping[str, Any]) -> tuple[dict[st
         violations.append("python_offline_dependency_missing")
     if python_lock["unpinned_direct_requirements"]:
         violations.append("python_direct_requirements_unpinned")
+    dependency_contract = contract.get("python_dependency_lock")
+    if dependency_contract is not None:
+        if dependency_contract.get("protocol") != "python_dependency_lock_v1":
+            violations.append("python_dependency_contract_version_mismatch")
+        if dependency_contract.get("lock_qualified") is not True:
+            violations.append("python_dependency_lock_not_qualified")
+        if dependency_contract.get("offline_install_qualified") is not True:
+            violations.append("python_offline_install_not_qualified")
     for relative, expected in contract["dependency_inputs"].items():
         path = root / relative
         if not path.is_file():
@@ -750,6 +764,7 @@ def summarize_double_build_report(report: Mapping[str, Any]) -> dict[str, Any]:
         for item in report.get("artifacts") or []
         if item["path"] not in set(differences)
     ]
+    qualified = report.get("status") == "reproducible_release_ready" and not differences
     return _report(
         str(report.get("status")),
         int(report.get("exit_code", EXIT_VIOLATION)),
@@ -760,7 +775,7 @@ def summarize_double_build_report(report: Mapping[str, Any]) -> dict[str, Any]:
         reproducible_artifact_count=len(stable_artifacts),
         sbom_summary=report.get("sbom_summary"),
         dependency_violations=sorted(report.get("dependency_violations") or []),
-        qualification="not_qualified" if differences else "qualified",
+        qualification="qualified" if qualified else "not_qualified",
         limitation=(
             "frontend_webpack_output_not_byte_reproducible_across_isolated_source_paths"
             if "frontend-static.tar.gz" in differences

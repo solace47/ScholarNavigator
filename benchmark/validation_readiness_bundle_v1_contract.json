@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "7758860199ee80f1ebf9be7f56fb43854f128e3d0fd2c36ede065012ecf5b134"
+      "sha256": "ed67111bbc12890dd8de512aa9b9a4167f6c00a58d7acfa774a2ae6fa354da5d"
     },
     {
       "document_id": "contest_requirements",
@@ -132,6 +132,20 @@
       ],
       "scope": "internal_diagnostic",
       "statement": "The fixed-source offline release gate now produces byte-identical frontend archives across isolated source parents while preserving the historical path-drift evidence.",
+      "status": "internal_only"
+    },
+    {
+      "boundary": "Exact installed-metadata closure is verified, but the complete local wheelhouse and dual isolated installation proof are absent; historical release evidence and formal blockers remain unchanged.",
+      "claim_id": "architecture_python_dependency_lock",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "python_dependency_lock_manifest",
+        "python_dependency_lock_offline_install",
+        "python_dependency_lock_release_review",
+        "python_dependency_lock_verification"
+      ],
+      "scope": "internal_diagnostic",
+      "statement": "Python runtime and development dependencies have exact environment-bound declarations and a deterministic installed-metadata closure.",
       "status": "internal_only"
     },
     {
@@ -1225,7 +1239,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f"
+      "sha256": "45bd2dfd5139f3466c60dab860b70613588ca11f67aa64cb53d191b39b492a23"
     },
     {
       "checks": [
@@ -1241,7 +1255,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "5eacdef7d5f0057053d4fc8489cd510fe2c9671eecdc66175567317c1dbc7077"
+      "sha256": "6e34a9f6f60c68dc760e77337703e0c9ae816b5417f060a40414ae9238fc3753"
     },
     {
       "checks": [
@@ -1265,6 +1279,123 @@
       "required": true,
       "role": "change_impact_conformance",
       "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": false,
+          "pointer": "/offline_install_qualified"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_protocol"
+      ],
+      "evidence_id": "python_dependency_lock_manifest",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_manifest.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "installed_metadata_dependency_closure",
+      "sha256": "d83da09ed13fb1e3b1868c2096912fce06f592b2be9a1d608533f089b19d8910"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/exit_code"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_offline_install",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "dual_venv_offline_install_qualification",
+      "sha256": "e5130dfa9e4b9f4eac7a45e50eebdaf71475844eefde3ada5c2f944cfb9fcf6a"
+    },
+    {
+      "checks": [
+        {
+          "equals": "python_dependency_lock_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "python_dependency_lock_protocol",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_protocol.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "c1e9570e11b9048b49290a5b5731d9794a585785e4c3ec98902885f1349954f9"
+    },
+    {
+      "checks": [
+        {
+          "equals": "build_or_supply_chain_violation",
+          "pointer": "/status"
+        },
+        {
+          "equals": "not_qualified",
+          "pointer": "/qualification"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest",
+        "python_dependency_lock_offline_install"
+      ],
+      "evidence_id": "python_dependency_lock_release_review",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/release_review.json",
+      "protocol": "release_candidate_reproducibility_v1",
+      "required": true,
+      "role": "double_build_release_review",
+      "sha256": "ca170291c9751dab333902c01fa35b7be43052d9dc0c00a702f92814f63ae85f"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": [],
+          "pointer": "/violations"
+        }
+      ],
+      "dependencies": [
+        "python_dependency_lock_manifest"
+      ],
+      "evidence_id": "python_dependency_lock_verification",
+      "format": "json",
+      "path": "benchmark/python_dependency_lock_v1_evidence/verification.json",
+      "protocol": "python_dependency_lock_v1",
+      "required": true,
+      "role": "lock_and_metadata_verification",
+      "sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e"
     }
   ],
   "execution": {
@@ -1480,6 +1611,29 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_python_dependency_lock.py",
+        "verify"
+      ],
+      "checks": [
+        {
+          "equals": "not_ready_missing_verified_version_or_artifact",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/lock_qualified"
+        },
+        {
+          "equals": false,
+          "pointer": "/offline_install_qualified"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "python_dependency_lock",
       "timeout_seconds": 60
     },
     {

@@ -1,11 +1,13 @@
 {
-  "baseline_head": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
+  "baseline_head": "c9416251d5c3f2b80c97471903d57a5bd273d3a2",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
     "human_annotation_delivery_readiness",
     "human_precision_pending",
-    "official_scorer_blocked"
+    "official_scorer_blocked",
+    "python_dependency_lock_offline_install",
+    "python_dependency_lock_release_review"
   ],
   "claim_component_bindings": {
     "architecture_default_policy_isolation": [
@@ -33,6 +35,11 @@
     ],
     "architecture_release_candidate_reproducibility": [
       "frontend_reproducible_build",
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
+    ],
+    "architecture_python_dependency_lock": [
+      "python_dependency_lock",
       "release_candidate_reproducibility"
     ],
     "contest_full1000_completion": [
@@ -190,6 +197,28 @@
         "docs/contest/requirements.md"
       ],
       "kind": "formal_blocker_specification"
+    },
+    {
+      "component_id": "python_dependency_lock",
+      "files": [
+        "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
+        "benchmark/python_dependency_lock_v1_evidence/release_audit.json",
+        "benchmark/python_dependency_lock_v1_evidence/release_review.json",
+        "benchmark/python_dependency_lock_v1_evidence/verification.json",
+        "benchmark/python_dependency_lock_v1_manifest.json",
+        "benchmark/python_dependency_lock_v1_protocol.json",
+        "benchmark/python_dependency_lock_v1_release_closure.json",
+        "benchmark/python_dependency_lock_v1_release_contract.json",
+        "docs/python-dependency-lock.md",
+        "requirements-dev.lock",
+        "requirements-dev.txt",
+        "requirements-runtime.lock",
+        "requirements.txt",
+        "scripts/check_python_dependency_lock.py",
+        "src/scholar_agent/evaluation/python_dependency_lock.py",
+        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
+      ],
+      "kind": "python_dependency_lock_and_offline_install_qualification"
     },
     {
       "component_id": "ranking_decision",
@@ -366,6 +395,23 @@
     "official_scorer_blocked": [
       "official_scorer_absence"
     ],
+    "python_dependency_lock_manifest": [
+      "python_dependency_lock"
+    ],
+    "python_dependency_lock_offline_install": [
+      "python_dependency_lock"
+    ],
+    "python_dependency_lock_protocol": [
+      "python_dependency_lock"
+    ],
+    "python_dependency_lock_release_review": [
+      "frontend_reproducible_build",
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
+    ],
+    "python_dependency_lock_verification": [
+      "python_dependency_lock"
+    ],
     "ranking_decision_manifest": [
       "identity_runtime",
       "ranking_decision",
@@ -481,6 +527,10 @@
     "human_annotation_delivery": [
       "human_annotation",
       "human_precision"
+    ],
+    "python_dependency_lock": [
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
     ],
     "ranking_decisions": [
       "identity_runtime",

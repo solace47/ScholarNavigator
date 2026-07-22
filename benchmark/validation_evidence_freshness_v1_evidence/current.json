@@ -1,5 +1,5 @@
 {
-  "baseline_head": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
+  "baseline_head": "c9416251d5c3f2b80c97471903d57a5bd273d3a2",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -28,6 +28,14 @@
     {
       "claim_id": "architecture_offline_integrity_gates",
       "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_python_dependency_lock",
+      "declared_state": "internal_only",
       "reasons": [],
       "stale_components": [],
       "stale_evidence": [],
@@ -114,7 +122,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 21,
+  "component_count": 22,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -259,6 +267,46 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "python_dependency_lock_manifest",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "python_dependency_lock_offline_install",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "python_dependency_lock_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "python_dependency_lock_release_review",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "python_dependency_lock_verification",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
     },
     {
       "declared_state": "fresh",
@@ -449,6 +497,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "python_dependency_lock",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "ranking_decisions",
       "reasons": [],
       "stale_components": [],
@@ -500,8 +556,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 8,
-    "fresh": 51,
+    "blocked": 10,
+    "fresh": 56,
     "not_applicable": 1,
     "stale": 0
   },

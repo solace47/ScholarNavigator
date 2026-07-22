@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 15,
+  "claim_count": 16,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
     "implementation_file_count": 25,
-    "implementation_tree_sha256": "8661b953339ee84c43c8a4965a2e041a90c4b50d4f74c3c017f30da10b19d0e7"
+    "implementation_tree_sha256": "bcc2865a3934accd38b99b26ebf416a053c6e4f4a7441c8c3ade79235fa9e306"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 12,
+  "read_only_gate_count": 13,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -50,6 +50,12 @@
       "gate_id": "human_annotation_delivery",
       "output_sha256": "1125d9d17b485a61900599691c960d2cf225c461579484bfd00ac46526e658f2",
       "status": "verified"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "python_dependency_lock",
+      "output_sha256": "779ab9ef98572cd87a0d4bd784e6eb6fbc0339db380c052f1b4ec4b8332e824e",
+      "status": "not_ready_missing_verified_version_or_artifact"
     },
     {
       "exit_code": 0,
@@ -90,7 +96,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "cace9684382513654d5829565f2bd5e50efbd9b8a09b76331552293f16f5b71f",
+      "output_sha256": "45bd2dfd5139f3466c60dab860b70613588ca11f67aa64cb53d191b39b492a23",
       "status": "fresh_with_declared_blockers"
     }
   ],

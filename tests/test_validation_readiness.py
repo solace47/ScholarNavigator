@@ -16,6 +16,7 @@ from scholar_agent.evaluation.validation_readiness import (
     stable_tree_sha256,
     verify_release_files,
     write_release_files,
+    _run_read_only_gates,
 )
 
 
@@ -260,6 +261,36 @@ def test_release_is_byte_deterministic_and_verifiable(tmp_path: Path) -> None:
     assert report["status"] == "ready_with_declared_blockers"
     assert report["claim_evidence_coverage_rate"] == 1.0
     assert report["blocker_count"] == 3
+
+
+def test_read_only_gate_expands_temporary_output_without_literal_workspace_leak(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    literal = root / "{temporary_output}"
+    contract = {
+        "read_only_gates": [
+            {
+                "arguments": [
+                    "-c",
+                    (
+                        "import json,pathlib,sys; "
+                        "path=pathlib.Path(sys.argv[1]); "
+                        "(path/'report.json').write_text('{}'); "
+                        "print(json.dumps({'status':'ok'}))"
+                    ),
+                    "{temporary_output}",
+                ],
+                "checks": [{"pointer": "/status", "equals": "ok"}],
+                "expected_exit_code": 0,
+                "gate_id": "temporary_output_expansion",
+                "timeout_seconds": 10,
+            }
+        ]
+    }
+    assert _run_read_only_gates(contract, root)[0]["gate_id"] == "temporary_output_expansion"
+    assert not literal.exists()
 
 
 def test_missing_and_tampered_evidence_are_distinct(tmp_path: Path) -> None:

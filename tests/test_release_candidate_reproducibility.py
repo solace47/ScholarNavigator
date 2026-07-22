@@ -85,7 +85,8 @@ def test_dependency_closure_is_explicit_and_unknown_licenses_are_not_guessed() -
     node = build_node_sbom(ROOT / "frontend/package-lock.json")
     assert python_lock["complete"] is True
     assert python_lock["missing_packages"] == []
-    assert python_lock["unpinned_direct_requirements"]
+    assert python_lock["unpinned_direct_requirements"] == []
+    assert all("==" in value for value in python_lock["direct_requirements"])
     assert any(item["license"] == "unknown" for item in python_lock["packages"])
     assert node["package_count"] == 434
     assert all(item["version"] != "unknown" for item in node["packages"])
