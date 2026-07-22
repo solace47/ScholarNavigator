@@ -1,5 +1,5 @@
 {
-  "baseline_head": "d6d37eb1f0d9a7cff1e41fce69d1b6b4d9175548",
+  "baseline_head": "b20b2adbb8af25439e3e38088d0f672b4030f93a",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "full1000_resume_summary",
@@ -24,6 +24,9 @@
       "external_scorer",
       "full1000_resume",
       "top20_delivery"
+    ],
+    "architecture_full1000_execution_plan_ready": [
+      "full1000_execution"
     ],
     "architecture_human_annotation_delivery_ready": [
       "human_annotation",
@@ -158,6 +161,22 @@
         "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
       ],
       "kind": "frontend_release_build_and_runtime_fidelity"
+    },
+    {
+      "component_id": "full1000_execution",
+      "files": [
+        "benchmark/autoscholar_query_planning_baseline.jsonl",
+        "benchmark/autoscholar_query_planning_input.jsonl",
+        "benchmark/autoscholar_query_planning_manifest.json",
+        "benchmark/full1000_execution_plan_v1.json",
+        "benchmark/full1000_execution_readiness_v1_protocol.json",
+        "docs/full1000-execution-readiness.md",
+        "scripts/check_full1000_execution_readiness.py",
+        "src/scholar_agent/evaluation/full1000_execution_readiness.py",
+        "src/scholar_agent/evaluation/resource_accounting.py",
+        "src/scholar_agent/evaluation/sharded_execution.py"
+      ],
+      "kind": "immutable_execution_plan_and_fake_chain"
     },
     {
       "component_id": "full1000_resume",
@@ -403,6 +422,21 @@
     "full1000_resume_summary": [
       "full1000_resume"
     ],
+    "full1000_execution_dry_run": [
+      "full1000_execution"
+    ],
+    "full1000_execution_plan": [
+      "full1000_execution"
+    ],
+    "full1000_execution_preflight": [
+      "full1000_execution"
+    ],
+    "full1000_execution_protocol": [
+      "full1000_execution"
+    ],
+    "full1000_execution_verification": [
+      "full1000_execution"
+    ],
     "human_annotation_delivery_dry_run": [
       "human_annotation",
       "human_precision"
@@ -571,6 +605,9 @@
       "external_scorer",
       "full1000_resume",
       "top20_delivery"
+    ],
+    "full1000_execution_readiness": [
+      "full1000_execution"
     ],
     "human_annotation_delivery": [
       "human_annotation",

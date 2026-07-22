@@ -1287,6 +1287,7 @@ def build_local_fixture(
     *,
     shard_count: int = 3,
     query_count: int = 7,
+    query_identities: Sequence[str] | None = None,
     completion_order: Sequence[int] | None = None,
     incomplete_shard: int | None = None,
     retry_shard: int | None = None,
@@ -1295,10 +1296,15 @@ def build_local_fixture(
     """Create a gold-free monolithic run and equivalent committed shards."""
 
     root.mkdir(parents=True, exist_ok=True)
-    query_ids = [
-        f"query:{hashlib.sha256(f'shard-fixture-{index}'.encode()).hexdigest()}"
-        for index in range(query_count)
-    ]
+    query_ids = list(query_identities or ())
+    if query_identities is not None:
+        query_count = len(query_ids)
+        deterministic_assignments(query_ids, shard_count)
+    else:
+        query_ids = [
+            f"query:{hashlib.sha256(f'shard-fixture-{index}'.encode()).hexdigest()}"
+            for index in range(query_count)
+        ]
     rows = [
         {"query_id": identity, "query": f"offline shard fixture query {index}"}
         for index, identity in enumerate(query_ids)

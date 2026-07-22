@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "91851c91f60319364cc7f702120319f818ec5cc29dcf2410f32182d809685b20"
+      "sha256": "655765e46831c5b71cd49bec20ffa1bb6f7f083be95c6c034c80f8f85a71ee90"
     },
     {
       "document_id": "contest_requirements",
@@ -172,6 +172,21 @@
       ],
       "scope": "engineering_capability",
       "statement": "Tracked readiness evidence, gates, and claims have precise semantic dependencies and deterministic stale-impact propagation.",
+      "status": "verified"
+    },
+    {
+      "boundary": "This proves only immutable offline planning and a fake-adapter execution chain; network availability is not checked and the Full1000 baseline remains incomplete.",
+      "claim_id": "architecture_full1000_execution_plan_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "full1000_execution_dry_run",
+        "full1000_execution_plan",
+        "full1000_execution_preflight",
+        "full1000_execution_protocol",
+        "full1000_execution_verification"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The frozen Full1000 query-only population has an immutable sharded execution plan and a deterministic zero-network fake-adapter preflight.",
       "status": "verified"
     },
     {
@@ -1502,6 +1517,142 @@
     {
       "checks": [
         {
+          "equals": "execution_plan_ready_but_network_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/query_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/execution/network_request_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan"
+      ],
+      "evidence_id": "full1000_execution_dry_run",
+      "format": "json",
+      "path": "benchmark/full1000_execution_readiness_v1_evidence/dry_run.json",
+      "protocol": "full1000_execution_readiness_v1",
+      "required": true,
+      "role": "fake_adapter_full_chain",
+      "sha256": "4794ec20fe5d864182d9699005384afa7d0fd12dce81de92e053eac6056664d2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "full1000_execution_plan_v1",
+          "pointer": "/contract"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/population/count"
+        },
+        {
+          "equals": "full_restart_all_1000",
+          "pointer": "/resume/start_mode"
+        },
+        {
+          "equals": "network_not_checked",
+          "pointer": "/network_status"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_protocol"
+      ],
+      "evidence_id": "full1000_execution_plan",
+      "format": "json",
+      "path": "benchmark/full1000_execution_plan_v1.json",
+      "protocol": "full1000_execution_readiness_v1",
+      "required": true,
+      "role": "immutable_execution_plan",
+      "sha256": "4d13c148fe6d49b37073a1c27a0e474043572c5b771ba5b6656e687e8547f613"
+    },
+    {
+      "checks": [
+        {
+          "equals": "execution_plan_ready_but_network_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/checks/legacy_record_reuse_disabled"
+        },
+        {
+          "equals": true,
+          "pointer": "/checks/network_not_checked"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan"
+      ],
+      "evidence_id": "full1000_execution_preflight",
+      "format": "json",
+      "path": "benchmark/full1000_execution_readiness_v1_evidence/preflight.json",
+      "protocol": "full1000_execution_readiness_v1",
+      "required": true,
+      "role": "offline_preflight",
+      "sha256": "191eaabc03447bbc22c3931646cc3f4b55e88ea1f753ba03a35f5de8742b5a18"
+    },
+    {
+      "checks": [
+        {
+          "equals": "full1000_execution_readiness_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/legacy_artifacts/reuse_as_completed"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "full1000_execution_protocol",
+      "format": "json",
+      "path": "benchmark/full1000_execution_readiness_v1_protocol.json",
+      "protocol": "full1000_execution_readiness_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "4dc5feaf3f6fc7119a3adcece77b79fb605bcfdde67397f3cbde158a66235873"
+    },
+    {
+      "checks": [
+        {
+          "equals": "execution_plan_ready_but_network_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/query_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/exit_code"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan"
+      ],
+      "evidence_id": "full1000_execution_verification",
+      "format": "json",
+      "path": "benchmark/full1000_execution_readiness_v1_evidence/verification.json",
+      "protocol": "full1000_execution_readiness_v1",
+      "required": true,
+      "role": "plan_verification",
+      "sha256": "8b1b8c4a6b08d55333216fde5eba0a22cbb20691c23c8c65fc1b4855bc6e9c2d"
+    },
+    {
+      "checks": [
+        {
           "equals": "fresh_with_declared_blockers",
           "pointer": "/status"
         },
@@ -1523,7 +1674,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "6ede3a594d29cb130d1245cc24f701b4025b7cf91b714a4c1002bcf994a87fec"
+      "sha256": "562b9aad035e512b3ba1000c551659d13ee5c5024dd79c94d9357cc6d782539c"
     },
     {
       "checks": [
@@ -1539,7 +1690,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "d4002732f4a687ff56d651322df5a2b85770bff68d36ab3f16819609a45a2048"
+      "sha256": "bb84dbc5c94413dd226b4f86eadd318eba8fda1bd033445a404e32a627b360c9"
     },
     {
       "checks": [
@@ -1824,6 +1975,25 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "top20_delivery_fidelity",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_full1000_execution_readiness.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "execution_plan_ready_but_network_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/checks/network_not_checked"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "full1000_execution_readiness",
       "timeout_seconds": 60
     },
     {
