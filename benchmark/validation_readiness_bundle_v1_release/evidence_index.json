@@ -324,9 +324,44 @@
       "role": "integrity_manifest",
       "sha256": "a68dcecb5c948217fbb0f11ee17d08572b988888f18038d2453956a594678cd8",
       "size": 838
+    },
+    {
+      "dependencies": [
+        "validation_freshness_protocol"
+      ],
+      "evidence_id": "validation_freshness_current",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "role": "freshness_baseline_closure",
+      "sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2",
+      "size": 11305
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "validation_freshness_protocol",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_contract.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "role": "protocol",
+      "sha256": "1ad585e993e7883d7e916f73cd757234ab05704de1d00e0a31c246725313fec2",
+      "size": 43969
+    },
+    {
+      "dependencies": [
+        "validation_freshness_current",
+        "validation_freshness_protocol"
+      ],
+      "evidence_id": "validation_freshness_synthetic_impact",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/synthetic_impact.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "role": "change_impact_conformance",
+      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e",
+      "size": 3139
     }
   ],
-  "evidence_count": 29,
+  "evidence_count": 32,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

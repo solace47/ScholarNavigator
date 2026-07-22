@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 13,
+  "claim_count": 14,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
-    "implementation_base_commit": "f5aa45608ef4f4625677c8c343292b04731b7f6e",
+    "implementation_base_commit": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 4,
-    "implementation_tree_sha256": "90b49fc043aa3071d69e80910e6a03293137d36001404d408c403618754f29f4"
+    "implementation_file_count": 8,
+    "implementation_tree_sha256": "754d320fbddc2ca92118a27a76f4430b4928ad618b5859c4d5159de792756f00"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 10,
+  "read_only_gate_count": 11,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -80,6 +80,12 @@
       "gate_id": "top20_delivery_fidelity",
       "output_sha256": "e22d910aac9e2287d6db590995e7c1c5db4667d1fdf905a2fde4065799fadf17",
       "status": "completed_with_unsupported_exports"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "validation_evidence_freshness",
+      "output_sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2",
+      "status": "fresh_with_declared_blockers"
     }
   ],
   "schema_version": "1",

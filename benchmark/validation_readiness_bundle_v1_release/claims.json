@@ -1,13 +1,13 @@
 {
-  "claim_count": 13,
-  "claim_evidence_coverage_count": 13,
+  "claim_count": 14,
+  "claim_evidence_coverage_count": 14,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "bc92ce0c7edcf9e2c8f0afb94fb19e2b2cc8eb08a93fa88c5da8b72534b0127b",
-      "size": 34662
+      "sha256": "fcb9ef95c756f183161a376f28640ea1d750d1ecdd86203154727d6faec42e7d",
+      "size": 35365
     },
     {
       "document_id": "contest_requirements",
@@ -79,6 +79,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Tracked offline gates can verify reconstruction, decision traceability, source accounting, tie stability, and delivery integrity.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Freshness verifies dependency closure and rerun scope only; it does not recompute evidence, alter historical conclusions, or remove formal blockers.",
+      "claim_id": "architecture_validation_evidence_freshness",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "validation_freshness_current",
+        "validation_freshness_synthetic_impact"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Tracked readiness evidence, gates, and claims have precise semantic dependencies and deterministic stale-impact propagation.",
       "status": "verified"
     },
     {
@@ -190,7 +202,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 5,
+    "architecture": 6,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -201,6 +213,6 @@
     "blocked": 3,
     "internal_only": 5,
     "not_applicable": 1,
-    "verified": 4
+    "verified": 5
   }
 }

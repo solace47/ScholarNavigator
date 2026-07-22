@@ -258,6 +258,13 @@ Replay 或 evaluator，只读取已经跟踪的聚合证据、协议与阻断记
 官方 scorer/schema 仍是独立正式验证前置条件。详见
 [`docs/validation-readiness.md`](validation-readiness.md)。
 
+发布证据与实现之间的语义新鲜度由 `validation_evidence_freshness_v1` 单独验证。契约把当前
+readiness 中的机器证据、只读门禁和声明绑定到精确文件组件及稳定 basis digest；代码、协议、
+配置、数据身份、前端转换、CLI、统计实现或声明源变化只沿显式依赖边传播，并输出最小重跑
+集合。已登记 Python 文件的纯注释/docstring 变化使用 AST 证明无语义影响，依赖重命名和未登记
+生产文件变化则 fail closed。该门禁不重算质量指标、不重写历史证据，也不解除三个正式阻断。
+详见 [`docs/validation-evidence-freshness.md`](validation-evidence-freshness.md)。
+
 部分完成样本的外推边界由 `completion_bias_audit_v1` 独立审计。该层只读取检索前可见的
 query 结构、稳定顺序和既有查询连通分量，通过精确 opaque identity 闭合 Full1000、
 Record162 与 Record160；它不读取检索候选、来源产出、gold 或质量指标，也不进入

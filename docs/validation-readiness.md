@@ -27,6 +27,11 @@ handoff、隔离子进程、输入不可变和双次确定性，但真实 readin
 恢复映射和合成回收/裁决演练已经离线验证，但真实标注数仍为 0，统计保持 `null`。因此
 `human_precision_missing` 阻断和 `formal_validation_complete=false` 均保持不变。
 
+`validation_evidence_freshness_v1` 为当前声明、证据和只读门禁登记精确语义依赖与 basis digest。
+readiness 一键验证会先确认当前基线仍新鲜；变更影响报告只给出受影响对象和最小重跑集合，不会
+自动刷新证据或改写历史结论。新鲜度通过同样不解除 Full1000、人工 Precision 或官方 scorer
+阻断。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。

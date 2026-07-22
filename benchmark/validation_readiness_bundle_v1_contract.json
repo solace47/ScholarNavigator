@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "bc92ce0c7edcf9e2c8f0afb94fb19e2b2cc8eb08a93fa88c5da8b72534b0127b"
+      "sha256": "fcb9ef95c756f183161a376f28640ea1d750d1ecdd86203154727d6faec42e7d"
     },
     {
       "document_id": "contest_requirements",
@@ -114,6 +114,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Two complete 471-item blind annotator packages, isolated aliases, locked export, and deterministic operator recovery are ready for offline delivery.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Freshness verifies dependency closure and rerun scope only; it does not recompute evidence, alter historical conclusions, or remove formal blockers.",
+      "claim_id": "architecture_validation_evidence_freshness",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "validation_freshness_current",
+        "validation_freshness_synthetic_impact"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Tracked readiness evidence, gates, and claims have precise semantic dependencies and deterministic stale-impact propagation.",
       "status": "verified"
     },
     {
@@ -229,11 +241,15 @@
   "code_identity": {
     "files": [
       "benchmark/validation_readiness_bundle_v1_contract.json",
+      "benchmark/validation_evidence_freshness_v1_contract.json",
       "docs/validation-readiness.md",
+      "docs/validation-evidence-freshness.md",
+      "scripts/check_validation_freshness.py",
       "scripts/check_validation_readiness.py",
+      "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
     ],
-    "implementation_base_commit": "f5aa45608ef4f4625677c8c343292b04731b7f6e"
+    "implementation_base_commit": "13646f10a8a4a9cfabfb636a37f77f3d4f1dad8e"
   },
   "consistency_assertions": [
     {
@@ -424,6 +440,71 @@
     }
   ],
   "evidence": [
+    {
+      "checks": [
+        {
+          "equals": "validation_evidence_freshness_v1",
+          "pointer": "/protocol"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "validation_freshness_protocol",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_contract.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "1ad585e993e7883d7e916f73cd757234ab05704de1d00e0a31c246725313fec2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "fresh_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/violation_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "validation_freshness_protocol"
+      ],
+      "evidence_id": "validation_freshness_current",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "freshness_baseline_closure",
+      "sha256": "c5d856f0cafd9e61ff55555313fec05c97e8c0f87836874d6791278d6ea647d2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "synthetic_impact_verified",
+          "pointer": "/status"
+        },
+        {
+          "equals": 4,
+          "pointer": "/scenario_count"
+        }
+      ],
+      "dependencies": [
+        "validation_freshness_protocol",
+        "validation_freshness_current"
+      ],
+      "evidence_id": "validation_freshness_synthetic_impact",
+      "format": "json",
+      "path": "benchmark/validation_evidence_freshness_v1_evidence/synthetic_impact.json",
+      "protocol": "validation_evidence_freshness_v1",
+      "required": true,
+      "role": "change_impact_conformance",
+      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
+    },
     {
       "checks": [
         {
@@ -1019,6 +1100,25 @@
   },
   "protocol": "validation_readiness_bundle_v1",
   "read_only_gates": [
+    {
+      "arguments": [
+        "scripts/check_validation_freshness.py",
+        "verify-current"
+      ],
+      "checks": [
+        {
+          "equals": "fresh_with_declared_blockers",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/violation_count"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "validation_evidence_freshness",
+      "timeout_seconds": 60
+    },
     {
       "arguments": [
         "scripts/check_human_annotation_delivery.py",
