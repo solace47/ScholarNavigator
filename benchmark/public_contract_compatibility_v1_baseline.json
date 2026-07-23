@@ -464,6 +464,551 @@
         "schema_version": "1"
       }
     },
+    "formal_validation_preregistration": {
+      "recursive_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_outputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "amendments": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_nonsemantic_prefixes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "evidence_intake_boundary": {
+                "type": "string"
+              },
+              "semantic_change_after_evidence": {
+                "type": "string"
+              },
+              "states": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "allowed_nonsemantic_prefixes",
+              "evidence_intake_boundary",
+              "semantic_change_after_evidence",
+              "states"
+            ],
+            "type": "object"
+          },
+          "analysis": {
+            "additionalProperties": false,
+            "properties": {
+              "budgets": {
+                "additionalProperties": false,
+                "properties": {
+                  "limit_per_source": {
+                    "type": "integer"
+                  },
+                  "max_candidate_papers": {
+                    "type": "integer"
+                  },
+                  "max_latency_seconds": {
+                    "type": "number"
+                  },
+                  "max_llm_calls": {
+                    "type": "integer"
+                  },
+                  "max_search_rounds": {
+                    "type": "integer"
+                  },
+                  "max_subqueries": {
+                    "type": "integer"
+                  },
+                  "max_total_tokens": {
+                    "type": "integer"
+                  },
+                  "top_k": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "limit_per_source",
+                  "max_candidate_papers",
+                  "max_latency_seconds",
+                  "max_llm_calls",
+                  "max_search_rounds",
+                  "max_subqueries",
+                  "max_total_tokens",
+                  "top_k"
+                ],
+                "type": "object"
+              },
+              "deterministic_tiebreak_v2_enabled": {
+                "type": "boolean"
+              },
+              "evaluator": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "official_scorer": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "official_scorer",
+                  "version"
+                ],
+                "type": "object"
+              },
+              "execution_profile": {
+                "type": "string"
+              },
+              "experimental_features_enabled": {
+                "items": {},
+                "type": "array"
+              },
+              "full_rerun_required": {
+                "type": "boolean"
+              },
+              "prompt": {
+                "additionalProperties": false,
+                "properties": {
+                  "manifest_path": {
+                    "type": "string"
+                  },
+                  "manifest_sha256": {
+                    "type": "string"
+                  },
+                  "used": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "manifest_path",
+                  "manifest_sha256",
+                  "used"
+                ],
+                "type": "object"
+              },
+              "random_seed": {
+                "type": "integer"
+              },
+              "sources": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "strategy": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "budgets",
+              "deterministic_tiebreak_v2_enabled",
+              "evaluator",
+              "execution_profile",
+              "experimental_features_enabled",
+              "full_rerun_required",
+              "prompt",
+              "random_seed",
+              "sources",
+              "strategy"
+            ],
+            "type": "object"
+          },
+          "analysis_scripts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "role",
+                "sha256"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "declaration_boundaries": {
+            "additionalProperties": false,
+            "properties": {
+              "full1000": {
+                "type": "string"
+              },
+              "human_precision": {
+                "type": "string"
+              },
+              "official_scorer": {
+                "type": "string"
+              },
+              "partial_or_failed": {
+                "type": "string"
+              },
+              "quality_metrics_generated_by_this_gate": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "full1000",
+              "human_precision",
+              "official_scorer",
+              "partial_or_failed",
+              "quality_metrics_generated_by_this_gate"
+            ],
+            "type": "object"
+          },
+          "dependencies": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "role",
+                "sha256"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "execution": {
+            "additionalProperties": false,
+            "properties": {
+              "gold_or_qrels_loaded": {
+                "type": "boolean"
+              },
+              "llm_request_count": {
+                "type": "integer"
+              },
+              "network_request_count": {
+                "type": "integer"
+              },
+              "quality_metric_count": {
+                "type": "integer"
+              },
+              "snapshot_write_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "gold_or_qrels_loaded",
+              "llm_request_count",
+              "network_request_count",
+              "quality_metric_count",
+              "snapshot_write_count"
+            ],
+            "type": "object"
+          },
+          "formal_validation_complete": {
+            "type": "boolean"
+          },
+          "human_annotation": {
+            "additionalProperties": false,
+            "properties": {
+              "adjudication_required_on_disagreement": {
+                "type": "boolean"
+              },
+              "allowed_statistics": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "coverage_threshold": {
+                "additionalProperties": false,
+                "properties": {
+                  "adjudicated_disagreements": {
+                    "type": "string"
+                  },
+                  "annotator_a": {
+                    "type": "integer"
+                  },
+                  "annotator_b": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "adjudicated_disagreements",
+                  "annotator_a",
+                  "annotator_b"
+                ],
+                "type": "object"
+              },
+              "expected_item_count": {
+                "type": "integer"
+              },
+              "independent_annotator_count": {
+                "type": "integer"
+              },
+              "labels": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "missing_handling": {
+                "type": "string"
+              },
+              "package_composition": {
+                "additionalProperties": false,
+                "properties": {
+                  "current_items": {
+                    "type": "integer"
+                  },
+                  "prior_items": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "current_items",
+                  "prior_items"
+                ],
+                "type": "object"
+              },
+              "synthetic_or_llm_labels_allowed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "adjudication_required_on_disagreement",
+              "allowed_statistics",
+              "coverage_threshold",
+              "expected_item_count",
+              "independent_annotator_count",
+              "labels",
+              "missing_handling",
+              "package_composition",
+              "synthetic_or_llm_labels_allowed"
+            ],
+            "type": "object"
+          },
+          "official_scorer": {
+            "additionalProperties": false,
+            "properties": {
+              "direction": {
+                "type": "string"
+              },
+              "input_schema": {
+                "type": "string"
+              },
+              "metric_namespace": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "output_schema": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "direction",
+              "input_schema",
+              "metric_namespace",
+              "name",
+              "output_schema",
+              "version"
+            ],
+            "type": "object"
+          },
+          "population": {
+            "additionalProperties": false,
+            "properties": {
+              "component_count": {
+                "type": "integer"
+              },
+              "component_identity_sha256": {
+                "type": "string"
+              },
+              "exclusion_rules": {
+                "items": {},
+                "type": "array"
+              },
+              "full_rerun_from_query_zero": {
+                "type": "boolean"
+              },
+              "input_sha256": {
+                "type": "string"
+              },
+              "order_sha256": {
+                "type": "string"
+              },
+              "query_count": {
+                "type": "integer"
+              },
+              "stable_identity_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "component_count",
+              "component_identity_sha256",
+              "exclusion_rules",
+              "full_rerun_from_query_zero",
+              "input_sha256",
+              "order_sha256",
+              "query_count",
+              "stable_identity_sha256"
+            ],
+            "type": "object"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocol_sha256": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "source_commit": {
+            "type": "string"
+          },
+          "statistics": {
+            "additionalProperties": false,
+            "properties": {
+              "analysis_population": {
+                "type": "string"
+              },
+              "bootstrap_iterations": {
+                "type": "integer"
+              },
+              "confidence_interval": {
+                "type": "string"
+              },
+              "confidence_level": {
+                "type": "number"
+              },
+              "missing_pairs": {
+                "type": "string"
+              },
+              "multiple_comparison_correction": {
+                "type": "string"
+              },
+              "paired_test": {
+                "type": "string"
+              },
+              "report_decimal_places": {
+                "type": "integer"
+              },
+              "resampling_unit": {
+                "type": "string"
+              },
+              "seed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "analysis_population",
+              "bootstrap_iterations",
+              "confidence_interval",
+              "confidence_level",
+              "missing_pairs",
+              "multiple_comparison_correction",
+              "paired_test",
+              "report_decimal_places",
+              "resampling_unit",
+              "seed"
+            ],
+            "type": "object"
+          },
+          "stopping_rules": {
+            "additionalProperties": false,
+            "properties": {
+              "full1000_incomplete": {
+                "type": "string"
+              },
+              "human_incomplete": {
+                "type": "string"
+              },
+              "official_scorer_missing": {
+                "type": "string"
+              },
+              "partial_source_failure": {
+                "type": "string"
+              },
+              "posthoc_endpoint_or_metric": {
+                "type": "string"
+              },
+              "unevaluable_item": {
+                "type": "string"
+              },
+              "unregistered_exclusion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "full1000_incomplete",
+              "human_incomplete",
+              "official_scorer_missing",
+              "partial_source_failure",
+              "posthoc_endpoint_or_metric",
+              "unevaluable_item",
+              "unregistered_exclusion"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "allowed_outputs",
+          "amendments",
+          "analysis",
+          "analysis_scripts",
+          "declaration_boundaries",
+          "dependencies",
+          "execution",
+          "formal_validation_complete",
+          "human_annotation",
+          "official_scorer",
+          "population",
+          "protocol",
+          "protocol_sha256",
+          "schema_version",
+          "source_commit",
+          "statistics",
+          "stopping_rules"
+        ],
+        "type": "object"
+      },
+      "strict_unknown_fields": true,
+      "versions": {
+        "protocol": "formal_validation_preregistration_v1",
+        "schema_version": "1"
+      }
+    },
     "human_annotation_delivery": {
       "recursive_schema": {
         "additionalProperties": false,
@@ -5377,6 +5922,620 @@
         }
       }
     },
+    "formal_validation_preregistration": {
+      "arguments": [
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--seal"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--seal"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [
+        "audit-readiness",
+        "build",
+        "simulate-amendment",
+        "verify"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "probes": {
+        "audit_readiness": {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "exit_code": 3,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "blocker_count": {
+                "type": "integer"
+              },
+              "blockers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "official_scorer_schema": {
+                "type": "string"
+              },
+              "preregistration_state": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "report_sha256": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "seal_sha256": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "blocker_count",
+              "blockers",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "official_scorer_schema",
+              "preregistration_state",
+              "protocol",
+              "report_sha256",
+              "schema_version",
+              "seal_sha256",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_readiness",
+          "top_level_fields": [
+            "blocker_count",
+            "blockers",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "official_scorer_schema",
+            "preregistration_state",
+            "protocol",
+            "report_sha256",
+            "schema_version",
+            "seal_sha256",
+            "status"
+          ]
+        },
+        "build": {
+          "arguments": [
+            "build",
+            "--output",
+            "{temp}/seal.json"
+          ],
+          "command": "build",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_outputs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "blockers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "contract": {
+                "type": "string"
+              },
+              "external_evidence": {
+                "additionalProperties": false,
+                "properties": {
+                  "full1000": {
+                    "type": "string"
+                  },
+                  "human_precision": {
+                    "type": "string"
+                  },
+                  "official_scorer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "full1000",
+                  "human_precision",
+                  "official_scorer"
+                ],
+                "type": "object"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "protocol_sha256": {
+                "type": "string"
+              },
+              "registered_files": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "role",
+                    "sha256",
+                    "size"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "registered_files_sha256": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "seal_sha256": {
+                "type": "string"
+              },
+              "semantic_policy_sha256": {
+                "type": "string"
+              },
+              "source_commit": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowed_outputs",
+              "blockers",
+              "contract",
+              "external_evidence",
+              "formal_validation_complete",
+              "protocol",
+              "protocol_sha256",
+              "registered_files",
+              "registered_files_sha256",
+              "schema_version",
+              "seal_sha256",
+              "semantic_policy_sha256",
+              "source_commit",
+              "state"
+            ],
+            "type": "object"
+          },
+          "probe_id": "build",
+          "top_level_fields": [
+            "allowed_outputs",
+            "blockers",
+            "contract",
+            "external_evidence",
+            "formal_validation_complete",
+            "protocol",
+            "protocol_sha256",
+            "registered_files",
+            "registered_files_sha256",
+            "schema_version",
+            "seal_sha256",
+            "semantic_policy_sha256",
+            "source_commit",
+            "state"
+          ]
+        },
+        "simulate_amendment": {
+          "arguments": [
+            "simulate-amendment"
+          ],
+          "command": "simulate-amendment",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "report_sha256": {
+                "type": "string"
+              },
+              "scenario_count": {
+                "type": "integer"
+              },
+              "scenarios": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "changed_pointers": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "evidence_intake_present": {
+                          "type": "boolean"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        },
+                        "semantic_changed": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "valid": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "changed_pointers",
+                        "evidence_intake_present",
+                        "scenario",
+                        "semantic_changed",
+                        "state",
+                        "valid"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "changed_pointers": {
+                          "items": {},
+                          "type": "array"
+                        },
+                        "evidence_intake_present": {
+                          "type": "boolean"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        },
+                        "semantic_changed": {
+                          "type": "boolean"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "valid": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "changed_pointers",
+                        "evidence_intake_present",
+                        "scenario",
+                        "semantic_changed",
+                        "state",
+                        "valid"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "timeline_scenario_count": {
+                "type": "integer"
+              },
+              "timeline_scenarios": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "chronology_valid": {
+                          "type": "boolean"
+                        },
+                        "event_count": {
+                          "type": "integer"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "chronology_valid",
+                        "event_count",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "chronology_valid": {
+                          "type": "boolean"
+                        },
+                        "error_code": {
+                          "type": "string"
+                        },
+                        "event_count": {
+                          "type": "integer"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "chronology_valid",
+                        "error_code",
+                        "event_count",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "report_sha256",
+              "scenario_count",
+              "scenarios",
+              "schema_version",
+              "status",
+              "timeline_scenario_count",
+              "timeline_scenarios"
+            ],
+            "type": "object"
+          },
+          "probe_id": "simulate_amendment",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "report_sha256",
+            "scenario_count",
+            "scenarios",
+            "schema_version",
+            "status",
+            "timeline_scenario_count",
+            "timeline_scenarios"
+          ]
+        },
+        "verify": {
+          "arguments": [
+            "verify"
+          ],
+          "command": "verify",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "registered_file_count": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "seal_sha256": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "registered_file_count",
+              "schema_version",
+              "seal_sha256",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "verify",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "registered_file_count",
+            "schema_version",
+            "seal_sha256",
+            "status"
+          ]
+        }
+      }
+    },
     "human_annotation_delivery": {
       "arguments": [
         {
@@ -6492,12 +7651,12 @@
       }
     }
   },
-  "content_sha256": "28d81929f690f3cfc32711c5c796e3db38418144befe4b3fc5b8cc1878da51d6",
+  "content_sha256": "889c90ca81f0b838ea312a2b8f3727394190050cd946be90543bb40ee16bb8b8",
   "documentation": {
-    "docs/architecture.md": "2b0d68122e9f06ac4b2231fad778a89322acb63cdd15ad71c097f96eb50393af",
+    "docs/architecture.md": "90ce34cd5f944901066de31c9d96987b2475393c077b557d7d85b1eedbcd6610",
     "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
-    "docs/formal-validation-clearance.md": "10e2fde89dde48f7396cc8a005f11a7fd33b2690fc9bd9273e7663c33cda1c7a",
+    "docs/formal-validation-clearance.md": "d299bb810616aac93cf5d1c28798d3720a329bf105628322df165abb8f33321a",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
     "docs/validation-readiness.md": "b51e324f10b2923d4615a4033519d608cb67035d8d7b88addda0a4896a06d62e"
   },

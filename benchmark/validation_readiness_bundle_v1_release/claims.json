@@ -1,13 +1,13 @@
 {
-  "claim_count": 26,
-  "claim_evidence_coverage_count": 26,
+  "claim_count": 27,
+  "claim_evidence_coverage_count": 27,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "d98e9f580171211facef1d267cbf82a8460ea9c25c0136a0a264a61f01c9687f",
-      "size": 42735
+      "sha256": "2a9c0b0f115ee62c6c51a929b98b2f7d45660ad6f82484a3a720bc141ddf8a0c",
+      "size": 43612
     },
     {
       "document_id": "contest_requirements",
@@ -102,6 +102,20 @@
       ],
       "scope": "engineering_capability",
       "statement": "Formal validation clearance is controlled by strict machine-evidence predicates and a fail-closed receipt state machine.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Preregistration proves analysis-plan integrity only; it generates no quality metric, human judgment, or official score and does not clear any external blocker.",
+      "claim_id": "architecture_formal_validation_preregistered",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_preregistration_protocol",
+        "formal_preregistration_readiness",
+        "formal_preregistration_seal",
+        "formal_preregistration_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The formal validation population, execution policy, human review rules, statistical methods, stopping conditions, and declaration boundaries are deterministically sealed before real external evidence intake.",
       "status": "verified"
     },
     {
@@ -363,7 +377,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 18,
+    "architecture": 19,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -374,6 +388,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 14
+    "verified": 15
   }
 }

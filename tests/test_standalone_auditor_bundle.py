@@ -159,6 +159,7 @@ def _mutate_json(source: Path, target: Path, member: str, mutate) -> None:
         ("readiness.json", lambda value: value.__setitem__("formal_validation_complete", True)),
         ("freshness.json", lambda value: value.__setitem__("stale_count", 1)),
         ("policy.json", lambda value: value.__setitem__("deterministic_tiebreak_v2_default_enabled", True)),
+        ("preregistration.json", lambda value: value.__setitem__("state", "invalid_post_evidence_change")),
         ("evidence_index.json", lambda value: value["evidence"][0].__setitem__("verification_scope", "externally_verified")),
         ("protocol_dependencies.json", lambda value: value["implementation_commit_ancestry"].__setitem__("head_commit", "0" * 40)),
     ],

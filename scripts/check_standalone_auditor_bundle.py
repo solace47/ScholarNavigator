@@ -58,6 +58,7 @@ CANONICAL_MEMBERS = {
     "evidence_index.json",
     "freshness.json",
     "policy.json",
+    "preregistration.json",
     "protocol_dependencies.json",
     "readiness.json",
     "revocation.json",
@@ -65,6 +66,7 @@ CANONICAL_MEMBERS = {
 }
 REVOCATION_PROTOCOL = "evidence_revocation_response_v1"
 REVOCATION_PROTOCOL_SHA256 = "55558267bdf7193e5b69905b25b4920f34affbb3c259637f7b0647edbe220c84"
+PREREGISTRATION_PROTOCOL = "formal_validation_preregistration_v1"
 
 
 class AuditError(RuntimeError):
@@ -264,6 +266,38 @@ def _validate_freshness(value: object) -> dict[str, object]:
     return document
 
 
+def _validate_preregistration(value: object) -> dict[str, object]:
+    document = _object(
+        value,
+        keys={
+            "blockers",
+            "formal_validation_complete",
+            "protocol",
+            "protocol_sha256",
+            "schema_version",
+            "seal_sha256",
+            "state",
+            "status",
+        },
+        reason="preregistration_schema_invalid",
+    )
+    if (
+        document["protocol"] != PREREGISTRATION_PROTOCOL
+        or document["schema_version"] != SCHEMA
+        or document["state"] != "sealed"
+        or document["status"] != "sealed_with_external_evidence_blockers"
+        or document["formal_validation_complete"] is not False
+        or not isinstance(document["protocol_sha256"], str)
+        or not SHA256_RE.fullmatch(document["protocol_sha256"])
+        or not isinstance(document["seal_sha256"], str)
+        or not SHA256_RE.fullmatch(document["seal_sha256"])
+    ):
+        raise AuditError("preregistration_schema_invalid")
+    if _string_list(document["blockers"], reason="preregistration_blockers_invalid") != sorted(REQUIRED_BLOCKERS):
+        raise AuditError("preregistration_blockers_invalid")
+    return document
+
+
 def _validate_policy(value: object) -> dict[str, object]:
     document = _object(value, keys={"default_strategy", "deterministic_tiebreak_v2_default_enabled"}, reason="policy_schema_invalid")
     if document != {"default_strategy": "current_rules", "deterministic_tiebreak_v2_default_enabled": False}:
@@ -414,6 +448,7 @@ def verify_archive(path: Path) -> dict[str, object]:
     readiness = _validate_readiness(values["readiness.json"])
     freshness = _validate_freshness(values["freshness.json"])
     policy = _validate_policy(values["policy.json"])
+    _validate_preregistration(values["preregistration.json"])
     _validate_revocation(values["revocation.json"])
     dependencies = _validate_dependencies(values["protocol_dependencies.json"])
     evidence_ids = {str(row["evidence_id"]) for row in evidence["evidence"]}
@@ -685,9 +720,78 @@ def _audit_revocation(root: Path) -> dict[str, object]:
     }
 
 
+def _compact_hash(value: object) -> str:
+    return digest(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    )
+
+
+def _audit_preregistration(root: Path) -> dict[str, object]:
+    protocol = _load(root / "benchmark/formal_validation_preregistration_v1_protocol.json")
+    seal = _load(root / "benchmark/formal_validation_preregistration_v1_seal.json")
+    protocol_copy = dict(protocol)
+    protocol_copy["protocol_sha256"] = "0" * 64
+    if (
+        protocol.get("protocol") != PREREGISTRATION_PROTOCOL
+        or protocol.get("schema_version") != SCHEMA
+        or protocol.get("formal_validation_complete") is not False
+        or not isinstance(protocol.get("protocol_sha256"), str)
+        or not SHA256_RE.fullmatch(str(protocol["protocol_sha256"]))
+        or _compact_hash(protocol_copy) != protocol["protocol_sha256"]
+    ):
+        raise AuditError("preregistration_protocol_drift")
+    seal_copy = dict(seal)
+    seal_copy["seal_sha256"] = "0" * 64
+    blockers = seal.get("blockers")
+    if (
+        seal.get("protocol") != PREREGISTRATION_PROTOCOL
+        or seal.get("contract") != "formal_validation_preregistration_seal_v1"
+        or seal.get("schema_version") != SCHEMA
+        or seal.get("state") != "sealed"
+        or seal.get("formal_validation_complete") is not False
+        or seal.get("protocol_sha256") != protocol["protocol_sha256"]
+        or not isinstance(seal.get("seal_sha256"), str)
+        or not SHA256_RE.fullmatch(str(seal["seal_sha256"]))
+        or _compact_hash(seal_copy) != seal["seal_sha256"]
+        or not isinstance(blockers, list)
+        or sorted(blockers) != sorted(REQUIRED_BLOCKERS)
+    ):
+        raise AuditError("preregistration_seal_drift")
+    registered = seal.get("registered_files")
+    if not isinstance(registered, list) or not registered:
+        raise AuditError("preregistration_registered_files_invalid")
+    for row in registered:
+        if not isinstance(row, dict) or set(row) != {"path", "role", "sha256", "size"}:
+            raise AuditError("preregistration_registered_file_invalid")
+        path = _repo_path(root, str(row["path"]))
+        if (
+            not path.is_file()
+            or path.stat().st_size != row["size"]
+            or digest(path.read_bytes()) != row["sha256"]
+        ):
+            raise AuditError("preregistration_registered_file_drift")
+    return {
+        "blockers": sorted(REQUIRED_BLOCKERS),
+        "formal_validation_complete": False,
+        "protocol": PREREGISTRATION_PROTOCOL,
+        "protocol_sha256": protocol["protocol_sha256"],
+        "schema_version": SCHEMA,
+        "seal_sha256": seal["seal_sha256"],
+        "state": "sealed",
+        "status": "sealed_with_external_evidence_blockers",
+    }
+
+
 def build_archive(contract_path: Path, output: Path, root: Path) -> dict[str, object]:
     contract, sources, source_hashes = _audit_sources(contract_path.resolve(), root)
     revocation = _audit_revocation(root)
+    preregistration = _audit_preregistration(root)
     source_commit = str(contract.get("source_commit")); head = _git(root, "rev-parse", "HEAD")
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", source_commit, head], cwd=root, check=False).returncode == 0
     if not ancestor: raise AuditError("source_commit_not_ancestor")
@@ -706,6 +810,7 @@ def build_archive(contract_path: Path, output: Path, root: Path) -> dict[str, ob
     freshness = sources["freshness"]
     payloads["freshness.json"] = canonical_bytes({"baseline_head": freshness["baseline_head"], "protocol": "validation_evidence_freshness_v1", "stale_count": freshness["state_counts"].get("stale", 0), "status": freshness["status"]})
     payloads["policy.json"] = canonical_bytes(contract["policy"])
+    payloads["preregistration.json"] = canonical_bytes(preregistration)
     payloads["readiness.json"] = canonical_bytes({"formal_validation_complete": False, "published_readiness_status": sources["readiness"]["status"], "status": "verified_with_declared_blockers"})
     payloads["revocation.json"] = canonical_bytes(revocation)
     payloads["protocol_dependencies.json"] = canonical_bytes({"implementation_commit_ancestry": {"head_commit": head, "source_commit": source_commit, "source_is_ancestor": ancestor}, "source_files": [{"role": key, "sha256": source_hashes[key]} for key in sorted(source_hashes)]})
@@ -755,6 +860,7 @@ def main(argv: list[str] | None = None) -> int:
                 contract_path = root / contract_path
             _contract, sources, _hashes = _audit_sources(contract_path.resolve(), root)
             _audit_revocation(root)
+            _audit_preregistration(root)
             report = {
                 "blocker_count": 3,
                 "claim_count": len(sources["claims"]["claims"]),

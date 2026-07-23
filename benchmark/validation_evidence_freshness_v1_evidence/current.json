@@ -1,5 +1,5 @@
 {
-  "baseline_head": "1fe21cb0c384304b18a0956cb028cc0e7aa971a4",
+  "baseline_head": "b983b23f1405a12d51cd78bd7acf53ad8dbfcee3",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -43,6 +43,14 @@
     },
     {
       "claim_id": "architecture_formal_validation_clearance_gated",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_formal_validation_preregistered",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -202,7 +210,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 32,
+  "component_count": 33,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -315,6 +323,38 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_preregistration_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "formal_preregistration_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_preregistration_seal",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_preregistration_simulation",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
     },
     {
       "declared_state": "fresh",
@@ -865,6 +905,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "formal_validation_preregistration",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "full1000_execution_readiness",
       "reasons": [],
       "stale_components": [],
@@ -980,8 +1028,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 15,
-    "fresh": 104,
+    "blocked": 16,
+    "fresh": 109,
     "not_applicable": 1,
     "stale": 0
   },

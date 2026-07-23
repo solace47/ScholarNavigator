@@ -39,3 +39,7 @@ PYTHONPATH=src python scripts/check_formal_validation_clearance.py verify-receip
 Full1000 未完成、真实人工 Precision 缺失和官方 scorer/schema 缺失三项阻断。
 此外，权威撤销账本中的任一活动事件会先于 receipt 状态机阻断 audit、evaluate、issue 和
 verify；只有经过 freshness 门禁的新证据完成 supersede/restored 链后才可恢复资格。
+
+clearance CLI 在评估或签发 receipt 前还会验证
+`formal_validation_preregistration_v1` 的当前 seal；预注册缺失、依赖漂移或后验语义修改
+均阻断后续清除流程。预注册封印本身不满足三项外部证据谓词。

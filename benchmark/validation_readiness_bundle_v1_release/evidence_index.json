@@ -162,6 +162,52 @@
       "size": 569
     },
     {
+      "dependencies": [],
+      "evidence_id": "formal_preregistration_protocol",
+      "format": "json",
+      "path": "benchmark/formal_validation_preregistration_v1_protocol.json",
+      "protocol": "formal_validation_preregistration_v1",
+      "role": "preregistration_protocol",
+      "sha256": "b2ab16003cc843657896cda863deaab39bfb80f2b098e8eaf24e718304e8920a",
+      "size": 8359
+    },
+    {
+      "dependencies": [
+        "formal_preregistration_seal"
+      ],
+      "evidence_id": "formal_preregistration_readiness",
+      "format": "json",
+      "path": "benchmark/formal_validation_preregistration_v1_evidence/readiness.json",
+      "protocol": "formal_validation_preregistration_v1",
+      "role": "current_preregistration_readiness",
+      "sha256": "333cc0573111500407447fb05c759fbc3ed6de12d916850ecc1cd5ce8de68680",
+      "size": 762
+    },
+    {
+      "dependencies": [
+        "formal_preregistration_protocol"
+      ],
+      "evidence_id": "formal_preregistration_seal",
+      "format": "json",
+      "path": "benchmark/formal_validation_preregistration_v1_seal.json",
+      "protocol": "formal_validation_preregistration_v1",
+      "role": "immutable_preregistration_seal",
+      "sha256": "7236611c13d6f61a3ec98128344bf97fc9e4295628fe60147badeaf2b5576d7d",
+      "size": 4675
+    },
+    {
+      "dependencies": [
+        "formal_preregistration_protocol"
+      ],
+      "evidence_id": "formal_preregistration_simulation",
+      "format": "json",
+      "path": "benchmark/formal_validation_preregistration_v1_evidence/simulation.json",
+      "protocol": "formal_validation_preregistration_v1",
+      "role": "synthetic_posthoc_contamination_matrix",
+      "sha256": "5ac719a682a634d2a70a3877b836c39c157e907300b490b0332ebf14f782f43e",
+      "size": 2635
+    },
+    {
       "dependencies": [
         "full1000_execution_plan",
         "full1000_launch_control_protocol",
@@ -549,8 +595,8 @@
       "path": "benchmark/public_contract_compatibility_v1_baseline.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "contract_baseline",
-      "sha256": "8fe923a542b24085d97ac1cf302a14b52d7ba0c753367b724523225889534689",
-      "size": 366582
+      "sha256": "f76cb569bec7c57cdbabbb482e3871c11270032669c1731b5d5e13f729503601",
+      "size": 400420
     },
     {
       "dependencies": [
@@ -562,7 +608,7 @@
       "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "compatibility_verification",
-      "sha256": "3f9b129043ce9affe81c09f1b8e63269f2e0ccbd692cc8d81a3a6cc524c29245",
+      "sha256": "26138ad9aee33b160092550461d379e580984efa1ecd33245df3677d5985b1d5",
       "size": 551
     },
     {
@@ -572,8 +618,8 @@
       "path": "benchmark/public_contract_compatibility_v1_protocol.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "protocol",
-      "sha256": "62be182559a3c3cae55de26208b94d87d0704642574660264347ff30793c330c",
-      "size": 6122
+      "sha256": "f8bafb6e6c70185b853a641e1150c4fce0e99f9351c9d2c2dd61a3cdd4f21726",
+      "size": 6908
     },
     {
       "dependencies": [
@@ -778,8 +824,8 @@
       "path": "benchmark/standalone_auditor_bundle_v1_evidence/readiness.json",
       "protocol": "standalone_auditor_bundle_v1",
       "role": "external_auditor_readiness",
-      "sha256": "5661d93a28b27cff1c8a3c54d2172d5d45310a3b32f468eafab6a0a1cb4e7d1c",
-      "size": 732
+      "sha256": "34d0c3dc272678e7ecf9f6bc79903e76633db95406f27cbcbd55a17d984a60ae",
+      "size": 286
     },
     {
       "dependencies": [
@@ -858,8 +904,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "d3ad6cb9f787b6b70ea0a5b72bff3a6782e912f78bb2d507ed79bfa1a62633d5",
-      "size": 25672
+      "sha256": "70864350efd80ee45adda94c488c7aa3b6c34ba78382e55b4f4e47257c8ddbac",
+      "size": 26946
     },
     {
       "dependencies": [],
@@ -868,8 +914,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "ea1147a535b81ccfb359cf030842c442eaa5e9c1a34e9543a85c7a276bbd219b",
-      "size": 101196
+      "sha256": "0e991ed98cc781ab34a2b18083e7848d8388b2032ce593919a5a4eae0c718c9b",
+      "size": 105920
     },
     {
       "dependencies": [
@@ -885,7 +931,7 @@
       "size": 3349
     }
   ],
-  "evidence_count": 76,
+  "evidence_count": 80,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

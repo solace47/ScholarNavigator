@@ -2,6 +2,7 @@
   "artifact_contracts": {
     "clearance": "benchmark/formal_validation_clearance_v1_protocol.json",
     "external_scorer_handoff": "benchmark/external_scorer_handoff_v1_protocol.json",
+    "formal_validation_preregistration": "benchmark/formal_validation_preregistration_v1_protocol.json",
     "human_annotation_delivery": "benchmark/human_annotation_delivery_v1_protocol.json",
     "readiness": "benchmark/validation_readiness_bundle_v1_contract.json"
   },
@@ -75,6 +76,16 @@
         {"arguments": ["evaluate", "--evidence", "{temp}/missing.json"], "command": "evaluate", "expected_exit_code": 2, "probe_id": "evaluate"},
         {"arguments": ["issue-receipt", "--evidence", "{temp}/missing.json", "--receipt", "{temp}/receipt.json"], "command": "issue-receipt", "expected_exit_code": 2, "probe_id": "issue_receipt"},
         {"arguments": ["verify-receipt", "--evidence", "{temp}/missing.json", "--receipt", "{temp}/missing-receipt.json"], "command": "verify-receipt", "expected_exit_code": 2, "probe_id": "verify_receipt"}
+      ]
+    },
+    "formal_validation_preregistration": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_formal_validation_preregistration.py",
+      "probes": [
+        {"arguments": ["build", "--output", "{temp}/seal.json"], "command": "build", "expected_exit_code": 0, "probe_id": "build"},
+        {"arguments": ["verify"], "command": "verify", "expected_exit_code": 0, "probe_id": "verify"},
+        {"arguments": ["simulate-amendment"], "command": "simulate-amendment", "expected_exit_code": 0, "probe_id": "simulate_amendment"},
+        {"arguments": ["audit-readiness"], "command": "audit-readiness", "expected_exit_code": 3, "probe_id": "audit_readiness"}
       ]
     },
     "human_annotation_delivery": {

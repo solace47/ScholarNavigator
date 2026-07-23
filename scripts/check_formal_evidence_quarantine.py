@@ -30,6 +30,10 @@ from scholar_agent.evaluation.formal_evidence_quarantine import (  # noqa: E402
     verify_boundaries,
     verify_intake_manifest,
 )
+from scholar_agent.evaluation.formal_validation_preregistration import (  # noqa: E402
+    PreregistrationError,
+    assert_current_preregistration,
+)
 
 
 DEFAULT_PROTOCOL = ROOT / "benchmark/formal_evidence_quarantine_v1_protocol.json"
@@ -83,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
         root = Path(args.repository_root).resolve()
+        assert_current_preregistration(root)
         protocol = load_protocol(Path(args.protocol))
         if args.command == "verify-boundaries":
             report = verify_boundaries(root, protocol)
@@ -133,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "usage_error", "exit_code": EXIT_USAGE}
         _emit(report)
         return EXIT_USAGE
-    except QuarantineError as exc:
+    except (QuarantineError, PreregistrationError) as exc:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "violation", "exit_code": EXIT_VIOLATION, "error_code": str(exc), "formal_validation_complete": False}
         _emit(report)
         return EXIT_VIOLATION

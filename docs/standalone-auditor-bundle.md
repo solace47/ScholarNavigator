@@ -55,3 +55,9 @@ are temporary release products and are intentionally not tracked.
 The current archive preserves `formal_validation_complete=false` and all three
 formal blockers: Full1000 completion, real independent human Precision, and an
 exact official scorer/schema.
+
+New archives also include a redacted `preregistration.json`. It exposes only
+the sealed state, protocol/seal digests, and the same three external blockers.
+The trusted repository verifier checks the tracked preregistration seal and
+its registered dependencies before building; the archive verifier then checks
+the redacted member without receiving queries, labels, or scorer definitions.

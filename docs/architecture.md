@@ -397,3 +397,14 @@ wheel，通过文件名、METADATA、WHEEL、RECORD、兼容 tag 与依赖闭包
 `--no-index --require-hashes` 在两个临时 venv 中验证完整介质。来源和许可证证据无法证明时
 保持 `unknown`；临时合成 wheel 只验证接收链路，不能解除真实 23 项介质缺失造成的发布阻断。
 协议与命令见 [`docs/offline-wheelhouse-intake.md`](offline-wheelhouse-intake.md)。
+
+## 正式验证预注册封印
+
+`formal_validation_preregistration_v1` 位于 Full1000 执行、人工标签 intake 和官方 scorer
+之前，复用既有 execution plan、人工裁决、scorer handoff、comparison plan、freshness、
+quarantine 与 clearance 契约。确定性 seal 绑定 1000 条身份/顺序、`current_rules` 配置、
+471 项双评裁决规则、change-only cluster-aware 统计、停止条件和禁止外推边界。正式证据
+进入后，任何样本、阈值、统计、排除、默认策略或声明边界的语义修改都会转为
+`invalid_post_evidence_change`；只有机器证明语义摘要不变的文档勘误可保留封印。
+quarantine 与 clearance CLI 均先验证当前 seal，standalone auditor 只发布脱敏封印摘要。
+这项能力只防止后验分析污染，不生成质量指标，也不解除三项正式验证阻断。

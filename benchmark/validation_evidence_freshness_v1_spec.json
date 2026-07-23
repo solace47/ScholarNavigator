@@ -1,8 +1,9 @@
 {
-  "baseline_head": "1fe21cb0c384304b18a0956cb028cc0e7aa971a4",
+  "baseline_head": "b983b23f1405a12d51cd78bd7acf53ad8dbfcee3",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
+    "formal_preregistration_readiness",
     "full1000_resume_summary",
     "human_annotation_delivery_readiness",
     "human_precision_pending",
@@ -29,12 +30,6 @@
       "full1000_resume",
       "top20_delivery"
     ],
-    "architecture_formal_validation_clearance_gated": [
-      "formal_validation_clearance",
-      "full1000_execution",
-      "human_precision",
-      "official_scorer_absence"
-    ],
     "architecture_formal_evidence_quarantine_ready": [
       "formal_evidence_quarantine",
       "human_precision",
@@ -45,6 +40,15 @@
       "full1000_execution",
       "full1000_launch_control",
       "provider_ingest_provenance"
+    ],
+    "architecture_formal_validation_clearance_gated": [
+      "formal_validation_clearance",
+      "full1000_execution",
+      "human_precision",
+      "official_scorer_absence"
+    ],
+    "architecture_formal_validation_preregistered": [
+      "formal_validation_preregistration"
     ],
     "architecture_full1000_execution_plan_ready": [
       "full1000_execution"
@@ -71,16 +75,16 @@
       "python_dependency_lock",
       "release_candidate_reproducibility"
     ],
-    "architecture_python_dependency_lock": [
-      "python_dependency_lock",
-      "release_candidate_reproducibility"
+    "architecture_provider_ingest_provenance_ready": [
+      "full1000_execution",
+      "provider_ingest_provenance"
     ],
     "architecture_public_contract_compatibility": [
       "public_contract_compatibility"
     ],
-    "architecture_provider_ingest_provenance_ready": [
-      "full1000_execution",
-      "provider_ingest_provenance"
+    "architecture_python_dependency_lock": [
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
     ],
     "architecture_release_candidate_reproducibility": [
       "frontend_reproducible_build",
@@ -234,6 +238,19 @@
       "kind": "formal_blocker_state_machine_and_receipt"
     },
     {
+      "component_id": "formal_validation_preregistration",
+      "files": [
+        "benchmark/formal_validation_preregistration_v1_evidence/readiness.json",
+        "benchmark/formal_validation_preregistration_v1_evidence/simulation.json",
+        "benchmark/formal_validation_preregistration_v1_protocol.json",
+        "benchmark/formal_validation_preregistration_v1_seal.json",
+        "docs/formal-validation-preregistration.md",
+        "scripts/check_formal_validation_preregistration.py",
+        "src/scholar_agent/evaluation/formal_validation_preregistration.py"
+      ],
+      "kind": "formal_analysis_plan_seal_and_posthoc_change_gate"
+    },
+    {
       "component_id": "frontend_reproducible_build",
       "files": [
         "benchmark/frontend_reproducible_build_v1_protocol.json",
@@ -350,28 +367,6 @@
       "kind": "offline_artifact_supply_chain_and_install_qualification"
     },
     {
-      "component_id": "python_dependency_lock",
-      "files": [
-        "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
-        "benchmark/python_dependency_lock_v1_evidence/release_audit.json",
-        "benchmark/python_dependency_lock_v1_evidence/release_review.json",
-        "benchmark/python_dependency_lock_v1_evidence/verification.json",
-        "benchmark/python_dependency_lock_v1_manifest.json",
-        "benchmark/python_dependency_lock_v1_protocol.json",
-        "benchmark/python_dependency_lock_v1_release_closure.json",
-        "benchmark/python_dependency_lock_v1_release_contract.json",
-        "docs/python-dependency-lock.md",
-        "requirements-dev.lock",
-        "requirements-dev.txt",
-        "requirements-runtime.lock",
-        "requirements.txt",
-        "scripts/check_python_dependency_lock.py",
-        "src/scholar_agent/evaluation/python_dependency_lock.py",
-        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
-      ],
-      "kind": "python_dependency_lock_and_offline_install_qualification"
-    },
-    {
       "component_id": "provider_ingest_provenance",
       "files": [
         "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
@@ -404,6 +399,28 @@
         "src/scholar_agent/evaluation/run_provenance.py"
       ],
       "kind": "public_api_cli_and_artifact_contract_governance"
+    },
+    {
+      "component_id": "python_dependency_lock",
+      "files": [
+        "benchmark/python_dependency_lock_v1_evidence/offline_install.json",
+        "benchmark/python_dependency_lock_v1_evidence/release_audit.json",
+        "benchmark/python_dependency_lock_v1_evidence/release_review.json",
+        "benchmark/python_dependency_lock_v1_evidence/verification.json",
+        "benchmark/python_dependency_lock_v1_manifest.json",
+        "benchmark/python_dependency_lock_v1_protocol.json",
+        "benchmark/python_dependency_lock_v1_release_closure.json",
+        "benchmark/python_dependency_lock_v1_release_contract.json",
+        "docs/python-dependency-lock.md",
+        "requirements-dev.lock",
+        "requirements-dev.txt",
+        "requirements-runtime.lock",
+        "requirements.txt",
+        "scripts/check_python_dependency_lock.py",
+        "src/scholar_agent/evaluation/python_dependency_lock.py",
+        "src/scholar_agent/evaluation/release_candidate_reproducibility.py"
+      ],
+      "kind": "python_dependency_lock_and_offline_install_qualification"
     },
     {
       "component_id": "ranking_decision",
@@ -483,15 +500,6 @@
       "kind": "production_connectors_and_canonicalization"
     },
     {
-      "component_id": "tiebreak",
-      "files": [
-        "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
-        "scripts/check_tiebreak_qualification.py",
-        "src/scholar_agent/evaluation/tiebreak_qualification.py"
-      ],
-      "kind": "audit_implementation"
-    },
-    {
       "component_id": "standalone_auditor_bundle",
       "files": [
         "benchmark/standalone_auditor_bundle_v1_contract.json",
@@ -500,6 +508,15 @@
         "scripts/check_standalone_auditor_bundle.py"
       ],
       "kind": "standalone_external_audit_publication"
+    },
+    {
+      "component_id": "tiebreak",
+      "files": [
+        "benchmark/deterministic_tiebreak_qualification_v1_protocol.json",
+        "scripts/check_tiebreak_qualification.py",
+        "src/scholar_agent/evaluation/tiebreak_qualification.py"
+      ],
+      "kind": "audit_implementation"
     },
     {
       "component_id": "top20_delivery",
@@ -541,6 +558,10 @@
       "constraint_runtime",
       "identity_runtime"
     ],
+    "evidence_registry_gate": [
+      "default_policy",
+      "evidence_registry"
+    ],
     "evidence_revocation_ledger": [
       "evidence_revocation"
     ],
@@ -549,10 +570,6 @@
     ],
     "evidence_revocation_simulation": [
       "evidence_revocation"
-    ],
-    "evidence_registry_gate": [
-      "default_policy",
-      "evidence_registry"
     ],
     "external_scorer_protocol": [
       "external_scorer",
@@ -567,15 +584,6 @@
     "external_scorer_synthetic_matrix": [
       "external_scorer"
     ],
-    "frontend_reproducible_build_protocol": [
-      "frontend_reproducible_build"
-    ],
-    "frontend_reproducible_build_qualification": [
-      "frontend_reproducible_build"
-    ],
-    "frontend_reproducible_release_contract": [
-      "frontend_reproducible_build"
-    ],
     "formal_evidence_quarantine_protocol": [
       "formal_evidence_quarantine"
     ],
@@ -583,6 +591,18 @@
       "formal_evidence_quarantine",
       "human_precision",
       "official_scorer_absence"
+    ],
+    "formal_preregistration_protocol": [
+      "formal_validation_preregistration"
+    ],
+    "formal_preregistration_readiness": [
+      "formal_validation_preregistration"
+    ],
+    "formal_preregistration_seal": [
+      "formal_validation_preregistration"
+    ],
+    "formal_preregistration_simulation": [
+      "formal_validation_preregistration"
     ],
     "formal_run_disaster_recovery_protocol": [
       "formal_run_disaster_recovery",
@@ -611,8 +631,14 @@
     "formal_validation_clearance_protocol": [
       "formal_validation_clearance"
     ],
-    "full1000_resume_summary": [
-      "full1000_resume"
+    "frontend_reproducible_build_protocol": [
+      "frontend_reproducible_build"
+    ],
+    "frontend_reproducible_build_qualification": [
+      "frontend_reproducible_build"
+    ],
+    "frontend_reproducible_release_contract": [
+      "frontend_reproducible_build"
     ],
     "full1000_execution_dry_run": [
       "full1000_execution"
@@ -644,6 +670,9 @@
       "full1000_launch_control",
       "provider_ingest_provenance"
     ],
+    "full1000_resume_summary": [
+      "full1000_resume"
+    ],
     "human_annotation_delivery_dry_run": [
       "human_annotation",
       "human_precision"
@@ -663,6 +692,26 @@
     ],
     "official_scorer_blocked": [
       "official_scorer_absence"
+    ],
+    "offline_wheelhouse_install_test": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_manifest": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_protocol": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_release_review": [
+      "offline_wheelhouse_intake",
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
+    ],
+    "offline_wheelhouse_synthetic": [
+      "offline_wheelhouse_intake"
+    ],
+    "offline_wheelhouse_verification": [
+      "offline_wheelhouse_intake"
     ],
     "provider_ingest_capture_addendum": [
       "full1000_execution",
@@ -686,26 +735,6 @@
     ],
     "public_contract_protocol": [
       "public_contract_compatibility"
-    ],
-    "offline_wheelhouse_install_test": [
-      "offline_wheelhouse_intake"
-    ],
-    "offline_wheelhouse_manifest": [
-      "offline_wheelhouse_intake"
-    ],
-    "offline_wheelhouse_protocol": [
-      "offline_wheelhouse_intake"
-    ],
-    "offline_wheelhouse_release_review": [
-      "offline_wheelhouse_intake",
-      "python_dependency_lock",
-      "release_candidate_reproducibility"
-    ],
-    "offline_wheelhouse_synthetic": [
-      "offline_wheelhouse_intake"
-    ],
-    "offline_wheelhouse_verification": [
-      "offline_wheelhouse_intake"
     ],
     "python_dependency_lock_manifest": [
       "python_dependency_lock"
@@ -833,12 +862,12 @@
       "constraint_runtime",
       "identity_runtime"
     ],
-    "evidence_revocation": [
-      "evidence_revocation"
-    ],
     "evidence_registry": [
       "default_policy",
       "evidence_registry"
+    ],
+    "evidence_revocation": [
+      "evidence_revocation"
     ],
     "external_scorer_handoff": [
       "external_scorer",
@@ -862,6 +891,9 @@
       "human_precision",
       "official_scorer_absence"
     ],
+    "formal_validation_preregistration": [
+      "formal_validation_preregistration"
+    ],
     "full1000_execution_readiness": [
       "full1000_execution"
     ],
@@ -877,10 +909,6 @@
     "offline_wheelhouse_intake": [
       "offline_wheelhouse_intake"
     ],
-    "python_dependency_lock": [
-      "python_dependency_lock",
-      "release_candidate_reproducibility"
-    ],
     "provider_ingest_provenance": [
       "full1000_execution",
       "provider_ingest_provenance",
@@ -888,6 +916,10 @@
     ],
     "public_contract_compatibility": [
       "public_contract_compatibility"
+    ],
+    "python_dependency_lock": [
+      "python_dependency_lock",
+      "release_candidate_reproducibility"
     ],
     "ranking_decisions": [
       "identity_runtime",

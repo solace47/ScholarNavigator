@@ -37,3 +37,7 @@ PYTHONPATH=src python scripts/check_formal_evidence_quarantine.py audit-contamin
 `3=blocked_no_real_formal_evidence`、`4=usage_error`。当前只验证临时合成 evidence 的控制链，
 真实审计固定返回 3；Full1000、真实人工 Precision、官方 scorer 三项阻断及
 `formal_validation_complete=false` 均不变。
+
+所有 quarantine CLI 命令在处理 intake 前先验证
+`formal_validation_preregistration_v1` 的当前 seal。封印缺失、依赖漂移或被篡改时，
+即使隔离目录与 manifest 本身合法也会 fail-closed。
