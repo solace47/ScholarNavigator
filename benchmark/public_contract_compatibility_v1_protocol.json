@@ -3,6 +3,7 @@
     "clearance": "benchmark/formal_validation_clearance_v1_protocol.json",
     "evidence_transparency": "benchmark/evidence_transparency_log_v1_protocol.json",
     "external_scorer_handoff": "benchmark/external_scorer_handoff_v1_protocol.json",
+    "formal_run_storage_governance": "benchmark/formal_run_storage_governance_v1_protocol.json",
     "formal_validation_dress_rehearsal": "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
     "formal_validation_preregistration": "benchmark/formal_validation_preregistration_v1_protocol.json",
     "human_annotation_delivery": "benchmark/human_annotation_delivery_v1_protocol.json",
@@ -124,6 +125,53 @@
         {"arguments": ["audit-readiness"], "command": "audit-readiness", "expected_exit_code": 3, "probe_id": "audit_readiness"}
       ]
     },
+    "formal_run_storage_governance": {
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "path": "scripts/check_formal_run_storage.py",
+      "probes": [
+        {
+          "arguments": [
+            "build-plan"
+          ],
+          "command": "build-plan",
+          "expected_exit_code": 0,
+          "probe_id": "build_plan"
+        },
+        {
+          "arguments": [
+            "verify-capacity",
+            "--primary-root",
+            "{temp}/missing-primary",
+            "--backup-root",
+            "{temp}/missing-backup"
+          ],
+          "command": "verify-capacity",
+          "expected_exit_code": 3,
+          "probe_id": "verify_capacity"
+        },
+        {
+          "arguments": [
+            "simulate-pressure"
+          ],
+          "command": "simulate-pressure",
+          "expected_exit_code": 0,
+          "probe_id": "simulate_pressure"
+        },
+        {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "expected_exit_code": 3,
+          "probe_id": "audit_readiness"
+        }
+      ]
+    },
     "formal_validation_clearance": {
       "exit_codes": [0, 2, 3, 4],
       "path": "scripts/check_formal_validation_clearance.py",
@@ -212,6 +260,7 @@
     "docs/evidence-transparency-log.md",
     "docs/evaluation.md",
     "docs/external-scorer-handoff.md",
+    "docs/formal-run-storage-governance.md",
     "docs/formal-validation-clearance.md",
     "docs/formal-validation-dress-rehearsal.md",
     "docs/human-annotation-delivery.md",

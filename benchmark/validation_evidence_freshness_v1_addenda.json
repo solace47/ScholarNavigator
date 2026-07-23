@@ -1,7 +1,8 @@
 {
   "blocked_evidence_ids": [
     "evidence_transparency_readiness",
-    "formal_dress_rehearsal_readiness"
+    "formal_dress_rehearsal_readiness",
+    "formal_run_storage_readiness"
   ],
   "claim_component_bindings": {
     "architecture_formal_validation_dress_rehearsal_ready": [
@@ -9,6 +10,9 @@
     ],
     "architecture_evidence_transparency_controls_ready": [
       "evidence_transparency_log"
+    ],
+    "architecture_formal_run_storage_controls_ready": [
+      "formal_run_storage_governance"
     ]
   },
   "components": [
@@ -41,6 +45,23 @@
         "src/scholar_agent/evaluation/formal_validation_dress_rehearsal.py"
       ],
       "kind": "synthetic_formal_validation_end_to_end_rehearsal"
+    },
+    {
+      "component_id": "formal_run_storage_governance",
+      "files": [
+        "benchmark/formal_run_storage_governance_v1_evidence/readiness.json",
+        "benchmark/formal_run_storage_governance_v1_evidence/simulation.json",
+        "benchmark/formal_run_storage_governance_v1_plan.json",
+        "benchmark/formal_run_storage_governance_v1_protocol.json",
+        "benchmark/full1000_storage_governance_addendum_v1.json",
+        "benchmark/validation_evidence_freshness_v1_addenda.json",
+        "docs/formal-run-storage-governance.md",
+        "docs/full1000-launch-control.md",
+        "scripts/check_formal_run_storage.py",
+        "src/scholar_agent/evaluation/formal_run_storage_governance.py",
+        "src/scholar_agent/evaluation/provider_ingest_provenance.py"
+      ],
+      "kind": "formal_run_capacity_quota_retention_control"
     }
   ],
   "evidence_component_bindings": {
@@ -61,6 +82,21 @@
     ],
     "formal_dress_rehearsal_readiness": [
       "formal_validation_dress_rehearsal"
+    ],
+    "formal_run_storage_addendum": [
+      "formal_run_storage_governance"
+    ],
+    "formal_run_storage_plan": [
+      "formal_run_storage_governance"
+    ],
+    "formal_run_storage_protocol": [
+      "formal_run_storage_governance"
+    ],
+    "formal_run_storage_readiness": [
+      "formal_run_storage_governance"
+    ],
+    "formal_run_storage_simulation": [
+      "formal_run_storage_governance"
     ]
   },
   "gate_component_bindings": {
@@ -69,6 +105,9 @@
     ],
     "formal_validation_dress_rehearsal": [
       "formal_validation_dress_rehearsal"
+    ],
+    "formal_run_storage_governance": [
+      "formal_run_storage_governance"
     ]
   },
   "protocol": "validation_evidence_freshness_v1_addenda",

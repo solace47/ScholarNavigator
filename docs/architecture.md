@@ -424,3 +424,16 @@ fail-closed。当前只生成绑定固定提交 Git blob 的 candidate-only chec
 软件候选或未完成正式验证标记为公开发布。哈希链只证明内容与历史一致性，不认证发布者身份。
 契约和命令见
 [`docs/evidence-transparency-log.md`](evidence-transparency-log.md)。
+
+## Full1000 存储治理
+
+`formal_run_storage_governance_v1` 在未来正式启动授权之外增加存储 addendum，以冻结计划中的
+19,280 次 HTTP attempt、1,040 个选定提交代和 20 个 shard 为人口边界，并把来源原始响应、
+提交代、资源账本、aggregate 与灾备链纳入逐层字节和文件配额。写入通过注入式
+reserve→commit→release 账本在新代公开前复核剩余字节、inode 和文件系统配额；容量下降、
+ENOSPC、inode 耗尽和双 writer 都必须保留上一完整代后停止。
+
+原始响应取证在产品中仍默认关闭，未来 Full1000 计划须显式启用 32 MiB/响应硬上限；超限
+attempt 以 `capture_size_exceeded` 终止，不截断、不解析。当前真实主/备盘容量与配额尚未
+登记，因此门禁只证明离线控制能力，真实 readiness 保持 `not_ready_capacity_unverified`。
+详见 [`docs/formal-run-storage-governance.md`](formal-run-storage-governance.md)。

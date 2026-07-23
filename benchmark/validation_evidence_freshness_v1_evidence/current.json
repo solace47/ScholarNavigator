@@ -1,5 +1,5 @@
 {
-  "baseline_head": "f764eb3c0849c53512f9326d7a83429e1c430a7b",
+  "baseline_head": "fe3ae9c1516661925d0b176837141d6542e7abb0",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -43,6 +43,14 @@
     },
     {
       "claim_id": "architecture_formal_run_disaster_recovery_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_formal_run_storage_controls_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -226,7 +234,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 35,
+  "component_count": 36,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -439,6 +447,46 @@
     {
       "declared_state": "fresh",
       "evidence_id": "formal_run_disaster_recovery_simulation",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_storage_addendum",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_storage_plan",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_storage_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "formal_run_storage_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_storage_simulation",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -969,6 +1017,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "formal_run_storage_governance",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "formal_validation_clearance",
       "reasons": [],
       "stale_components": [],
@@ -1108,8 +1164,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 18,
-    "fresh": 117,
+    "blocked": 19,
+    "fresh": 123,
     "not_applicable": 1,
     "stale": 0
   },

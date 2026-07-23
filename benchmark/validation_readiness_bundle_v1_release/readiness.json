@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 29,
+  "claim_count": 30,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 84,
-    "implementation_tree_sha256": "6d568091b74909968d6eb87466e83e485c59f0ebcb6b40d3f730ff502035d619"
+    "implementation_file_count": 92,
+    "implementation_tree_sha256": "df0cdb8390a7410e797a5e92a9716ee5cda4b33b273600d9932650ee2f06dbae"
   },
   "consistency_assertion_count": 15,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 26,
+  "read_only_gate_count": 27,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -42,7 +42,7 @@
     {
       "exit_code": 0,
       "gate_id": "evidence_revocation",
-      "output_sha256": "02854754113af9aca6b6b81972b5be53e3d5de7d173bf468d07e87785b1d35fc",
+      "output_sha256": "4b470cd32dc940ba8825159a59e0974654cb6bcb81201bfae78fe2d817236c8a",
       "status": "revocation_controls_ready"
     },
     {
@@ -68,6 +68,12 @@
       "gate_id": "formal_run_disaster_recovery",
       "output_sha256": "8af19ecb7cc0a147636472bb22ebc312cb9e88744e261283c5bf847362dcb253",
       "status": "external_run_not_started"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "formal_run_storage_governance",
+      "output_sha256": "d150ed6dd37b838b83055c024d4740775af1c0c1046db7a0579339ae3d23255d",
+      "status": "not_ready_capacity_unverified"
     },
     {
       "exit_code": 3,
@@ -120,7 +126,7 @@
     {
       "exit_code": 0,
       "gate_id": "public_contract_compatibility",
-      "output_sha256": "6731e1e9a44cd1b92a1e15b55a11be010e7308b75dcf2a48a450c524474eb07e",
+      "output_sha256": "20bf25d01eae9c274d28eeb0e7e109a23922721a5d421a276bbddb9053029625",
       "status": "contracts_compatible"
     },
     {
@@ -156,7 +162,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "f2a11f391569bce2026e120cbdcff804e03327b94988dc4b86d3da4160c700b2",
+      "output_sha256": "77e281725052464edeb22b349736851fed7394b3291ba4e740223330df9d8812",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -174,7 +180,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "476e6073fb0342512133815a0a9f6ca9f6811deacbcc5c2302fdfb8a623e279f",
+      "output_sha256": "552caa49e76837103471c5198ca2842a3c30b11894749df527e2b6ac0b4b72ab",
       "status": "fresh_with_declared_blockers"
     }
   ],

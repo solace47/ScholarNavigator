@@ -63,6 +63,7 @@ ParserName = Literal[
 ]
 TerminalState = Literal[
     "adapter_exception",
+    "capture_size_exceeded",
     "connection_failure",
     "http_error",
     "malformed_response",
@@ -255,12 +256,16 @@ class ProviderCaptureRecorder:
         attempt_identity: str,
         checkpoint_generation: int,
         manifest_identity: str,
+        capture_limit_bytes: int | None = None,
     ) -> None:
         self.run_identity = run_identity
         self.query_identity = query_identity
         self.attempt_identity = attempt_identity
         self.checkpoint_generation = checkpoint_generation
         self.manifest_identity = manifest_identity
+        if capture_limit_bytes is not None and capture_limit_bytes <= 0:
+            raise ProviderIngestError("capture_limit_invalid")
+        self.capture_limit_bytes = capture_limit_bytes
         self._captured: list[tuple[ProviderAttemptEnvelope, bytes | None]] = []
         self._request_sequences: set[int] = set()
 
@@ -285,6 +290,17 @@ class ProviderCaptureRecorder:
     ) -> ProviderAttemptEnvelope:
         if request_sequence in self._request_sequences:
             raise ProviderIngestError("duplicate_request_sequence")
+        if (
+            raw_bytes is not None
+            and self.capture_limit_bytes is not None
+            and len(raw_bytes) > self.capture_limit_bytes
+        ):
+            # Exact replay evidence is all-or-nothing.  Never truncate an
+            # oversized provider response and never present the attempt as a
+            # successful parser replay.
+            raw_bytes = None
+            terminal_state = "capture_size_exceeded"
+            terminal_reason_code = "capture_size_exceeded"
         envelope, body = create_envelope(
             run_identity=self.run_identity,
             query_identity=self.query_identity,

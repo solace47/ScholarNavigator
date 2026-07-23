@@ -63,6 +63,12 @@ clearance、freshness 与 revocation Git blob；公开 release 数为 0。该状
 inclusion/consistency proof 和阻断披露控制可复核，但不认证发布者身份，不改变发布候选资格，
 也不解除 Full1000、真实人工 Precision 或官方 scorer/schema 三项阻断。
 
+`formal_run_storage_governance_v1` 仅登记“正式运行存储控制就绪”工程声明。冻结计划的
+HTTP attempt、提交代和 shard 上限已映射为响应、代、shard、运行和备份链配额，注入式
+1000-query 压力演练验证低空间回滚、超大响应 fail-closed、保留窗口和单 writer 约束。
+真实主盘与备份盘的可用空间、inode 和文件系统配额仍未提供，因此 readiness 保持
+`not_ready_capacity_unverified`，不会解除 Full1000 未完成阻断。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。

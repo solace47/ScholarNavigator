@@ -670,6 +670,478 @@
         "schema_version": "1"
       }
     },
+    "formal_run_storage_governance": {
+      "recursive_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": false,
+            "properties": {
+              "crash_consistency": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "disaster_recovery": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "execution_plan": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "launch_control": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "provider_capture_addendum": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "provider_ingest": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              },
+              "resource_accounting": {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "crash_consistency",
+              "disaster_recovery",
+              "execution_plan",
+              "launch_control",
+              "provider_capture_addendum",
+              "provider_ingest",
+              "resource_accounting"
+            ],
+            "type": "object"
+          },
+          "capacity": {
+            "additionalProperties": false,
+            "properties": {
+              "backup_atomic_staging_multiplier": {
+                "type": "integer"
+              },
+              "credit_for_compression_or_sparse_files": {
+                "type": "integer"
+              },
+              "credit_for_future_cleanup": {
+                "type": "integer"
+              },
+              "required_observations": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "requirements": {
+                "additionalProperties": false,
+                "properties": {
+                  "backup": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "bytes": {
+                        "type": "integer"
+                      },
+                      "inodes": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "bytes",
+                      "inodes"
+                    ],
+                    "type": "object"
+                  },
+                  "primary": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "bytes": {
+                        "type": "integer"
+                      },
+                      "inodes": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "bytes",
+                      "inodes"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "backup",
+                  "primary"
+                ],
+                "type": "object"
+              },
+              "safety_reserve_bytes": {
+                "type": "integer"
+              },
+              "verification": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "backup_atomic_staging_multiplier",
+              "credit_for_compression_or_sparse_files",
+              "credit_for_future_cleanup",
+              "required_observations",
+              "requirements",
+              "safety_reserve_bytes",
+              "verification"
+            ],
+            "type": "object"
+          },
+          "capture_limit": {
+            "additionalProperties": false,
+            "properties": {
+              "default_enabled": {
+                "type": "boolean"
+              },
+              "formal_plan_enabled": {
+                "type": "boolean"
+              },
+              "max_archive_bytes_per_generation": {
+                "type": "integer"
+              },
+              "max_response_bytes": {
+                "type": "integer"
+              },
+              "oversize_behavior": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "default_enabled",
+              "formal_plan_enabled",
+              "max_archive_bytes_per_generation",
+              "max_response_bytes",
+              "oversize_behavior",
+              "source"
+            ],
+            "type": "object"
+          },
+          "execution": {
+            "additionalProperties": false,
+            "properties": {
+              "gold_or_qrels_loaded": {
+                "type": "boolean"
+              },
+              "llm_request_count": {
+                "type": "integer"
+              },
+              "network_request_count": {
+                "type": "integer"
+              },
+              "quality_metric_count": {
+                "type": "integer"
+              },
+              "snapshot_write_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "gold_or_qrels_loaded",
+              "llm_request_count",
+              "network_request_count",
+              "quality_metric_count",
+              "snapshot_write_count"
+            ],
+            "type": "object"
+          },
+          "formal_validation_complete": {
+            "type": "boolean"
+          },
+          "population": {
+            "additionalProperties": false,
+            "properties": {
+              "http_attempt_upper": {
+                "type": "integer"
+              },
+              "query_count": {
+                "type": "integer"
+              },
+              "selected_generation_upper": {
+                "type": "integer"
+              },
+              "shard_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "http_attempt_upper",
+              "query_count",
+              "selected_generation_upper",
+              "shard_count"
+            ],
+            "type": "object"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocol_sha256": {
+            "type": "string"
+          },
+          "quotas": {
+            "additionalProperties": false,
+            "properties": {
+              "aggregate": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              },
+              "backup_chain": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              },
+              "committed_generation": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              },
+              "provider_response": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              },
+              "run": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              },
+              "shard": {
+                "additionalProperties": false,
+                "properties": {
+                  "max_bytes": {
+                    "type": "integer"
+                  },
+                  "max_files": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "max_bytes",
+                  "max_files"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "aggregate",
+              "backup_chain",
+              "committed_generation",
+              "provider_response",
+              "run",
+              "shard"
+            ],
+            "type": "object"
+          },
+          "retention": {
+            "additionalProperties": false,
+            "properties": {
+              "backup_chain_retained_restore_points": {
+                "type": "integer"
+              },
+              "cleanup_requires_verified_backup": {
+                "type": "boolean"
+              },
+              "never_delete": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "superseded_generation_window": {
+                "type": "integer"
+              },
+              "temporary_cleanup": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "backup_chain_retained_restore_points",
+              "cleanup_requires_verified_backup",
+              "never_delete",
+              "superseded_generation_window",
+              "temporary_cleanup"
+            ],
+            "type": "object"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "source_commit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bindings",
+          "capacity",
+          "capture_limit",
+          "execution",
+          "formal_validation_complete",
+          "population",
+          "protocol",
+          "protocol_sha256",
+          "quotas",
+          "retention",
+          "schema_version",
+          "source_commit"
+        ],
+        "type": "object"
+      },
+      "strict_unknown_fields": true,
+      "versions": {
+        "protocol": "formal_run_storage_governance_v1",
+        "schema_version": "1"
+      }
+    },
     "formal_validation_dress_rehearsal": {
       "recursive_schema": {
         "additionalProperties": false,
@@ -6727,6 +7199,660 @@
         }
       }
     },
+    "formal_run_storage_governance": {
+      "arguments": [
+        {
+          "names": [
+            "--addendum-output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--backup-root"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--primary-root"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [
+        "audit-readiness",
+        "build-plan",
+        "simulate-pressure",
+        "verify-capacity"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "probes": {
+        "audit_readiness": {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "exit_code": 3,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "full1000_blocker_cleared": {
+                "type": "boolean"
+              },
+              "missing_capacity_fields": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_backup_created": {
+                "type": "boolean"
+              },
+              "real_run_started": {
+                "type": "boolean"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "storage_plan_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "full1000_blocker_cleared",
+              "missing_capacity_fields",
+              "protocol",
+              "real_backup_created",
+              "real_run_started",
+              "schema_version",
+              "status",
+              "storage_plan_sha256"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_readiness",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "full1000_blocker_cleared",
+            "missing_capacity_fields",
+            "protocol",
+            "real_backup_created",
+            "real_run_started",
+            "schema_version",
+            "status",
+            "storage_plan_sha256"
+          ]
+        },
+        "build_plan": {
+          "arguments": [
+            "build-plan"
+          ],
+          "command": "build-plan",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "launch_addendum_sha256": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "storage_plan_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "launch_addendum_sha256",
+              "protocol",
+              "schema_version",
+              "status",
+              "storage_plan_sha256"
+            ],
+            "type": "object"
+          },
+          "probe_id": "build_plan",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "launch_addendum_sha256",
+            "protocol",
+            "schema_version",
+            "status",
+            "storage_plan_sha256"
+          ]
+        },
+        "simulate_pressure": {
+          "arguments": [
+            "simulate-pressure"
+          ],
+          "command": "simulate-pressure",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "closure": {
+                "additionalProperties": false,
+                "properties": {
+                  "http_attempt_upper": {
+                    "type": "integer"
+                  },
+                  "query_count": {
+                    "type": "integer"
+                  },
+                  "selected_generation_upper": {
+                    "type": "integer"
+                  },
+                  "shard_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "http_attempt_upper",
+                  "query_count",
+                  "selected_generation_upper",
+                  "shard_count"
+                ],
+                "type": "object"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "scenario_count": {
+                "type": "integer"
+              },
+              "scenarios": {
+                "additionalProperties": false,
+                "properties": {
+                  "backup_space_insufficient": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "capacity_drop": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "previous_generation_preserved": {
+                        "type": "boolean"
+                      },
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "previous_generation_preserved",
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "dual_writer": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "enospc": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "previous_generation_preserved": {
+                        "type": "boolean"
+                      },
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "previous_generation_preserved",
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "exact_boundary": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "remaining_bytes": {
+                        "type": "integer"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "remaining_bytes",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "inode_exhaustion": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "previous_generation_preserved": {
+                        "type": "boolean"
+                      },
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "previous_generation_preserved",
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "normal_capacity": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "committed_bytes": {
+                        "type": "integer"
+                      },
+                      "committed_files": {
+                        "type": "integer"
+                      },
+                      "query_count": {
+                        "type": "integer"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "committed_bytes",
+                      "committed_files",
+                      "query_count",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "oversized_response": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "accepted": {
+                        "type": "boolean"
+                      },
+                      "attempt_terminal": {
+                        "type": "boolean"
+                      },
+                      "capture_enabled": {
+                        "type": "boolean"
+                      },
+                      "captured_bytes": {
+                        "type": "integer"
+                      },
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "accepted",
+                      "attempt_terminal",
+                      "capture_enabled",
+                      "captured_bytes",
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "unsafe_cleanup": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "reason_code": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason_code",
+                      "status"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "backup_space_insufficient",
+                  "capacity_drop",
+                  "dual_writer",
+                  "enospc",
+                  "exact_boundary",
+                  "inode_exhaustion",
+                  "normal_capacity",
+                  "oversized_response",
+                  "unsafe_cleanup"
+                ],
+                "type": "object"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "storage_plan_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "closure",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "scenario_count",
+              "scenarios",
+              "schema_version",
+              "status",
+              "storage_plan_sha256"
+            ],
+            "type": "object"
+          },
+          "probe_id": "simulate_pressure",
+          "top_level_fields": [
+            "closure",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "scenario_count",
+            "scenarios",
+            "schema_version",
+            "status",
+            "storage_plan_sha256"
+          ]
+        },
+        "verify_capacity": {
+          "arguments": [
+            "verify-capacity",
+            "--primary-root",
+            "{temp}/missing-primary",
+            "--backup-root",
+            "{temp}/missing-backup"
+          ],
+          "command": "verify-capacity",
+          "exit_code": 3,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "reason_code",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "verify_capacity",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "reason_code",
+            "schema_version",
+            "status"
+          ]
+        }
+      }
+    },
     "formal_validation_clearance": {
       "arguments": [
         {
@@ -9363,16 +10489,17 @@
       }
     }
   },
-  "content_sha256": "da5d356812c7560ef41836dcaa8f0f9ac1c218b4781920f9a73aed1845f38458",
+  "content_sha256": "54e0ddd8ff918017bce1f38798da8e834dc32eed2b973e147dec19b98a5204d7",
   "documentation": {
-    "docs/architecture.md": "1d391a720637f92b0d676a2b118b66d299f4b8cde5391faab382fefd04f5049b",
+    "docs/architecture.md": "2852fba63349238369b896562385aa7829a058e60b7f2a7961964ca424f91621",
     "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
     "docs/evidence-transparency-log.md": "4cd18485bd457fc31adbb27a9e409608d61ac618d26ae24750edb34cefba6a29",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
+    "docs/formal-run-storage-governance.md": "0ec210a175f2a9564aa4d56c754c32ca3f7a8e839ba3f93e5bee5adfd0a36de9",
     "docs/formal-validation-clearance.md": "d299bb810616aac93cf5d1c28798d3720a329bf105628322df165abb8f33321a",
     "docs/formal-validation-dress-rehearsal.md": "617351ef2270d177c8b1abf95fcf181279d316e614d5a343b3b17d58d495ca0d",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
-    "docs/validation-readiness.md": "cff6af66ef7d4d20fa3dc93b9d04613129a6a135f8356348f4a98a4b883287de"
+    "docs/validation-readiness.md": "b39c2f4749766305f77543103fe25a649433a05850ec1cbd0ef5040addcd070f"
   },
   "execution": {
     "gold_or_qrels_loaded": false,

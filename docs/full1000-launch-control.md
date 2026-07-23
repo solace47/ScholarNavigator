@@ -40,3 +40,9 @@ PYTHONPATH=src python scripts/check_full1000_launch_control.py verify-authorizat
 `2=authorization_or_operation_violation`、`3=external_activation_blocked`、
 `4=usage_error`。当前真实审计固定返回 3：控制链可复核，但网络、真实凭据和正式运行均未
 激活；Full1000、真实人工 Precision、官方 scorer/schema 三项正式阻断不变。
+
+未来真实 authorization 还必须绑定
+[`formal_run_storage_governance_v1`](formal-run-storage-governance.md) addendum。它要求主运行
+目录与异地备份目标的字节、inode 和文件系统配额均在启动前通过，且原始响应取证与
+reserve→commit→release 存储账本显式启用。现有 v1 启动协议和历史授权不会被改写，也不能
+越过该 addendum 复用于未来正式运行。

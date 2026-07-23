@@ -3,8 +3,8 @@
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 84,
-    "implementation_tree_sha256": "6d568091b74909968d6eb87466e83e485c59f0ebcb6b40d3f730ff502035d619"
+    "implementation_file_count": 92,
+    "implementation_tree_sha256": "df0cdb8390a7410e797a5e92a9716ee5cda4b33b273600d9932650ee2f06dbae"
   },
   "dependency_graph": {
     "completion_bias_aggregate": [
@@ -79,6 +79,24 @@
     ],
     "formal_run_disaster_recovery_simulation": [
       "formal_run_disaster_recovery_protocol"
+    ],
+    "formal_run_storage_addendum": [
+      "formal_run_storage_plan",
+      "formal_run_storage_protocol"
+    ],
+    "formal_run_storage_plan": [
+      "formal_run_storage_protocol"
+    ],
+    "formal_run_storage_protocol": [],
+    "formal_run_storage_readiness": [
+      "formal_run_storage_addendum",
+      "formal_run_storage_plan",
+      "formal_run_storage_protocol",
+      "formal_run_storage_simulation"
+    ],
+    "formal_run_storage_simulation": [
+      "formal_run_storage_plan",
+      "formal_run_storage_protocol"
     ],
     "formal_validation_clearance_current": [
       "external_scorer_readiness",
@@ -236,28 +254,28 @@
   },
   "files": {
     "README.md": {
-      "sha256": "384c52172764b63931231f8ac653cc24de5f2b177fcf95f8843e8439e2fade3a",
+      "sha256": "8acdd8d0b31d5b76de54f4b02c1e3a35e8a20e48b306debc3dde05c898a4ae99",
       "size": 783
     },
     "claims.json": {
-      "sha256": "af93ec47b1bbc99d71dfbe8179ebc7515ea48c962f509c8ab7957f174bb79077",
-      "size": 19837
+      "sha256": "c65752c6b4052b9f070fe3af23407a1fd4c0487abe0fa5223fb2c7ea7154e1e2",
+      "size": 20620
     },
     "competition_checklist.md": {
       "sha256": "3a1dfe64dcbf1212eefac506e407f709eb7322f2e1519adeb2cbfa352faf75fb",
       "size": 913
     },
     "evidence_index.json": {
-      "sha256": "545e661264b28fb44cabfa9566ac8c0b803b1932f71978e3ba93831831510b9b",
-      "size": 37205
+      "sha256": "2e04de49011a17c766b3e21a2672a03db5eadc0857300e687847ca27bdc38058",
+      "size": 39560
     },
     "missing_inputs.json": {
       "sha256": "c8d19df63c02253023fb48856a5aab7345ec21c8289f8c2aa62434a9391aa3b5",
       "size": 1771
     },
     "readiness.json": {
-      "sha256": "44977fe3f11b8efb8389bfb56e6fef22af60286193664fa48a82145711a8e949",
-      "size": 6560
+      "sha256": "f5b323cc831a54326786cf22cb895b37292990b17d5fd1a649c3a7c1c49545ae",
+      "size": 6784
     }
   },
   "generation_command": "PYTHONPATH=src python scripts/check_validation_readiness.py generate --contract benchmark/validation_readiness_bundle_v1_contract.json --bundle benchmark/validation_readiness_bundle_v1_release",
