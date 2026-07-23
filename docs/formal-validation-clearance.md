@@ -37,3 +37,5 @@ PYTHONPATH=src python scripts/check_formal_validation_clearance.py verify-receip
 退出码：`0=state_valid_or_cleared`、`2=evidence_or_transition_violation`、
 `3=blocked_missing_external_evidence`、`4=usage_error`。当前真实审计固定返回 3，并继续保留
 Full1000 未完成、真实人工 Precision 缺失和官方 scorer/schema 缺失三项阻断。
+此外，权威撤销账本中的任一活动事件会先于 receipt 状态机阻断 audit、evaluate、issue 和
+verify；只有经过 freshness 门禁的新证据完成 supersede/restored 链后才可恢复资格。

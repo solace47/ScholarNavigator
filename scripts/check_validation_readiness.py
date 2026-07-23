@@ -30,6 +30,11 @@ from scholar_agent.evaluation.validation_readiness import (  # noqa: E402
     verify_release_files,
     write_release_files,
 )
+from scholar_agent.evaluation.evidence_revocation import (  # noqa: E402
+    ActiveIncident,
+    RevocationError,
+    assert_no_active_incident,
+)
 
 
 DEFAULT_CONTRACT = "benchmark/validation_readiness_bundle_v1_contract.json"
@@ -64,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
         root = Path(args.repository_root).resolve()
+        assert_no_active_incident(root, target="validation_readiness_bundle")
         contract = load_contract(root / args.contract)
         bundle = root / args.bundle
         if args.command == "generate":
@@ -87,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return EXIT_USAGE_ERROR
-    except ValidationReadinessNotReady as exc:
+    except (ValidationReadinessNotReady, ActiveIncident) as exc:
         _emit(
             {
                 "error_code": str(exc),
@@ -98,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return EXIT_NOT_READY_MISSING_REQUIRED_EVIDENCE
-    except ValidationReadinessError as exc:
+    except (ValidationReadinessError, RevocationError) as exc:
         _emit(
             {
                 "error_code": str(exc),

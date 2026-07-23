@@ -30,6 +30,11 @@ from scholar_agent.evaluation.formal_validation_clearance import (  # noqa: E402
     verify_receipt,
     write_json,
 )
+from scholar_agent.evaluation.evidence_revocation import (  # noqa: E402
+    ActiveIncident,
+    RevocationError,
+    assert_no_active_incident,
+)
 
 
 DEFAULT_PROTOCOL = ROOT / "benchmark/formal_validation_clearance_v1_protocol.json"
@@ -84,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
         root = Path(args.repository_root).resolve()
+        assert_no_active_incident(root, target="clearance_receipt")
         protocol = load_protocol(Path(args.protocol))
         if args.command == "audit-current":
             report = evaluate(build_current_evidence(protocol, repository_root=root))
@@ -107,11 +113,11 @@ def main(argv: list[str] | None = None) -> int:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "usage_error", "exit_code": EXIT_USAGE}
         _emit(report)
         return EXIT_USAGE
-    except ClearanceBlocked as exc:
+    except (ClearanceBlocked, ActiveIncident) as exc:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "blocked", "exit_code": EXIT_BLOCKED, "error_code": str(exc), "formal_validation_complete": False}
         _emit(report)
         return EXIT_BLOCKED
-    except ClearanceError as exc:
+    except (ClearanceError, RevocationError) as exc:
         report = {"schema_version": SCHEMA_VERSION, "protocol": PROTOCOL, "status": "invalid", "exit_code": EXIT_VIOLATION, "error_code": str(exc), "formal_validation_complete": False}
         _emit(report)
         return EXIT_VIOLATION

@@ -1,6 +1,6 @@
 {
-  "baseline_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
-  "contract_count": 12,
+  "baseline_sha256": "28d81929f690f3cfc32711c5c796e3db38418144befe4b3fc5b8cc1878da51d6",
+  "contract_count": 13,
   "execution": {
     "gold_or_qrels_loaded": false,
     "llm_request_count": 0,
@@ -12,6 +12,6 @@
   "formal_validation_complete": false,
   "protocol": "public_contract_compatibility_v1",
   "schema_version": "1",
-  "snapshot_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
+  "snapshot_sha256": "28d81929f690f3cfc32711c5c796e3db38418144befe4b3fc5b8cc1878da51d6",
   "status": "contracts_compatible"
 }

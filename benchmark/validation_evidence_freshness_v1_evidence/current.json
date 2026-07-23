@@ -1,8 +1,16 @@
 {
-  "baseline_head": "905b4d24aa50705eb6b95aa26a3e538795eb29d8",
+  "baseline_head": "1fe21cb0c384304b18a0956cb028cc0e7aa971a4",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_evidence_revocation_controls_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -194,7 +202,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 31,
+  "component_count": 32,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -239,6 +247,30 @@
     {
       "declared_state": "fresh",
       "evidence_id": "evidence_registry_gate",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_revocation_ledger",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_revocation_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_revocation_simulation",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -793,6 +825,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "evidence_revocation",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "external_scorer_handoff",
       "reasons": [],
       "stale_components": [],
@@ -941,7 +981,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 99,
+    "fresh": 104,
     "not_applicable": 1,
     "stale": 0
   },

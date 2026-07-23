@@ -6,6 +6,57 @@
     "readiness": "benchmark/validation_readiness_bundle_v1_contract.json"
   },
   "cli_contracts": {
+    "evidence_revocation": {
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "path": "scripts/check_evidence_revocation.py",
+      "probes": [
+        {
+          "arguments": [
+            "audit-current"
+          ],
+          "command": "audit-current",
+          "expected_exit_code": 0,
+          "probe_id": "audit_current"
+        },
+        {
+          "arguments": [
+            "simulate-incident"
+          ],
+          "command": "simulate-incident",
+          "expected_exit_code": 0,
+          "probe_id": "simulate_incident"
+        },
+        {
+          "arguments": [
+            "verify-ledger"
+          ],
+          "command": "verify-ledger",
+          "expected_exit_code": 0,
+          "probe_id": "verify_ledger"
+        },
+        {
+          "arguments": [
+            "impact"
+          ],
+          "command": "impact",
+          "expected_exit_code": 0,
+          "probe_id": "impact"
+        },
+        {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "expected_exit_code": 0,
+          "probe_id": "audit_readiness"
+        }
+      ]
+    },
     "external_scorer_handoff": {
       "exit_codes": [0, 2, 3, 4],
       "path": "scripts/check_external_scorer_handoff.py",

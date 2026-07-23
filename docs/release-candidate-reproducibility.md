@@ -27,6 +27,8 @@ PYTHONPATH=src python scripts/check_release_candidate.py audit-readiness \
 
 退出码为 `0=reproducible_release_ready`、`2=build_or_supply_chain_violation`、
 `3=not_ready_missing_offline_dependency_or_input`、`4=usage_error`。门禁不会下载缺失依赖。
+若权威撤销账本存在活动事件，所有 build/verify/compare/audit 入口都会在读取发布资格前
+fail-closed；历史发布包即使文件哈希完整，也不能继续声明对应证据有效。
 
 ## 当前资格
 

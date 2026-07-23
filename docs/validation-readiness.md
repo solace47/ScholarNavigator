@@ -79,6 +79,10 @@ PYTHONPATH=src python scripts/check_validation_readiness.py verify \
 边界、默认关闭项和既存嵌套工作树状态。它不调用任何会补采、付费、联网或写 Snapshot 的
 `run/generate` 路径。
 
+一键验证同时读取 `evidence_revocation_response_v1` 的权威空账本。活动撤销事件会使
+readiness 生成与验证返回阻断状态，并列出下游声明和最小重跑 gate；删除或改写历史事件不能
+恢复发布资格。
+
 退出码：
 
 - `0`：`ready_with_declared_blockers`，包完整且阻断已明确保留；

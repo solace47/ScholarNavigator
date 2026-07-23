@@ -1839,6 +1839,90 @@
                             "additionalProperties": false,
                             "properties": {
                               "equals": {
+                                "items": {},
+                                "type": "array"
+                              },
+                              "pointer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "equals",
+                              "pointer"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "equals": {
+                                "type": "string"
+                              },
+                              "pointer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "equals",
+                              "pointer"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "dependencies": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "evidence_id": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "protocol": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "checks",
+                    "dependencies",
+                    "evidence_id",
+                    "format",
+                    "path",
+                    "protocol",
+                    "required",
+                    "role",
+                    "sha256"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checks": {
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "equals": {
                                 "type": "null"
                               },
                               "pointer": {
@@ -3608,6 +3692,749 @@
     }
   },
   "cli": {
+    "evidence_revocation": {
+      "arguments": [
+        {
+          "names": [
+            "--input"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--input"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--ledger"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [
+        "audit-current",
+        "audit-readiness",
+        "impact",
+        "simulate-incident",
+        "verify-ledger"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "probes": {
+        "audit_current": {
+          "arguments": [
+            "audit-current"
+          ],
+          "command": "audit-current",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "active_incident_count": {
+                "type": "integer"
+              },
+              "active_incident_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "event_count": {
+                "type": "integer"
+              },
+              "evidence_states": {
+                "items": {},
+                "type": "array"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "impacted_claim_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_component_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "invalidated_publication_targets": {
+                "items": {},
+                "type": "array"
+              },
+              "ledger_sha256": {
+                "type": "string"
+              },
+              "minimum_rerun_gate_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "prohibited_publication_actions": {
+                "items": {},
+                "type": "array"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_ledger_empty": {
+                "type": "boolean"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "unaffected_evidence_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "active_incident_count",
+              "active_incident_evidence_ids",
+              "event_count",
+              "evidence_states",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "impacted_claim_ids",
+              "impacted_component_ids",
+              "impacted_evidence_ids",
+              "invalidated_publication_targets",
+              "ledger_sha256",
+              "minimum_rerun_gate_ids",
+              "prohibited_publication_actions",
+              "protocol",
+              "real_ledger_empty",
+              "schema_version",
+              "status",
+              "unaffected_evidence_ids"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_current",
+          "top_level_fields": [
+            "active_incident_count",
+            "active_incident_evidence_ids",
+            "event_count",
+            "evidence_states",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "impacted_claim_ids",
+            "impacted_component_ids",
+            "impacted_evidence_ids",
+            "invalidated_publication_targets",
+            "ledger_sha256",
+            "minimum_rerun_gate_ids",
+            "prohibited_publication_actions",
+            "protocol",
+            "real_ledger_empty",
+            "schema_version",
+            "status",
+            "unaffected_evidence_ids"
+          ]
+        },
+        "audit_readiness": {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "active_incident_count": {
+                "type": "integer"
+              },
+              "active_incident_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "event_count": {
+                "type": "integer"
+              },
+              "evidence_states": {
+                "items": {},
+                "type": "array"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "impacted_claim_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_component_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "invalidated_publication_targets": {
+                "items": {},
+                "type": "array"
+              },
+              "ledger_sha256": {
+                "type": "string"
+              },
+              "minimum_rerun_gate_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "prohibited_publication_actions": {
+                "items": {},
+                "type": "array"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_ledger_empty": {
+                "type": "boolean"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "unaffected_evidence_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "active_incident_count",
+              "active_incident_evidence_ids",
+              "event_count",
+              "evidence_states",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "impacted_claim_ids",
+              "impacted_component_ids",
+              "impacted_evidence_ids",
+              "invalidated_publication_targets",
+              "ledger_sha256",
+              "minimum_rerun_gate_ids",
+              "prohibited_publication_actions",
+              "protocol",
+              "real_ledger_empty",
+              "schema_version",
+              "status",
+              "unaffected_evidence_ids"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_readiness",
+          "top_level_fields": [
+            "active_incident_count",
+            "active_incident_evidence_ids",
+            "event_count",
+            "evidence_states",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "impacted_claim_ids",
+            "impacted_component_ids",
+            "impacted_evidence_ids",
+            "invalidated_publication_targets",
+            "ledger_sha256",
+            "minimum_rerun_gate_ids",
+            "prohibited_publication_actions",
+            "protocol",
+            "real_ledger_empty",
+            "schema_version",
+            "status",
+            "unaffected_evidence_ids"
+          ]
+        },
+        "impact": {
+          "arguments": [
+            "impact"
+          ],
+          "command": "impact",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "active_incident_count": {
+                "type": "integer"
+              },
+              "active_incident_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "event_count": {
+                "type": "integer"
+              },
+              "evidence_states": {
+                "items": {},
+                "type": "array"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "impacted_claim_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_component_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "impacted_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "invalidated_publication_targets": {
+                "items": {},
+                "type": "array"
+              },
+              "ledger_sha256": {
+                "type": "string"
+              },
+              "minimum_rerun_gate_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "prohibited_publication_actions": {
+                "items": {},
+                "type": "array"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "unaffected_evidence_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "active_incident_count",
+              "active_incident_evidence_ids",
+              "event_count",
+              "evidence_states",
+              "exit_code",
+              "formal_validation_complete",
+              "impacted_claim_ids",
+              "impacted_component_ids",
+              "impacted_evidence_ids",
+              "invalidated_publication_targets",
+              "ledger_sha256",
+              "minimum_rerun_gate_ids",
+              "prohibited_publication_actions",
+              "protocol",
+              "schema_version",
+              "status",
+              "unaffected_evidence_ids"
+            ],
+            "type": "object"
+          },
+          "probe_id": "impact",
+          "top_level_fields": [
+            "active_incident_count",
+            "active_incident_evidence_ids",
+            "event_count",
+            "evidence_states",
+            "exit_code",
+            "formal_validation_complete",
+            "impacted_claim_ids",
+            "impacted_component_ids",
+            "impacted_evidence_ids",
+            "invalidated_publication_targets",
+            "ledger_sha256",
+            "minimum_rerun_gate_ids",
+            "prohibited_publication_actions",
+            "protocol",
+            "schema_version",
+            "status",
+            "unaffected_evidence_ids"
+          ]
+        },
+        "simulate_incident": {
+          "arguments": [
+            "simulate-incident"
+          ],
+          "command": "simulate-incident",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "scenario_count": {
+                "type": "integer"
+              },
+              "scenarios": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active_incident_count": {
+                          "type": "integer"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        },
+                        "source_reliability_preserved": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "active_incident_count",
+                        "scenario",
+                        "source_reliability_preserved"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active_incident_count": {
+                          "type": "integer"
+                        },
+                        "replacement_evidence_id": {
+                          "type": "string"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "active_incident_count",
+                        "replacement_evidence_id",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active_incident_count": {
+                          "type": "integer"
+                        },
+                        "invalidated_publication_targets": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "active_incident_count",
+                        "invalidated_publication_targets",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "rejected": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "rejected",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "active_incident_count": {
+                          "type": "integer"
+                        },
+                        "impacted_claim_count": {
+                          "type": "integer"
+                        },
+                        "impacted_evidence_count": {
+                          "type": "integer"
+                        },
+                        "minimum_rerun_gate_ids": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "active_incident_count",
+                        "impacted_claim_count",
+                        "impacted_evidence_count",
+                        "minimum_rerun_gate_ids",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "scenario_count",
+              "scenarios",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "simulate_incident",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "scenario_count",
+            "scenarios",
+            "schema_version",
+            "status"
+          ]
+        },
+        "verify_ledger": {
+          "arguments": [
+            "verify-ledger"
+          ],
+          "command": "verify-ledger",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "active_incident_count": {
+                "type": "integer"
+              },
+              "active_incident_evidence_ids": {
+                "items": {},
+                "type": "array"
+              },
+              "event_count": {
+                "type": "integer"
+              },
+              "evidence_states": {
+                "items": {},
+                "type": "array"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "ledger_sha256": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "active_incident_count",
+              "active_incident_evidence_ids",
+              "event_count",
+              "evidence_states",
+              "exit_code",
+              "formal_validation_complete",
+              "ledger_sha256",
+              "protocol",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "verify_ledger",
+          "top_level_fields": [
+            "active_incident_count",
+            "active_incident_evidence_ids",
+            "event_count",
+            "evidence_states",
+            "exit_code",
+            "formal_validation_complete",
+            "ledger_sha256",
+            "protocol",
+            "schema_version",
+            "status"
+          ]
+        }
+      }
+    },
     "external_scorer_handoff": {
       "arguments": [
         {
@@ -5665,14 +6492,14 @@
       }
     }
   },
-  "content_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
+  "content_sha256": "28d81929f690f3cfc32711c5c796e3db38418144befe4b3fc5b8cc1878da51d6",
   "documentation": {
-    "docs/architecture.md": "779351f31542c0d15baf9a6b9eccbbf7bc2930b1b8e6d323dadb2b3afe3bbe2f",
+    "docs/architecture.md": "2b0d68122e9f06ac4b2231fad778a89322acb63cdd15ad71c097f96eb50393af",
     "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
     "docs/formal-validation-clearance.md": "10e2fde89dde48f7396cc8a005f11a7fd33b2690fc9bd9273e7663c33cda1c7a",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
-    "docs/validation-readiness.md": "41d7df457424fc065662567bb35c901e2fb45a6012d22d20bdf1b33dabee049d"
+    "docs/validation-readiness.md": "b51e324f10b2923d4615a4033519d608cb67035d8d7b88addda0a4896a06d62e"
   },
   "execution": {
     "gold_or_qrels_loaded": false,

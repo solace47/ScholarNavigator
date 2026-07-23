@@ -121,6 +121,30 @@ def test_inventory_tamper_missing_and_extra_are_rejected(tmp_path: Path, kind: s
         bundle.verify_archive(target)
 
 
+def test_hash_closed_legacy_archive_without_revocation_state_is_rejected(
+    tmp_path: Path,
+) -> None:
+    source = _build(tmp_path)
+    legacy = tmp_path / "legacy.zip"
+    with zipfile.ZipFile(source) as archive:
+        rows = {info.filename: archive.read(info) for info in archive.infolist()}
+    rows.pop("revocation.json")
+    manifest = json.loads(rows["manifest.json"])
+    manifest["files"] = [
+        item for item in manifest["files"] if item["path"] != "revocation.json"
+    ]
+    manifest["manifest_self_sha256"] = bundle._self_hash(manifest)
+    rows["manifest.json"] = bundle.canonical_bytes(manifest)
+    with zipfile.ZipFile(legacy, "w", compression=zipfile.ZIP_STORED) as archive:
+        for name, content in sorted(rows.items()):
+            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+            info.external_attr = 0o100644 << 16
+            info.create_system = 3
+            archive.writestr(info, content)
+    with pytest.raises(bundle.AuditError, match="archive_inventory_not_closed"):
+        bundle.verify_archive(legacy)
+
+
 def _mutate_json(source: Path, target: Path, member: str, mutate) -> None:
     with zipfile.ZipFile(source) as archive:
         value = json.loads(archive.read(member))

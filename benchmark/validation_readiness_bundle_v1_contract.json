@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "1b9bed3c074c1593008d3af0d06bb9c39f425c4e2267aa9ad8714502eeeb6294"
+      "sha256": "d98e9f580171211facef1d267cbf82a8460ea9c25c0136a0a264a61f01c9687f"
     },
     {
       "document_id": "contest_requirements",
@@ -375,6 +375,19 @@
       "status": "verified"
     },
     {
+      "boundary": "The empty real ledger and synthetic incidents prove revocation propagation controls only; they do not alter historical conclusions or formal blockers.",
+      "claim_id": "architecture_evidence_revocation_controls_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "evidence_revocation_ledger",
+        "evidence_revocation_protocol",
+        "evidence_revocation_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Evidence revocation, downstream claim rollback, publication invalidation, and fully gated restoration are controlled by an append-only deterministic ledger.",
+      "status": "verified"
+    },
+    {
       "boundary": "Startup instructions alone establish no validation or quality claim.",
       "claim_id": "readme_operational_entrypoint",
       "document_id": "readme",
@@ -394,6 +407,9 @@
       "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
       "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
       "benchmark/formal_run_disaster_recovery_v1_protocol.json",
+      "benchmark/evidence_revocation_response_v1_evidence/simulation.json",
+      "benchmark/evidence_revocation_response_v1_ledger.json",
+      "benchmark/evidence_revocation_response_v1_protocol.json",
       "benchmark/offline_wheelhouse_intake_v1_manifest.json",
       "benchmark/offline_wheelhouse_intake_v1_protocol.json",
       "benchmark/offline_wheelhouse_intake_v1_release_closure.json",
@@ -409,6 +425,7 @@
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
+      "docs/evidence-revocation-response.md",
       "docs/formal-run-disaster-recovery.md",
       "docs/full1000-launch-control.md",
       "docs/offline-wheelhouse-intake.md",
@@ -419,6 +436,7 @@
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
+      "scripts/check_evidence_revocation.py",
       "scripts/check_formal_run_recovery.py",
       "scripts/check_full1000_launch_control.py",
       "scripts/check_offline_wheelhouse.py",
@@ -434,6 +452,7 @@
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
+      "src/scholar_agent/evaluation/evidence_revocation.py",
       "src/scholar_agent/evaluation/formal_run_disaster_recovery.py",
       "src/scholar_agent/evaluation/full1000_launch_control.py",
       "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
@@ -2153,7 +2172,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0"
+      "sha256": "d3ad6cb9f787b6b70ea0a5b72bff3a6782e912f78bb2d507ed79bfa1a62633d5"
     },
     {
       "checks": [
@@ -2169,7 +2188,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "dbe08c6f7adbd32151fed1d5494eae86b7f5a28703d392920ec28529229eeb21"
+      "sha256": "ea1147a535b81ccfb359cf030842c442eaa5e9c1a34e9543a85c7a276bbd219b"
     },
     {
       "checks": [
@@ -2301,7 +2320,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "20a66e2f01ef877c9eb796edd6dad1fda97119451fa745a6969c19620145ad86"
+      "sha256": "8fe923a542b24085d97ac1cf302a14b52d7ba0c753367b724523225889534689"
     },
     {
       "checks": [
@@ -2328,7 +2347,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "0377c575b5e9b7fbc79233477ff90cb1d3c47d524c80fe91bd5c3ce1e67eb972"
+      "sha256": "3f9b129043ce9affe81c09f1b8e63269f2e0ccbd692cc8d81a3a6cc524c29245"
     },
     {
       "checks": [
@@ -2348,7 +2367,72 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "e0e36595289e780a49da0d9fbbbeb10c33434dd4addd1f1a6e9980e67808c9b9"
+      "sha256": "62be182559a3c3cae55de26208b94d87d0704642574660264347ff30793c330c"
+    },
+    {
+      "checks": [
+        {
+          "equals": "evidence_revocation_response_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": [],
+          "pointer": "/events"
+        }
+      ],
+      "dependencies": [
+        "evidence_revocation_protocol"
+      ],
+      "evidence_id": "evidence_revocation_ledger",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_ledger.json",
+      "protocol": "evidence_revocation_response_v1",
+      "required": true,
+      "role": "authoritative_empty_revocation_ledger",
+      "sha256": "b062aa2332a0d8f1b9388d9c260806a525a718dd06ab34e4feb16513f66768e7"
+    },
+    {
+      "checks": [
+        {
+          "equals": "evidence_revocation_response_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "evidence_revocation_protocol",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_protocol.json",
+      "protocol": "evidence_revocation_response_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "d86d66bae405f84cd22047edbffae83229e85671cd36102fd7065e9111d5e927"
+    },
+    {
+      "checks": [
+        {
+          "equals": "revocation_controls_ready",
+          "pointer": "/status"
+        },
+        {
+          "equals": 5,
+          "pointer": "/scenario_count"
+        }
+      ],
+      "dependencies": [
+        "evidence_revocation_ledger",
+        "evidence_revocation_protocol"
+      ],
+      "evidence_id": "evidence_revocation_simulation",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_evidence/simulation.json",
+      "protocol": "evidence_revocation_response_v1",
+      "required": true,
+      "role": "synthetic_incident_response_matrix",
+      "sha256": "5ca8f80422e1bccf0eeec276ce0353fcdfa784e21941caf23bc596703e661b7a"
     }
   ],
   "execution": {
@@ -2805,6 +2889,25 @@
       ],
       "expected_exit_code": 0,
       "gate_id": "public_contract_compatibility",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_evidence_revocation.py",
+        "audit-current"
+      ],
+      "checks": [
+        {
+          "equals": "revocation_controls_ready",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/active_incident_count"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "evidence_revocation",
       "timeout_seconds": 60
     }
   ],

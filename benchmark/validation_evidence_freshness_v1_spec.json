@@ -1,5 +1,5 @@
 {
-  "baseline_head": "905b4d24aa50705eb6b95aa26a3e538795eb29d8",
+  "baseline_head": "1fe21cb0c384304b18a0956cb028cc0e7aa971a4",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -20,6 +20,9 @@
       "evidence_registry",
       "tiebreak",
       "top20_delivery"
+    ],
+    "architecture_evidence_revocation_controls_ready": [
+      "evidence_revocation"
     ],
     "architecture_external_scorer_handoff_ready": [
       "external_scorer",
@@ -167,6 +170,23 @@
         "src/scholar_agent/evaluation/evidence_registry.py"
       ],
       "kind": "registry_and_cli"
+    },
+    {
+      "component_id": "evidence_revocation",
+      "files": [
+        "benchmark/evidence_revocation_response_v1_evidence/simulation.json",
+        "benchmark/evidence_revocation_response_v1_ledger.json",
+        "benchmark/evidence_revocation_response_v1_protocol.json",
+        "docs/architecture.md",
+        "docs/evidence-revocation-response.md",
+        "scripts/check_evidence_revocation.py",
+        "scripts/check_formal_validation_clearance.py",
+        "scripts/check_release_candidate.py",
+        "scripts/check_standalone_auditor_bundle.py",
+        "scripts/check_validation_readiness.py",
+        "src/scholar_agent/evaluation/evidence_revocation.py"
+      ],
+      "kind": "append_only_revocation_propagation_and_release_fail_closed"
     },
     {
       "component_id": "external_scorer",
@@ -521,6 +541,15 @@
       "constraint_runtime",
       "identity_runtime"
     ],
+    "evidence_revocation_ledger": [
+      "evidence_revocation"
+    ],
+    "evidence_revocation_protocol": [
+      "evidence_revocation"
+    ],
+    "evidence_revocation_simulation": [
+      "evidence_revocation"
+    ],
     "evidence_registry_gate": [
       "default_policy",
       "evidence_registry"
@@ -803,6 +832,9 @@
       "constraint_decision",
       "constraint_runtime",
       "identity_runtime"
+    ],
+    "evidence_revocation": [
+      "evidence_revocation"
     ],
     "evidence_registry": [
       "default_policy",

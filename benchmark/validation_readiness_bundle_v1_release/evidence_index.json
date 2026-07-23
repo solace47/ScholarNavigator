@@ -67,6 +67,41 @@
       "size": 1275
     },
     {
+      "dependencies": [
+        "evidence_revocation_protocol"
+      ],
+      "evidence_id": "evidence_revocation_ledger",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_ledger.json",
+      "protocol": "evidence_revocation_response_v1",
+      "role": "authoritative_empty_revocation_ledger",
+      "sha256": "b062aa2332a0d8f1b9388d9c260806a525a718dd06ab34e4feb16513f66768e7",
+      "size": 371
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "evidence_revocation_protocol",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_protocol.json",
+      "protocol": "evidence_revocation_response_v1",
+      "role": "protocol",
+      "sha256": "d86d66bae405f84cd22047edbffae83229e85671cd36102fd7065e9111d5e927",
+      "size": 1666
+    },
+    {
+      "dependencies": [
+        "evidence_revocation_ledger",
+        "evidence_revocation_protocol"
+      ],
+      "evidence_id": "evidence_revocation_simulation",
+      "format": "json",
+      "path": "benchmark/evidence_revocation_response_v1_evidence/simulation.json",
+      "protocol": "evidence_revocation_response_v1",
+      "role": "synthetic_incident_response_matrix",
+      "sha256": "5ca8f80422e1bccf0eeec276ce0353fcdfa784e21941caf23bc596703e661b7a",
+      "size": 1553
+    },
+    {
       "dependencies": [],
       "evidence_id": "external_scorer_protocol",
       "format": "json",
@@ -514,8 +549,8 @@
       "path": "benchmark/public_contract_compatibility_v1_baseline.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "contract_baseline",
-      "sha256": "20a66e2f01ef877c9eb796edd6dad1fda97119451fa745a6969c19620145ad86",
-      "size": 341076
+      "sha256": "8fe923a542b24085d97ac1cf302a14b52d7ba0c753367b724523225889534689",
+      "size": 366582
     },
     {
       "dependencies": [
@@ -527,7 +562,7 @@
       "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "compatibility_verification",
-      "sha256": "0377c575b5e9b7fbc79233477ff90cb1d3c47d524c80fe91bd5c3ce1e67eb972",
+      "sha256": "3f9b129043ce9affe81c09f1b8e63269f2e0ccbd692cc8d81a3a6cc524c29245",
       "size": 551
     },
     {
@@ -537,8 +572,8 @@
       "path": "benchmark/public_contract_compatibility_v1_protocol.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "protocol",
-      "sha256": "e0e36595289e780a49da0d9fbbbeb10c33434dd4addd1f1a6e9980e67808c9b9",
-      "size": 4946
+      "sha256": "62be182559a3c3cae55de26208b94d87d0704642574660264347ff30793c330c",
+      "size": 6122
     },
     {
       "dependencies": [
@@ -823,8 +858,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0",
-      "size": 24633
+      "sha256": "d3ad6cb9f787b6b70ea0a5b72bff3a6782e912f78bb2d507ed79bfa1a62633d5",
+      "size": 25672
     },
     {
       "dependencies": [],
@@ -833,8 +868,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "dbe08c6f7adbd32151fed1d5494eae86b7f5a28703d392920ec28529229eeb21",
-      "size": 97232
+      "sha256": "ea1147a535b81ccfb359cf030842c442eaa5e9c1a34e9543a85c7a276bbd219b",
+      "size": 101196
     },
     {
       "dependencies": [
@@ -850,7 +885,7 @@
       "size": 3349
     }
   ],
-  "evidence_count": 73,
+  "evidence_count": 76,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

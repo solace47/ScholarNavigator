@@ -26,6 +26,11 @@ from scholar_agent.evaluation.release_candidate_reproducibility import (  # noqa
     verify_output,
     write_json,
 )
+from scholar_agent.evaluation.evidence_revocation import (  # noqa: E402
+    ActiveIncident,
+    RevocationError,
+    assert_no_active_incident,
+)
 
 
 DEFAULT_CONTRACT = ROOT / "benchmark/release_candidate_reproducibility_v1_contract.json"
@@ -64,6 +69,7 @@ def error(status: str, code: int, reason: str) -> dict[str, object]:
 def main(argv: list[str] | None = None) -> int:
     try:
         args = parser().parse_args(argv)
+        assert_no_active_incident(ROOT, target="release_candidate")
         contract = load_contract(Path(args.contract), ROOT)
         if args.command == "build":
             report = double_build(ROOT, contract, Path(args.output))
@@ -75,9 +81,9 @@ def main(argv: list[str] | None = None) -> int:
             report = audit_readiness(ROOT, contract, Path(args.evidence) if args.evidence else None)
         if args.report:
             write_json(Path(args.report), report)
-    except ReleaseCandidateNotReady as exc:
+    except (ReleaseCandidateNotReady, ActiveIncident) as exc:
         report = error("not_ready_missing_offline_dependency_or_input", EXIT_NOT_READY, str(exc))
-    except ReleaseCandidateError as exc:
+    except (ReleaseCandidateError, RevocationError) as exc:
         report = error("build_or_supply_chain_violation", EXIT_VIOLATION, str(exc))
     except (OSError, ValueError, json.JSONDecodeError):
         report = error("build_or_supply_chain_violation", EXIT_VIOLATION, "controlled_input_or_io_failure")

@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 25,
+  "claim_count": 26,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 54,
-    "implementation_tree_sha256": "91f9625d10ddc980e8392de77c501fbca6bf66c6a35165ad18cb514d270c1804"
+    "implementation_file_count": 60,
+    "implementation_tree_sha256": "29d8c4ccb2f0899c1583997d6c5f6f770630ff311e351507d6b6ae2a7c69ab78"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 22,
+  "read_only_gate_count": 23,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -38,6 +38,12 @@
       "gate_id": "evidence_registry",
       "output_sha256": "c46fc3d964dbd46142d120fe1de23c6db6210967997da5e18ea68043afa9dbc9",
       "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "gate_id": "evidence_revocation",
+      "output_sha256": "ff84b202cdb23daf76f2ad83559400cf2898e102d582143002c0f9161d42396c",
+      "status": "revocation_controls_ready"
     },
     {
       "exit_code": 3,
@@ -96,7 +102,7 @@
     {
       "exit_code": 0,
       "gate_id": "public_contract_compatibility",
-      "output_sha256": "8c09754746bee35b3458e698c5714bc556bb3fbf004a01956c3ccf8a33ed4afd",
+      "output_sha256": "36fb7ddaac0e47215f8ab65d85f36dcddfbd90e25d86956f7be62b0631862470",
       "status": "contracts_compatible"
     },
     {
@@ -132,7 +138,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "6464ff845303e34e311eb1da84bc02db5b5bcdaba923c5538503b1a0af140726",
+      "output_sha256": "6d5899fa79de0e943be734f5f0514bf2b3a4ecd7f20b1202462a9663a6ee66c9",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -150,7 +156,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0",
+      "output_sha256": "d3ad6cb9f787b6b70ea0a5b72bff3a6782e912f78bb2d507ed79bfa1a62633d5",
       "status": "fresh_with_declared_blockers"
     }
   ],

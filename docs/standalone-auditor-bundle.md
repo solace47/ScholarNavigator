@@ -30,6 +30,11 @@ compressed, non-UTF-8, non-canonical, duplicate-key, and non-finite JSON
 members. This separation avoids treating code supplied by the object under
 review as the verifier's trust root.
 
+New archives also carry a hash-bound `revocation.json` summary. The trusted
+verifier rejects legacy archives that do not declare revocation state and
+rejects any active incident. A hash-intact old archive therefore cannot bypass
+the current revocation boundary.
+
 Repository operators build and compare temporary archives with:
 
 ```bash

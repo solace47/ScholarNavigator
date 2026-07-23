@@ -60,8 +60,11 @@ CANONICAL_MEMBERS = {
     "policy.json",
     "protocol_dependencies.json",
     "readiness.json",
+    "revocation.json",
     VERIFIER,
 }
+REVOCATION_PROTOCOL = "evidence_revocation_response_v1"
+REVOCATION_PROTOCOL_SHA256 = "55558267bdf7193e5b69905b25b4920f34affbb3c259637f7b0647edbe220c84"
 
 
 class AuditError(RuntimeError):
@@ -275,6 +278,38 @@ def _validate_readiness(value: object) -> dict[str, object]:
     return document
 
 
+def _validate_revocation(value: object) -> dict[str, object]:
+    document = _object(
+        value,
+        keys={
+            "active_incident_count",
+            "event_count",
+            "formal_validation_complete",
+            "ledger_sha256",
+            "protocol",
+            "protocol_sha256",
+            "schema_version",
+            "status",
+        },
+        reason="revocation_schema_invalid",
+    )
+    if (
+        document["protocol"] != REVOCATION_PROTOCOL
+        or document["protocol_sha256"] != REVOCATION_PROTOCOL_SHA256
+        or document["schema_version"] != SCHEMA
+        or document["status"] != "revocation_controls_ready"
+        or document["active_incident_count"] != 0
+        or not isinstance(document["event_count"], int)
+        or isinstance(document["event_count"], bool)
+        or document["event_count"] < 0
+        or document["formal_validation_complete"] is not False
+        or not isinstance(document["ledger_sha256"], str)
+        or not SHA256_RE.fullmatch(document["ledger_sha256"])
+    ):
+        raise AuditError("active_or_invalid_revocation_state")
+    return document
+
+
 def _validate_dependencies(value: object) -> dict[str, object]:
     document = _object(value, keys={"implementation_commit_ancestry", "source_files"}, reason="dependencies_schema_invalid")
     ancestry = _object(document["implementation_commit_ancestry"], keys={"head_commit", "source_commit", "source_is_ancestor"}, reason="implementation_commit_ancestry_invalid")
@@ -379,6 +414,7 @@ def verify_archive(path: Path) -> dict[str, object]:
     readiness = _validate_readiness(values["readiness.json"])
     freshness = _validate_freshness(values["freshness.json"])
     policy = _validate_policy(values["policy.json"])
+    _validate_revocation(values["revocation.json"])
     dependencies = _validate_dependencies(values["protocol_dependencies.json"])
     evidence_ids = {str(row["evidence_id"]) for row in evidence["evidence"]}
     if any(ref not in evidence_ids for row in claims["claims"] for ref in row["evidence_ids"]):
@@ -572,8 +608,86 @@ def _audit_sources(contract_path: Path, root: Path) -> tuple[dict[str, object], 
     return contract, sources, source_hashes
 
 
+def _audit_revocation(root: Path) -> dict[str, object]:
+    protocol_path = root / "benchmark/evidence_revocation_response_v1_protocol.json"
+    ledger_path = root / "benchmark/evidence_revocation_response_v1_ledger.json"
+    protocol = _load(protocol_path)
+    ledger = _load(ledger_path)
+    if (
+        protocol.get("protocol") != REVOCATION_PROTOCOL
+        or protocol.get("schema_version") != SCHEMA
+        or protocol.get("protocol_sha256") != REVOCATION_PROTOCOL_SHA256
+    ):
+        raise AuditError("revocation_protocol_drift")
+    protocol_copy = dict(protocol)
+    protocol_copy["protocol_sha256"] = "0" * 64
+    if digest(json.dumps(protocol_copy, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")) != REVOCATION_PROTOCOL_SHA256:
+        raise AuditError("revocation_protocol_hash_mismatch")
+    events = ledger.get("events")
+    ledger_copy = dict(ledger)
+    ledger_copy["ledger_sha256"] = "0" * 64
+    expected_ledger = digest(json.dumps(ledger_copy, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+    if (
+        ledger.get("protocol") != REVOCATION_PROTOCOL
+        or ledger.get("protocol_sha256") != REVOCATION_PROTOCOL_SHA256
+        or ledger.get("schema_version") != SCHEMA
+        or not isinstance(events, list)
+        or ledger.get("ledger_sha256") != expected_ledger
+        or ledger.get("formal_validation_complete") is not False
+    ):
+        raise NotReady("active_incident_blocks_standalone_bundle")
+    transitions = {
+        "active": {"under_investigation", "revoked"},
+        "under_investigation": {"revoked"},
+        "revoked": {"superseded"},
+        "superseded": {"restored"},
+        "restored": set(),
+    }
+    states: dict[str, str] = {}
+    previous = "0" * 64
+    for index, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise AuditError("revocation_event_invalid")
+        evidence_id = event.get("evidence_id")
+        before = states.get(str(evidence_id), "active")
+        event_copy = dict(event)
+        event_copy["event_sha256"] = "0" * 64
+        if (
+            event.get("event_index") != index
+            or not isinstance(evidence_id, str)
+            or not evidence_id
+            or event.get("before_state") != before
+            or event.get("after_state") not in transitions.get(before, set())
+            or event.get("previous_event_sha256") != previous
+            or not isinstance(event.get("event_sha256"), str)
+            or not SHA256_RE.fullmatch(event["event_sha256"])
+            or digest(json.dumps(event_copy, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")) != event["event_sha256"]
+        ):
+            raise AuditError("revocation_event_invalid")
+        states[evidence_id] = str(event["after_state"])
+        previous = str(event["event_sha256"])
+    active = sorted(
+        evidence_id
+        for evidence_id, state_name in states.items()
+        if state_name in {"under_investigation", "revoked", "superseded"}
+    )
+    if active:
+        raise NotReady("active_incident_blocks_standalone_bundle")
+    return {
+        "active_incident_count": 0,
+        "event_count": len(events),
+        "formal_validation_complete": False,
+        "ledger_sha256": ledger["ledger_sha256"],
+        "protocol": REVOCATION_PROTOCOL,
+        "protocol_sha256": REVOCATION_PROTOCOL_SHA256,
+        "schema_version": SCHEMA,
+        "status": "revocation_controls_ready",
+    }
+
+
 def build_archive(contract_path: Path, output: Path, root: Path) -> dict[str, object]:
     contract, sources, source_hashes = _audit_sources(contract_path.resolve(), root)
+    revocation = _audit_revocation(root)
     source_commit = str(contract.get("source_commit")); head = _git(root, "rev-parse", "HEAD")
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", source_commit, head], cwd=root, check=False).returncode == 0
     if not ancestor: raise AuditError("source_commit_not_ancestor")
@@ -593,6 +707,7 @@ def build_archive(contract_path: Path, output: Path, root: Path) -> dict[str, ob
     payloads["freshness.json"] = canonical_bytes({"baseline_head": freshness["baseline_head"], "protocol": "validation_evidence_freshness_v1", "stale_count": freshness["state_counts"].get("stale", 0), "status": freshness["status"]})
     payloads["policy.json"] = canonical_bytes(contract["policy"])
     payloads["readiness.json"] = canonical_bytes({"formal_validation_complete": False, "published_readiness_status": sources["readiness"]["status"], "status": "verified_with_declared_blockers"})
+    payloads["revocation.json"] = canonical_bytes(revocation)
     payloads["protocol_dependencies.json"] = canonical_bytes({"implementation_commit_ancestry": {"head_commit": head, "source_commit": source_commit, "source_is_ancestor": ancestor}, "source_files": [{"role": key, "sha256": source_hashes[key]} for key in sorted(source_hashes)]})
     verifier_bytes = Path(__file__).read_bytes()
     payloads[VERIFIER] = verifier_bytes
@@ -639,6 +754,7 @@ def main(argv: list[str] | None = None) -> int:
             if not contract_path.is_absolute():
                 contract_path = root / contract_path
             _contract, sources, _hashes = _audit_sources(contract_path.resolve(), root)
+            _audit_revocation(root)
             report = {
                 "blocker_count": 3,
                 "claim_count": len(sources["claims"]["claims"]),
