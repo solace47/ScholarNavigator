@@ -414,3 +414,13 @@ quarantine 与 clearance CLI 均先验证当前 seal，standalone auditor 只发
 `formal_validation_dress_rehearsal_v1` 在独立 `synthetic_rehearsal_only` 临时命名空间中协调既有 Full1000、来源取证、灾难恢复、人工标注、外部 scorer、隔离、freshness、撤销、clearance 和 standalone 门禁。协调层只保存阶段摘要与哈希，不保存合成标签、scorer 指标值、test-only receipt 或运行目录。
 
 彩排严格保持预注册→授权→执行→intake→解盲/评分→隔离→freshness→test-only clearance→交接顺序，并以失败矩阵验证乱序、部分证据、后验修改、重复签发和撤销传播。它证明工程链路可闭合，不改变真实 readiness、默认策略、正式账本或三项外部阻断。详见 [`docs/formal-validation-dress-rehearsal.md`](formal-validation-dress-rehearsal.md)。
+
+## 公开证据透明日志
+
+`evidence_transparency_log_v1` 将 readiness、standalone 审计包、发布候选及未来 clearance
+receipt 的脱敏摘要写入确定性追加链和域分离 Merkle 树。记录必须保留三项正式阻断、freshness
+与 revocation 状态；删除、重排、同发布身份冲突、旧根回滚、阻断隐藏和共享前缀后的分叉均
+fail-closed。当前只生成绑定固定提交 Git blob 的 candidate-only checkpoint，不把尚未合格的
+软件候选或未完成正式验证标记为公开发布。哈希链只证明内容与历史一致性，不认证发布者身份。
+契约和命令见
+[`docs/evidence-transparency-log.md`](evidence-transparency-log.md)。

@@ -1,13 +1,32 @@
 {
   "blocked_evidence_ids": [
+    "evidence_transparency_readiness",
     "formal_dress_rehearsal_readiness"
   ],
   "claim_component_bindings": {
     "architecture_formal_validation_dress_rehearsal_ready": [
       "formal_validation_dress_rehearsal"
+    ],
+    "architecture_evidence_transparency_controls_ready": [
+      "evidence_transparency_log"
     ]
   },
   "components": [
+    {
+      "component_id": "evidence_transparency_log",
+      "files": [
+        "benchmark/evidence_transparency_log_v1_checkpoint.json",
+        "benchmark/evidence_transparency_log_v1_evidence/readiness.json",
+        "benchmark/evidence_transparency_log_v1_evidence/simulation.json",
+        "benchmark/evidence_transparency_log_v1_log.json",
+        "benchmark/evidence_transparency_log_v1_protocol.json",
+        "benchmark/validation_evidence_freshness_v1_addenda.json",
+        "docs/evidence-transparency-log.md",
+        "scripts/check_evidence_transparency.py",
+        "src/scholar_agent/evaluation/evidence_transparency_log.py"
+      ],
+      "kind": "append_only_public_evidence_consistency_control"
+    },
     {
       "component_id": "formal_validation_dress_rehearsal",
       "files": [
@@ -25,6 +44,18 @@
     }
   ],
   "evidence_component_bindings": {
+    "evidence_transparency_checkpoint": [
+      "evidence_transparency_log"
+    ],
+    "evidence_transparency_protocol": [
+      "evidence_transparency_log"
+    ],
+    "evidence_transparency_readiness": [
+      "evidence_transparency_log"
+    ],
+    "evidence_transparency_simulation": [
+      "evidence_transparency_log"
+    ],
     "formal_dress_rehearsal_protocol": [
       "formal_validation_dress_rehearsal"
     ],
@@ -33,6 +64,9 @@
     ]
   },
   "gate_component_bindings": {
+    "evidence_transparency": [
+      "evidence_transparency_log"
+    ],
     "formal_validation_dress_rehearsal": [
       "formal_validation_dress_rehearsal"
     ]

@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2b2b8a586a5309ab04d7230547e89f4f5ce60637386e3fdfd8c045a1b8c0e29d"
+      "sha256": "bf39928eea41509a1f1d768dc53e3fb2c9ef0cc06992d2c731541f73b62984d1"
     },
     {
       "document_id": "contest_requirements",
@@ -423,6 +423,20 @@
       "scope": "engineering_capability",
       "statement": "The formal validation population, execution policy, human review rules, statistical methods, stopping conditions, and declaration boundaries are deterministically sealed before real external evidence intake.",
       "status": "verified"
+    },
+    {
+      "boundary": "The current checkpoint is candidate-only with zero public releases; the hash chain proves content and prefix consistency, not publisher identity, retrieval quality, or formal completion.",
+      "claim_id": "architecture_evidence_transparency_controls_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "evidence_transparency_checkpoint",
+        "evidence_transparency_protocol",
+        "evidence_transparency_readiness",
+        "evidence_transparency_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Readiness, standalone, release-candidate, revocation and future clearance summaries have a deterministic append-only evidence log with Merkle inclusion and consistency proofs.",
+      "status": "verified"
     }
   ],
   "code_identity": {
@@ -430,6 +444,11 @@
       "benchmark/evidence_revocation_response_v1_evidence/simulation.json",
       "benchmark/evidence_revocation_response_v1_ledger.json",
       "benchmark/evidence_revocation_response_v1_protocol.json",
+      "benchmark/evidence_transparency_log_v1_checkpoint.json",
+      "benchmark/evidence_transparency_log_v1_evidence/readiness.json",
+      "benchmark/evidence_transparency_log_v1_evidence/simulation.json",
+      "benchmark/evidence_transparency_log_v1_log.json",
+      "benchmark/evidence_transparency_log_v1_protocol.json",
       "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
       "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
       "benchmark/formal_run_disaster_recovery_v1_protocol.json",
@@ -461,6 +480,7 @@
       "benchmark/validation_evidence_freshness_v1_addenda.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/evidence-revocation-response.md",
+      "docs/evidence-transparency-log.md",
       "docs/formal-run-disaster-recovery.md",
       "docs/formal-validation-dress-rehearsal.md",
       "docs/formal-validation-preregistration.md",
@@ -474,6 +494,7 @@
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_evidence_revocation.py",
+      "scripts/check_evidence_transparency.py",
       "scripts/check_formal_run_recovery.py",
       "scripts/check_formal_validation_dress_rehearsal.py",
       "scripts/check_formal_validation_preregistration.py",
@@ -492,6 +513,7 @@
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/evidence_revocation.py",
+      "src/scholar_agent/evaluation/evidence_transparency_log.py",
       "src/scholar_agent/evaluation/formal_run_disaster_recovery.py",
       "src/scholar_agent/evaluation/formal_validation_dress_rehearsal.py",
       "src/scholar_agent/evaluation/formal_validation_preregistration.py",
@@ -710,6 +732,16 @@
         {
           "evidence_id": "formal_dress_rehearsal_readiness",
           "pointer": "/formal_validation_complete"
+        }
+      ]
+    },
+    {
+      "assertion_id": "evidence_transparency_preserves_external_blockers",
+      "expected": 3,
+      "observations": [
+        {
+          "evidence_id": "evidence_transparency_readiness",
+          "pointer": "/real_blocker_count"
         }
       ]
     }
@@ -2208,7 +2240,7 @@
       "protocol": "standalone_auditor_bundle_v1",
       "required": true,
       "role": "external_auditor_readiness",
-      "sha256": "783ea4d896daf61187e3eb202bb27c1bd974b62439dac2f66145c3e18f0ecf60"
+      "sha256": "f2a11f391569bce2026e120cbdcff804e03327b94988dc4b86d3da4160c700b2"
     },
     {
       "checks": [
@@ -2234,7 +2266,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "2991571c377c4f0c6ff3cbcc35b3c3e11131317f09f7ffdc5a6c46a470aac56d"
+      "sha256": "476e6073fb0342512133815a0a9f6ca9f6811deacbcc5c2302fdfb8a623e279f"
     },
     {
       "checks": [
@@ -2250,7 +2282,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "18e399cbc66aabc0194e7275da3177790f05c2752034b4e5c1af2643fe251cbd"
+      "sha256": "81cd7687d45de8ffc816339538368b5c4d9d26d77185656530832bd1d266651c"
     },
     {
       "checks": [
@@ -2382,7 +2414,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "7eb4e65e8b317e3211aca315040de347453235e3e3314c6da367ba92bca107e4"
+      "sha256": "97db507954860e701c456c17326847833847883bc3a30979804153f1b660aa4d"
     },
     {
       "checks": [
@@ -2409,7 +2441,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "4a04220e2651f2134dfa1388cc508a5e0753fedb547d9585e10fd4c01806a485"
+      "sha256": "c80e1f4831918351b8572fbd101d8d380ba85cb24ca9980a114792258a4450e3"
     },
     {
       "checks": [
@@ -2429,7 +2461,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "00d7cc0229fcdd80cfcd74ae2744121675327e323a61ee9f6191055ecfa1dfe8"
+      "sha256": "f7a2060f4e1a3a2df756c4042a6806718c722156be92241dfe53944dbecbffd0"
     },
     {
       "checks": [
@@ -2495,6 +2527,106 @@
       "required": true,
       "role": "synthetic_incident_response_matrix",
       "sha256": "5ca8f80422e1bccf0eeec276ce0353fcdfa784e21941caf23bc596703e661b7a"
+    },
+    {
+      "checks": [
+        {
+          "equals": "evidence_transparency_log_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "evidence_transparency_protocol",
+      "format": "json",
+      "path": "benchmark/evidence_transparency_log_v1_protocol.json",
+      "protocol": "evidence_transparency_log_v1",
+      "required": true,
+      "role": "append_only_transparency_protocol",
+      "sha256": "cfe6cd94bf107bdc7866d2ca577aa2d98e63ac9ae7b318a44f19879ce8c70bed"
+    },
+    {
+      "checks": [
+        {
+          "equals": "candidate_checkpoint_no_public_release",
+          "pointer": "/status"
+        },
+        {
+          "equals": 0,
+          "pointer": "/public_release_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "evidence_transparency_protocol"
+      ],
+      "evidence_id": "evidence_transparency_checkpoint",
+      "format": "json",
+      "path": "benchmark/evidence_transparency_log_v1_checkpoint.json",
+      "protocol": "evidence_transparency_log_v1",
+      "required": true,
+      "role": "candidate_only_transparency_checkpoint",
+      "sha256": "31996bd501f154b4230ed7eb840434eb3c1b0ed0e64f5a6d15f4a9f8896662a8"
+    },
+    {
+      "checks": [
+        {
+          "equals": "transparency_controls_ready",
+          "pointer": "/status"
+        },
+        {
+          "equals": 12,
+          "pointer": "/scenario_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "evidence_transparency_protocol"
+      ],
+      "evidence_id": "evidence_transparency_simulation",
+      "format": "json",
+      "path": "benchmark/evidence_transparency_log_v1_evidence/simulation.json",
+      "protocol": "evidence_transparency_log_v1",
+      "required": true,
+      "role": "synthetic_transparency_attack_matrix",
+      "sha256": "e1c7b676363aab17a5e060b7a07ffd75a23d02a84eb3987a88c3057ca3e291f0"
+    },
+    {
+      "checks": [
+        {
+          "equals": "no_public_release_checkpoint",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/real_blocker_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "evidence_transparency_checkpoint",
+        "evidence_transparency_protocol",
+        "evidence_transparency_simulation"
+      ],
+      "evidence_id": "evidence_transparency_readiness",
+      "format": "json",
+      "path": "benchmark/evidence_transparency_log_v1_evidence/readiness.json",
+      "protocol": "evidence_transparency_log_v1",
+      "required": true,
+      "role": "candidate_checkpoint_publication_boundary",
+      "sha256": "00d230f023a057eed18045417e72450c0b9a300713c4ba692d20435060096813"
     },
     {
       "checks": [
@@ -3152,6 +3284,33 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "formal_validation_dress_rehearsal",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_evidence_transparency.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "no_public_release_checkpoint",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": 3,
+          "pointer": "/real_blocker_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "evidence_transparency",
       "timeout_seconds": 60
     }
   ],

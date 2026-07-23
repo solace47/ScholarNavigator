@@ -57,6 +57,12 @@ Precision 和官方 scorer/schema 三项阻断。
 完整候选仍因 Python 根依赖未精确锁定而为 `not_qualified`。该工程状态不会替代或解除任何正式
 验证阻断。
 
+`evidence_transparency_log_v1` 登记为公开证据历史防分叉工程门禁。当前 checkpoint 只含
+candidate-only genesis，绑定固定提交中的 readiness、standalone、release candidate、
+clearance、freshness 与 revocation Git blob；公开 release 数为 0。该状态证明追加链、Merkle
+inclusion/consistency proof 和阻断披露控制可复核，但不认证发布者身份，不改变发布候选资格，
+也不解除 Full1000、真实人工 Precision 或官方 scorer/schema 三项阻断。
+
 声明状态只有 `verified`、`internal_only`、`blocked` 和 `not_applicable`。`verified` 仅用于
 工程能力，`internal_only` 仅用于内部冻结验证或诊断；正式验证要求在缺失外部输入时必须是
 `blocked`。覆盖、稳定性、来源漏斗、LLM proxy 或交付保真都不能代替这些阻断。

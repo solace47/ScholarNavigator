@@ -143,6 +143,212 @@
         "schema_version": "1"
       }
     },
+    "evidence_transparency": {
+      "recursive_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "checkpoint": {
+            "additionalProperties": false,
+            "properties": {
+              "candidate_status": {
+                "type": "string"
+              },
+              "formal_completion": {
+                "type": "boolean"
+              },
+              "verification_command": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "candidate_status",
+              "formal_completion",
+              "verification_command"
+            ],
+            "type": "object"
+          },
+          "execution": {
+            "additionalProperties": false,
+            "properties": {
+              "gold_or_qrels_loaded": {
+                "type": "boolean"
+              },
+              "llm_request_count": {
+                "type": "integer"
+              },
+              "network_request_count": {
+                "type": "integer"
+              },
+              "quality_metric_count": {
+                "type": "integer"
+              },
+              "snapshot_write_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "gold_or_qrels_loaded",
+              "llm_request_count",
+              "network_request_count",
+              "quality_metric_count",
+              "snapshot_write_count"
+            ],
+            "type": "object"
+          },
+          "formal_validation_complete": {
+            "type": "boolean"
+          },
+          "identity_authentication": {
+            "type": "string"
+          },
+          "merkle": {
+            "additionalProperties": false,
+            "properties": {
+              "consistency_proof": {
+                "type": "string"
+              },
+              "empty_root": {
+                "type": "string"
+              },
+              "leaf": {
+                "type": "string"
+              },
+              "node": {
+                "type": "string"
+              },
+              "split": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "consistency_proof",
+              "empty_root",
+              "leaf",
+              "node",
+              "split"
+            ],
+            "type": "object"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocol_sha256": {
+            "type": "string"
+          },
+          "real_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "record_contract": {
+            "additionalProperties": false,
+            "properties": {
+              "content_hash": {
+                "type": "string"
+              },
+              "previous_hash": {
+                "type": "string"
+              },
+              "rollback": {
+                "type": "string"
+              },
+              "same_release_identity_conflict": {
+                "type": "string"
+              },
+              "sequence": {
+                "type": "string"
+              },
+              "supersession": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "content_hash",
+              "previous_hash",
+              "rollback",
+              "same_release_identity_conflict",
+              "sequence",
+              "supersession"
+            ],
+            "type": "object"
+          },
+          "release_statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "source_commit": {
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": false,
+            "properties": {
+              "blockers": {
+                "type": "string"
+              },
+              "claims": {
+                "type": "string"
+              },
+              "clearance": {
+                "type": "string"
+              },
+              "freshness": {
+                "type": "string"
+              },
+              "readiness": {
+                "type": "string"
+              },
+              "release_candidate": {
+                "type": "string"
+              },
+              "revocation": {
+                "type": "string"
+              },
+              "standalone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "blockers",
+              "claims",
+              "clearance",
+              "freshness",
+              "readiness",
+              "release_candidate",
+              "revocation",
+              "standalone"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "checkpoint",
+          "execution",
+          "formal_validation_complete",
+          "identity_authentication",
+          "merkle",
+          "protocol",
+          "protocol_sha256",
+          "real_blockers",
+          "record_contract",
+          "release_statuses",
+          "schema_version",
+          "source_commit",
+          "sources"
+        ],
+        "type": "object"
+      },
+      "strict_unknown_fields": true,
+      "versions": {
+        "protocol": "evidence_transparency_log_v1",
+        "schema_version": "1"
+      }
+    },
     "external_scorer_handoff": {
       "recursive_schema": {
         "additionalProperties": false,
@@ -5246,6 +5452,799 @@
         }
       }
     },
+    "evidence_transparency": {
+      "arguments": [
+        {
+          "names": [
+            "--checkpoint"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--checkpoint"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--checkpoint-output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--log"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--new-log"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--old-log"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--record"
+          ],
+          "options": {
+            "required": true
+          }
+        },
+        {
+          "names": [
+            "--sequence"
+          ],
+          "options": {
+            "required": true
+          }
+        }
+      ],
+      "commands": [
+        "append-dry-run",
+        "audit-readiness",
+        "build-log",
+        "prove-consistency",
+        "prove-inclusion",
+        "verify-log"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "probes": {
+        "append_dry_run": {
+          "arguments": [
+            "append-dry-run",
+            "--log",
+            "benchmark/evidence_transparency_log_v1_log.json",
+            "--record",
+            "{temp}/missing-record.json"
+          ],
+          "command": "append-dry-run",
+          "exit_code": 2,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "reason_code",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "append_dry_run",
+          "top_level_fields": [
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "reason_code",
+            "schema_version",
+            "status"
+          ]
+        },
+        "audit_readiness": {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "exit_code": 3,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "candidate_checkpoint_sha256": {
+                "type": "string"
+              },
+              "controls_ready": {
+                "type": "boolean"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "identity_authentication": {
+                "type": "string"
+              },
+              "log_length": {
+                "type": "integer"
+              },
+              "merkle_root": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_blocker_count": {
+                "type": "integer"
+              },
+              "real_blockers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "candidate_checkpoint_sha256",
+              "controls_ready",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "identity_authentication",
+              "log_length",
+              "merkle_root",
+              "protocol",
+              "real_blocker_count",
+              "real_blockers",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_readiness",
+          "top_level_fields": [
+            "candidate_checkpoint_sha256",
+            "controls_ready",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "identity_authentication",
+            "log_length",
+            "merkle_root",
+            "protocol",
+            "real_blocker_count",
+            "real_blockers",
+            "schema_version",
+            "status"
+          ]
+        },
+        "build_log": {
+          "arguments": [
+            "build-log"
+          ],
+          "command": "build-log",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "checkpoint_sha256": {
+                "type": "string"
+              },
+              "checkpoint_status": {
+                "type": "string"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "identity_authentication": {
+                "type": "string"
+              },
+              "latest_release_identity": {
+                "type": "string"
+              },
+              "latest_release_status": {
+                "type": "string"
+              },
+              "log_sha256": {
+                "type": "string"
+              },
+              "merkle_root": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "public_release_count": {
+                "type": "integer"
+              },
+              "record_count": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "simulation": {
+                "additionalProperties": false,
+                "properties": {
+                  "accepted_scenario_count": {
+                    "type": "integer"
+                  },
+                  "execution": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "gold_or_qrels_loaded": {
+                        "type": "boolean"
+                      },
+                      "llm_request_count": {
+                        "type": "integer"
+                      },
+                      "network_request_count": {
+                        "type": "integer"
+                      },
+                      "quality_metric_count": {
+                        "type": "integer"
+                      },
+                      "snapshot_write_count": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "gold_or_qrels_loaded",
+                      "llm_request_count",
+                      "network_request_count",
+                      "quality_metric_count",
+                      "snapshot_write_count"
+                    ],
+                    "type": "object"
+                  },
+                  "exit_code": {
+                    "type": "integer"
+                  },
+                  "formal_validation_complete": {
+                    "type": "boolean"
+                  },
+                  "identity_authentication": {
+                    "type": "string"
+                  },
+                  "protocol": {
+                    "type": "string"
+                  },
+                  "rejected_scenario_count": {
+                    "type": "integer"
+                  },
+                  "report_sha256": {
+                    "type": "string"
+                  },
+                  "scenario_count": {
+                    "type": "integer"
+                  },
+                  "scenarios": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "accepted": {
+                          "type": "boolean"
+                        },
+                        "scenario": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "accepted",
+                        "scenario"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "schema_version": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "synthetic_artifacts_persisted": {
+                    "type": "boolean"
+                  },
+                  "synthetic_only": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "accepted_scenario_count",
+                  "execution",
+                  "exit_code",
+                  "formal_validation_complete",
+                  "identity_authentication",
+                  "protocol",
+                  "rejected_scenario_count",
+                  "report_sha256",
+                  "scenario_count",
+                  "scenarios",
+                  "schema_version",
+                  "status",
+                  "synthetic_artifacts_persisted",
+                  "synthetic_only"
+                ],
+                "type": "object"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkpoint_sha256",
+              "checkpoint_status",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "identity_authentication",
+              "latest_release_identity",
+              "latest_release_status",
+              "log_sha256",
+              "merkle_root",
+              "protocol",
+              "public_release_count",
+              "record_count",
+              "schema_version",
+              "simulation",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "build_log",
+          "top_level_fields": [
+            "checkpoint_sha256",
+            "checkpoint_status",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "identity_authentication",
+            "latest_release_identity",
+            "latest_release_status",
+            "log_sha256",
+            "merkle_root",
+            "protocol",
+            "public_release_count",
+            "record_count",
+            "schema_version",
+            "simulation",
+            "status"
+          ]
+        },
+        "prove_consistency": {
+          "arguments": [
+            "prove-consistency",
+            "--old-log",
+            "benchmark/evidence_transparency_log_v1_log.json",
+            "--new-log",
+            "benchmark/evidence_transparency_log_v1_log.json"
+          ],
+          "command": "prove-consistency",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "extension_leaf_hashes": {
+                "items": {},
+                "type": "array"
+              },
+              "new_root": {
+                "type": "string"
+              },
+              "new_size": {
+                "type": "integer"
+              },
+              "old_root": {
+                "type": "string"
+              },
+              "old_size": {
+                "type": "integer"
+              },
+              "prefix_leaf_hashes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "proof_sha256": {
+                "type": "string"
+              },
+              "proof_type": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "extension_leaf_hashes",
+              "new_root",
+              "new_size",
+              "old_root",
+              "old_size",
+              "prefix_leaf_hashes",
+              "proof_sha256",
+              "proof_type",
+              "protocol",
+              "schema_version"
+            ],
+            "type": "object"
+          },
+          "probe_id": "prove_consistency",
+          "top_level_fields": [
+            "extension_leaf_hashes",
+            "new_root",
+            "new_size",
+            "old_root",
+            "old_size",
+            "prefix_leaf_hashes",
+            "proof_sha256",
+            "proof_type",
+            "protocol",
+            "schema_version"
+          ]
+        },
+        "prove_inclusion": {
+          "arguments": [
+            "prove-inclusion",
+            "--sequence",
+            "0"
+          ],
+          "command": "prove-inclusion",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "leaf_hash": {
+                "type": "string"
+              },
+              "leaf_index": {
+                "type": "integer"
+              },
+              "path": {
+                "items": {},
+                "type": "array"
+              },
+              "proof_sha256": {
+                "type": "string"
+              },
+              "proof_type": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "root_hash": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "tree_size": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "leaf_hash",
+              "leaf_index",
+              "path",
+              "proof_sha256",
+              "proof_type",
+              "protocol",
+              "root_hash",
+              "schema_version",
+              "tree_size"
+            ],
+            "type": "object"
+          },
+          "probe_id": "prove_inclusion",
+          "top_level_fields": [
+            "leaf_hash",
+            "leaf_index",
+            "path",
+            "proof_sha256",
+            "proof_type",
+            "protocol",
+            "root_hash",
+            "schema_version",
+            "tree_size"
+          ]
+        },
+        "verify_log": {
+          "arguments": [
+            "verify-log"
+          ],
+          "command": "verify-log",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "checkpoint_verified": {
+                "type": "boolean"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "identity_authentication": {
+                "type": "string"
+              },
+              "latest_release_identity": {
+                "type": "string"
+              },
+              "latest_release_status": {
+                "type": "string"
+              },
+              "log_sha256": {
+                "type": "string"
+              },
+              "merkle_root": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "public_release_count": {
+                "type": "integer"
+              },
+              "record_count": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkpoint_verified",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "identity_authentication",
+              "latest_release_identity",
+              "latest_release_status",
+              "log_sha256",
+              "merkle_root",
+              "protocol",
+              "public_release_count",
+              "record_count",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "verify_log",
+          "top_level_fields": [
+            "checkpoint_verified",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "identity_authentication",
+            "latest_release_identity",
+            "latest_release_status",
+            "log_sha256",
+            "merkle_root",
+            "protocol",
+            "public_release_count",
+            "record_count",
+            "schema_version",
+            "status"
+          ]
+        }
+      }
+    },
     "external_scorer_handoff": {
       "arguments": [
         {
@@ -8364,15 +9363,16 @@
       }
     }
   },
-  "content_sha256": "15654fc6a7145c7493e48d8bc7a310415d6692c2a8f5edf1ac1c2ba0d8474056",
+  "content_sha256": "da5d356812c7560ef41836dcaa8f0f9ac1c218b4781920f9a73aed1845f38458",
   "documentation": {
-    "docs/architecture.md": "c6d3d8cc2ad45c74405af0ff9dad508eca688f86a9bf76872271bd0562b6eef6",
+    "docs/architecture.md": "1d391a720637f92b0d676a2b118b66d299f4b8cde5391faab382fefd04f5049b",
     "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
+    "docs/evidence-transparency-log.md": "4cd18485bd457fc31adbb27a9e409608d61ac618d26ae24750edb34cefba6a29",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
     "docs/formal-validation-clearance.md": "d299bb810616aac93cf5d1c28798d3720a329bf105628322df165abb8f33321a",
     "docs/formal-validation-dress-rehearsal.md": "617351ef2270d177c8b1abf95fcf181279d316e614d5a343b3b17d58d495ca0d",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
-    "docs/validation-readiness.md": "b51e324f10b2923d4615a4033519d608cb67035d8d7b88addda0a4896a06d62e"
+    "docs/validation-readiness.md": "cff6af66ef7d4d20fa3dc93b9d04613129a6a135f8356348f4a98a4b883287de"
   },
   "execution": {
     "gold_or_qrels_loaded": false,

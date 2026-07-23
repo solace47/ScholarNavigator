@@ -1,6 +1,7 @@
 {
   "artifact_contracts": {
     "clearance": "benchmark/formal_validation_clearance_v1_protocol.json",
+    "evidence_transparency": "benchmark/evidence_transparency_log_v1_protocol.json",
     "external_scorer_handoff": "benchmark/external_scorer_handoff_v1_protocol.json",
     "formal_validation_dress_rehearsal": "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
     "formal_validation_preregistration": "benchmark/formal_validation_preregistration_v1_protocol.json",
@@ -8,6 +9,60 @@
     "readiness": "benchmark/validation_readiness_bundle_v1_contract.json"
   },
   "cli_contracts": {
+    "evidence_transparency": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_evidence_transparency.py",
+      "probes": [
+        {
+          "arguments": ["build-log"],
+          "command": "build-log",
+          "expected_exit_code": 0,
+          "probe_id": "build_log"
+        },
+        {
+          "arguments": [
+            "append-dry-run",
+            "--log",
+            "benchmark/evidence_transparency_log_v1_log.json",
+            "--record",
+            "{temp}/missing-record.json"
+          ],
+          "command": "append-dry-run",
+          "expected_exit_code": 2,
+          "probe_id": "append_dry_run"
+        },
+        {
+          "arguments": ["verify-log"],
+          "command": "verify-log",
+          "expected_exit_code": 0,
+          "probe_id": "verify_log"
+        },
+        {
+          "arguments": ["prove-inclusion", "--sequence", "0"],
+          "command": "prove-inclusion",
+          "expected_exit_code": 0,
+          "probe_id": "prove_inclusion"
+        },
+        {
+          "arguments": [
+            "prove-consistency",
+            "--old-log",
+            "benchmark/evidence_transparency_log_v1_log.json",
+            "--new-log",
+            "benchmark/evidence_transparency_log_v1_log.json"
+          ],
+          "command": "prove-consistency",
+          "expected_exit_code": 0,
+          "probe_id": "prove_consistency"
+        },
+        {
+          "arguments": ["audit-readiness"],
+          "command": "audit-readiness",
+          "expected_exit_code": 3,
+          "probe_id": "audit_readiness"
+        }
+      ]
+    },
     "evidence_revocation": {
       "exit_codes": [
         0,
@@ -154,6 +209,7 @@
   },
   "documentation_files": [
     "docs/architecture.md",
+    "docs/evidence-transparency-log.md",
     "docs/evaluation.md",
     "docs/external-scorer-handoff.md",
     "docs/formal-validation-clearance.md",

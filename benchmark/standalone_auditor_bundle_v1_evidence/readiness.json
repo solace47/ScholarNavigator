@@ -1,7 +1,7 @@
 {
   "blocker_count": 3,
-  "claim_count": 28,
-  "evidence_reference_count": 82,
+  "claim_count": 29,
+  "evidence_reference_count": 86,
   "exit_code": 0,
   "formal_validation_complete": false,
   "protocol": "standalone_auditor_bundle_v1",

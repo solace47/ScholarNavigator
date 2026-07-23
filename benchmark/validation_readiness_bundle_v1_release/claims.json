@@ -1,13 +1,13 @@
 {
-  "claim_count": 28,
-  "claim_evidence_coverage_count": 28,
+  "claim_count": 29,
+  "claim_evidence_coverage_count": 29,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2b2b8a586a5309ab04d7230547e89f4f5ce60637386e3fdfd8c045a1b8c0e29d",
-      "size": 44450
+      "sha256": "bf39928eea41509a1f1d768dc53e3fb2c9ef0cc06992d2c731541f73b62984d1",
+      "size": 45162
     },
     {
       "document_id": "contest_requirements",
@@ -53,6 +53,20 @@
       ],
       "scope": "engineering_capability",
       "statement": "Evidence revocation, downstream claim rollback, publication invalidation, and fully gated restoration are controlled by an append-only deterministic ledger.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The current checkpoint is candidate-only with zero public releases; the hash chain proves content and prefix consistency, not publisher identity, retrieval quality, or formal completion.",
+      "claim_id": "architecture_evidence_transparency_controls_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "evidence_transparency_checkpoint",
+        "evidence_transparency_protocol",
+        "evidence_transparency_readiness",
+        "evidence_transparency_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Readiness, standalone, release-candidate, revocation and future clearance summaries have a deterministic append-only evidence log with Merkle inclusion and consistency proofs.",
       "status": "verified"
     },
     {
@@ -389,7 +403,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 20,
+    "architecture": 21,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -400,6 +414,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 16
+    "verified": 17
   }
 }

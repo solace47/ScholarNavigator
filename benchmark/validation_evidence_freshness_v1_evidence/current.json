@@ -1,5 +1,5 @@
 {
-  "baseline_head": "a3ba36422b69294cd70bde83b102bd576a2c4d1d",
+  "baseline_head": "f764eb3c0849c53512f9326d7a83429e1c430a7b",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -11,6 +11,14 @@
     },
     {
       "claim_id": "architecture_evidence_revocation_controls_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_evidence_transparency_controls_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -218,7 +226,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 34,
+  "component_count": 35,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -287,6 +295,38 @@
     {
       "declared_state": "fresh",
       "evidence_id": "evidence_revocation_simulation",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_transparency_checkpoint",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_transparency_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "blocked",
+      "evidence_id": "evidence_transparency_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "evidence_transparency_simulation",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -897,6 +937,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "evidence_transparency",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "external_scorer_handoff",
       "reasons": [],
       "stale_components": [],
@@ -1060,8 +1108,8 @@
   "protocol": "validation_evidence_freshness_v1",
   "schema_version": "1",
   "state_counts": {
-    "blocked": 17,
-    "fresh": 112,
+    "blocked": 18,
+    "fresh": 117,
     "not_applicable": 1,
     "stale": 0
   },
