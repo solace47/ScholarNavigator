@@ -1,5 +1,5 @@
 {
-  "baseline_sha256": "2b45ff20f072d6ac70a916613ecfcf641efeefc85170467a9eae9d72771f8f9f",
+  "baseline_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
   "contract_count": 12,
   "execution": {
     "gold_or_qrels_loaded": false,
@@ -12,6 +12,6 @@
   "formal_validation_complete": false,
   "protocol": "public_contract_compatibility_v1",
   "schema_version": "1",
-  "snapshot_sha256": "2b45ff20f072d6ac70a916613ecfcf641efeefc85170467a9eae9d72771f8f9f",
+  "snapshot_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
   "status": "contracts_compatible"
 }

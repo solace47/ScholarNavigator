@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "7ec3a9823bee3996269f9ff0b2df2111bcc66a782dd24a9138e6252284388532"
+      "sha256": "1b9bed3c074c1593008d3af0d06bb9c39f425c4e2267aa9ad8714502eeeb6294"
     },
     {
       "document_id": "contest_requirements",
@@ -57,7 +57,7 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "717de73bde388a123baab177244fb5aab4ce707c9ad73fdd5c801afa10f2c8e7"
+      "sha256": "25de7dfd33d1872ed4db9c0da4e7c1d26434bfbf1bd65dbb79039c73a97f73dd"
     },
     {
       "document_id": "readme",
@@ -212,6 +212,19 @@
       ],
       "scope": "engineering_capability",
       "statement": "The frozen Full1000 execution plan is protected by deterministic two-stage authorization and append-only operational audit controls.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The 1000-query fake-adapter exercise proves disaster-recovery mechanics only; no real run or backup exists and Full1000 remains incomplete.",
+      "claim_id": "architecture_formal_run_disaster_recovery_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_run_disaster_recovery_protocol",
+        "formal_run_disaster_recovery_readiness",
+        "formal_run_disaster_recovery_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "New-format Full1000 runs have deterministic incremental backup, atomic off-site restore, zero-duplicate resume, and committed-attempt recovery controls.",
       "status": "verified"
     },
     {
@@ -378,6 +391,9 @@
       "benchmark/frontend_reproducible_build_v1_evidence/current.json",
       "benchmark/frontend_reproducible_build_v1_protocol.json",
       "benchmark/frontend_reproducible_build_v1_release_contract.json",
+      "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
+      "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
+      "benchmark/formal_run_disaster_recovery_v1_protocol.json",
       "benchmark/offline_wheelhouse_intake_v1_manifest.json",
       "benchmark/offline_wheelhouse_intake_v1_protocol.json",
       "benchmark/offline_wheelhouse_intake_v1_release_closure.json",
@@ -393,6 +409,7 @@
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
+      "docs/formal-run-disaster-recovery.md",
       "docs/full1000-launch-control.md",
       "docs/offline-wheelhouse-intake.md",
       "docs/public-contract-compatibility.md",
@@ -402,6 +419,7 @@
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
+      "scripts/check_formal_run_recovery.py",
       "scripts/check_full1000_launch_control.py",
       "scripts/check_offline_wheelhouse.py",
       "scripts/check_public_contract_compatibility.py",
@@ -416,6 +434,7 @@
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
+      "src/scholar_agent/evaluation/formal_run_disaster_recovery.py",
       "src/scholar_agent/evaluation/full1000_launch_control.py",
       "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
       "src/scholar_agent/evaluation/public_contract_compatibility.py",
@@ -1954,6 +1973,119 @@
     {
       "checks": [
         {
+          "equals": "formal_run_disaster_recovery_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/population/query_count"
+        },
+        {
+          "equals": 20,
+          "pointer": "/population/shard_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/activation/real_run_started"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan",
+        "full1000_launch_control_protocol",
+        "provider_ingest_capture_addendum",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_protocol",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_protocol.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "required": true,
+      "role": "disaster_recovery_contract",
+      "sha256": "e6b646df73fee75421e33894a73f60cb6f4e00f509a09a103766f68310a20467"
+    },
+    {
+      "checks": [
+        {
+          "equals": "external_run_not_started",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_backup_created"
+        },
+        {
+          "equals": false,
+          "pointer": "/full1000_completed"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "formal_run_disaster_recovery_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_readiness",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "required": true,
+      "role": "real_run_and_backup_block",
+      "sha256": "8af19ecb7cc0a147636472bb22ebc312cb9e88744e261283c5bf847362dcb253"
+    },
+    {
+      "checks": [
+        {
+          "equals": "recovery_controls_ready",
+          "pointer": "/status"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/query_count"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/final_request_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/duplicate_request_count"
+        },
+        {
+          "equals": 11,
+          "pointer": "/scenario_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/execution/network_request_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "formal_run_disaster_recovery_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_simulation",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "required": true,
+      "role": "synthetic_disaster_recovery_conformance",
+      "sha256": "1dd7f737789b771f3cdc0a3790315d4befc84fde9d2ec7f794cbc913b1df8fde"
+    },
+    {
+      "checks": [
+        {
           "equals": "standalone_auditor_bundle_v1",
           "pointer": "/protocol"
         },
@@ -2021,7 +2153,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "3b8c2b09d27caa0a88fbc5cd18e858e354fab41861a6e7b628935831c4ed5602"
+      "sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0"
     },
     {
       "checks": [
@@ -2037,7 +2169,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "d8f026085e89f52257ad1ef0254b5e095f3a5d557ce6c5a75b0b7b6851ff26f6"
+      "sha256": "dbe08c6f7adbd32151fed1d5494eae86b7f5a28703d392920ec28529229eeb21"
     },
     {
       "checks": [
@@ -2169,7 +2301,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "b812e1b9327c57bc13fbfadfdd16fa0482a3e71bf4be9becc9604aedca688dee"
+      "sha256": "20a66e2f01ef877c9eb796edd6dad1fda97119451fa745a6969c19620145ad86"
     },
     {
       "checks": [
@@ -2196,7 +2328,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "01c4c3e4d124bb8d91a12d7724470baeba9c038b95442b39fa565f60606422c9"
+      "sha256": "0377c575b5e9b7fbc79233477ff90cb1d3c47d524c80fe91bd5c3ce1e67eb972"
     },
     {
       "checks": [
@@ -2585,6 +2717,37 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "full1000_launch_control",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_formal_run_recovery.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "external_run_not_started",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/real_backup_created"
+        },
+        {
+          "equals": false,
+          "pointer": "/full1000_completed"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "formal_run_disaster_recovery",
       "timeout_seconds": 60
     },
     {

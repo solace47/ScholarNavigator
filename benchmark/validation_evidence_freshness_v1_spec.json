@@ -1,5 +1,5 @@
 {
-  "baseline_head": "3222b1282e87bf450dc359e17cdae8f6ac361b67",
+  "baseline_head": "905b4d24aa50705eb6b95aa26a3e538795eb29d8",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -36,6 +36,12 @@
       "formal_evidence_quarantine",
       "human_precision",
       "official_scorer_absence"
+    ],
+    "architecture_formal_run_disaster_recovery_ready": [
+      "formal_run_disaster_recovery",
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
     ],
     "architecture_full1000_execution_plan_ready": [
       "full1000_execution"
@@ -181,6 +187,21 @@
         "src/scholar_agent/evaluation/formal_evidence_quarantine.py"
       ],
       "kind": "formal_evidence_intake_isolation_and_posthoc_firewall"
+    },
+    {
+      "component_id": "formal_run_disaster_recovery",
+      "files": [
+        "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
+        "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
+        "benchmark/formal_run_disaster_recovery_v1_protocol.json",
+        "benchmark/full1000_execution_plan_v1.json",
+        "benchmark/full1000_launch_control_v1_protocol.json",
+        "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
+        "docs/formal-run-disaster-recovery.md",
+        "scripts/check_formal_run_recovery.py",
+        "src/scholar_agent/evaluation/formal_run_disaster_recovery.py"
+      ],
+      "kind": "committed_generation_backup_restore_and_resume"
     },
     {
       "component_id": "formal_validation_clearance",
@@ -534,6 +555,24 @@
       "human_precision",
       "official_scorer_absence"
     ],
+    "formal_run_disaster_recovery_protocol": [
+      "formal_run_disaster_recovery",
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
+    "formal_run_disaster_recovery_readiness": [
+      "formal_run_disaster_recovery",
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
+    "formal_run_disaster_recovery_simulation": [
+      "formal_run_disaster_recovery",
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
     "formal_validation_clearance_current": [
       "formal_validation_clearance",
       "full1000_execution",
@@ -778,6 +817,12 @@
       "formal_evidence_quarantine",
       "human_precision",
       "official_scorer_absence"
+    ],
+    "formal_run_disaster_recovery": [
+      "formal_run_disaster_recovery",
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
     ],
     "formal_validation_clearance": [
       "formal_validation_clearance",

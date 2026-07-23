@@ -5665,10 +5665,10 @@
       }
     }
   },
-  "content_sha256": "2b45ff20f072d6ac70a916613ecfcf641efeefc85170467a9eae9d72771f8f9f",
+  "content_sha256": "fc5362870c31a867888cebb13e024cff57e139e764ed7931b1bd3219722e4831",
   "documentation": {
-    "docs/architecture.md": "f88ad0b5456d17149497964709eacd77bbb2efa076c2c5757fe1a5287da784fa",
-    "docs/evaluation.md": "ed8813e21bfc250bc44a4250f939fc60ddafb50d2aa399b8b6c2cd57d8546292",
+    "docs/architecture.md": "779351f31542c0d15baf9a6b9eccbbf7bc2930b1b8e6d323dadb2b3afe3bbe2f",
+    "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
     "docs/formal-validation-clearance.md": "10e2fde89dde48f7396cc8a005f11a7fd33b2690fc9bd9273e7663c33cda1c7a",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",

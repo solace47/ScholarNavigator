@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 24,
+  "claim_count": 25,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 48,
-    "implementation_tree_sha256": "1022a6e672c2f573dcf7ec44bfdbb34a33681c37db1114f55a6bf0cbfb6de7ba"
+    "implementation_file_count": 54,
+    "implementation_tree_sha256": "91f9625d10ddc980e8392de77c501fbca6bf66c6a35165ad18cb514d270c1804"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 21,
+  "read_only_gate_count": 22,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -50,6 +50,12 @@
       "gate_id": "formal_evidence_quarantine",
       "output_sha256": "93aab19c45d4ed85a160e7b68b9cac3eb45defd2085aa5b44b1ef6a7bb4d70c3",
       "status": "blocked_no_real_formal_evidence"
+    },
+    {
+      "exit_code": 3,
+      "gate_id": "formal_run_disaster_recovery",
+      "output_sha256": "8af19ecb7cc0a147636472bb22ebc312cb9e88744e261283c5bf847362dcb253",
+      "status": "external_run_not_started"
     },
     {
       "exit_code": 3,
@@ -90,7 +96,7 @@
     {
       "exit_code": 0,
       "gate_id": "public_contract_compatibility",
-      "output_sha256": "d4302d7d78f841ab3917157be6e69855b92e9f2b823e8545013697a2c71fc9fc",
+      "output_sha256": "8c09754746bee35b3458e698c5714bc556bb3fbf004a01956c3ccf8a33ed4afd",
       "status": "contracts_compatible"
     },
     {
@@ -126,7 +132,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "49a9f1ee9683e7aadddcf8bf572eb4f6bb604bffd7c3571d10a37f88681564d4",
+      "output_sha256": "6464ff845303e34e311eb1da84bc02db5b5bcdaba923c5538503b1a0af140726",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -144,7 +150,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "3b8c2b09d27caa0a88fbc5cd18e858e354fab41861a6e7b628935831c4ed5602",
+      "output_sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0",
       "status": "fresh_with_declared_blockers"
     }
   ],

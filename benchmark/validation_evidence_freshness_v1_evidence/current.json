@@ -1,5 +1,5 @@
 {
-  "baseline_head": "3222b1282e87bf450dc359e17cdae8f6ac361b67",
+  "baseline_head": "905b4d24aa50705eb6b95aa26a3e538795eb29d8",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -19,6 +19,14 @@
     },
     {
       "claim_id": "architecture_formal_evidence_quarantine_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_formal_run_disaster_recovery_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -186,7 +194,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 30,
+  "component_count": 31,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -275,6 +283,30 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_disaster_recovery_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_disaster_recovery_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "formal_run_disaster_recovery_simulation",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
     },
     {
       "declared_state": "fresh",
@@ -777,6 +809,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "formal_run_disaster_recovery",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "formal_validation_clearance",
       "reasons": [],
       "stale_components": [],
@@ -901,7 +941,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 94,
+    "fresh": 99,
     "not_applicable": 1,
     "stale": 0
   },

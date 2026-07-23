@@ -849,6 +849,13 @@ shard 的唯一最终 attempt 完成后才可 aggregate；旧 Record162、fake d
 或直接 runner 输出均不能解除 Full1000 未完成阻断。详情见
 [`docs/full1000-launch-control.md`](full1000-launch-control.md)。
 
+`formal_run_disaster_recovery_v1` 只验证完整提交代能被增量备份、异地恢复并从最后权威
+query cursor 继续，且恢复后的资源账本、操作事件、aggregate 与不中断 fake 运行一致。
+它不读取 gold/qrels，不发起网络/LLM/Snapshot 写入，也不把稳定性证据解释为效果证据。
+Record160/162 与真实 Full1000 当前均没有符合该新契约的正式备份，因此真实 readiness
+保持 `external_run_not_started`。详情见
+[`docs/formal-run-disaster-recovery.md`](formal-run-disaster-recovery.md)。
+
 ```bash
 PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture
 PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture --resume-shard

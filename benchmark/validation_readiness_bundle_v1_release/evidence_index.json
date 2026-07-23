@@ -128,6 +128,45 @@
     },
     {
       "dependencies": [
+        "full1000_execution_plan",
+        "full1000_launch_control_protocol",
+        "provider_ingest_capture_addendum",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_protocol",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_protocol.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "role": "disaster_recovery_contract",
+      "sha256": "e6b646df73fee75421e33894a73f60cb6f4e00f509a09a103766f68310a20467",
+      "size": 3045
+    },
+    {
+      "dependencies": [
+        "formal_run_disaster_recovery_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_readiness",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "role": "real_run_and_backup_block",
+      "sha256": "8af19ecb7cc0a147636472bb22ebc312cb9e88744e261283c5bf847362dcb253",
+      "size": 543
+    },
+    {
+      "dependencies": [
+        "formal_run_disaster_recovery_protocol"
+      ],
+      "evidence_id": "formal_run_disaster_recovery_simulation",
+      "format": "json",
+      "path": "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
+      "protocol": "formal_run_disaster_recovery_v1",
+      "role": "synthetic_disaster_recovery_conformance",
+      "sha256": "1dd7f737789b771f3cdc0a3790315d4befc84fde9d2ec7f794cbc913b1df8fde",
+      "size": 1615
+    },
+    {
+      "dependencies": [
         "external_scorer_readiness",
         "formal_validation_clearance_protocol",
         "full1000_execution_plan",
@@ -475,7 +514,7 @@
       "path": "benchmark/public_contract_compatibility_v1_baseline.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "contract_baseline",
-      "sha256": "b812e1b9327c57bc13fbfadfdd16fa0482a3e71bf4be9becc9604aedca688dee",
+      "sha256": "20a66e2f01ef877c9eb796edd6dad1fda97119451fa745a6969c19620145ad86",
       "size": 341076
     },
     {
@@ -488,7 +527,7 @@
       "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "compatibility_verification",
-      "sha256": "01c4c3e4d124bb8d91a12d7724470baeba9c038b95442b39fa565f60606422c9",
+      "sha256": "0377c575b5e9b7fbc79233477ff90cb1d3c47d524c80fe91bd5c3ce1e67eb972",
       "size": 551
     },
     {
@@ -784,8 +823,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "3b8c2b09d27caa0a88fbc5cd18e858e354fab41861a6e7b628935831c4ed5602",
-      "size": 23556
+      "sha256": "cf7f1c734f669064425c458a9c414683d787aba00128bd08105944d2587e4bf0",
+      "size": 24633
     },
     {
       "dependencies": [],
@@ -794,8 +833,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "d8f026085e89f52257ad1ef0254b5e095f3a5d557ce6c5a75b0b7b6851ff26f6",
-      "size": 92477
+      "sha256": "dbe08c6f7adbd32151fed1d5494eae86b7f5a28703d392920ec28529229eeb21",
+      "size": 97232
     },
     {
       "dependencies": [
@@ -811,7 +850,7 @@
       "size": 3349
     }
   ],
-  "evidence_count": 70,
+  "evidence_count": 73,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }
