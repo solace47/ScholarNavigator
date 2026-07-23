@@ -383,6 +383,53 @@
     },
     {
       "dependencies": [
+        "full1000_execution_plan",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_capture_addendum",
+      "format": "json",
+      "path": "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "role": "future_full1000_capture_binding",
+      "sha256": "38d87a09eb5b39ef14b53c26a523c6ade24682b14ce180cfd2b153cde9d7adc2",
+      "size": 1088
+    },
+    {
+      "dependencies": [
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_fixture_matrix",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_evidence/fixture_matrix.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "role": "offline_synthetic_parser_replay_conformance",
+      "sha256": "e19aea821ba74c672849e2eb7105e3a9fab430ae734ddebda72c4f3970a6a63e",
+      "size": 1008
+    },
+    {
+      "dependencies": [
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_frozen_audit",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_evidence/frozen_audit.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "role": "historical_record162_eligibility_boundary",
+      "sha256": "1a57b1200fd8bb1c0906de73d06af2b2b658c80abbf4de61a6767861b73afcd6",
+      "size": 432
+    },
+    {
+      "dependencies": [],
+      "evidence_id": "provider_ingest_protocol",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_protocol.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "role": "protocol",
+      "sha256": "29a4a687f8bec2d9c3f12f264b24e41df2519442182728dc424b101e578e6a77",
+      "size": 2167
+    },
+    {
+      "dependencies": [
         "public_contract_protocol"
       ],
       "evidence_id": "public_contract_baseline",
@@ -390,8 +437,8 @@
       "path": "benchmark/public_contract_compatibility_v1_baseline.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "contract_baseline",
-      "sha256": "c1b0f425a9222be59796df7f65bc9636442a86cc9daceddbfb0766b5e8299cdc",
-      "size": 339425
+      "sha256": "d6f8bc6366e944477cd1b75b9a6058cfb0c3651215af49305f0b0c6f519edd07",
+      "size": 341076
     },
     {
       "dependencies": [
@@ -403,7 +450,7 @@
       "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "compatibility_verification",
-      "sha256": "c3e9ba3c0b85255b3ea32a5ec4a1737578b2ee07405b8ed8ba1ab2700482c9d5",
+      "sha256": "b357d8e7b654f437105ba57b65385a9c8703717b4e20c6709264104d11166507",
       "size": 551
     },
     {
@@ -699,8 +746,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "623fec2e482c3778dca2b8eb4c050549d4af28149c449d8d1eaa94f1503b553d",
-      "size": 21249
+      "sha256": "f9ca51c41b11608a41b837750809657ad6476fd5bc77b4040f04377bb7eb331a",
+      "size": 22504
     },
     {
       "dependencies": [],
@@ -709,8 +756,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "9b0d35cd4bcb2b48aff13dec2d7dd3381c536c31fbdb8a0a11580463d18f4f2b",
-      "size": 83036
+      "sha256": "3e5d12ad5c849ed78faa4cefcfc2cf7e526ee9088650dbac30bf01fe902aac9e",
+      "size": 87998
     },
     {
       "dependencies": [
@@ -726,7 +773,7 @@
       "size": 3139
     }
   ],
-  "evidence_count": 63,
+  "evidence_count": 67,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

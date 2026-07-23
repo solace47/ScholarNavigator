@@ -131,6 +131,7 @@ class CapsuleManifestV1(BaseModel):
     determinism: dict[str, Any]
     comparison: dict[str, Any] | None = None
     shard: dict[str, Any] | None = None
+    provider_ingest: dict[str, Any] | None = None
     generation_chain: dict[str, Any]
     entrypoint: dict[str, Any]
     files: list[CapsuleFile]
@@ -211,6 +212,19 @@ class CapsuleManifestV1(BaseModel):
                     "supersedes_attempt_id",
                 },
                 "shard",
+            )
+        if self.provider_ingest is not None:
+            _require_exact_keys(
+                self.provider_ingest,
+                {
+                    "contract",
+                    "bundle",
+                    "raw_archive",
+                    "resource_ledger_sha256",
+                    "manifest_identity",
+                    "authority",
+                },
+                "provider_ingest",
             )
         _require_exact_keys(
             self.entrypoint,
@@ -550,6 +564,10 @@ def export_capsule(
         capsule_data["comparison"] = run_manifest.comparison.model_dump(mode="json")
     if run_manifest.shard is not None:
         capsule_data["shard"] = run_manifest.shard.model_dump(mode="json")
+    if run_manifest.provider_ingest is not None:
+        capsule_data["provider_ingest"] = run_manifest.provider_ingest.model_dump(
+            mode="json"
+        )
     capsule_data["capsule_summary_sha256"] = stable_hash(capsule_data)
     manifest = CapsuleManifestV1.model_validate(capsule_data)
     _write_deterministic_tar(archive_path, manifest, content_by_member)
@@ -1191,6 +1209,12 @@ def _verify_extracted_contract(
             "shard",
             run_manifest.shard.model_dump(mode="json")
             if run_manifest.shard is not None
+            else None,
+        ),
+        (
+            "provider_ingest",
+            run_manifest.provider_ingest.model_dump(mode="json")
+            if run_manifest.provider_ingest is not None
             else None,
         ),
     ):

@@ -3162,6 +3162,47 @@
             "title": "PromptIdentity",
             "type": "object"
           },
+          "ProviderIngestBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "authority": {
+                "const": "committed_generation_only",
+                "default": "committed_generation_only",
+                "title": "Authority",
+                "type": "string"
+              },
+              "bundle": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "contract": {
+                "const": "provider_ingest_provenance_v1",
+                "default": "provider_ingest_provenance_v1",
+                "title": "Contract",
+                "type": "string"
+              },
+              "manifest_identity": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Manifest Identity",
+                "type": "string"
+              },
+              "raw_archive": {
+                "$ref": "#/$defs/FileIdentity"
+              },
+              "resource_ledger_sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "title": "Resource Ledger Sha256",
+                "type": "string"
+              }
+            },
+            "required": [
+              "bundle",
+              "manifest_identity",
+              "raw_archive",
+              "resource_ledger_sha256"
+            ],
+            "title": "ProviderIngestBinding",
+            "type": "object"
+          },
           "QuerySetIdentity": {
             "additionalProperties": false,
             "properties": {
@@ -3490,6 +3531,17 @@
           },
           "prompt": {
             "$ref": "#/$defs/PromptIdentity"
+          },
+          "provider_ingest": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ProviderIngestBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "queries": {
             "$ref": "#/$defs/QuerySetIdentity"
@@ -5613,10 +5665,10 @@
       }
     }
   },
-  "content_sha256": "3d7a551f120a15a3fb542730ed261ab51b69ae34f0a344522c5df381605c81ad",
+  "content_sha256": "702088c1972a50ea05d424c8bcc9d79848580fc9b721f38123be00280f2e98a9",
   "documentation": {
-    "docs/architecture.md": "f8d03ba5777dd21746eeb56a15c7e648a76c562ebeb9a5afa490b6f770535a00",
-    "docs/evaluation.md": "41f906788260a0d3d92ed546a99992fc4dbfaeffb17d2876e0709c5ded2c7bc6",
+    "docs/architecture.md": "0aaf8c8ecce59a59a89fa593ee0f75276fd94c1ec7743cc9272eb40425803236",
+    "docs/evaluation.md": "840a16ad435b54c8f06f83959125517de588ee9505c6ee4bf40c2f3c5f85a4f5",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
     "docs/formal-validation-clearance.md": "10e2fde89dde48f7396cc8a005f11a7fd33b2690fc9bd9273e7663c33cda1c7a",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",

@@ -30,6 +30,14 @@ query-only 计划输入、Prompt manifest、evaluator 版本与 checkpoint/resum
 历史运行缺少契约字段时只返回 `legacy_metadata_incomplete`，不反向补造元数据。契约详情见
 [`docs/run-provenance.md`](run-provenance.md)。
 
+新格式正式联网运行可选启用 `provider_ingest_provenance_v1`。该观察层位于来源 HTTP
+transport 与生产 parser 的证据边界，把精确响应字节封装为内容寻址、原子提交的只读归档，
+并把脱敏 envelope 与资源账本、checkpoint generation、run manifest 和复现胶囊绑定。
+离线门禁通过现有四源 record parser 重放字节，验证解析顺序、来源身份、数量守恒和分页链；
+请求 URL、请求头、凭据和绝对路径不进入 envelope。历史 Snapshot 没有 parser 前字节，
+不能后验升级为该证据。详情见
+[`docs/provider-ingest-provenance.md`](provider-ingest-provenance.md)。
+
 跨执行方式的离线一致性由 `execution_determinism_v1` 单独验证。它使用已有本地 Replay
 fixture 驱动真实 SearchService，并比较重复、单条/批量、重排、串行/受控并发、完整/
 checkpoint-resume 和取消隔离六种路径的规范化结果与语义事件；只按协议中的显式字段路径

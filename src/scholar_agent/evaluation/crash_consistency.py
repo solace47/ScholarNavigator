@@ -70,6 +70,8 @@ _ALLOWED_PUBLIC_ARTIFACTS = frozenset(
         "gold_diagnostics.jsonl",
         "result_lineage.jsonl",
         "resource_ledger.json",
+        "provider_ingest_provenance.json",
+        "provider_ingest_raw.tar",
         "summary.md",
     }
 )

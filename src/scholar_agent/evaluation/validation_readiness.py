@@ -496,7 +496,10 @@ def _run_read_only_gates(
                 raise ValidationReadinessNotReady("read_only_gate_unavailable") from exc
         expected_exit = int(gate.get("expected_exit_code"))
         if completed.returncode != expected_exit:
-            raise ValidationReadinessError("read_only_gate_exit_drift")
+            raise ValidationReadinessError(
+                "read_only_gate_exit_drift:"
+                f"{gate.get('gate_id')}:{completed.returncode}:{expected_exit}"
+            )
         try:
             payload = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:

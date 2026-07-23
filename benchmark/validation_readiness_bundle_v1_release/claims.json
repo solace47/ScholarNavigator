@@ -1,13 +1,13 @@
 {
-  "claim_count": 22,
-  "claim_evidence_coverage_count": 22,
+  "claim_count": 23,
+  "claim_evidence_coverage_count": 23,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "d2694d5f07110287c31916f8d25dc93bd13114e8434c05c314f12f9b642572dc",
-      "size": 40286
+      "sha256": "b6a9f8e3c91addc8b963e32ca18f2302ddcf08a9b31ad9b3f478b994df5f0bc5",
+      "size": 40964
     },
     {
       "document_id": "contest_requirements",
@@ -18,8 +18,8 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "0c263159eeb108c7c5ceefb6a76984eefe56bd306fc71c637099350195f62691",
-      "size": 119216
+      "sha256": "3b5ecfeada3f231499c782b53658f548d229150cd9ffa47acbb8cbac458bcd29",
+      "size": 119853
     },
     {
       "document_id": "readme",
@@ -133,6 +133,20 @@
       "scope": "internal_validation",
       "statement": "The offline wheelhouse intake validates exact locked wheels, supply-chain metadata, and deterministic offline installation without downloading artifacts.",
       "status": "internal_only"
+    },
+    {
+      "boundary": "Synthetic responses prove only parser-pre capture and replay integrity; Record160/162 remain ineligible and Full1000 remains incomplete.",
+      "claim_id": "architecture_provider_ingest_provenance_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "provider_ingest_capture_addendum",
+        "provider_ingest_fixture_matrix",
+        "provider_ingest_frozen_audit",
+        "provider_ingest_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Future new-format runs can bind exact provider response bytes, parser replay, pagination, and resource-ledger conservation to committed provenance artifacts.",
+      "status": "verified"
     },
     {
       "boundary": "Compatibility governance proves engineering contract stability only; it defines neither an official schema nor quality metrics.",
@@ -310,7 +324,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 14,
+    "architecture": 15,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -321,6 +335,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 10
+    "verified": 11
   }
 }

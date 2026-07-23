@@ -281,6 +281,21 @@ class ResourceLedgerBinding(BaseModel):
     authority: Literal["committed_generation_only"] = "committed_generation_only"
 
 
+class ProviderIngestBinding(BaseModel):
+    """Optional parser-pre raw response provenance for a new-format run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract: Literal["provider_ingest_provenance_v1"] = (
+        "provider_ingest_provenance_v1"
+    )
+    bundle: FileIdentity
+    raw_archive: FileIdentity
+    resource_ledger_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    manifest_identity: str = Field(pattern=r"^[0-9a-f]{64}$")
+    authority: Literal["committed_generation_only"] = "committed_generation_only"
+
+
 class RunManifestV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -303,6 +318,7 @@ class RunManifestV1(BaseModel):
     comparison: ComparisonRunBinding | None = None
     shard: ShardRunBinding | None = None
     resource_ledger: ResourceLedgerBinding | None = None
+    provider_ingest: ProviderIngestBinding | None = None
     score_scope: Literal["internal_not_official"] = "internal_not_official"
 
     @model_validator(mode="after")
@@ -341,6 +357,21 @@ class RunManifestV1(BaseModel):
             }
             if self.resource_ledger.output.path not in ledger_outputs:
                 raise ValueError("resource ledger is not a registered ledger output")
+        if self.provider_ingest is not None:
+            required = {
+                self.provider_ingest.bundle.path: "provider_ingest_provenance_v1",
+                self.provider_ingest.raw_archive.path: "provider_ingest_raw_response_v1",
+            }
+            roles = {item.path: item.role for item in self.outputs}
+            if any(roles.get(path) != role for path, role in required.items()):
+                raise ValueError("provider ingest outputs are not registered with exact roles")
+            if self.resource_ledger is None:
+                raise ValueError("provider ingest provenance requires resource ledger binding")
+            if (
+                self.provider_ingest.resource_ledger_sha256
+                != self.resource_ledger.output.sha256
+            ):
+                raise ValueError("provider ingest resource ledger digest mismatch")
         return self
 
 
@@ -453,6 +484,19 @@ def build_run_manifest(
             output=output,
             manifest_identity=str(resource_spec["manifest_identity"]),
         )
+    ingest_spec = spec.get("provider_ingest")
+    provider_ingest = None
+    if ingest_spec is not None:
+        if not isinstance(ingest_spec, Mapping):
+            raise RunProvenanceError("spec section invalid:provider_ingest")
+        provider_ingest = ProviderIngestBinding(
+            bundle=file_identity(str(ingest_spec["bundle_path"]), repository_root),
+            raw_archive=file_identity(
+                str(ingest_spec["raw_archive_path"]), repository_root
+            ),
+            resource_ledger_sha256=str(ingest_spec["resource_ledger_sha256"]),
+            manifest_identity=str(ingest_spec["manifest_identity"]),
+        )
     manifest = RunManifestV1(
         run_id=str(spec["run_id"]),
         dataset=dataset,
@@ -472,6 +516,7 @@ def build_run_manifest(
         comparison=comparison,
         shard=shard,
         resource_ledger=resource_ledger,
+        provider_ingest=provider_ingest,
         metadata_bindings=[
             MetadataBinding.model_validate(item)
             for item in sorted(
@@ -1060,6 +1105,44 @@ def _validate_manifest_files(
                         manifest.resource_ledger.output.path,
                         "passed",
                         ledger_report["status"],
+                    )
+                )
+    if manifest.provider_ingest is not None:
+        try:
+            from scholar_agent.evaluation.provider_ingest_provenance import (  # noqa: PLC0415
+                verify_capture_bundle,
+            )
+
+            ingest_report = verify_capture_bundle(
+                resolve_repo_path(repository_root, manifest.provider_ingest.bundle.path),
+                resolve_repo_path(
+                    repository_root, manifest.provider_ingest.raw_archive.path
+                ),
+                resource_ledger_path=(
+                    resolve_repo_path(
+                        repository_root, manifest.resource_ledger.output.path
+                    )
+                    if manifest.resource_ledger is not None
+                    else None
+                ),
+            )
+        except (OSError, ValueError, ValidationError) as exc:
+            violations.append(
+                _violation(
+                    "provider_ingest_unreadable",
+                    manifest.provider_ingest.bundle.path,
+                    "valid provider_ingest_provenance_v1",
+                    type(exc).__name__,
+                )
+            )
+        else:
+            if ingest_report["status"] != "passed":
+                violations.append(
+                    _violation(
+                        "provider_ingest_invalid",
+                        manifest.provider_ingest.bundle.path,
+                        "passed",
+                        ingest_report["status"],
                     )
                 )
     payload = manifest.model_dump(mode="json")

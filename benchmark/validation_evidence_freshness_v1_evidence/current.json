@@ -1,5 +1,5 @@
 {
-  "baseline_head": "2bd4cce7e263feced3e5a5d0ce228ebb78abaa4d",
+  "baseline_head": "60e2f48fe94a2906404f8f47597f38439c734aa7",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -60,6 +60,14 @@
     {
       "claim_id": "architecture_offline_wheelhouse_intake",
       "declared_state": "internal_only",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_provider_ingest_provenance_ready",
+      "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
       "stale_evidence": [],
@@ -170,7 +178,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 28,
+  "component_count": 29,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -435,6 +443,38 @@
       "stale_components": [],
       "stale_upstream_evidence": [],
       "state": "blocked"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "provider_ingest_capture_addendum",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "provider_ingest_fixture_matrix",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "provider_ingest_frozen_audit",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "provider_ingest_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
     },
     {
       "declared_state": "fresh",
@@ -737,6 +777,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "provider_ingest_provenance",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "public_contract_compatibility",
       "reasons": [],
       "stale_components": [],
@@ -813,7 +861,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 83,
+    "fresh": 89,
     "not_applicable": 1,
     "stale": 0
   },

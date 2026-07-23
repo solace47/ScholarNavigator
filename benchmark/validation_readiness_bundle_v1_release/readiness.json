@@ -1,13 +1,13 @@
 {
   "blocker_count": 3,
-  "claim_count": 22,
+  "claim_count": 23,
   "claim_evidence_coverage_rate": 1.0,
   "code_identity": {
     "implementation_base_commit": "b0667d658ed8b8df5bc7f2ffde7625ba0aed0d19",
     "implementation_base_commit_exists": true,
     "implementation_base_is_ancestor_of_head": true,
-    "implementation_file_count": 42,
-    "implementation_tree_sha256": "4187e4fa4760bf4a3e2f00865fd192f542d914778af00de2dee4c534b495a8ed"
+    "implementation_file_count": 45,
+    "implementation_tree_sha256": "43d6eb1401aee00114565188644e0c0b844976cd31beeb209ac68d1d7844df02"
   },
   "consistency_assertion_count": 12,
   "execution": {
@@ -19,7 +19,7 @@
   },
   "formal_validation_complete": false,
   "protocol": "validation_readiness_bundle_v1",
-  "read_only_gate_count": 19,
+  "read_only_gate_count": 20,
   "read_only_gates": [
     {
       "exit_code": 0,
@@ -77,8 +77,14 @@
     },
     {
       "exit_code": 0,
+      "gate_id": "provider_ingest_provenance",
+      "output_sha256": "83481ac5ff55ddf040eb823535b259f664c9c35e12d2df0241f17585ebaf1352",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
       "gate_id": "public_contract_compatibility",
-      "output_sha256": "1c7981b622fdfed68924f8860975e0a66bcba3f200e557a9f5172c873a530ce8",
+      "output_sha256": "d70c6b6d45fb136b7e526209e75eab72e4f6c47a16ece98e1134663e85239872",
       "status": "contracts_compatible"
     },
     {
@@ -114,7 +120,7 @@
     {
       "exit_code": 0,
       "gate_id": "standalone_auditor_bundle",
-      "output_sha256": "ddadb907021aa7f6148d9fbe11b88d4f253dd1116071a4d2827e24b6d42805a5",
+      "output_sha256": "65eee05228227d3aeed6e127ff768abaf00e3f5e102355d9553c6d639fabf287",
       "status": "verified_with_declared_blockers"
     },
     {
@@ -132,7 +138,7 @@
     {
       "exit_code": 0,
       "gate_id": "validation_evidence_freshness",
-      "output_sha256": "623fec2e482c3778dca2b8eb4c050549d4af28149c449d8d1eaa94f1503b553d",
+      "output_sha256": "f9ca51c41b11608a41b837750809657ad6476fd5bc77b4040f04377bb7eb331a",
       "status": "fresh_with_declared_blockers"
     }
   ],

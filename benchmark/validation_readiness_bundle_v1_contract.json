@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "d2694d5f07110287c31916f8d25dc93bd13114e8434c05c314f12f9b642572dc"
+      "sha256": "b6a9f8e3c91addc8b963e32ca18f2302ddcf08a9b31ad9b3f478b994df5f0bc5"
     },
     {
       "document_id": "contest_requirements",
@@ -57,7 +57,7 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "0c263159eeb108c7c5ceefb6a76984eefe56bd306fc71c637099350195f62691"
+      "sha256": "3b5ecfeada3f231499c782b53658f548d229150cd9ffa47acbb8cbac458bcd29"
     },
     {
       "document_id": "readme",
@@ -322,6 +322,20 @@
       "status": "internal_only"
     },
     {
+      "boundary": "Synthetic responses prove only parser-pre capture and replay integrity; Record160/162 remain ineligible and Full1000 remains incomplete.",
+      "claim_id": "architecture_provider_ingest_provenance_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "provider_ingest_capture_addendum",
+        "provider_ingest_fixture_matrix",
+        "provider_ingest_frozen_audit",
+        "provider_ingest_protocol"
+      ],
+      "scope": "engineering_capability",
+      "statement": "Future new-format runs can bind exact provider response bytes, parser replay, pagination, and resource-ledger conservation to committed provenance artifacts.",
+      "status": "verified"
+    },
+    {
       "boundary": "Compatibility governance proves engineering contract stability only; it defines neither an official schema nor quality metrics.",
       "claim_id": "architecture_public_contract_compatibility",
       "document_id": "architecture",
@@ -368,6 +382,7 @@
       "docs/frontend-reproducible-build.md",
       "docs/offline-wheelhouse-intake.md",
       "docs/public-contract-compatibility.md",
+      "docs/provider-ingest-provenance.md",
       "docs/release-candidate-reproducibility.md",
       "docs/standalone-auditor-bundle.md",
       "docs/validation-evidence-freshness.md",
@@ -375,6 +390,7 @@
       "scripts/check_frontend_reproducible_build.py",
       "scripts/check_offline_wheelhouse.py",
       "scripts/check_public_contract_compatibility.py",
+      "scripts/check_provider_ingest_provenance.py",
       "scripts/check_release_candidate.py",
       "scripts/check_standalone_auditor_bundle.py",
       "scripts/check_validation_freshness.py",
@@ -387,6 +403,7 @@
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
       "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
       "src/scholar_agent/evaluation/public_contract_compatibility.py",
+      "src/scholar_agent/evaluation/provider_ingest_provenance.py",
       "src/scholar_agent/evaluation/release_candidate_reproducibility.py",
       "src/scholar_agent/evaluation/validation_evidence_freshness.py",
       "src/scholar_agent/evaluation/validation_readiness.py"
@@ -1888,7 +1905,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "623fec2e482c3778dca2b8eb4c050549d4af28149c449d8d1eaa94f1503b553d"
+      "sha256": "f9ca51c41b11608a41b837750809657ad6476fd5bc77b4040f04377bb7eb331a"
     },
     {
       "checks": [
@@ -1904,7 +1921,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "9b0d35cd4bcb2b48aff13dec2d7dd3381c536c31fbdb8a0a11580463d18f4f2b"
+      "sha256": "3e5d12ad5c849ed78faa4cefcfc2cf7e526ee9088650dbac30bf01fe902aac9e"
     },
     {
       "checks": [
@@ -1932,6 +1949,93 @@
     {
       "checks": [
         {
+          "equals": "full1000_provider_ingest_capture_addendum_v1",
+          "pointer": "/addendum"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_capture_addendum",
+      "format": "json",
+      "path": "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "required": true,
+      "role": "future_full1000_capture_binding",
+      "sha256": "38d87a09eb5b39ef14b53c26a523c6ade24682b14ce180cfd2b153cde9d7adc2"
+    },
+    {
+      "checks": [
+        {
+          "equals": "passed",
+          "pointer": "/status"
+        },
+        {
+          "equals": 17,
+          "pointer": "/scenario_count"
+        }
+      ],
+      "dependencies": [
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_fixture_matrix",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_evidence/fixture_matrix.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "required": true,
+      "role": "offline_synthetic_parser_replay_conformance",
+      "sha256": "e19aea821ba74c672849e2eb7105e3a9fab430ae734ddebda72c4f3970a6a63e"
+    },
+    {
+      "checks": [
+        {
+          "equals": "not_eligible",
+          "pointer": "/status"
+        },
+        {
+          "equals": false,
+          "pointer": "/raw_payload_inferred"
+        }
+      ],
+      "dependencies": [
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "provider_ingest_frozen_audit",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_evidence/frozen_audit.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "required": true,
+      "role": "historical_record162_eligibility_boundary",
+      "sha256": "1a57b1200fd8bb1c0906de73d06af2b2b658c80abbf4de61a6767861b73afcd6"
+    },
+    {
+      "checks": [
+        {
+          "equals": "provider_ingest_provenance_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": "1",
+          "pointer": "/schema_version"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "provider_ingest_protocol",
+      "format": "json",
+      "path": "benchmark/provider_ingest_provenance_v1_protocol.json",
+      "protocol": "provider_ingest_provenance_v1",
+      "required": true,
+      "role": "protocol",
+      "sha256": "29a4a687f8bec2d9c3f12f264b24e41df2519442182728dc424b101e578e6a77"
+    },
+    {
+      "checks": [
+        {
           "equals": "public_contract_compatibility_v1",
           "pointer": "/protocol"
         },
@@ -1949,7 +2053,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "c1b0f425a9222be59796df7f65bc9636442a86cc9daceddbfb0766b5e8299cdc"
+      "sha256": "d6f8bc6366e944477cd1b75b9a6058cfb0c3651215af49305f0b0c6f519edd07"
     },
     {
       "checks": [
@@ -1976,7 +2080,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "c3e9ba3c0b85255b3ea32a5ec4a1737578b2ee07405b8ed8ba1ab2700482c9d5"
+      "sha256": "b357d8e7b654f437105ba57b65385a9c8703717b4e20c6709264104d11166507"
     },
     {
       "checks": [
@@ -2357,6 +2461,25 @@
       ],
       "expected_exit_code": 0,
       "gate_id": "validation_evidence_freshness",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_provider_ingest_provenance.py",
+        "check-fixtures"
+      ],
+      "checks": [
+        {
+          "equals": "passed",
+          "pointer": "/status"
+        },
+        {
+          "equals": 17,
+          "pointer": "/scenario_count"
+        }
+      ],
+      "expected_exit_code": 0,
+      "gate_id": "provider_ingest_provenance",
       "timeout_seconds": 60
     },
     {

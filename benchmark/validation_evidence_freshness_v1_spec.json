@@ -1,5 +1,5 @@
 {
-  "baseline_head": "2bd4cce7e263feced3e5a5d0ce228ebb78abaa4d",
+  "baseline_head": "60e2f48fe94a2906404f8f47597f38439c734aa7",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -63,6 +63,10 @@
     ],
     "architecture_public_contract_compatibility": [
       "public_contract_compatibility"
+    ],
+    "architecture_provider_ingest_provenance_ready": [
+      "full1000_execution",
+      "provider_ingest_provenance"
     ],
     "architecture_release_candidate_reproducibility": [
       "frontend_reproducible_build",
@@ -306,6 +310,22 @@
       "kind": "python_dependency_lock_and_offline_install_qualification"
     },
     {
+      "component_id": "provider_ingest_provenance",
+      "files": [
+        "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
+        "benchmark/provider_ingest_provenance_v1_evidence/fixture_matrix.json",
+        "benchmark/provider_ingest_provenance_v1_evidence/frozen_audit.json",
+        "benchmark/provider_ingest_provenance_v1_protocol.json",
+        "docs/provider-ingest-provenance.md",
+        "scripts/check_provider_ingest_provenance.py",
+        "src/scholar_agent/evaluation/crash_consistency.py",
+        "src/scholar_agent/evaluation/provider_ingest_provenance.py",
+        "src/scholar_agent/evaluation/reproduction_capsule.py",
+        "src/scholar_agent/evaluation/run_provenance.py"
+      ],
+      "kind": "parser_pre_raw_response_capture_replay_and_lineage"
+    },
+    {
       "component_id": "public_contract_compatibility",
       "files": [
         "benchmark/public_contract_compatibility_v1_baseline.json",
@@ -540,6 +560,20 @@
     "official_scorer_blocked": [
       "official_scorer_absence"
     ],
+    "provider_ingest_capture_addendum": [
+      "full1000_execution",
+      "provider_ingest_provenance"
+    ],
+    "provider_ingest_fixture_matrix": [
+      "provider_ingest_provenance",
+      "source_runtime"
+    ],
+    "provider_ingest_frozen_audit": [
+      "provider_ingest_provenance"
+    ],
+    "provider_ingest_protocol": [
+      "provider_ingest_provenance"
+    ],
     "public_contract_baseline": [
       "public_contract_compatibility"
     ],
@@ -728,6 +762,11 @@
     "python_dependency_lock": [
       "python_dependency_lock",
       "release_candidate_reproducibility"
+    ],
+    "provider_ingest_provenance": [
+      "full1000_execution",
+      "provider_ingest_provenance",
+      "source_runtime"
     ],
     "public_contract_compatibility": [
       "public_contract_compatibility"
