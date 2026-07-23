@@ -842,6 +842,13 @@ attempt 对应一个脱敏 envelope，精确响应字节写入内容寻址的只
 显著性或官方成绩。Record160/162 缺少 parser 前字节，必须保持 `not_eligible`。详情见
 [`docs/provider-ingest-provenance.md`](provider-ingest-provenance.md)。
 
+`full1000_launch_control_v1` 只验证未来正式执行的启动授权和操作完整性，不计算任何质量
+指标。它要求全 1000 从头运行、`current_rules` 唯一默认、tie-break v2 关闭，并将计划、
+取证协议、资源账本、原子提交和 20-shard attempt 规则绑定到两阶段自哈希凭证。只有所有
+shard 的唯一最终 attempt 完成后才可 aggregate；旧 Record162、fake dry-run、未授权 resume
+或直接 runner 输出均不能解除 Full1000 未完成阻断。详情见
+[`docs/full1000-launch-control.md`](full1000-launch-control.md)。
+
 ```bash
 PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture
 PYTHONPATH=src python scripts/check_resource_accounting.py check-fixture --resume-shard

@@ -246,6 +246,44 @@
       "size": 475
     },
     {
+      "dependencies": [
+        "full1000_execution_plan",
+        "provider_ingest_capture_addendum",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_protocol",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_protocol.json",
+      "protocol": "full1000_launch_control_v1",
+      "role": "two_stage_launch_contract",
+      "sha256": "c752ea1461251193b23ac585fc54f682f5e50ade4285ff923c6c88209218aab1",
+      "size": 4569
+    },
+    {
+      "dependencies": [
+        "full1000_launch_control_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_readiness",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_evidence/readiness.json",
+      "protocol": "full1000_launch_control_v1",
+      "role": "external_activation_block",
+      "sha256": "d47297dcef20db55360853288e91dace4cd4052712c45a7e45412fc06f8a73d3",
+      "size": 848
+    },
+    {
+      "dependencies": [
+        "full1000_launch_control_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_simulation",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_evidence/simulation.json",
+      "protocol": "full1000_launch_control_v1",
+      "role": "synthetic_operation_conformance",
+      "sha256": "1151769f25bd838d6d53bacd2b8c07083b05679dbb5cf3d8f93f16afb7780fb2",
+      "size": 1515
+    },
+    {
       "dependencies": [],
       "evidence_id": "full1000_resume_summary",
       "format": "json",
@@ -437,7 +475,7 @@
       "path": "benchmark/public_contract_compatibility_v1_baseline.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "contract_baseline",
-      "sha256": "d6f8bc6366e944477cd1b75b9a6058cfb0c3651215af49305f0b0c6f519edd07",
+      "sha256": "b812e1b9327c57bc13fbfadfdd16fa0482a3e71bf4be9becc9604aedca688dee",
       "size": 341076
     },
     {
@@ -450,7 +488,7 @@
       "path": "benchmark/public_contract_compatibility_v1_evidence/current.json",
       "protocol": "public_contract_compatibility_v1",
       "role": "compatibility_verification",
-      "sha256": "b357d8e7b654f437105ba57b65385a9c8703717b4e20c6709264104d11166507",
+      "sha256": "01c4c3e4d124bb8d91a12d7724470baeba9c038b95442b39fa565f60606422c9",
       "size": 551
     },
     {
@@ -746,8 +784,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/current.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "freshness_baseline_closure",
-      "sha256": "f9ca51c41b11608a41b837750809657ad6476fd5bc77b4040f04377bb7eb331a",
-      "size": 22504
+      "sha256": "3b8c2b09d27caa0a88fbc5cd18e858e354fab41861a6e7b628935831c4ed5602",
+      "size": 23556
     },
     {
       "dependencies": [],
@@ -756,8 +794,8 @@
       "path": "benchmark/validation_evidence_freshness_v1_contract.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "protocol",
-      "sha256": "3e5d12ad5c849ed78faa4cefcfc2cf7e526ee9088650dbac30bf01fe902aac9e",
-      "size": 87998
+      "sha256": "d8f026085e89f52257ad1ef0254b5e095f3a5d557ce6c5a75b0b7b6851ff26f6",
+      "size": 92477
     },
     {
       "dependencies": [
@@ -769,11 +807,11 @@
       "path": "benchmark/validation_evidence_freshness_v1_evidence/synthetic_impact.json",
       "protocol": "validation_evidence_freshness_v1",
       "role": "change_impact_conformance",
-      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e",
-      "size": 3139
+      "sha256": "6f5b2fb25172b77b3e936c00ffe5aed6b95e4eb6bc23a7050ab3a670add71238",
+      "size": 3349
     }
   ],
-  "evidence_count": 67,
+  "evidence_count": 70,
   "protocol": "validation_readiness_bundle_v1",
   "schema_version": "1"
 }

@@ -1,5 +1,5 @@
 {
-  "baseline_head": "60e2f48fe94a2906404f8f47597f38439c734aa7",
+  "baseline_head": "3222b1282e87bf450dc359e17cdae8f6ac361b67",
   "blocked_evidence_ids": [
     "external_scorer_readiness",
     "formal_evidence_quarantine_readiness",
@@ -39,6 +39,11 @@
     ],
     "architecture_full1000_execution_plan_ready": [
       "full1000_execution"
+    ],
+    "architecture_full1000_launch_control_ready": [
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
     ],
     "architecture_human_annotation_delivery_ready": [
       "human_annotation",
@@ -219,6 +224,22 @@
         "src/scholar_agent/evaluation/sharded_execution.py"
       ],
       "kind": "immutable_execution_plan_and_fake_chain"
+    },
+    {
+      "component_id": "full1000_launch_control",
+      "files": [
+        "benchmark/full1000_execution_plan_v1.json",
+        "benchmark/full1000_execution_readiness_v1_protocol.json",
+        "benchmark/full1000_launch_control_v1_evidence/readiness.json",
+        "benchmark/full1000_launch_control_v1_evidence/simulation.json",
+        "benchmark/full1000_launch_control_v1_protocol.json",
+        "benchmark/full1000_provider_ingest_capture_addendum_v1.json",
+        "benchmark/provider_ingest_provenance_v1_protocol.json",
+        "docs/full1000-launch-control.md",
+        "scripts/check_full1000_launch_control.py",
+        "src/scholar_agent/evaluation/full1000_launch_control.py"
+      ],
+      "kind": "sealed_launch_authorization_and_operation_audit"
     },
     {
       "component_id": "full1000_resume",
@@ -540,6 +561,21 @@
     "full1000_execution_verification": [
       "full1000_execution"
     ],
+    "full1000_launch_control_protocol": [
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
+    "full1000_launch_control_readiness": [
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
+    "full1000_launch_control_simulation": [
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
+    ],
     "human_annotation_delivery_dry_run": [
       "human_annotation",
       "human_precision"
@@ -751,6 +787,11 @@
     ],
     "full1000_execution_readiness": [
       "full1000_execution"
+    ],
+    "full1000_launch_control": [
+      "full1000_execution",
+      "full1000_launch_control",
+      "provider_ingest_provenance"
     ],
     "human_annotation_delivery": [
       "human_annotation",

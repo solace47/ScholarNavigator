@@ -66,9 +66,13 @@
       ],
       "scenario_id": "human_annotation_interface_change",
       "stale_claim_ids": [
+        "architecture_formal_evidence_quarantine_ready",
+        "architecture_formal_validation_clearance_gated",
         "architecture_human_annotation_delivery_ready"
       ],
       "stale_evidence_ids": [
+        "formal_evidence_quarantine_readiness",
+        "formal_validation_clearance_current",
         "human_annotation_delivery_dry_run",
         "human_annotation_delivery_protocol",
         "human_annotation_delivery_readiness"

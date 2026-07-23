@@ -1,13 +1,13 @@
 {
-  "claim_count": 23,
-  "claim_evidence_coverage_count": 23,
+  "claim_count": 24,
+  "claim_evidence_coverage_count": 24,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "b6a9f8e3c91addc8b963e32ca18f2302ddcf08a9b31ad9b3f478b994df5f0bc5",
-      "size": 40964
+      "sha256": "7ec3a9823bee3996269f9ff0b2df2111bcc66a782dd24a9138e6252284388532",
+      "size": 41575
     },
     {
       "document_id": "contest_requirements",
@@ -18,8 +18,8 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "3b5ecfeada3f231499c782b53658f548d229150cd9ffa47acbb8cbac458bcd29",
-      "size": 119853
+      "sha256": "717de73bde388a123baab177244fb5aab4ce707c9ad73fdd5c801afa10f2c8e7",
+      "size": 120446
     },
     {
       "document_id": "readme",
@@ -91,6 +91,19 @@
       ],
       "scope": "engineering_capability",
       "statement": "The frozen Full1000 query-only population has an immutable sharded execution plan and a deterministic zero-network fake-adapter preflight.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic operations prove only launch-control mechanics; network, credentials, and the formal run remain externally blocked, and Full1000 is still incomplete.",
+      "claim_id": "architecture_full1000_launch_control_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "full1000_launch_control_protocol",
+        "full1000_launch_control_readiness",
+        "full1000_launch_control_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The frozen Full1000 execution plan is protected by deterministic two-stage authorization and append-only operational audit controls.",
       "status": "verified"
     },
     {
@@ -324,7 +337,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 15,
+    "architecture": 16,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -335,6 +348,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 11
+    "verified": 12
   }
 }

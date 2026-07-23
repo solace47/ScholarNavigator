@@ -1,5 +1,5 @@
 {
-  "baseline_head": "60e2f48fe94a2906404f8f47597f38439c734aa7",
+  "baseline_head": "3222b1282e87bf450dc359e17cdae8f6ac361b67",
   "claims": [
     {
       "claim_id": "architecture_default_policy_isolation",
@@ -35,6 +35,14 @@
     },
     {
       "claim_id": "architecture_full1000_execution_plan_ready",
+      "declared_state": "verified",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "claim_id": "architecture_full1000_launch_control_ready",
       "declared_state": "verified",
       "reasons": [],
       "stale_components": [],
@@ -178,7 +186,7 @@
       "state": "not_applicable"
     }
   ],
-  "component_count": 29,
+  "component_count": 30,
   "evidence": [
     {
       "declared_state": "fresh",
@@ -343,6 +351,30 @@
     {
       "declared_state": "fresh",
       "evidence_id": "full1000_execution_verification",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "full1000_launch_control_protocol",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "full1000_launch_control_readiness",
+      "reasons": [],
+      "stale_components": [],
+      "stale_upstream_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
+      "evidence_id": "full1000_launch_control_simulation",
       "reasons": [],
       "stale_components": [],
       "stale_upstream_evidence": [],
@@ -761,6 +793,14 @@
     },
     {
       "declared_state": "fresh",
+      "gate_id": "full1000_launch_control",
+      "reasons": [],
+      "stale_components": [],
+      "stale_evidence": [],
+      "state": "fresh"
+    },
+    {
+      "declared_state": "fresh",
       "gate_id": "human_annotation_delivery",
       "reasons": [],
       "stale_components": [],
@@ -861,7 +901,7 @@
   "schema_version": "1",
   "state_counts": {
     "blocked": 15,
-    "fresh": 89,
+    "fresh": 94,
     "not_applicable": 1,
     "stale": 0
   },

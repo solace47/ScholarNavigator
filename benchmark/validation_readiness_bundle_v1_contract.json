@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "b6a9f8e3c91addc8b963e32ca18f2302ddcf08a9b31ad9b3f478b994df5f0bc5"
+      "sha256": "7ec3a9823bee3996269f9ff0b2df2111bcc66a782dd24a9138e6252284388532"
     },
     {
       "document_id": "contest_requirements",
@@ -57,7 +57,7 @@
     {
       "document_id": "evaluation",
       "path": "docs/evaluation.md",
-      "sha256": "3b5ecfeada3f231499c782b53658f548d229150cd9ffa47acbb8cbac458bcd29"
+      "sha256": "717de73bde388a123baab177244fb5aab4ce707c9ad73fdd5c801afa10f2c8e7"
     },
     {
       "document_id": "readme",
@@ -199,6 +199,19 @@
       ],
       "scope": "engineering_capability",
       "statement": "The frozen Full1000 query-only population has an immutable sharded execution plan and a deterministic zero-network fake-adapter preflight.",
+      "status": "verified"
+    },
+    {
+      "boundary": "Synthetic operations prove only launch-control mechanics; network, credentials, and the formal run remain externally blocked, and Full1000 is still incomplete.",
+      "claim_id": "architecture_full1000_launch_control_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "full1000_launch_control_protocol",
+        "full1000_launch_control_readiness",
+        "full1000_launch_control_simulation"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The frozen Full1000 execution plan is protected by deterministic two-stage authorization and append-only operational audit controls.",
       "status": "verified"
     },
     {
@@ -380,6 +393,7 @@
       "benchmark/validation_evidence_freshness_v1_contract.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/frontend-reproducible-build.md",
+      "docs/full1000-launch-control.md",
       "docs/offline-wheelhouse-intake.md",
       "docs/public-contract-compatibility.md",
       "docs/provider-ingest-provenance.md",
@@ -388,6 +402,7 @@
       "docs/validation-evidence-freshness.md",
       "docs/validation-readiness.md",
       "scripts/check_frontend_reproducible_build.py",
+      "scripts/check_full1000_launch_control.py",
       "scripts/check_offline_wheelhouse.py",
       "scripts/check_public_contract_compatibility.py",
       "scripts/check_provider_ingest_provenance.py",
@@ -401,6 +416,7 @@
       "scripts/freeze_release_candidate_evidence.py",
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
+      "src/scholar_agent/evaluation/full1000_launch_control.py",
       "src/scholar_agent/evaluation/offline_wheelhouse_intake.py",
       "src/scholar_agent/evaluation/public_contract_compatibility.py",
       "src/scholar_agent/evaluation/provider_ingest_provenance.py",
@@ -1838,6 +1854,106 @@
     {
       "checks": [
         {
+          "equals": "full1000_launch_control_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/population/query_count"
+        },
+        {
+          "equals": 20,
+          "pointer": "/population/shard_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/activation/real_launch_allowed_by_this_protocol"
+        }
+      ],
+      "dependencies": [
+        "full1000_execution_plan",
+        "provider_ingest_capture_addendum",
+        "provider_ingest_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_protocol",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_protocol.json",
+      "protocol": "full1000_launch_control_v1",
+      "required": true,
+      "role": "two_stage_launch_contract",
+      "sha256": "c752ea1461251193b23ac585fc54f682f5e50ade4285ff923c6c88209218aab1"
+    },
+    {
+      "checks": [
+        {
+          "equals": "external_activation_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/official_run_started"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "full1000_launch_control_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_readiness",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_evidence/readiness.json",
+      "protocol": "full1000_launch_control_v1",
+      "required": true,
+      "role": "external_activation_block",
+      "sha256": "d47297dcef20db55360853288e91dace4cd4052712c45a7e45412fc06f8a73d3"
+    },
+    {
+      "checks": [
+        {
+          "equals": "launch_controls_ready",
+          "pointer": "/status"
+        },
+        {
+          "equals": 1000,
+          "pointer": "/query_count"
+        },
+        {
+          "equals": 20,
+          "pointer": "/shard_count"
+        },
+        {
+          "equals": 10,
+          "pointer": "/scenario_count"
+        },
+        {
+          "equals": 0,
+          "pointer": "/execution/network_request_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "full1000_launch_control_protocol"
+      ],
+      "evidence_id": "full1000_launch_control_simulation",
+      "format": "json",
+      "path": "benchmark/full1000_launch_control_v1_evidence/simulation.json",
+      "protocol": "full1000_launch_control_v1",
+      "required": true,
+      "role": "synthetic_operation_conformance",
+      "sha256": "1151769f25bd838d6d53bacd2b8c07083b05679dbb5cf3d8f93f16afb7780fb2"
+    },
+    {
+      "checks": [
+        {
           "equals": "standalone_auditor_bundle_v1",
           "pointer": "/protocol"
         },
@@ -1905,7 +2021,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "f9ca51c41b11608a41b837750809657ad6476fd5bc77b4040f04377bb7eb331a"
+      "sha256": "3b8c2b09d27caa0a88fbc5cd18e858e354fab41861a6e7b628935831c4ed5602"
     },
     {
       "checks": [
@@ -1921,7 +2037,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "3e5d12ad5c849ed78faa4cefcfc2cf7e526ee9088650dbac30bf01fe902aac9e"
+      "sha256": "d8f026085e89f52257ad1ef0254b5e095f3a5d557ce6c5a75b0b7b6851ff26f6"
     },
     {
       "checks": [
@@ -1944,7 +2060,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "change_impact_conformance",
-      "sha256": "f0bf469d2a77cd3a0208eb9b966ac2857327ef4bd951ee96649185b67e5e3d4e"
+      "sha256": "6f5b2fb25172b77b3e936c00ffe5aed6b95e4eb6bc23a7050ab3a670add71238"
     },
     {
       "checks": [
@@ -2053,7 +2169,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "d6f8bc6366e944477cd1b75b9a6058cfb0c3651215af49305f0b0c6f519edd07"
+      "sha256": "b812e1b9327c57bc13fbfadfdd16fa0482a3e71bf4be9becc9604aedca688dee"
     },
     {
       "checks": [
@@ -2080,7 +2196,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "b357d8e7b654f437105ba57b65385a9c8703717b4e20c6709264104d11166507"
+      "sha256": "01c4c3e4d124bb8d91a12d7724470baeba9c038b95442b39fa565f60606422c9"
     },
     {
       "checks": [
@@ -2442,6 +2558,33 @@
       ],
       "expected_exit_code": 0,
       "gate_id": "full1000_execution_readiness",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_full1000_launch_control.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "external_activation_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": true,
+          "pointer": "/controls_ready"
+        },
+        {
+          "equals": false,
+          "pointer": "/official_run_started"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "full1000_launch_control",
       "timeout_seconds": 60
     },
     {
