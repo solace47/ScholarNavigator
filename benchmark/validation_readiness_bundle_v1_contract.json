@@ -47,7 +47,7 @@
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2a9c0b0f115ee62c6c51a929b98b2f7d45660ad6f82484a3a720bc141ddf8a0c"
+      "sha256": "2b2b8a586a5309ab04d7230547e89f4f5ce60637386e3fdfd8c045a1b8c0e29d"
     },
     {
       "document_id": "contest_requirements",
@@ -399,6 +399,18 @@
       "status": "not_applicable"
     },
     {
+      "boundary": "The rehearsal uses synthetic-only inputs and test-only clearance; it persists no labels, scorer values, receipt, or run artifact and cannot satisfy any real external blocker.",
+      "claim_id": "architecture_formal_validation_dress_rehearsal_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_dress_rehearsal_protocol",
+        "formal_dress_rehearsal_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The preregistration, Full1000 execution, human adjudication, scorer sandbox, quarantine, freshness, clearance, revocation, and standalone handoff gates form a deterministic synthetic end-to-end rehearsal.",
+      "status": "verified"
+    },
+    {
       "boundary": "Preregistration proves analysis-plan integrity only; it generates no quality metric, human judgment, or official score and does not clear any external blocker.",
       "claim_id": "architecture_formal_validation_preregistered",
       "document_id": "architecture",
@@ -421,6 +433,11 @@
       "benchmark/formal_run_disaster_recovery_v1_evidence/readiness.json",
       "benchmark/formal_run_disaster_recovery_v1_evidence/simulation.json",
       "benchmark/formal_run_disaster_recovery_v1_protocol.json",
+      "benchmark/formal_validation_dress_rehearsal_v1_evidence/failure_matrix.json",
+      "benchmark/formal_validation_dress_rehearsal_v1_evidence/handoff_checklist.json",
+      "benchmark/formal_validation_dress_rehearsal_v1_evidence/readiness.json",
+      "benchmark/formal_validation_dress_rehearsal_v1_evidence/rehearsal.json",
+      "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
       "benchmark/formal_validation_preregistration_v1_evidence/readiness.json",
       "benchmark/formal_validation_preregistration_v1_evidence/simulation.json",
       "benchmark/formal_validation_preregistration_v1_protocol.json",
@@ -441,9 +458,11 @@
       "benchmark/standalone_auditor_bundle_v1_contract.json",
       "benchmark/standalone_auditor_bundle_v1_evidence/readiness.json",
       "benchmark/validation_evidence_freshness_v1_contract.json",
+      "benchmark/validation_evidence_freshness_v1_addenda.json",
       "benchmark/validation_readiness_bundle_v1_contract.json",
       "docs/evidence-revocation-response.md",
       "docs/formal-run-disaster-recovery.md",
+      "docs/formal-validation-dress-rehearsal.md",
       "docs/formal-validation-preregistration.md",
       "docs/frontend-reproducible-build.md",
       "docs/full1000-launch-control.md",
@@ -456,6 +475,7 @@
       "docs/validation-readiness.md",
       "scripts/check_evidence_revocation.py",
       "scripts/check_formal_run_recovery.py",
+      "scripts/check_formal_validation_dress_rehearsal.py",
       "scripts/check_formal_validation_preregistration.py",
       "scripts/check_frontend_reproducible_build.py",
       "scripts/check_full1000_launch_control.py",
@@ -473,6 +493,7 @@
       "scripts/freeze_validation_freshness_baseline.py",
       "src/scholar_agent/evaluation/evidence_revocation.py",
       "src/scholar_agent/evaluation/formal_run_disaster_recovery.py",
+      "src/scholar_agent/evaluation/formal_validation_dress_rehearsal.py",
       "src/scholar_agent/evaluation/formal_validation_preregistration.py",
       "src/scholar_agent/evaluation/frontend_reproducible_build.py",
       "src/scholar_agent/evaluation/full1000_launch_control.py",
@@ -679,6 +700,16 @@
         {
           "evidence_id": "formal_preregistration_readiness",
           "pointer": "/blocker_count"
+        }
+      ]
+    },
+    {
+      "assertion_id": "formal_dress_rehearsal_preserves_external_blockers",
+      "expected": false,
+      "observations": [
+        {
+          "evidence_id": "formal_dress_rehearsal_readiness",
+          "pointer": "/formal_validation_complete"
         }
       ]
     }
@@ -2177,7 +2208,7 @@
       "protocol": "standalone_auditor_bundle_v1",
       "required": true,
       "role": "external_auditor_readiness",
-      "sha256": "34d0c3dc272678e7ecf9f6bc79903e76633db95406f27cbcbd55a17d984a60ae"
+      "sha256": "783ea4d896daf61187e3eb202bb27c1bd974b62439dac2f66145c3e18f0ecf60"
     },
     {
       "checks": [
@@ -2203,7 +2234,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "freshness_baseline_closure",
-      "sha256": "70864350efd80ee45adda94c488c7aa3b6c34ba78382e55b4f4e47257c8ddbac"
+      "sha256": "2991571c377c4f0c6ff3cbcc35b3c3e11131317f09f7ffdc5a6c46a470aac56d"
     },
     {
       "checks": [
@@ -2219,7 +2250,7 @@
       "protocol": "validation_evidence_freshness_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "0e991ed98cc781ab34a2b18083e7848d8388b2032ce593919a5a4eae0c718c9b"
+      "sha256": "18e399cbc66aabc0194e7275da3177790f05c2752034b4e5c1af2643fe251cbd"
     },
     {
       "checks": [
@@ -2351,7 +2382,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "contract_baseline",
-      "sha256": "f76cb569bec7c57cdbabbb482e3871c11270032669c1731b5d5e13f729503601"
+      "sha256": "7eb4e65e8b317e3211aca315040de347453235e3e3314c6da367ba92bca107e4"
     },
     {
       "checks": [
@@ -2378,7 +2409,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "compatibility_verification",
-      "sha256": "26138ad9aee33b160092550461d379e580984efa1ecd33245df3677d5985b1d5"
+      "sha256": "4a04220e2651f2134dfa1388cc508a5e0753fedb547d9585e10fd4c01806a485"
     },
     {
       "checks": [
@@ -2398,7 +2429,7 @@
       "protocol": "public_contract_compatibility_v1",
       "required": true,
       "role": "protocol",
-      "sha256": "f8bafb6e6c70185b853a641e1150c4fce0e99f9351c9d2c2dd61a3cdd4f21726"
+      "sha256": "00d7cc0229fcdd80cfcd74ae2744121675327e323a61ee9f6191055ecfa1dfe8"
     },
     {
       "checks": [
@@ -2464,6 +2495,56 @@
       "required": true,
       "role": "synthetic_incident_response_matrix",
       "sha256": "5ca8f80422e1bccf0eeec276ce0353fcdfa784e21941caf23bc596703e661b7a"
+    },
+    {
+      "checks": [
+        {
+          "equals": "formal_validation_dress_rehearsal_v1",
+          "pointer": "/protocol"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [],
+      "evidence_id": "formal_dress_rehearsal_protocol",
+      "format": "json",
+      "path": "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
+      "protocol": "formal_validation_dress_rehearsal_v1",
+      "required": true,
+      "role": "synthetic_rehearsal_protocol",
+      "sha256": "75263f644adcf5415d74cce820c73b19695a6921fc971223a991fb35755b000e"
+    },
+    {
+      "checks": [
+        {
+          "equals": "real_external_evidence_still_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/real_blocker_count"
+        },
+        {
+          "equals": true,
+          "pointer": "/synthetic_rehearsal_only"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "dependencies": [
+        "formal_dress_rehearsal_protocol"
+      ],
+      "evidence_id": "formal_dress_rehearsal_readiness",
+      "format": "json",
+      "path": "benchmark/formal_validation_dress_rehearsal_v1_evidence/readiness.json",
+      "protocol": "formal_validation_dress_rehearsal_v1",
+      "required": true,
+      "role": "synthetic_rehearsal_real_blocker_boundary",
+      "sha256": "d29da606056d50317e6fcf125d1ae30fd99238fc1edca0a1a2f969a2f0ec4360"
     },
     {
       "checks": [
@@ -3048,6 +3129,29 @@
       ],
       "expected_exit_code": 3,
       "gate_id": "formal_validation_preregistration",
+      "timeout_seconds": 60
+    },
+    {
+      "arguments": [
+        "scripts/check_formal_validation_dress_rehearsal.py",
+        "audit-readiness"
+      ],
+      "checks": [
+        {
+          "equals": "real_external_evidence_still_blocked",
+          "pointer": "/status"
+        },
+        {
+          "equals": 3,
+          "pointer": "/real_blocker_count"
+        },
+        {
+          "equals": false,
+          "pointer": "/formal_validation_complete"
+        }
+      ],
+      "expected_exit_code": 3,
+      "gate_id": "formal_validation_dress_rehearsal",
       "timeout_seconds": 60
     }
   ],

@@ -2,6 +2,7 @@
   "artifact_contracts": {
     "clearance": "benchmark/formal_validation_clearance_v1_protocol.json",
     "external_scorer_handoff": "benchmark/external_scorer_handoff_v1_protocol.json",
+    "formal_validation_dress_rehearsal": "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
     "formal_validation_preregistration": "benchmark/formal_validation_preregistration_v1_protocol.json",
     "human_annotation_delivery": "benchmark/human_annotation_delivery_v1_protocol.json",
     "readiness": "benchmark/validation_readiness_bundle_v1_contract.json"
@@ -88,6 +89,40 @@
         {"arguments": ["audit-readiness"], "command": "audit-readiness", "expected_exit_code": 3, "probe_id": "audit_readiness"}
       ]
     },
+    "formal_validation_dress_rehearsal": {
+      "exit_codes": [0, 2, 3, 4],
+      "path": "scripts/check_formal_validation_dress_rehearsal.py",
+      "probes": [
+        {
+          "arguments": [
+            "--repository-root",
+            "{temp}",
+            "run"
+          ],
+          "command": "run",
+          "expected_exit_code": 2,
+          "probe_id": "run_fail_closed"
+        },
+        {
+          "arguments": ["verify"],
+          "command": "verify",
+          "expected_exit_code": 0,
+          "probe_id": "verify"
+        },
+        {
+          "arguments": ["simulate-failure"],
+          "command": "simulate-failure",
+          "expected_exit_code": 0,
+          "probe_id": "simulate_failure"
+        },
+        {
+          "arguments": ["audit-readiness"],
+          "command": "audit-readiness",
+          "expected_exit_code": 3,
+          "probe_id": "audit_readiness"
+        }
+      ]
+    },
     "human_annotation_delivery": {
       "exit_codes": [0, 2, 3, 4],
       "path": "scripts/check_human_annotation_delivery.py",
@@ -122,6 +157,7 @@
     "docs/evaluation.md",
     "docs/external-scorer-handoff.md",
     "docs/formal-validation-clearance.md",
+    "docs/formal-validation-dress-rehearsal.md",
     "docs/human-annotation-delivery.md",
     "docs/validation-readiness.md"
   ],

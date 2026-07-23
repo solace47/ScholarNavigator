@@ -1,0 +1,42 @@
+{
+  "blocked_evidence_ids": [
+    "formal_dress_rehearsal_readiness"
+  ],
+  "claim_component_bindings": {
+    "architecture_formal_validation_dress_rehearsal_ready": [
+      "formal_validation_dress_rehearsal"
+    ]
+  },
+  "components": [
+    {
+      "component_id": "formal_validation_dress_rehearsal",
+      "files": [
+        "benchmark/formal_validation_dress_rehearsal_v1_evidence/failure_matrix.json",
+        "benchmark/formal_validation_dress_rehearsal_v1_evidence/handoff_checklist.json",
+        "benchmark/formal_validation_dress_rehearsal_v1_evidence/readiness.json",
+        "benchmark/formal_validation_dress_rehearsal_v1_evidence/rehearsal.json",
+        "benchmark/formal_validation_dress_rehearsal_v1_protocol.json",
+        "benchmark/validation_evidence_freshness_v1_addenda.json",
+        "docs/formal-validation-dress-rehearsal.md",
+        "scripts/check_formal_validation_dress_rehearsal.py",
+        "src/scholar_agent/evaluation/formal_validation_dress_rehearsal.py"
+      ],
+      "kind": "synthetic_formal_validation_end_to_end_rehearsal"
+    }
+  ],
+  "evidence_component_bindings": {
+    "formal_dress_rehearsal_protocol": [
+      "formal_validation_dress_rehearsal"
+    ],
+    "formal_dress_rehearsal_readiness": [
+      "formal_validation_dress_rehearsal"
+    ]
+  },
+  "gate_component_bindings": {
+    "formal_validation_dress_rehearsal": [
+      "formal_validation_dress_rehearsal"
+    ]
+  },
+  "protocol": "validation_evidence_freshness_v1_addenda",
+  "schema_version": "1"
+}

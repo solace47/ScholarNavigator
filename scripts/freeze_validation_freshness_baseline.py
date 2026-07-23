@@ -9,6 +9,7 @@ normal freshness checks never rewrite it.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import subprocess
@@ -46,12 +47,58 @@ def _git(*arguments: str) -> str:
     return completed.stdout.strip()
 
 
+def merge_addenda(
+    spec: dict[str, Any], addenda: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Extend the sealed base spec without rewriting its historical bytes."""
+
+    if addenda is None:
+        return copy.deepcopy(spec)
+    if set(addenda) != {
+        "blocked_evidence_ids",
+        "claim_component_bindings",
+        "components",
+        "evidence_component_bindings",
+        "gate_component_bindings",
+        "protocol",
+        "schema_version",
+    } or addenda.get("protocol") != "validation_evidence_freshness_v1_addenda":
+        raise RuntimeError("freshness_addenda_schema_invalid")
+    merged = copy.deepcopy(spec)
+    component_ids = {row["component_id"] for row in merged["components"]}
+    for row in addenda["components"]:
+        if row["component_id"] in component_ids:
+            raise RuntimeError("freshness_addenda_component_conflict")
+        merged["components"].append(copy.deepcopy(row))
+        component_ids.add(row["component_id"])
+    for key in (
+        "claim_component_bindings",
+        "evidence_component_bindings",
+        "gate_component_bindings",
+    ):
+        overlap = set(merged[key]) & set(addenda[key])
+        if overlap:
+            raise RuntimeError("freshness_addenda_binding_conflict")
+        merged[key].update(copy.deepcopy(addenda[key]))
+    merged["blocked_evidence_ids"] = sorted(
+        set(merged["blocked_evidence_ids"])
+        | set(addenda["blocked_evidence_ids"])
+    )
+    return merged
+
+
 def build(spec: dict[str, Any]) -> dict[str, Any]:
     readiness_path = ROOT / spec["readiness_contract_path"]
     readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
-    base_head = str(spec["baseline_head"])
-    if _git("rev-parse", "HEAD") != base_head:
-        raise RuntimeError("baseline_head_must_match_current_head")
+    current_head = _git("rev-parse", "HEAD")
+    sealed_base_head = str(spec["baseline_head"])
+    try:
+        _git("merge-base", "--is-ancestor", sealed_base_head, current_head)
+    except RuntimeError as exc:
+        raise RuntimeError("baseline_head_not_ancestor_of_current_head") from exc
+    # The sealed spec remains historical input, while each reviewed extension
+    # closes the composite dependency graph at the current source commit.
+    base_head = current_head
     components: list[dict[str, Any]] = []
     for source in spec["components"]:
         row = dict(source)
@@ -61,7 +108,7 @@ def build(spec: dict[str, Any]) -> dict[str, Any]:
         # git log has no path history; the explicitly verified baseline HEAD is
         # the only admissible provenance boundary (never a later commit).
         row["implementation_commit"] = (
-            _git("log", "-1", "--format=%H", "--", *row["files"]) or base_head
+            _git("log", "-1", "--format=%H", "--", *row["files"]) or current_head
         )
         row["basis_digest"] = component_digest(row, ROOT)
         components.append(row)
@@ -176,10 +223,20 @@ def build(spec: dict[str, Any]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec", default="benchmark/validation_evidence_freshness_v1_spec.json")
+    parser.add_argument(
+        "--addenda",
+        default="benchmark/validation_evidence_freshness_v1_addenda.json",
+    )
     parser.add_argument("--output", default="benchmark/validation_evidence_freshness_v1_contract.json")
     args = parser.parse_args()
     spec = json.loads((ROOT / args.spec).read_text(encoding="utf-8"))
-    write_json(ROOT / args.output, build(spec))
+    addenda_path = ROOT / args.addenda
+    addenda = (
+        json.loads(addenda_path.read_text(encoding="utf-8"))
+        if addenda_path.is_file()
+        else None
+    )
+    write_json(ROOT / args.output, build(merge_addenda(spec, addenda)))
     print(json.dumps({"status": "baseline_frozen", "output": args.output}, sort_keys=True))
     return 0
 

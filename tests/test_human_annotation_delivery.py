@@ -114,3 +114,32 @@ def test_synthetic_round_trip_and_real_readiness(delivery):
     assert real["exit_code"] == 3
     assert real["state"] == "blocked_awaiting_real_annotators"
     assert real["statistics"] is None
+
+
+def test_synthetic_round_trip_exposes_read_only_rehearsal_hooks(delivery):
+    protocol, _package = delivery
+    observed = []
+    temporary_roots = []
+
+    def locked(base: Path, annotator_a: Path, annotator_b: Path) -> None:
+        temporary_roots.append(base)
+        observed.append(("locked", annotator_a.is_file(), annotator_b.is_file()))
+
+    def adjudicated(base: Path, gate: dict[str, object]) -> None:
+        assert base == temporary_roots[0]
+        observed.append(
+            ("adjudicated", gate["state"], gate["statistics"] is not None)
+        )
+
+    dry = synthetic_dry_run(
+        protocol,
+        repository_root=ROOT,
+        locked_submission_callback=locked,
+        adjudication_callback=adjudicated,
+    )
+    assert dry["synthetic_gate_state"] == "validated"
+    assert observed == [
+        ("locked", True, True),
+        ("adjudicated", "validated", True),
+    ]
+    assert not temporary_roots[0].exists()

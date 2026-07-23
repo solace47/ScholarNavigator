@@ -408,3 +408,9 @@ quarantine 与 clearance 契约。确定性 seal 绑定 1000 条身份/顺序、
 `invalid_post_evidence_change`；只有机器证明语义摘要不变的文档勘误可保留封印。
 quarantine 与 clearance CLI 均先验证当前 seal，standalone auditor 只发布脱敏封印摘要。
 这项能力只防止后验分析污染，不生成质量指标，也不解除三项正式验证阻断。
+
+## 正式验证全链路合成彩排
+
+`formal_validation_dress_rehearsal_v1` 在独立 `synthetic_rehearsal_only` 临时命名空间中协调既有 Full1000、来源取证、灾难恢复、人工标注、外部 scorer、隔离、freshness、撤销、clearance 和 standalone 门禁。协调层只保存阶段摘要与哈希，不保存合成标签、scorer 指标值、test-only receipt 或运行目录。
+
+彩排严格保持预注册→授权→执行→intake→解盲/评分→隔离→freshness→test-only clearance→交接顺序，并以失败矩阵验证乱序、部分证据、后验修改、重复签发和撤销传播。它证明工程链路可闭合，不改变真实 readiness、默认策略、正式账本或三项外部阻断。详见 [`docs/formal-validation-dress-rehearsal.md`](formal-validation-dress-rehearsal.md)。

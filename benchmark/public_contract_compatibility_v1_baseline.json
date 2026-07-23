@@ -464,6 +464,272 @@
         "schema_version": "1"
       }
     },
+    "formal_validation_dress_rehearsal": {
+      "recursive_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_outputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bindings": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contract": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "contract",
+                "path",
+                "role",
+                "sha256"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "execution": {
+            "additionalProperties": false,
+            "properties": {
+              "academic_api_request_count": {
+                "type": "integer"
+              },
+              "gold_or_qrels_loaded": {
+                "type": "boolean"
+              },
+              "llm_request_count": {
+                "type": "integer"
+              },
+              "network_request_count": {
+                "type": "integer"
+              },
+              "quality_metric_count": {
+                "type": "integer"
+              },
+              "snapshot_write_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "academic_api_request_count",
+              "gold_or_qrels_loaded",
+              "llm_request_count",
+              "network_request_count",
+              "quality_metric_count",
+              "snapshot_write_count"
+            ],
+            "type": "object"
+          },
+          "failure_scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "formal_validation_complete": {
+            "type": "boolean"
+          },
+          "handoff_steps": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "expected_exit_codes": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "failure_rollback": {
+                  "type": "string"
+                },
+                "human_checkpoint": {
+                  "type": "string"
+                },
+                "input_prerequisites": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "step": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "command",
+                "expected_exit_codes",
+                "failure_rollback",
+                "human_checkpoint",
+                "input_prerequisites",
+                "step"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "human": {
+            "additionalProperties": false,
+            "properties": {
+              "annotator_count": {
+                "type": "integer"
+              },
+              "item_count": {
+                "type": "integer"
+              },
+              "statistics_persisted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "annotator_count",
+              "item_count",
+              "statistics_persisted"
+            ],
+            "type": "object"
+          },
+          "namespace": {
+            "additionalProperties": false,
+            "properties": {
+              "identity_prefix": {
+                "type": "string"
+              },
+              "persist_labels": {
+                "type": "boolean"
+              },
+              "persist_receipts": {
+                "type": "boolean"
+              },
+              "persist_run_artifacts": {
+                "type": "boolean"
+              },
+              "temporary_directory_prefix": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "identity_prefix",
+              "persist_labels",
+              "persist_receipts",
+              "persist_run_artifacts",
+              "temporary_directory_prefix"
+            ],
+            "type": "object"
+          },
+          "population": {
+            "additionalProperties": false,
+            "properties": {
+              "query_count": {
+                "type": "integer"
+              },
+              "shard_count": {
+                "type": "integer"
+              },
+              "start_mode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "query_count",
+              "shard_count",
+              "start_mode"
+            ],
+            "type": "object"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "protocol_sha256": {
+            "type": "string"
+          },
+          "real_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "scorer": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_namespace": {
+                "type": "string"
+              },
+              "metric_values_persisted": {
+                "type": "boolean"
+              },
+              "official_schema_inferred": {
+                "type": "boolean"
+              },
+              "package_type": {
+                "type": "string"
+              },
+              "query_count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "metric_namespace",
+              "metric_values_persisted",
+              "official_schema_inferred",
+              "package_type",
+              "query_count"
+            ],
+            "type": "object"
+          },
+          "source_commit": {
+            "type": "string"
+          },
+          "stage_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowed_outputs",
+          "bindings",
+          "execution",
+          "failure_scenarios",
+          "formal_validation_complete",
+          "handoff_steps",
+          "human",
+          "namespace",
+          "population",
+          "protocol",
+          "protocol_sha256",
+          "real_blockers",
+          "schema_version",
+          "scorer",
+          "source_commit",
+          "stage_order"
+        ],
+        "type": "object"
+      },
+      "strict_unknown_fields": true,
+      "versions": {
+        "protocol": "formal_validation_dress_rehearsal_v1",
+        "schema_version": "1"
+      }
+    },
     "formal_validation_preregistration": {
       "recursive_schema": {
         "additionalProperties": false,
@@ -5922,6 +6188,453 @@
         }
       }
     },
+    "formal_validation_dress_rehearsal": {
+      "arguments": [
+        {
+          "names": [
+            "--handoff-output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--output"
+          ],
+          "options": {}
+        },
+        {
+          "names": [
+            "--protocol"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--report"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--report"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--report"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        },
+        {
+          "names": [
+            "--repository-root"
+          ],
+          "options": {
+            "default": "<dynamic>"
+          }
+        }
+      ],
+      "commands": [
+        "audit-readiness",
+        "run",
+        "simulate-failure",
+        "verify"
+      ],
+      "exit_codes": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "probes": {
+        "audit_readiness": {
+          "arguments": [
+            "audit-readiness"
+          ],
+          "command": "audit-readiness",
+          "exit_code": 3,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "controls_ready": {
+                "type": "boolean"
+              },
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "academic_api_request_count": {
+                    "type": "integer"
+                  },
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "academic_api_request_count",
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_blocker_count": {
+                "type": "integer"
+              },
+              "real_blockers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "rehearsal_report_sha256": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "synthetic_rehearsal_only": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "controls_ready",
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "real_blocker_count",
+              "real_blockers",
+              "rehearsal_report_sha256",
+              "schema_version",
+              "status",
+              "synthetic_rehearsal_only"
+            ],
+            "type": "object"
+          },
+          "probe_id": "audit_readiness",
+          "top_level_fields": [
+            "controls_ready",
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "real_blocker_count",
+            "real_blockers",
+            "rehearsal_report_sha256",
+            "schema_version",
+            "status",
+            "synthetic_rehearsal_only"
+          ]
+        },
+        "run_fail_closed": {
+          "arguments": [
+            "--repository-root",
+            "{temp}",
+            "run"
+          ],
+          "command": "run",
+          "exit_code": 2,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "error_code": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "error_code",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "schema_version",
+              "status"
+            ],
+            "type": "object"
+          },
+          "probe_id": "run_fail_closed",
+          "top_level_fields": [
+            "error_code",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "schema_version",
+            "status"
+          ]
+        },
+        "simulate_failure": {
+          "arguments": [
+            "simulate-failure"
+          ],
+          "command": "simulate-failure",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "academic_api_request_count": {
+                    "type": "integer"
+                  },
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "academic_api_request_count",
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "real_state_mutation_count": {
+                "type": "integer"
+              },
+              "report_sha256": {
+                "type": "string"
+              },
+              "scenario_count": {
+                "type": "integer"
+              },
+              "scenarios": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "rejected": {
+                      "type": "boolean"
+                    },
+                    "scenario": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "rejected",
+                    "scenario"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "synthetic_rehearsal_only": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "real_state_mutation_count",
+              "report_sha256",
+              "scenario_count",
+              "scenarios",
+              "schema_version",
+              "status",
+              "synthetic_rehearsal_only"
+            ],
+            "type": "object"
+          },
+          "probe_id": "simulate_failure",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "real_state_mutation_count",
+            "report_sha256",
+            "scenario_count",
+            "scenarios",
+            "schema_version",
+            "status",
+            "synthetic_rehearsal_only"
+          ]
+        },
+        "verify": {
+          "arguments": [
+            "verify"
+          ],
+          "command": "verify",
+          "exit_code": 0,
+          "machine_output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "execution": {
+                "additionalProperties": false,
+                "properties": {
+                  "academic_api_request_count": {
+                    "type": "integer"
+                  },
+                  "gold_or_qrels_loaded": {
+                    "type": "boolean"
+                  },
+                  "llm_request_count": {
+                    "type": "integer"
+                  },
+                  "network_request_count": {
+                    "type": "integer"
+                  },
+                  "quality_metric_count": {
+                    "type": "integer"
+                  },
+                  "snapshot_write_count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "academic_api_request_count",
+                  "gold_or_qrels_loaded",
+                  "llm_request_count",
+                  "network_request_count",
+                  "quality_metric_count",
+                  "snapshot_write_count"
+                ],
+                "type": "object"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "formal_validation_complete": {
+                "type": "boolean"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "report_sha256": {
+                "type": "string"
+              },
+              "schema_version": {
+                "type": "string"
+              },
+              "stage_count": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "synthetic_rehearsal_only": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "execution",
+              "exit_code",
+              "formal_validation_complete",
+              "protocol",
+              "report_sha256",
+              "schema_version",
+              "stage_count",
+              "status",
+              "synthetic_rehearsal_only"
+            ],
+            "type": "object"
+          },
+          "probe_id": "verify",
+          "top_level_fields": [
+            "execution",
+            "exit_code",
+            "formal_validation_complete",
+            "protocol",
+            "report_sha256",
+            "schema_version",
+            "stage_count",
+            "status",
+            "synthetic_rehearsal_only"
+          ]
+        }
+      }
+    },
     "formal_validation_preregistration": {
       "arguments": [
         {
@@ -7651,12 +8364,13 @@
       }
     }
   },
-  "content_sha256": "889c90ca81f0b838ea312a2b8f3727394190050cd946be90543bb40ee16bb8b8",
+  "content_sha256": "15654fc6a7145c7493e48d8bc7a310415d6692c2a8f5edf1ac1c2ba0d8474056",
   "documentation": {
-    "docs/architecture.md": "90ce34cd5f944901066de31c9d96987b2475393c077b557d7d85b1eedbcd6610",
+    "docs/architecture.md": "c6d3d8cc2ad45c74405af0ff9dad508eca688f86a9bf76872271bd0562b6eef6",
     "docs/evaluation.md": "a662a607b02acdf480ca9c3845f0eb1f76be06eedb46d47c1ad888dcf432bf11",
     "docs/external-scorer-handoff.md": "c7c3faf98749b156e9235c2a1f6a3e87c2348d2485309e1018e445b873250316",
     "docs/formal-validation-clearance.md": "d299bb810616aac93cf5d1c28798d3720a329bf105628322df165abb8f33321a",
+    "docs/formal-validation-dress-rehearsal.md": "617351ef2270d177c8b1abf95fcf181279d316e614d5a343b3b17d58d495ca0d",
     "docs/human-annotation-delivery.md": "8e8828786ff7f9e5bc17e567bf927c9b03f39b903200a69fb07c6eb58d30368c",
     "docs/validation-readiness.md": "b51e324f10b2923d4615a4033519d608cb67035d8d7b88addda0a4896a06d62e"
   },

@@ -8,6 +8,7 @@ import random
 import re
 import tempfile
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -260,12 +261,20 @@ def _make_submission(package_root: Path, side: str, labels: list[str], path: Pat
     payload["labels_sha256"] = submission_hash(payload); write_json(path, payload)
 
 
-def synthetic_dry_run(protocol: Mapping[str, Any], *, repository_root: Path) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory() as td:
+def synthetic_dry_run(
+    protocol: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    locked_submission_callback: Callable[[Path, Path, Path], None] | None = None,
+    adjudication_callback: Callable[[Path, Mapping[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="synthetic_rehearsal_only-human-") as td:
         base = Path(td); package = base / "package"; prepare_delivery(protocol, repository_root=repository_root, output=package)
         a = base / "a.json"; b = base / "b.json"
         _make_submission(package, "A", [LABELS[0], LABELS[1], LABELS[2]], a)
         _make_submission(package, "B", [LABELS[0], LABELS[1], LABELS[3]], b)
+        if locked_submission_callback is not None:
+            locked_submission_callback(base, a, b)
         recovered = ingest(protocol, package_root=package, annotator_a=a, annotator_b=b)
         adj_protocol = load_adjudication_protocol(repository_root / protocol["adjudication_protocol"]["path"], repository_root=repository_root)
         context = validate_package(adj_protocol, repository_root=repository_root)
@@ -287,6 +296,8 @@ def synthetic_dry_run(protocol: Mapping[str, Any], *, repository_root: Path) -> 
         write_json(paths["prior"], prior.model_dump(mode="json"))
         gate = run_human_precision_gate(adj_protocol, repository_root=repository_root, annotator_one_path=paths["one"], annotator_two_path=paths["two"], adjudication_path=paths["adjudication"], prior_resolved_path=paths["prior"])
         if gate["state"] != "validated": raise DeliveryViolation("synthetic_adjudication_gate_not_validated")
+        if adjudication_callback is not None:
+            adjudication_callback(base, gate)
     return {"schema_version": "1", "contract": CONTRACT, "state": "delivery_ready", "exit_code": 0, "synthetic_item_count": 471, "synthetic_gate_state": "validated", "synthetic_artifacts_persisted": False, "statistics": None, "execution": protocol["execution"]}
 
 

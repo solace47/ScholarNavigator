@@ -1,13 +1,13 @@
 {
-  "claim_count": 27,
-  "claim_evidence_coverage_count": 27,
+  "claim_count": 28,
+  "claim_evidence_coverage_count": 28,
   "claim_evidence_coverage_rate": 1.0,
   "claim_sources": [
     {
       "document_id": "architecture",
       "path": "docs/architecture.md",
-      "sha256": "2a9c0b0f115ee62c6c51a929b98b2f7d45660ad6f82484a3a720bc141ddf8a0c",
-      "size": 43612
+      "sha256": "2b2b8a586a5309ab04d7230547e89f4f5ce60637386e3fdfd8c045a1b8c0e29d",
+      "size": 44450
     },
     {
       "document_id": "contest_requirements",
@@ -102,6 +102,18 @@
       ],
       "scope": "engineering_capability",
       "statement": "Formal validation clearance is controlled by strict machine-evidence predicates and a fail-closed receipt state machine.",
+      "status": "verified"
+    },
+    {
+      "boundary": "The rehearsal uses synthetic-only inputs and test-only clearance; it persists no labels, scorer values, receipt, or run artifact and cannot satisfy any real external blocker.",
+      "claim_id": "architecture_formal_validation_dress_rehearsal_ready",
+      "document_id": "architecture",
+      "evidence_ids": [
+        "formal_dress_rehearsal_protocol",
+        "formal_dress_rehearsal_readiness"
+      ],
+      "scope": "engineering_capability",
+      "statement": "The preregistration, Full1000 execution, human adjudication, scorer sandbox, quarantine, freshness, clearance, revocation, and standalone handoff gates form a deterministic synthetic end-to-end rehearsal.",
       "status": "verified"
     },
     {
@@ -377,7 +389,7 @@
     }
   ],
   "document_coverage": {
-    "architecture": 19,
+    "architecture": 20,
     "contest_requirements": 2,
     "evaluation": 5,
     "readme": 1
@@ -388,6 +400,6 @@
     "blocked": 3,
     "internal_only": 8,
     "not_applicable": 1,
-    "verified": 15
+    "verified": 16
   }
 }
